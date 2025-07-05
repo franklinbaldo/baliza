@@ -150,7 +150,11 @@ def upload_to_internet_archive(
     ia_secret_key = os.getenv("IA_SECRET")
 
     if not ia_access_key or not ia_secret_key:
-        _log_warning("Internet Archive credentials (IA_KEY, IA_SECRET) not found. Skipping upload.")
+        _log_warning(
+            "Internet Archive credentials (IA_KEY, IA_SECRET) not found in environment variables. "
+            "Upload to Internet Archive will be skipped. "
+            "Please set these variables if you intend to upload."
+        )
         return {"upload_status": "skipped_no_credentials", "ia_identifier": ia_identifier, "ia_item_url": f"https://archive.org/details/{ia_identifier}"} # URL is potential
 
     # Check if item already exists (optional, good for preventing re-uploads if not desired)

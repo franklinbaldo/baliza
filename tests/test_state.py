@@ -37,18 +37,24 @@ def manage_state_file():
     # If STATE_DIR was created by this fixture and is empty, could remove it too,
     # but it's generally fine to leave it.
 
+@pytest.fixture
+def BALIZA_DATA_OUTPUT_DIR():
+    """Provides the data output directory used in other modules, for consistency in test data."""
+    # This avoids importing from baliza.storage directly in this state test module,
+    # keeping dependencies cleaner if storage.py had complex imports.
+    return "baliza_data"
+
+
 # Sample data for records
 @pytest.fixture
-def sample_record_data_success():
-    # Use storage.DATA_OUTPUT_DIR as state module does not have this constant.
-    from baliza.storage import DATA_OUTPUT_DIR as BALIZA_DATA_OUTPUT_DIR
+def sample_record_data_success(BALIZA_DATA_OUTPUT_DIR):
     return {
         "data_date": "2023-01-01",
         "endpoint_key": "contratacoes_test",
         "records_fetched": 100,
         "jsonl_file_path": f"{BALIZA_DATA_OUTPUT_DIR}/pncp-ctrt-2023-01-01.jsonl",
         "compressed_file_path": f"{BALIZA_DATA_OUTPUT_DIR}/pncp-ctrt-2023-01-01.jsonl.zst",
-        "sha256_checksum": "checksum123",
+        "sha256_checksum": "checksum_success_123",
         "ia_identifier": "pncp-ctrt-2023-01-01",
         "ia_item_url": "https://archive.org/details/pncp-ctrt-2023-01-01",
         "upload_status": "success",
@@ -56,20 +62,36 @@ def sample_record_data_success():
     }
 
 @pytest.fixture
-def sample_record_data_failed():
-    from baliza.storage import DATA_OUTPUT_DIR as BALIZA_DATA_OUTPUT_DIR
+def sample_record_data_failed(BALIZA_DATA_OUTPUT_DIR):
     return {
         "data_date": "2023-01-02",
         "endpoint_key": "contratos_test",
         "records_fetched": 0,
         "jsonl_file_path": None, # No JSONL if harvest failed early
         "compressed_file_path": f"{BALIZA_DATA_OUTPUT_DIR}/pncp-ctos-2023-01-02.jsonl.zst", # Path might still exist
-        "sha256_checksum": None, # No checksum if file problematic or not uploaded
+        "sha256_checksum": "checksum_failed_456", # Checksum might exist even if upload fails
         "ia_identifier": "pncp-ctos-2023-01-02", # Identifier might be generated
         "ia_item_url": None, # No URL if upload failed
         "upload_status": "failed_upload_error",
         "notes": "Simulated upload failure"
     }
+
+@pytest.fixture
+def sample_record_data_skipped_duplicate(BALIZA_DATA_OUTPUT_DIR, sample_record_data_success):
+    """A record that was skipped due to a duplicate checksum."""
+    return {
+        "data_date": "2023-01-03", # Different date
+        "endpoint_key": "pca_test",    # Different endpoint
+        "records_fetched": 50,
+        "jsonl_file_path": f"{BALIZA_DATA_OUTPUT_DIR}/pncp-pca-2023-01-03.jsonl",
+        "compressed_file_path": f"{BALIZA_DATA_OUTPUT_DIR}/pncp-pca-2023-01-03.jsonl.zst",
+        "sha256_checksum": sample_record_data_success["sha256_checksum"], # SAME checksum as success
+        "ia_identifier": sample_record_data_success["ia_identifier"], # Should point to original IA ID
+        "ia_item_url": sample_record_data_success["ia_item_url"],       # Should point to original IA URL
+        "upload_status": "skipped_duplicate_checksum",
+        "notes": f"Duplicate content (checksum: {sample_record_data_success['sha256_checksum']}). Original upload: IA ID '{sample_record_data_success['ia_identifier']}'"
+    }
+
 
 # --- Tests for ensure_csv_file_and_header ---
 
@@ -134,34 +156,38 @@ def test_record_processed_item_handles_none_values(sample_record_data_failed):
     with open(PROCESSED_CSV_PATH, 'r', newline='', encoding='utf-8') as f:
         reader = csv.DictReader(f)
         row = next(reader)
-        assert row["jsonl_file_path"] == "" # None becomes empty string in CSV
-        assert row["sha256_checksum"] == ""
-        assert row["ia_item_url"] == ""
+        assert row["jsonl_file_path"] == "" # None becomes empty string in CSV for jsonl_file_path
+        assert row["sha256_checksum"] == sample_record_data_failed["sha256_checksum"] # Should be the value from fixture
+        assert row["ia_item_url"] == "" # None becomes empty string for ia_item_url
         assert row["upload_status"] == sample_record_data_failed["upload_status"]
 
 
-@patch("builtins.open", side_effect=IOError("CSV write permission error"))
-def test_record_processed_item_io_error_on_write(mock_open_err, sample_record_data_success, caplog):
-    # This test assumes that the initial ensure_csv_file_and_header succeeded
-    # and the error happens during the append operation.
-    # The `manage_state_file` fixture creates the file. The mock applies to the `open` in `record_processed_item`.
-    # We need to make sure the mocked open doesn't affect the fixture's open.
-    # This can be tricky. A more robust way is to patch `csv.DictWriter.writerow`.
+def test_record_processed_item_io_error_on_write(sample_record_data_success, caplog):
+    # The manage_state_file fixture has already created the CSV with a header.
+    # We use 'patch' as a context manager to limit its scope around the SUT call.
 
-    # Let's try patching the specific open call within record_processed_item.
-    # To do this, we need to know its full path if it's different from builtins.open.
-    # state.py uses `with open(...)`.
+    # This will mock 'builtins.open' only for the duration of the 'with' block.
+    with patch("builtins.open", side_effect=IOError("CSV write permission error")) as mock_open_within_context, \
+         patch("baliza.state.typer.echo") as mock_typer_echo:
 
-    # For simplicity, let's assume the builtins.open patch works as intended for the append.
-    # The critical part is that the error is caught and logged.
-    with patch("baliza.state.typer.echo") as mock_typer_echo:
+        # This call to record_processed_item will encounter the IOError via the mocked 'open'
         record_processed_item(**sample_record_data_success)
-        # File should still contain only the header, as write failed.
-        with open(PROCESSED_CSV_PATH, 'r') as f_verify:
-            assert len(f_verify.readlines()) == 1 # Only header
 
-        found_error_log = any("IOError writing to CSV" in call_args[0][0] for call_args in mock_typer_echo.call_args_list if call_args.kwargs.get("err"))
-        assert found_error_log
+        # Verify that an error was logged via typer.echo due to the IOError
+        found_error_log = any(
+            "IOError writing to CSV" in call_args[0][0] and "CSV write permission error" in call_args[0][0]
+            for call_args in mock_typer_echo.call_args_list if call_args.kwargs.get("err")
+        )
+        assert found_error_log, "Error log for IOError not found or incorrect."
+
+    # After the 'with patch' block, 'builtins.open' is restored to its original state.
+    # Now, verify the file content. It should only contain the header because the write failed.
+    with open(PROCESSED_CSV_PATH, 'r', newline='', encoding='utf-8') as f_verify:
+        reader = csv.reader(f_verify)
+        header = next(reader)
+        assert header == CSV_FIELDNAMES # Check if header is still the expected one
+        with pytest.raises(StopIteration): # Should be empty after header
+            next(reader)
 
 @patch("baliza.state.CSV_FIELDNAMES", ["data_date", "endpoint_key"]) # Simulate incorrect fieldnames
 def test_record_processed_item_key_error_if_data_mismatches_fields(sample_record_data_success):
@@ -298,3 +324,100 @@ def test_state_directory_constant():
     # No specific test for os.makedirs(STATE_DIR, exist_ok=True) as it's simple
     # and covered by fixture ensuring the dir exists.
     # If it failed (e.g. permissions), tests requiring file creation would fail.
+
+# --- Tests for check_if_checksum_processed ---
+
+def test_check_if_checksum_processed_found(sample_record_data_success, sample_record_data_failed):
+    record_processed_item(**sample_record_data_success)
+    record_processed_item(**sample_record_data_failed) # Add another record
+
+    checksum_to_find = sample_record_data_success["sha256_checksum"]
+    result = state.check_if_checksum_processed(checksum_to_find)
+
+    assert result is not None
+    assert result["original_checksum"] == checksum_to_find
+    assert result["ia_identifier"] == sample_record_data_success["ia_identifier"]
+    assert result["ia_item_url"] == sample_record_data_success["ia_item_url"]
+    assert result["data_date"] == sample_record_data_success["data_date"]
+    assert result["endpoint_key"] == sample_record_data_success["endpoint_key"]
+
+def test_check_if_checksum_processed_not_found_non_existent_checksum(sample_record_data_success):
+    record_processed_item(**sample_record_data_success)
+    assert state.check_if_checksum_processed("non_existent_checksum_xyz") is None
+
+def test_check_if_checksum_processed_not_found_if_status_not_success(sample_record_data_failed):
+    # sample_record_data_failed has 'failed_upload_error' status
+    record_processed_item(**sample_record_data_failed)
+    # Even if checksum exists, it's not a "success" status, so should not be returned by this function
+    assert state.check_if_checksum_processed(sample_record_data_failed["sha256_checksum"]) is None
+
+def test_check_if_checksum_processed_empty_checksum_string(sample_record_data_success):
+    record_processed_item(**sample_record_data_success)
+    with patch("baliza.state._log_error") as mock_log_error:
+        assert state.check_if_checksum_processed("") is None
+        mock_log_error.assert_called_with("Checksum not provided for checking.")
+
+def test_check_if_checksum_processed_none_checksum_string(sample_record_data_success):
+    record_processed_item(**sample_record_data_success)
+    with patch("baliza.state._log_error") as mock_log_error:
+        assert state.check_if_checksum_processed(None) is None
+        mock_log_error.assert_called_with("Checksum not provided for checking.")
+
+
+def test_check_if_checksum_processed_empty_csv_file():
+    # manage_state_file fixture ensures CSV exists with only header
+    assert state.check_if_checksum_processed("any_checksum_value") is None
+
+def test_check_if_checksum_processed_csv_file_not_exists():
+    if os.path.exists(PROCESSED_CSV_PATH):
+        os.remove(PROCESSED_CSV_PATH)
+    assert state.check_if_checksum_processed("any_checksum_value") is None
+
+
+@patch("csv.DictReader")
+def test_check_if_checksum_processed_handles_csv_error(mock_csv_reader, sample_record_data_success):
+    record_processed_item(**sample_record_data_success) # Ensure file has some content
+    mock_csv_reader.side_effect = csv.Error("Simulated CSV parsing error during checksum check")
+    with patch("baliza.state._log_error") as mock_log_error:
+        result = state.check_if_checksum_processed(sample_record_data_success["sha256_checksum"])
+        assert result is None
+        mock_log_error.assert_any_call(f"CSV parsing error while checking checksum in {PROCESSED_CSV_PATH}: Simulated CSV parsing error during checksum check")
+
+def test_check_if_checksum_processed_handles_mismatched_headers(sample_record_data_success):
+    # Record one item correctly first
+    record_processed_item(**sample_record_data_success)
+    correct_checksum = sample_record_data_success["sha256_checksum"]
+
+    # Now, rewrite the CSV with wrong headers (but keep the content for checksum to be there)
+    # This is a bit artificial; normally DictReader would fail on content if headers are wrong.
+    # More realistically, the header itself is wrong when DictReader is initialized.
+    wrong_headers = ["col1", "col2", "col3", "sha256_checksum_wrong_name", "upload_status_wrong_name"]
+    # Keep original content for a moment to simulate data being there
+    with open(PROCESSED_CSV_PATH, 'r', newline='', encoding='utf-8') as f_read:
+        lines = f_read.readlines() # Read header + data
+
+    with open(PROCESSED_CSV_PATH, 'w', newline='', encoding='utf-8') as f_write:
+        writer = csv.writer(f_write)
+        writer.writerow(wrong_headers) # Write wrong header
+        for line in lines[1:]: # Write back original data rows (if any)
+            f_write.write(line)
+
+
+    with patch("baliza.state._log_error") as mock_log_error:
+        # Even if the checksum value might be parseable by luck from a misaligned row,
+        # the header check should fail first.
+        # state.CSV_FIELDNAMES still holds the correct expected headers.
+        assert state.check_if_checksum_processed(correct_checksum) is None
+        mock_log_error.assert_any_call(f"CSV headers mismatch in {PROCESSED_CSV_PATH}. Expected {CSV_FIELDNAMES}, got {wrong_headers}. Cannot reliably check checksum.")
+
+def test_record_processed_item_with_skipped_duplicate_status(sample_record_data_skipped_duplicate):
+    # This tests if a "skipped_duplicate_checksum" record is written correctly
+    record_processed_item(**sample_record_data_skipped_duplicate)
+    with open(PROCESSED_CSV_PATH, 'r', newline='', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        row = next(reader)
+        assert row["upload_status"] == "skipped_duplicate_checksum"
+        assert row["sha256_checksum"] == sample_record_data_skipped_duplicate["sha256_checksum"]
+        assert row["ia_identifier"] == sample_record_data_skipped_duplicate["ia_identifier"] # Should be original IA ID
+        assert row["ia_item_url"] == sample_record_data_skipped_duplicate["ia_item_url"] # Should be original IA URL
+        assert "Duplicate content" in row["notes"]

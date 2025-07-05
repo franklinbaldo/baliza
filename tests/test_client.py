@@ -82,7 +82,16 @@ def test_fetch_data_http_error_429_then_success(httpserver: HTTPServer, mocker):
 
 def test_fetch_data_all_retries_fail_503(httpserver: HTTPServer, mocker):
     endpoint_path = "/v1/test/persistent_failure_503" # Unique path
-    mock_alert_callback = mocker.patch("baliza.client.alert_slack_on_retry_failure")
+
+    # Get the original function before patching, to use as side_effect
+    # 'alert_slack_on_retry_failure' is directly imported from baliza.client
+    # original_callback_func = alert_slack_on_retry_failure
+    # mock_alert_callback = mocker.patch(
+    #     "baliza.client.alert_slack_on_retry_failure",
+    #     side_effect=original_callback_func
+    # )
+    # Instead of mocking the callback itself, mock its side effect (typer.echo)
+    mock_typer_echo = mocker.patch("baliza.client.typer.echo")
 
     for _ in range(7):
         httpserver.expect_request(endpoint_path).respond_with_data("Service Unavailable", status=503)
@@ -93,11 +102,14 @@ def test_fetch_data_all_retries_fail_503(httpserver: HTTPServer, mocker):
     assert len(httpserver.log) == 7
     assert excinfo.value.response.status_code == 503
 
-    assert mock_alert_callback.called
-    if mock_alert_callback.called:
-        retry_state_arg = mock_alert_callback.call_args[0][0]
-        assert retry_state_arg.attempt_number == 7
-        assert isinstance(retry_state_arg.outcome.exception(), requests.exceptions.HTTPError)
+    # Check if typer.echo was called by the alert_slack_on_retry_failure
+    echo_found = False
+    for call_args_tuple in mock_typer_echo.call_args_list:
+        args, _ = call_args_tuple
+        if args and "PNCP request failed ultimately after 7 attempts" in args[0] and "503" in args[0]:
+            echo_found = True
+            break
+    assert echo_found, "typer.echo with failure message not called by alert_slack_on_retry_failure"
 
 def test_fetch_data_server_timeout_504_then_success(httpserver: HTTPServer):
     endpoint_path = "/v1/test/server_timeout_504"
@@ -113,7 +125,12 @@ def test_fetch_data_server_timeout_504_then_success(httpserver: HTTPServer):
 
 def test_fetch_data_json_decode_error_retries_and_fails(httpserver: HTTPServer, mocker):
     endpoint_path = "/v1/test/json_decode_error_persistent" # Unique path
-    mock_alert_callback = mocker.patch("baliza.client.alert_slack_on_retry_failure")
+    # original_callback_func = alert_slack_on_retry_failure
+    # mock_alert_callback = mocker.patch(
+    #     "baliza.client.alert_slack_on_retry_failure",
+    #     side_effect=original_callback_func
+    # )
+    mock_typer_echo = mocker.patch("baliza.client.typer.echo")
 
     for _ in range(7):
         httpserver.expect_request(endpoint_path).respond_with_data("This is not JSON", content_type="application/json")
@@ -123,15 +140,23 @@ def test_fetch_data_json_decode_error_retries_and_fails(httpserver: HTTPServer, 
 
     assert len(httpserver.log) == 7
 
-    assert mock_alert_callback.called
-    if mock_alert_callback.called:
-        retry_state_arg = mock_alert_callback.call_args[0][0]
-        assert retry_state_arg.attempt_number == 7
-        assert isinstance(retry_state_arg.outcome.exception(), requests.exceptions.JSONDecodeError)
+    # Check if typer.echo was called by the alert_slack_on_retry_failure
+    echo_found = False
+    for call_args_tuple in mock_typer_echo.call_args_list:
+        args, _ = call_args_tuple
+        if args and "PNCP request failed ultimately after 7 attempts" in args[0] and "Expecting value" in args[0]: # JSONDecodeError message part
+            echo_found = True
+            break
+    assert echo_found, "typer.echo with JSON failure message not called by alert_slack_on_retry_failure"
 
 def test_fetch_data_404_not_found_retries_and_fails(httpserver: HTTPServer, mocker):
     endpoint_path = "/v1/test/not_found_persistent"
-    mock_alert_callback = mocker.patch("baliza.client.alert_slack_on_retry_failure")
+    # original_callback_func = alert_slack_on_retry_failure
+    # mock_alert_callback = mocker.patch(
+    #     "baliza.client.alert_slack_on_retry_failure",
+    #     side_effect=original_callback_func
+    # )
+    mock_typer_echo = mocker.patch("baliza.client.typer.echo")
 
     for _ in range(7):
         httpserver.expect_request(endpoint_path).respond_with_data("Not Found", status=404)
@@ -142,12 +167,14 @@ def test_fetch_data_404_not_found_retries_and_fails(httpserver: HTTPServer, mock
     assert len(httpserver.log) == 7
     assert excinfo.value.response.status_code == 404
 
-    assert mock_alert_callback.called
-    if mock_alert_callback.called:
-        retry_state_arg = mock_alert_callback.call_args[0][0]
-        assert retry_state_arg.attempt_number == 7
-        assert isinstance(retry_state_arg.outcome.exception(), requests.exceptions.HTTPError)
-        assert retry_state_arg.outcome.exception().response.status_code == 404
+    # Check if typer.echo was called by the alert_slack_on_retry_failure
+    echo_found = False
+    for call_args_tuple in mock_typer_echo.call_args_list:
+        args, _ = call_args_tuple
+        if args and "PNCP request failed ultimately after 7 attempts" in args[0] and "404" in args[0]:
+            echo_found = True
+            break
+    assert echo_found, "typer.echo with 404 failure message not called by alert_slack_on_retry_failure"
 
 def test_client_main_block_success_and_failure_paths(httpserver: HTTPServer, mocker, capsys):
     success_endpoint = "/v1/contratacoes/publicacao_main"
@@ -157,10 +184,12 @@ def test_client_main_block_success_and_failure_paths(httpserver: HTTPServer, moc
     fail_endpoint = "/v1/nonexistent/path_main"
     fail_params = {"pagina": 1}
 
-    httpserver.expect_request(success_endpoint, query_string=success_params).respond_with_json(success_data)
+    import urllib.parse
+    query_string_encoded = urllib.parse.urlencode(success_params)
+    httpserver.expect_request(success_endpoint, query_string=query_string_encoded).respond_with_json(success_data)
 
     for _ in range(7):
-         httpserver.expect_request(fail_endpoint, query_string=fail_params).respond_with_data("Not Found", status=404)
+         httpserver.expect_request(fail_endpoint, query_string=urllib.parse.urlencode(fail_params)).respond_with_data("Not Found", status=404)
 
     mock_typer_echo_main = mocker.patch("baliza.client.typer.echo")
 
@@ -186,7 +215,7 @@ def test_client_main_block_success_and_failure_paths(httpserver: HTTPServer, moc
                 found_failure_message_in_echo = True
                 break
     assert found_failure_message_in_echo, "Expected failure message from alert_slack_on_retry_failure (via typer.echo) not found"
-    httpserver.reset()
+    # httpserver.reset() # Removed as it's not standard and fixture handles cleanup.
 
 
 @pytest.fixture(autouse=True)

@@ -14,6 +14,7 @@ src/baliza.egg-info/dependency_links.txt
 src/baliza.egg-info/entry_points.txt
 src/baliza.egg-info/requires.txt
 src/baliza.egg-info/top_level.txt
+tests/test_cli.py
 tests/test_client.py
 tests/test_main.py
 tests/test_pipeline.py

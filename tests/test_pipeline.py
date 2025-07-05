@@ -26,20 +26,32 @@ def test_harvest_success_multiple_pages(mock_fetch_data, mock_time_sleep):
     endpoint_key = "contratacoes"
     endpoint_cfg = {"api_path": "/v1/contratacoes/publicacao", "page_size": 2} # Small page size for test
 
-    # Page 1 response
-    mock_fetch_data.side_effect = [
-        {
-            "items": [{"id": 1, "data": "item1"}, {"id": 2, "data": "item2"}],
-            "totalPaginas": 2,
-            "paginaAtual": 1 # Not used by current harvest_endpoint_data, but good for completeness
-        },
-        # Page 2 response
-        {
-            "items": [{"id": 3, "data": "item3"}],
-            "totalPaginas": 2,
-            "paginaAtual": 2
-        }
-    ]
+    # Page 1 response data
+    page1_response_data = {
+        "items": [{"id": 1, "data": "item1"}, {"id": 2, "data": "item2"}],
+        "totalPaginas": 2,
+        "paginaAtual": 1
+    }
+    # Page 2 response data
+    page2_response_data = {
+        "items": [{"id": 3, "data": "item3"}],
+        "totalPaginas": 2,
+        "paginaAtual": 2
+    }
+
+    # Custom side_effect function to inspect calls and manage responses
+    # Use a list to ensure it's mutable within the side_effect_func
+    call_tracker = {"count": 0, "received_params": []}
+    responses = [page1_response_data, page2_response_data]
+
+    def side_effect_func(endpoint, params):
+        print(f"SIDE_EFFECT_FUNC received call {call_tracker['count']+1} for endpoint '{endpoint}' with params: {params}")
+        call_tracker["received_params"].append(params.copy()) # Store a copy of params
+        response = responses[call_tracker["count"]]
+        call_tracker["count"] += 1
+        return response
+
+    mock_fetch_data.side_effect = side_effect_func
 
     expected_records = [
         {"id": 1, "data": "item1"},
@@ -50,13 +62,23 @@ def test_harvest_success_multiple_pages(mock_fetch_data, mock_time_sleep):
     records = harvest_endpoint_data(day_iso, endpoint_key, endpoint_cfg)
 
     assert records == expected_records
-    assert mock_fetch_data.call_count == 2
-    # Check params for each call
-    expected_calls = [
-        call("/v1/contratacoes/publicacao", {"dataInicial": day_iso, "dataFinal": day_iso, "pagina": 1, "tamanhoPagina": 2}),
-        call("/v1/contratacoes/publicacao", {"dataInicial": day_iso, "dataFinal": day_iso, "pagina": 2, "tamanhoPagina": 2})
-    ]
-    mock_fetch_data.assert_has_calls(expected_calls)
+    assert mock_fetch_data.call_count == 2 # Same as call_tracker["count"]
+    assert call_tracker["count"] == 2
+
+    # Check params for each call using the tracked params
+    # Call 1
+    params_call_1 = call_tracker["received_params"][0]
+    assert params_call_1["dataInicial"] == day_iso
+    assert params_call_1["dataFinal"] == day_iso
+    assert params_call_1["pagina"] == 1
+    assert params_call_1["tamanhoPagina"] == 2
+
+    # Call 2
+    params_call_2 = call_tracker["received_params"][1]
+    assert params_call_2["dataInicial"] == day_iso
+    assert params_call_2["dataFinal"] == day_iso
+    assert params_call_2["pagina"] == 2
+    assert params_call_2["tamanhoPagina"] == 2
 
     # Check that time.sleep(1) was called between page fetches
     # Since there are 2 pages, there should be 1 sleep call after the first page.

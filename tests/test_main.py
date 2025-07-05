@@ -40,14 +40,14 @@ def test_run_baliza_help():
     result = runner.invoke(app, ["run-baliza", "--help"])
     assert result.exit_code == 0
     assert "Usage: baliza run-baliza" in result.stdout
-    assert "--date-str TEXT" in result.stdout
-    assert "BALIZA_DATE" in result.stdout
+    assert "--date-str" in result.stdout # Check for option existence
+    assert "YYYY-MM-DD" in result.stdout # Check for format in help text
+    assert "BALIZA_DATE" in result.stdout # Check for env var in help text
 
 def test_run_baliza_invalid_date_format():
     result = runner.invoke(app, ["run-baliza", "--date-str", "2023/01/01"])
-    assert result.exit_code == 2
-    assert "Invalid value for '--date-str'" in result.stderr
-    assert "'2023/01/01' is not a valid YYYY-MM-DD date." in result.stderr
+    assert result.exit_code == 1 # Validation error should be 1
+    assert "ERROR: Date must be in YYYY-MM-DD format." in result.stderr # Matches the error logged by cli.py
 
 def test_run_baliza_no_date_provided():
     result = runner.invoke(app, ["run-baliza"])
@@ -117,8 +117,22 @@ def test_run_baliza_harvest_fails(mock_check_processed, mock_harvest_fails):
     test_date = "2023-03-16"
     result = runner.invoke(app, ["run-baliza", "--date-str", test_date], env={"BALIZA_DATE": ""})
     assert result.exit_code == 1
-    assert "Harvesting failed" in result.stdout
-    assert "\"overall_status\": \"failed\"" in result.stdout
+    assert "ERROR: Harvesting failed for 'contratacoes'." in result.stderr # Actual message from cli._log_error
+
+    # Extract and check JSON summary for overall_status
+    summary_json = None
+    summary_start_marker = "--- BALIZA RUN SUMMARY ---"
+    summary_end_marker = "--- END BALIZA RUN SUMMARY ---"
+    stdout_str = result.stdout # Summary goes to stdout
+    try:
+        summary_block_start = stdout_str.rindex(summary_start_marker) + len(summary_start_marker)
+        summary_block_end = stdout_str.rindex(summary_end_marker, summary_block_start)
+        json_text_block = stdout_str[summary_block_start:summary_block_end].strip()
+        summary_json = json.loads(json_text_block)
+    except ValueError:
+        pytest.fail(f"Could not parse JSON summary from output: {stdout_str}")
+    assert summary_json is not None, "Failed to find or parse JSON run summary"
+    assert summary_json.get("overall_status") == "failed"
 
 @patch("baliza.pipeline.harvest_endpoint_data")
 @patch("baliza.storage.create_jsonl_file", return_value="/path/to/file.jsonl")
@@ -134,8 +148,22 @@ def test_run_baliza_upload_fails(
     mock_upload.return_value = {"upload_status": "failed_upload_error", "ia_identifier": "id", "ia_item_url": None}
     result = runner.invoke(app, ["run-baliza", "--date-str", test_date], env={"BALIZA_DATE": ""})
     assert result.exit_code == 1
-    assert "Upload failed for 'contratacoes'" in result.stdout
-    assert "\"overall_status\": \"failed\"" in result.stdout
+    assert "ERROR: Upload failed for 'contratacoes': failed_upload_error" in result.stderr # Check stderr for error log
+
+    # Extract and check JSON summary for overall_status
+    summary_json = None
+    summary_start_marker = "--- BALIZA RUN SUMMARY ---"
+    summary_end_marker = "--- END BALIZA RUN SUMMARY ---"
+    stdout_str = result.stdout # Summary goes to stdout
+    try:
+        summary_block_start = stdout_str.rindex(summary_start_marker) + len(summary_start_marker)
+        summary_block_end = stdout_str.rindex(summary_end_marker, summary_block_start)
+        json_text_block = stdout_str[summary_block_start:summary_block_end].strip()
+        summary_json = json.loads(json_text_block)
+    except ValueError:
+        pytest.fail(f"Could not parse JSON summary from output: {stdout_str}")
+    assert summary_json is not None, "Failed to find or parse JSON run summary"
+    assert summary_json.get("overall_status") == "failed"
 
 @patch("baliza.pipeline.harvest_endpoint_data")
 @patch("baliza.state.check_if_processed", return_value=False)

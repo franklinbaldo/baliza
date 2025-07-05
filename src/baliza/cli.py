@@ -74,7 +74,7 @@ def run_baliza(
     _log_info(f"BALIZA process starting for target data date: {target_day_iso}")
 
     run_summary = {
-        "run_start_time_utc": datetime.datetime.utcnow().isoformat(),
+        "run_start_time_utc": datetime.datetime.now(datetime.UTC).isoformat(),
         "target_data_date": target_day_iso,
         "overall_status": "pending", # Will be updated to "success", "partial_success", or "failed"
         "endpoints_processed": {}
@@ -103,7 +103,7 @@ def run_baliza(
         _log_info(f"All configured endpoints for date {target_day_iso} appear to have been successfully processed already. Skipping run.")
         # To re-run, user would need to modify state or use a future --force option.
         run_summary["overall_status"] = "skipped_all_done"
-        run_summary["run_end_time_utc"] = datetime.datetime.utcnow().isoformat()
+        run_summary["run_end_time_utc"] = datetime.datetime.now(datetime.UTC).isoformat()
         _log_summary(run_summary)
         # typer.Exit(code=0) # Exiting cleanly as this is not an error.
         return # Exit the command cleanly
@@ -124,7 +124,7 @@ def run_baliza(
             "ia_identifier": None,
             "ia_item_url": None,
             "upload_status": "not_attempted",
-            "start_time_utc": datetime.datetime.utcnow().isoformat(),
+            "start_time_utc": datetime.datetime.now(datetime.UTC).isoformat(),
             "end_time_utc": None,
             "error_message": None
         }
@@ -135,7 +135,7 @@ def run_baliza(
             _log_info(f"Endpoint '{endpoint_key}' for date {target_day_iso} already successfully processed. Skipping.")
             endpoint_summary["status"] = "skipped_previously_successful"
             endpoint_summary["upload_status"] = "skipped_previously_successful" # Match more closely
-            endpoint_summary["end_time_utc"] = datetime.datetime.utcnow().isoformat()
+            endpoint_summary["end_time_utc"] = datetime.datetime.now(datetime.UTC).isoformat()
             # Not changing final_overall_status here, as skipping is not a failure.
             state.record_processed_item( # Log that we skipped it again, or update existing. For now, just log.
                 data_date=target_day_iso,
@@ -159,7 +159,7 @@ def run_baliza(
             _log_error(f"Harvesting failed for '{endpoint_key}'.")
             endpoint_summary["status"] = "harvest_failed"
             endpoint_summary["error_message"] = f"pipeline.harvest_endpoint_data returned None for {endpoint_key}"
-            endpoint_summary["end_time_utc"] = datetime.datetime.utcnow().isoformat()
+            endpoint_summary["end_time_utc"] = datetime.datetime.now(datetime.UTC).isoformat()
             state.record_processed_item(
                 data_date=target_day_iso, endpoint_key=endpoint_key, records_fetched=0,
                 jsonl_file_path=None, compressed_file_path=None, sha256_checksum=None,
@@ -174,7 +174,7 @@ def run_baliza(
             _log_info(f"No records found for '{endpoint_key}' on {target_day_iso}. Nothing to process or upload.")
             endpoint_summary["status"] = "no_data_found"
             endpoint_summary["upload_status"] = "skipped_no_data"
-            endpoint_summary["end_time_utc"] = datetime.datetime.utcnow().isoformat()
+            endpoint_summary["end_time_utc"] = datetime.datetime.now(datetime.UTC).isoformat()
             state.record_processed_item(
                 data_date=target_day_iso, endpoint_key=endpoint_key, records_fetched=0,
                 jsonl_file_path=None, compressed_file_path=None, sha256_checksum=None,
@@ -194,7 +194,7 @@ def run_baliza(
             _log_error(f"Failed to create JSONL file for '{endpoint_key}'.")
             endpoint_summary["status"] = "jsonl_creation_failed"
             endpoint_summary["error_message"] = f"storage.create_jsonl_file returned None for {base_filename}"
-            endpoint_summary["end_time_utc"] = datetime.datetime.utcnow().isoformat()
+            endpoint_summary["end_time_utc"] = datetime.datetime.now(datetime.UTC).isoformat()
             state.record_processed_item(
                 data_date=target_day_iso, endpoint_key=endpoint_key, records_fetched=len(records),
                 jsonl_file_path=None, compressed_file_path=None, sha256_checksum=None,
@@ -212,7 +212,7 @@ def run_baliza(
             _log_error(f"Failed to compress file for '{endpoint_key}'.")
             endpoint_summary["status"] = "compression_failed"
             endpoint_summary["error_message"] = f"storage.compress_file_zstd returned None for {jsonl_filepath}"
-            endpoint_summary["end_time_utc"] = datetime.datetime.utcnow().isoformat()
+            endpoint_summary["end_time_utc"] = datetime.datetime.now(datetime.UTC).isoformat()
             state.record_processed_item(
                 data_date=target_day_iso, endpoint_key=endpoint_key, records_fetched=len(records),
                 jsonl_file_path=jsonl_filepath, compressed_file_path=None, sha256_checksum=None,
@@ -231,7 +231,7 @@ def run_baliza(
             _log_error(f"Failed to calculate checksum for '{endpoint_key}'.")
             endpoint_summary["status"] = "checksum_failed"
             endpoint_summary["error_message"] = f"storage.calculate_sha256_checksum returned None for {compressed_filepath}"
-            endpoint_summary["end_time_utc"] = datetime.datetime.utcnow().isoformat()
+            endpoint_summary["end_time_utc"] = datetime.datetime.now(datetime.UTC).isoformat()
             state.record_processed_item(
                 data_date=target_day_iso, endpoint_key=endpoint_key, records_fetched=len(records),
                 jsonl_file_path=jsonl_filepath, compressed_file_path=compressed_filepath, sha256_checksum=None,
@@ -243,10 +243,42 @@ def run_baliza(
             continue
         endpoint_summary["sha256_checksum"] = sha256_hex
 
+        # 3d. Check if this checksum has already been successfully processed
+        _log_info(f"Checking if checksum {sha256_hex} has been processed before for '{endpoint_key}'...")
+        existing_item_info = state.check_if_checksum_processed(sha256_hex)
+        if existing_item_info:
+            _log_info(f"Checksum {sha256_hex} matches a previously successful upload: IA ID '{existing_item_info['ia_identifier']}' for date {existing_item_info['data_date']}, endpoint {existing_item_info['endpoint_key']}.")
+            endpoint_summary["status"] = "skipped_duplicate_checksum"
+            endpoint_summary["upload_status"] = "skipped_duplicate_checksum"
+            endpoint_summary["ia_identifier"] = existing_item_info["ia_identifier"] # Original IA ID
+            endpoint_summary["ia_item_url"] = existing_item_info["ia_item_url"]     # Original IA URL
+            endpoint_summary["error_message"] = (
+                f"Duplicate content (checksum: {sha256_hex}). "
+                f"Original upload: IA ID '{existing_item_info['ia_identifier']}', "
+                f"URL '{existing_item_info['ia_item_url']}', "
+                f"Data Date '{existing_item_info['data_date']}', Endpoint '{existing_item_info['endpoint_key']}'."
+            )
+            endpoint_summary["end_time_utc"] = datetime.datetime.now(datetime.UTC).isoformat()
+            state.record_processed_item(
+                data_date=target_day_iso,
+                endpoint_key=endpoint_key,
+                records_fetched=len(records),
+                jsonl_file_path=jsonl_filepath,
+                compressed_file_path=compressed_filepath,
+                sha256_checksum=sha256_hex,
+                ia_identifier=existing_item_info["ia_identifier"], # Log original IA ID
+                ia_item_url=existing_item_info["ia_item_url"],     # Log original IA URL
+                upload_status="skipped_duplicate_checksum",
+                notes=endpoint_summary["error_message"]
+            )
+            storage.cleanup_local_file(jsonl_filepath) # Clean up raw jsonl
+            # Not considered a failure, so final_overall_status is not changed.
+            continue # Move to the next endpoint
+
         # 4. Upload to Internet Archive using storage module
         ia_identifier = f"{config['file_prefix']}-{target_day_iso}" # e.g., pncp-ctrt-2023-01-01
         ia_title = f"{config['ia_title_prefix']} {target_day_iso}"  # e.g., PNCP Contratações 2023-01-01
-        endpoint_summary["ia_identifier"] = ia_identifier
+        endpoint_summary["ia_identifier"] = ia_identifier # Current item's potential IA ID
 
         _log_info(f"Attempting to upload '{compressed_filepath}' to Internet Archive as '{ia_identifier}'...")
         upload_details = storage.upload_to_internet_archive(
@@ -262,7 +294,14 @@ def run_baliza(
         # Update endpoint summary with upload details
         if upload_details:
             endpoint_summary["upload_status"] = upload_details.get("upload_status", "unknown_ia_response")
-            endpoint_summary["ia_item_url"] = upload_details.get("ia_item_url")
+            # Only update ia_item_url if upload was attempted and gave a URL.
+            # If skipped_no_credentials, it might provide a potential URL, which is fine.
+            # If truly successful, this URL is the one.
+            current_ia_item_url = upload_details.get("ia_item_url")
+            if current_ia_item_url : # Check if a URL was provided in the details
+                 endpoint_summary["ia_item_url"] = current_ia_item_url
+
+
             if upload_details["upload_status"] == "success":
                 endpoint_summary["status"] = "success"
                 _log_info(f"Successfully processed and uploaded data for '{endpoint_key}'. IA URL: {endpoint_summary['ia_item_url']}")
@@ -293,21 +332,21 @@ def run_baliza(
             jsonl_file_path=jsonl_filepath,
             compressed_file_path=compressed_filepath,
             sha256_checksum=sha256_hex,
-            ia_identifier=ia_identifier,
-            ia_item_url=endpoint_summary["ia_item_url"],
+            ia_identifier=ia_identifier, # The ID for THIS attempt
+            ia_item_url=endpoint_summary["ia_item_url"], # URL from THIS attempt (if any)
             upload_status=endpoint_summary["upload_status"],
             notes=endpoint_summary["error_message"] or ""
         )
 
         # 6. Cleanup local JSONL file (compressed file is kept)
         storage.cleanup_local_file(jsonl_filepath)
-        endpoint_summary["end_time_utc"] = datetime.datetime.utcnow().isoformat()
+        endpoint_summary["end_time_utc"] = datetime.datetime.now(datetime.UTC).isoformat()
         _log_info(f"Finished processing endpoint: '{endpoint_key}'. Status: {endpoint_summary['status']}")
 
 
     # --- Finalize Run ---
     run_summary["overall_status"] = final_overall_status
-    run_summary["run_end_time_utc"] = datetime.datetime.utcnow().isoformat()
+    run_summary["run_end_time_utc"] = datetime.datetime.now(datetime.UTC).isoformat()
     _log_summary(run_summary)
 
     _log_info(f"BALIZA process finished for date: {target_day_iso}. Overall status: {run_summary['overall_status']}")
