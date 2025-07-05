@@ -1,0 +1,9 @@
+requests
+tenacity
+zstandard
+internetarchive
+typer[all]
+
+[dev]
+pytest
+pytest-mock

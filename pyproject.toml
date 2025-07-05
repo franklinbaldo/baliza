@@ -9,6 +9,7 @@ dependencies = [
     "tenacity",
     "zstandard",
     "internetarchive",
+    "typer[all]", # Added typer as a dependency
 ]
 
 [project.optional-dependencies]
