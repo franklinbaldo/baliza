@@ -1,0 +1,2 @@
+[console_scripts]
+baliza = baliza.cli:app

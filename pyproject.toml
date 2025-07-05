@@ -9,10 +9,24 @@ dependencies = [
     "tenacity",
     "zstandard",
     "internetarchive",
+    "typer", # Added typer here as it's a core dependency for the CLI
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest",
     "pytest-mock",
+    "pytest-httpserver",
+    # typer is now in core dependencies
 ]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+backend-path = "." # Specifies that setuptools should look for setup.py or other config in the root
+
+[tool.setuptools.packages.find]
+where = ["src"] # Look for packages in the src directory
+
+[project.scripts]
+baliza = "baliza.cli:app"
