@@ -13,7 +13,13 @@ def test_harvest_endpoint_data_single_page(mocker):
         "paginaAtual": 1
     }
 
-    endpoint_cfg = {"api_path": "/test"}
+    endpoint_cfg = {
+        "api_path": "/test",
+        "tamanhoPagina": 10, # Mocked page size
+        "date_param_initial": "dataInicial",
+        "date_param_final": "dataFinal",
+        "required_params": {}
+    }
     records = harvest_endpoint_data("2024-01-01", "test_endpoint", endpoint_cfg)
 
     assert len(records) == 2
@@ -36,7 +42,13 @@ def test_harvest_endpoint_data_multiple_pages(mocker):
         }
     ]
 
-    endpoint_cfg = {"api_path": "/test"}
+    endpoint_cfg = {
+        "api_path": "/test",
+        "tamanhoPagina": 10, # Mocked page size
+        "date_param_initial": "dataInicial",
+        "date_param_final": "dataFinal",
+        "required_params": {}
+    }
     records = harvest_endpoint_data("2024-01-01", "test_endpoint", endpoint_cfg)
 
     assert len(records) == 2
@@ -52,7 +64,13 @@ def test_harvest_endpoint_data_no_items(mocker):
         "paginaAtual": 1
     }
 
-    endpoint_cfg = {"api_path": "/test"}
+    endpoint_cfg = {
+        "api_path": "/test",
+        "tamanhoPagina": 10, # Mocked page size
+        "date_param_initial": "dataInicial",
+        "date_param_final": "dataFinal",
+        "required_params": {}
+    }
     records = harvest_endpoint_data("2024-01-01", "test_endpoint", endpoint_cfg)
 
     assert len(records) == 0
@@ -64,7 +82,13 @@ def test_harvest_endpoint_data_fetch_error(mocker):
     mock_fetch = mocker.patch('baliza.main.fetch_data_from_pncp')
     mock_fetch.side_effect = RetryError("API Error")
 
-    endpoint_cfg = {"api_path": "/test"}
+    endpoint_cfg = {
+        "api_path": "/test",
+        "tamanhoPagina": 10, # Mocked page size
+        "date_param_initial": "dataInicial",
+        "date_param_final": "dataFinal",
+        "required_params": {}
+    }
     records = harvest_endpoint_data("2024-01-01", "test_endpoint", endpoint_cfg)
 
     assert records is None

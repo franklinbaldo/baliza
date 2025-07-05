@@ -128,9 +128,21 @@ def test_process_and_upload_data_no_credentials(
     mocker.patch('hashlib.sha256', return_value=mocker_hash)
 
     # Ensure os.path.exists returns True for the jsonl file before os.remove is called
-    mock_path_exists.side_effect = lambda path: path.endswith(".jsonl")
+    # and False for PROCESSED_CSV_PATH for consistent test behavior
+    day_iso = "2024-01-01"
+    output_dir = "baliza_data"
+    base_filename = f"{mock_endpoint_cfg['file_prefix']}-{day_iso}"
+    expected_jsonl_path = os.path.join(output_dir, f"{base_filename}.jsonl")
 
-    process_and_upload_data("2024-01-01", "test_endpoint", mock_endpoint_cfg, mock_records, mock_run_summary_data)
+    def path_exists_side_effect(path_arg):
+        if path_arg == PROCESSED_CSV_PATH:
+            return False # Assume CSV doesn't exist for header writing by _write_to_processed_csv
+        if path_arg == expected_jsonl_path:
+            return True # JSONL file exists for cleanup
+        return False # Default for any other paths
+    mock_path_exists.side_effect = path_exists_side_effect
+
+    process_and_upload_data(day_iso, "test_endpoint", mock_endpoint_cfg, mock_records, mock_run_summary_data)
 
     mock_ia_upload.assert_not_called()
     assert mock_run_summary_data["test_endpoint"]["status"] == "upload_skipped"
