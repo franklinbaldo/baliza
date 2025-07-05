@@ -1,0 +1,86 @@
+name: Baliza Daily Data Fetch
+
+on:
+  workflow_dispatch: # Allows manual triggering
+  schedule:
+    # Runs at 02:15 BRT (America/Sao_Paulo time)
+    # BRT is UTC-3. So, 02:15 BRT is 05:15 UTC.
+    - cron: '15 5 * * *'
+
+jobs:
+  fetch_and_upload_pncp_data:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # Needed to checkout the repository
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        shell: bash
+
+      - name: Verify uv installation
+        run: uv --version
+
+      - name: Set up Python using uv
+        run: |
+          uv venv --python $(cat .python-version || echo "3.11") .venv # Create venv using .python-version or default
+          echo "VIRTUAL_ENV=.venv" >> $GITHUB_ENV
+          echo ".venv/bin" >> $GITHUB_PATH
+        shell: bash
+
+      - name: Install dependencies using uv
+        run: |
+          source $VIRTUAL_ENV/bin/activate
+          uv sync --frozen-lockfile
+        shell: bash
+
+      - name: Calculate Yesterday's Date
+        id: get_date
+        run: |
+          # Using Python to ensure correct date calculation, especially across month/year boundaries
+          # GitHub Actions runners usually have Python pre-installed.
+          yesterday=$(python -c "from datetime import date, timedelta; print(date.today() - timedelta(days=1))")
+          echo "YESTERDAY_DATE=$yesterday" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Run Baliza script and capture output
+        id: baliza_run
+        env:
+          IA_KEY: ${{ secrets.IA_KEY }}
+          IA_SECRET: ${{ secrets.IA_SECRET }}
+          BALIZA_DATE: ${{ steps.get_date.outputs.YESTERDAY_DATE }} # Using env var for date
+          PYTHONIOENCODING: "utf-8" # Ensure UTF-8 for script output
+        run: |
+          source $VIRTUAL_ENV/bin/activate
+          echo "Fetching data for date: $BALIZA_DATE"
+
+          # Create a directory for logs if it doesn't exist
+          mkdir -p baliza_run_logs
+
+          # Execute the script and save its output.
+          # The script outputs informational logs to stderr (via typer.echo(err=True))
+          # and the final JSON summary to stdout.
+          # We'll save stdout to a file for the summary.
+          # The script's exit code will determine step success/failure.
+          python baliza/src/baliza/main.py > baliza_run_logs/run_summary_${{ steps.get_date.outputs.YESTERDAY_DATE }}.json
+
+          # Check if the script failed (non-zero exit code)
+          if [ $? -ne 0 ]; then
+            echo "Baliza script failed. See logs for details."
+            exit 1
+          fi
+          echo "Baliza script completed."
+        shell: bash
+
+      - name: Upload run summary artifact
+        if: always() # Run this step even if the previous one failed, to upload partial logs if any
+        uses: actions/upload-artifact@v4
+        with:
+          name: baliza-run-summary-${{ steps.get_date.outputs.YESTERDAY_DATE }}
+          path: baliza_run_logs/run_summary_${{ steps.get_date.outputs.YESTERDAY_DATE }}.json
+          retention-days: 90 # Keep artifacts for 90 days

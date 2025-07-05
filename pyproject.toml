@@ -1,0 +1,18 @@
+[project]
+name = "baliza"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "requests",
+    "tenacity",
+    "zstandard",
+    "internetarchive",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-mock",
+]
