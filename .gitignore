@@ -1,2 +1,8 @@
 baliza_data/
 baliza_data.duckdb
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
