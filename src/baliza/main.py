@@ -36,7 +36,7 @@ ENDPOINTS_CONFIG = {
         "tamanhoPagina": 50,
         "date_param_initial": "dataInicial",
         "date_param_final": "dataFinal",
-        "required_params": {} # Needs codigoModalidadeContratacao (long). Assuming API is lenient if omitted.
+        "required_params": {"codigoModalidadeContratacao": 1} # Added placeholder for required param
     },
     "contratacoes_atualizacao": {
         "api_path": "/v1/contratacoes/atualizacao",
@@ -45,7 +45,7 @@ ENDPOINTS_CONFIG = {
         "tamanhoPagina": 50,
         "date_param_initial": "dataInicial",
         "date_param_final": "dataFinal",
-        "required_params": {} # Needs codigoModalidadeContratacao (long). Assuming API is lenient if omitted.
+        "required_params": {"codigoModalidadeContratacao": 1} # Added placeholder for required param
     },
     "contratos_publicacao": {
         "api_path": "/v1/contratos",
@@ -287,7 +287,7 @@ def process_and_upload_data(day_iso, endpoint_key, endpoint_cfg, records, run_su
         run_summary_data[endpoint_key]["files_generated"].append(file_details)
 
         _write_to_processed_csv({
-            "timestamp": datetime.datetime.utcnow().isoformat(),
+            "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
             "data_date": day_iso,
             "endpoint_key": endpoint_key,
             "compressed_file": compressed_filename,

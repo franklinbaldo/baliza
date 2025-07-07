@@ -36,7 +36,10 @@ def test_pncp_api_endpoint(test_date_str):
 
         print(f"HTTP Status Code: {response.status_code}\n")
 
-        assert response.status_code == 200, f"Expected status code 200, got {response.status_code}. Response: {response.text}"
+        assert response.status_code in [200, 204], f"Expected status code 200 or 204, got {response.status_code}. Response: {response.text}"
+        if response.status_code == 204:
+            print("Received 204 No Content. This is expected if no data for the given date/parameters.")
+            return # Exit the test gracefully if 204 is received
 
         print("Successfully received a response from the server.")
         try:
