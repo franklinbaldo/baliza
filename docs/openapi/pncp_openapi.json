@@ -1942,12 +1942,12 @@
           "dataPublicacaoPNCP": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "dataAtualizacaoGlobalPCA": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "idPcaPncp": {
             "type": "string"
@@ -2012,7 +2012,7 @@
           "dataInclusao": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "numeroItem": {
             "type": "integer",
@@ -2021,7 +2021,7 @@
           "dataAtualizacao": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "valorTotal": {
             "type": "number"
@@ -2051,7 +2051,7 @@
           "dataInclusao": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           }
         }
       },
@@ -2175,17 +2175,17 @@
           "dataPublicacaoPncp": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "dataAberturaProposta": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "dataEncerramentoProposta": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "situacaoCompraId": {
             "type": "string",
@@ -2205,17 +2205,17 @@
           "dataInclusao": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "dataAtualizacao": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "dataAtualizacaoGlobal": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "usuarioNome": {
             "type": "string"
@@ -2315,7 +2315,7 @@
           "dataConsultaNFe": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "statusResponseNFe": {
             "type": "string"
@@ -2329,12 +2329,12 @@
           "dataInclusao": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "dataAtualizacao": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "recuperarContratoDTO": {
             "$ref": "#/components/schemas/RecuperarContratoDTO"
@@ -2448,12 +2448,12 @@
           "dataInclusao": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "dataAtualizacao": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "itens": {
             "type": "array",
@@ -2562,12 +2562,12 @@
           "dataPublicacaoPncp": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "dataAtualizacao": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "sequencialContrato": {
             "type": "integer",
@@ -2622,7 +2622,7 @@
           "dataAtualizacaoGlobal": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "identificadorCipi": {
             "type": "string"
@@ -2666,12 +2666,12 @@
           "dataInclusao": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "dataAtualizacao": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "statusAtivo": {
             "type": "boolean"
@@ -2774,12 +2774,12 @@
           "dataAberturaProposta": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "dataEncerramentoProposta": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "orgaoEntidade": {
             "$ref": "#/components/schemas/RecuperarOrgaoEntidadeDTO"
@@ -2795,17 +2795,17 @@
           "dataInclusao": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "dataPublicacaoPncp": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "dataAtualizacao": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "numeroCompra": {
             "type": "string"
@@ -2824,7 +2824,7 @@
           "dataAtualizacaoGlobal": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "linkProcessoEletronico": {
             "type": "string"
@@ -2893,42 +2893,42 @@
           "dataCancelamento": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "dataAssinatura": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "vigenciaInicio": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "vigenciaFim": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "dataPublicacaoPncp": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "dataInclusao": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "dataAtualizacao": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "dataAtualizacaoGlobal": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-19T06:19:03"
+            "example": "2025-06-17T15:16:15"
           },
           "usuario": {
             "type": "string"
