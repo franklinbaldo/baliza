@@ -100,17 +100,34 @@ ENDPOINTS_CONFIG = {
         "date_param_initial": "dataInicio", # Note: API uses dataInicio/dataFim
         "date_param_final": "dataFim",
         "required_params": {}
+    },
+    "pca_usuario": {
+        "api_path": "/v1/pca/usuario",
+        "file_prefix": "pncp-pca-usuario",
+        "ia_title_prefix": "PNCP PCA Usuario",
+        "tamanhoPagina": 500,
+        "date_param_initial": None,  # This endpoint doesn't use date ranges
+        "date_param_final": None,
+        "required_params": {"anoPca": 2024, "idUsuario": 1}  # Example values, these would need to be configurable
+    },
+    "pca_general": {
+        "api_path": "/v1/pca/",
+        "file_prefix": "pncp-pca-general",
+        "ia_title_prefix": "PNCP PCA General",
+        "tamanhoPagina": 500,
+        "date_param_initial": None,  # This endpoint doesn't use date ranges
+        "date_param_final": None,
+        "required_params": {"anoPca": 2024, "codigoClassificacaoSuperior": "01"}  # Example values, these would need to be configurable
+    },
+    "contratacoes_proposta": {
+        "api_path": "/v1/contratacoes/proposta",
+        "file_prefix": "pncp-contratacoes-proposta",
+        "ia_title_prefix": "PNCP Contratações Proposta",
+        "tamanhoPagina": 50,  # Note: This endpoint has a lower max page size
+        "date_param_initial": None,  # This endpoint uses only dataFinal
+        "date_param_final": "dataFinal",
+        "required_params": {}
     }
-    # Example for another endpoint:
-    # "example_endpoint": {
-    #     "api_path": "/v1/example/path",
-    #     "file_prefix": "pncp-example",
-    #     "ia_title_prefix": "PNCP Example",
-    #     "tamanhoPagina": 100,
-    #     "date_param_initial": "dataInicial",
-    #     "date_param_final": "dataFinal",
-    #     "required_params": {"param_name": "param_value"}
-    # }
 }
 
 @retry(wait=wait_exponential(multiplier=1, min=4, max=60), stop=stop_after_attempt(5))
@@ -132,9 +149,17 @@ def harvest_endpoint_data(day_iso, endpoint_key, endpoint_cfg):
 
     base_params = {
         "tamanhoPagina": endpoint_cfg["tamanhoPagina"],
-        endpoint_cfg["date_param_initial"]: day_iso,
-        endpoint_cfg["date_param_final"]: day_iso,
     }
+    
+    # Handle date parameters if they exist
+    if endpoint_cfg["date_param_initial"] is not None:
+        date_value = day_iso.replace("-", "") if endpoint_key == "contratacoes_proposta" else day_iso
+        base_params[endpoint_cfg["date_param_initial"]] = date_value
+    if endpoint_cfg["date_param_final"] is not None:
+        date_value = day_iso.replace("-", "") if endpoint_key == "contratacoes_proposta" else day_iso
+        base_params[endpoint_cfg["date_param_final"]] = date_value
+    
+    # Add required parameters
     if "required_params" in endpoint_cfg and endpoint_cfg["required_params"]:
         base_params.update(endpoint_cfg["required_params"])
 
@@ -327,7 +352,7 @@ def run_baliza(
 
     # Structured summary data for this run
     run_summary = {
-        "run_date_iso": datetime.datetime.utcnow().isoformat(),
+        "run_date_iso": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "target_data_date": target_day_iso,
         "overall_status": "pending",
         "endpoints": {}

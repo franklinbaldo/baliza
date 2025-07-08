@@ -86,13 +86,18 @@ Estas variáveis são especialmente importantes para a execução automática vi
     * [ ] Configurar GitHub Pages para hospedar a página.
 * [ ] **Atualização do Workflow**: Incrementar o GitHub Actions para executar os scripts de coleta de estatísticas, geração de manifesto de torrents e da página web, e fazer commit dos artefatos atualizados.
 
-### Funcionalidades Adicionais (Consideradas para o Futuro - Pós Fase 2)
-* [ ] Implementar coleta para endpoint `/v1/contratos/publicacao`.
-* [ ] Implementar coleta para endpoint `/v1/pca` (planejamento).
+### Fase 3: Expansão de Endpoints (Implementado)
+* [x] **Implementar coleta para novos endpoints**:
+    * [x] `/v1/pca/usuario` - Consultar Itens de PCA por Ano do PCA, IdUsuario e Código de Classificação Superior.
+    * [x] `/v1/pca/` - Consultar Itens de PCA por Ano do PCA e Código de Classificação Superior (endpoint geral).
+    * [x] `/v1/contratacoes/proposta` - Consultar Contratações com Recebimento de Propostas Aberto.
+
+### Funcionalidades Adicionais (Consideradas para o Futuro - Pós Fase 3)
 * [ ] Implementar persistência robusta de checksums e estado de processamento (e.g., `state/processed.csv`) para evitar reprocessamento e duplicatas de forma mais granular.
 * [ ] Avaliar a criação de um dump automático para ClickHouse a partir dos dados no Internet Archive.
 * [ ] Desenvolver um painel analítico (Superset/Metabase) com KPIs (e.g., sobrepreço) utilizando os dados coletados.
 * [ ] Configurar alertas de anomalia (e.g., via Webhook) para falhas na coleta ou problemas nos dados.
+* [ ] Implementar configuração dinâmica de parâmetros para os novos endpoints PCA.
 
 ## Próximos Passos (Comunidade e Testes)
 1. **Teste Manual Extensivo**: Execute o script com `--date` para diferentes dias passados para garantir a robustez do hash, da coleta e do upload.
