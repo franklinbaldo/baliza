@@ -4,7 +4,7 @@ This file tracks the development tasks to make the BALIZA project fully function
 
 ## Phase 1: Core Functionality (Getting to a stable, testable state)
 
-- [ ] **Initialize Project**: Use `uv init` to create a `pyproject.toml` file.
+- [x] **Test PNCP API Connectivity and Data Retrieval**: Performed real tests with the API and obtained consistent data.
 - [ ] **Create Tests**:
     - [ ] Test the PNCP API client, mocking the HTTP requests.
     - [ ] Test the data processing and compression logic.
