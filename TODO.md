@@ -5,14 +5,14 @@ This file tracks the development tasks to make the BALIZA project fully function
 ## Phase 1: Core Functionality (Getting to a stable, testable state)
 
 - [x] **Test PNCP API Connectivity and Data Retrieval**: Performed real tests with the API and obtained consistent data.
-- [ ] **Create Tests**:
-    - [ ] Test the PNCP API client, mocking the HTTP requests.
-    - [ ] Test the data processing and compression logic.
-    - [ ] Test the Internet Archive upload functionality, mocking the `internetarchive` library.
+- [x] **Create Tests**:
+    - [x] Test the PNCP API client, mocking the HTTP requests.
+    - [x] Test the data processing and compression logic.
+    - [x] Test the Internet Archive upload functionality, mocking the `internetarchive` library.
 - [x] **Implement Checksumming**:
     - [x] Implement SHA256 checksum calculation for the generated `.jsonl.zst` files.
     - [x] Create a mechanism to store and check these checksums (e.g., in a `state/processed.csv` file) to prevent duplicate uploads.
-- [ ] **Refine Configuration**:
+- [x] **Refine Configuration**:
     - [ ] Ensure the script gracefully handles missing `IA_KEY` and `IA_SECRET` environment variables, providing clear instructions to the user.
 
 ## Phase 2: Statistics and Expansion (Future goals)
