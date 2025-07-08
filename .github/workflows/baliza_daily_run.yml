@@ -84,3 +84,51 @@ jobs:
           name: baliza-run-summary-${{ steps.get_date.outputs.YESTERDAY_DATE }}
           path: baliza_run_logs/run_summary_${{ steps.get_date.outputs.YESTERDAY_DATE }}.json
           retention-days: 90 # Keep artifacts for 90 days
+
+  deploy_pages:
+    needs: fetch_and_upload_pncp_data
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python using uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          uv venv --python $(cat .python-version || echo "3.11") .venv # Create venv using .python-version or default
+          echo "VIRTUAL_ENV=.venv" >> $GITHUB_ENV
+          echo ".venv/bin" >> $GITHUB_PATH
+        shell: bash
+
+      - name: Install dependencies for stats generation
+        run: |
+          source $VIRTUAL_ENV/bin/activate
+          uv sync --frozen-lockfile
+        shell: bash
+
+      - name: Collect statistics and generate HTML page
+        run: |
+          source $VIRTUAL_ENV/bin/activate
+          python baliza/scripts/collect_stats.py
+          python baliza/scripts/generate_stats_page.py
+        shell: bash
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './docs'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

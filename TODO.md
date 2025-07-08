@@ -17,12 +17,12 @@ This file tracks the development tasks to make the BALIZA project fully function
 
 ## Phase 2: Statistics and Expansion (Future goals)
 
-- [ ] **Implement Statistics Collection**:
-    - [ ] Develop a script to aggregate data from daily runs.
-- [ ] **Implement Additional Endpoints**:
-    - [ ] Add support for the `/v1/contratos/publicacao` endpoint.
-    - [ ] Add support for the `/v1/pca` endpoint.
-- [ ] **Build Statistics Page**:
-    - [ ] Create an HTML template for the status page.
-    - [ ] Develop a script to generate the static HTML page.
-    - [ ] Set up GitHub Pages to host the page.
+- [x] **Implement Statistics Collection**:
+    - [x] Develop a script to aggregate data from daily runs.
+- [x] **Implement Additional Endpoints**:
+    - [x] Add support for the `/v1/contratos/publicacao` endpoint.
+    - [x] Add support for the `/v1/pca` endpoint.
+- [x] **Build Statistics Page**:
+    - [x] Create an HTML template for the status page.
+    - [x] Develop a script to generate the static HTML page.
+    - [x] Set up GitHub Pages to host the page.
