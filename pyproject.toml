@@ -7,13 +7,16 @@ requires-python = ">=3.11"
 dependencies = [
     "requests",
     "tenacity",
-    "zstandard",
     "internetarchive",
     "typer[all]",
-    "duckdb", # Native Parquet support
+    "duckdb", # Native Parquet support with built-in compression
 ]
 
 [project.optional-dependencies]
+analytics = [
+    "dbt-duckdb",  # DBT adapter for DuckDB
+    "dbt-core",
+]
 dev = [
     "pytest",
     "pytest-mock",
