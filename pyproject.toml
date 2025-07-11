@@ -9,7 +9,9 @@ dependencies = [
     "tenacity",
     "zstandard",
     "internetarchive",
-    "typer[all]", # Added typer as a dependency
+    "typer[all]",
+    "pandas",
+    "pyarrow", # For Parquet support
 ]
 
 [project.optional-dependencies]

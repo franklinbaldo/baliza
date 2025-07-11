@@ -32,12 +32,12 @@
 ### Pré-requisitos
 - Python 3.11+
 - `uv` (gerenciador de pacotes Python rápido). Se não tiver, instale via `curl -LsSf https://astral.sh/uv/install.sh | sh`.
-- Credenciais do Internet Archive (`IA_KEY` e `IA_SECRET`).
+- Credenciais do Internet Archive (`IA_ACCESS_KEY` e `IA_SECRET_KEY`).
 
 ### Variáveis de Ambiente
 O script requer as seguintes variáveis de ambiente para o upload no Internet Archive:
-- `IA_KEY`: Sua chave de acesso do Internet Archive.
-- `IA_SECRET`: Seu segredo do Internet Archive.
+- `IA_ACCESS_KEY`: Sua chave de acesso do Internet Archive.
+- `IA_SECRET_KEY`: Seu segredo do Internet Archive.
 
 Estas variáveis são especialmente importantes para a execução automática via GitHub Actions, onde devem ser configuradas como "Secrets" do repositório.
 
@@ -51,8 +51,8 @@ Estas variáveis são especialmente importantes para a execução automática vi
    ```
 4. Exporte as credenciais do Internet Archive:
    ```bash
-   export IA_KEY="SUA_CHAVE_IA"
-   export IA_SECRET="SEU_SEGREDO_IA"
+   export IA_ACCESS_KEY="SUA_CHAVE_IA"
+   export IA_SECRET_KEY="SEU_SEGREDO_IA"
    ```
 5. Execute o script (substitua `YYYY-MM-DD` pela data desejada):
    ```bash
@@ -66,7 +66,7 @@ Estas variáveis são especialmente importantes para a execução automática vi
 - O projeto inclui um workflow em `.github/workflows/baliza_daily_run.yml`.
 - Este workflow executa o script diariamente às 02:15 BRT (05:15 UTC), utilizando a variável de ambiente `BALIZA_DATE`.
 - O workflow captura um sumário da execução em formato JSON e o armazena como um artefato do GitHub Actions para referência e depuração.
-- **Importante**: Para que o upload automático funcione, você **DEVE** configurar `IA_KEY` e `IA_SECRET` como "Secrets" nas configurações do seu repositório GitHub (Settings > Secrets and variables > Actions).
+- **Importante**: Para que o upload automático funcione, você **DEVE** configurar `IA_ACCESS_KEY` e `IA_SECRET_KEY` como "Secrets" nas configurações do seu repositório GitHub (Settings > Secrets and variables > Actions).
 
 ## Roadmap
 

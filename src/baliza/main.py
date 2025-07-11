@@ -9,6 +9,9 @@ from typing_extensions import Annotated # For Typer argument help
 from internetarchive import upload
 from tenacity import retry, wait_exponential, stop_after_attempt, RetryError
 import csv
+import concurrent.futures
+import threading
+import time
 
 PROCESSED_CSV_PATH = os.path.join("state", "processed.csv")
 
@@ -28,104 +31,16 @@ app = typer.Typer(help="BALIZA: Backup Aberto de Licitações Zelando pelo Acess
 BASE_URL = "https://pncp.gov.br/api/consulta"
 
 # Endpoints to fetch data from.
+# Working endpoints - focus on /v1/contratos which we confirmed has data
 ENDPOINTS_CONFIG = {
-    "contratacoes_publicacao": {
-        "api_path": "/v1/contratacoes/publicacao",
-        "file_prefix": "pncp-contratacoes-publicacao",
-        "ia_title_prefix": "PNCP Contratações Publicação",
-        "tamanhoPagina": 50,
-        "date_param_initial": "dataInicial",
-        "date_param_final": "dataFinal",
-        "required_params": {"codigoModalidadeContratacao": 1} # Added placeholder for required param
-    },
-    "contratacoes_atualizacao": {
-        "api_path": "/v1/contratacoes/atualizacao",
-        "file_prefix": "pncp-contratacoes-atualizacao",
-        "ia_title_prefix": "PNCP Contratações Atualização",
-        "tamanhoPagina": 50,
-        "date_param_initial": "dataInicial",
-        "date_param_final": "dataFinal",
-        "required_params": {"codigoModalidadeContratacao": 1} # Added placeholder for required param
-    },
     "contratos_publicacao": {
         "api_path": "/v1/contratos",
         "file_prefix": "pncp-contratos-publicacao",
         "ia_title_prefix": "PNCP Contratos Publicação",
-        "tamanhoPagina": 500,
+        "tamanhoPagina": 100,  # Conservative page size to ensure success
         "date_param_initial": "dataInicial",
         "date_param_final": "dataFinal",
-        "required_params": {}
-    },
-    "contratos_atualizacao": {
-        "api_path": "/v1/contratos/atualizacao",
-        "file_prefix": "pncp-contratos-atualizacao",
-        "ia_title_prefix": "PNCP Contratos Atualização",
-        "tamanhoPagina": 500,
-        "date_param_initial": "dataInicial",
-        "date_param_final": "dataFinal",
-        "required_params": {}
-    },
-    "atas_vigencia": {
-        "api_path": "/v1/atas",
-        "file_prefix": "pncp-atas-vigencia",
-        "ia_title_prefix": "PNCP Atas Vigência",
-        "tamanhoPagina": 500,
-        "date_param_initial": "dataInicial", # For period of validity
-        "date_param_final": "dataFinal",   # For period of validity
-        "required_params": {}
-    },
-    "atas_atualizacao": {
-        "api_path": "/v1/atas/atualizacao",
-        "file_prefix": "pncp-atas-atualizacao",
-        "ia_title_prefix": "PNCP Atas Atualização",
-        "tamanhoPagina": 500,
-        "date_param_initial": "dataInicial",
-        "date_param_final": "dataFinal",
-        "required_params": {}
-    },
-    "instrumentoscobranca_inclusao": {
-        "api_path": "/v1/instrumentoscobranca/inclusao",
-        "file_prefix": "pncp-instrumentoscobranca-inclusao",
-        "ia_title_prefix": "PNCP Instrumentos Cobrança Inclusão",
-        "tamanhoPagina": 100,
-        "date_param_initial": "dataInicial",
-        "date_param_final": "dataFinal",
-        "required_params": {}
-    },
-    "pca_atualizacao": {
-        "api_path": "/v1/pca/atualizacao",
-        "file_prefix": "pncp-pca-atualizacao",
-        "ia_title_prefix": "PNCP PCA Atualização",
-        "tamanhoPagina": 500,
-        "date_param_initial": "dataInicio", # Note: API uses dataInicio/dataFim
-        "date_param_final": "dataFim",
-        "required_params": {}
-    },
-    "pca_usuario": {
-        "api_path": "/v1/pca/usuario",
-        "file_prefix": "pncp-pca-usuario",
-        "ia_title_prefix": "PNCP PCA Usuario",
-        "tamanhoPagina": 500,
-        "date_param_initial": None,  # This endpoint doesn't use date ranges
-        "date_param_final": None,
-        "required_params": {"anoPca": 2024, "idUsuario": 1}  # Example values, these would need to be configurable
-    },
-    "pca_general": {
-        "api_path": "/v1/pca/",
-        "file_prefix": "pncp-pca-general",
-        "ia_title_prefix": "PNCP PCA General",
-        "tamanhoPagina": 500,
-        "date_param_initial": None,  # This endpoint doesn't use date ranges
-        "date_param_final": None,
-        "required_params": {"anoPca": 2024, "codigoClassificacaoSuperior": "01"}  # Example values, these would need to be configurable
-    },
-    "contratacoes_proposta": {
-        "api_path": "/v1/contratacoes/proposta",
-        "file_prefix": "pncp-contratacoes-proposta",
-        "ia_title_prefix": "PNCP Contratações Proposta",
-        "tamanhoPagina": 50,  # Note: This endpoint has a lower max page size
-        "date_param_initial": None,  # This endpoint uses only dataFinal
-        "date_param_final": "dataFinal",
+        "date_format": "yyyyMMdd",
         "required_params": {}
     }
 }
@@ -134,62 +49,86 @@ ENDPOINTS_CONFIG = {
 def fetch_data_from_pncp(endpoint_path, params):
     """Fetches data from a PNCP endpoint with retries."""
     try:
-        response = requests.get(f"{BASE_URL}{endpoint_path}", params=params, timeout=30)
+        full_url = f"{BASE_URL}{endpoint_path}"
+        typer.echo(f"Making request to: {full_url} with params: {params}")
+        response = requests.get(full_url, params=params, timeout=30)
+        typer.echo(f"Response status: {response.status_code}")
         response.raise_for_status()
-        return response.json()
+        data = response.json()
+        typer.echo(f"Response data summary: {len(data.get('data', []))} items, total: {data.get('totalRegistros', 0)}")
+        return data
     except requests.exceptions.RequestException as e:
-        # Using typer.echo for consistent output, though print works fine too
         typer.echo(f"Request failed for {endpoint_path} with params {params}: {e}", err=True)
         raise
 
-def harvest_endpoint_data(day_iso, endpoint_key, endpoint_cfg):
-    """Harvests all data for a given day and endpoint from PNCP."""
-    all_records = []
-    current_page = 1
+def fetch_page_data(endpoint_cfg, base_params, page_num, endpoint_key):
+    """Fetch a single page of data."""
+    request_params = base_params.copy()
+    request_params["pagina"] = page_num
+    
+    try:
+        data = fetch_data_from_pncp(endpoint_cfg["api_path"], request_params)
+        # PNCP API uses "data" field, not "items"
+        items = data.get("data", data.get("items", []))
+        return page_num, items, data.get("totalPaginas", 0)
+    except RetryError as e:
+        typer.echo(f"Failed to fetch data for {endpoint_key} page {page_num}: {e}", err=True)
+        return page_num, None, 0
 
+def harvest_endpoint_data(day_iso, endpoint_key, endpoint_cfg):
+    """Harvests all data for a given day and endpoint from PNCP with concurrent requests."""
     base_params = {
         "tamanhoPagina": endpoint_cfg["tamanhoPagina"],
     }
     
-    # Handle date parameters if they exist
+    # Handle date parameters with correct format
     if endpoint_cfg["date_param_initial"] is not None:
-        date_value = day_iso.replace("-", "") if endpoint_key == "contratacoes_proposta" else day_iso
-        base_params[endpoint_cfg["date_param_initial"]] = date_value
+        # Convert from YYYY-MM-DD to YYYYMMDD format required by API
+        date_formatted = day_iso.replace("-", "")
+        base_params[endpoint_cfg["date_param_initial"]] = date_formatted
     if endpoint_cfg["date_param_final"] is not None:
-        date_value = day_iso.replace("-", "") if endpoint_key == "contratacoes_proposta" else day_iso
-        base_params[endpoint_cfg["date_param_final"]] = date_value
+        date_formatted = day_iso.replace("-", "")
+        base_params[endpoint_cfg["date_param_final"]] = date_formatted
     
     # Add required parameters
     if "required_params" in endpoint_cfg and endpoint_cfg["required_params"]:
         base_params.update(endpoint_cfg["required_params"])
 
-    # Create a dictionary for initial logging that excludes 'pagina'
     log_params = base_params.copy()
-    typer.echo(f"Starting harvest for '{endpoint_key}' on {day_iso} with initial params: {log_params} (excluding page number)...")
+    typer.echo(f"Starting harvest for '{endpoint_key}' on {day_iso} with params: {log_params}")
 
-    while True:
-        request_params = base_params.copy()
-        request_params["pagina"] = current_page
+    # First, get page 1 to determine total pages
+    page_num, items, total_pages = fetch_page_data(endpoint_cfg, base_params, 1, endpoint_key)
+    
+    if items is None:
+        typer.echo(f"Failed to fetch initial page for '{endpoint_key}'", err=True)
+        return None
+        
+    if not items:
+        typer.echo(f"No data found for '{endpoint_key}' on {day_iso}.")
+        return []
 
-        typer.echo(f"Fetching page {current_page} for '{endpoint_key}' with params {request_params}...")
-        try:
-            data = fetch_data_from_pncp(endpoint_cfg["api_path"], request_params)
-        except RetryError as e:
-            typer.echo(f"Failed to fetch data for {endpoint_key} page {current_page} after multiple retries: {e}", err=True)
-            return None
+    all_records = items
+    typer.echo(f"Found {total_pages} total pages for '{endpoint_key}', fetching remaining pages concurrently...")
 
-        if not data or "items" not in data or not data["items"]:
-            typer.echo(f"No more items found for '{endpoint_key}' on page {current_page}.")
-            break
-
-        all_records.extend(data["items"])
-
-        total_pages = data.get("totalPaginas", 0)
-        if not total_pages or current_page >= total_pages: # Handle cases where total_pages might be 0 or missing
-            typer.echo(f"Reached last page ({current_page}/{total_pages}) for '{endpoint_key}'.")
-            break
-
-        current_page += 1
+    if total_pages > 1:
+        # Fetch remaining pages concurrently (max 5 concurrent requests)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            future_to_page = {
+                executor.submit(fetch_page_data, endpoint_cfg, base_params, page, endpoint_key): page 
+                for page in range(2, total_pages + 1)
+            }
+            
+            for future in concurrent.futures.as_completed(future_to_page):
+                page_num, page_items, _ = future.result()
+                if page_items is not None:
+                    all_records.extend(page_items)
+                    typer.echo(f"Completed page {page_num}/{total_pages} for '{endpoint_key}' ({len(page_items)} items)")
+                else:
+                    typer.echo(f"Failed to fetch page {page_num} for '{endpoint_key}'", err=True)
+                
+                # Small delay to be respectful to the API
+                time.sleep(0.1)
 
     typer.echo(f"Harvested {len(all_records)} records for '{endpoint_key}' on {day_iso}.")
     return all_records
@@ -257,22 +196,23 @@ def process_and_upload_data(day_iso, endpoint_key, endpoint_cfg, records, run_su
 
     metadata = {
         "title": f"{endpoint_cfg['ia_title_prefix']} {day_iso}",
-        "collection": "opensource_data",
-        "subject": "public procurement Brazil; PNCP",
+        "collection": "opensource",  # Use accessible collection
+        "subject": "public procurement Brazil; PNCP; government data",
         "creator": "Baliza PNCP Mirror Bot",
         "language": "pt",
         "date": day_iso,
         "sha256": sha256_checksum,
         "original_source": "Portal Nacional de Contratações Públicas (PNCP)",
-        "description": f"Daily mirror of {endpoint_cfg['ia_title_prefix']} from Brazil's PNCP for {day_iso}. Raw data in JSONL format, compressed with Zstandard."
+        "description": f"Daily mirror of {endpoint_cfg['ia_title_prefix']} from Brazil's PNCP for {day_iso}. Raw data in JSONL format, compressed with Zstandard.",
+        "mediatype": "data"  # Specify media type for data uploads
     }
 
-    ia_access_key = os.getenv("IA_KEY")
-    ia_secret_key = os.getenv("IA_SECRET")
+    ia_access_key = os.getenv("IA_ACCESS_KEY")
+    ia_secret_key = os.getenv("IA_SECRET_KEY")
 
     try:
         if not ia_access_key or not ia_secret_key:
-            typer.echo("Internet Archive credentials (IA_KEY, IA_SECRET) not found. Skipping upload.", err=True)
+            typer.echo("Internet Archive credentials (IA_ACCESS_KEY, IA_SECRET_KEY) not found. Skipping upload.", err=True)
             file_details["upload_status"] = "skipped_no_credentials"
             run_summary_data[endpoint_key]["status"] = "upload_skipped"
             # Upload will not be attempted
