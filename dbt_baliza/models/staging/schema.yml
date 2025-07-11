@@ -1,0 +1,68 @@
+# Sources and staging models documentation
+version: 2
+
+sources:
+  - name: psa
+    description: "Persistent Staging Area - Raw data from PNCP API"
+    schema: psa
+    tables:
+      - name: contratos_raw
+        description: "Raw contract data from PNCP with full lineage"
+        columns:
+          - name: baliza_run_id
+            description: "Unique identifier for data collection run"
+            tests:
+              - not_null
+          - name: baliza_data_date
+            description: "Date of the data (not collection date)"
+            tests:
+              - not_null
+          - name: numeroControlePncpCompra
+            description: "PNCP unique contract identifier"
+            tests:
+              - not_null
+              - unique
+          - name: valorGlobal
+            description: "Total contract value in BRL"
+            tests:
+              - not_null
+              - dbt_utils.accepted_range:
+                  min_value: 0
+                  max_value: 1000000000  # R$ 1B sanity check
+
+  - name: control
+    description: "Control tables for data lineage and quality"
+    schema: control
+    tables:
+      - name: runs
+        description: "Execution tracking and metadata"
+        columns:
+          - name: run_id
+            description: "Unique run identifier"
+            tests:
+              - not_null
+              - unique
+
+models:
+  - name: stg_contratos
+    description: "Cleaned and standardized contract data"
+    columns:
+      - name: contrato_id
+        description: "Business key for contracts"
+        tests:
+          - not_null
+          - unique
+      - name: valor_global_brl
+        description: "Contract value in BRL (cleaned)"
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: data_assinatura
+        description: "Contract signature date (parsed)"
+        tests:
+          - not_null
+      - name: orgao_cnpj
+        description: "Government entity CNPJ"
+        tests:
+          - not_null

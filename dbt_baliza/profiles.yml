@@ -1,0 +1,26 @@
+# DBT profiles for Baliza project
+baliza:
+  outputs:
+    dev:
+      type: duckdb
+      path: '../state/baliza_dbt.duckdb'
+      extensions:
+        - httpfs  # For reading remote files
+        - json    # For JSON processing
+        - spatial # For geographic analysis
+      settings:
+        max_memory: '2GB'
+        threads: 4
+    
+    prod:
+      type: duckdb
+      path: '../state/baliza_prod.duckdb'
+      extensions:
+        - httpfs
+        - json
+        - spatial
+      settings:
+        max_memory: '4GB'
+        threads: 8
+  
+  target: dev

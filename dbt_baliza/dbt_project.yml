@@ -1,0 +1,61 @@
+# DBT project for Baliza PNCP data transformations
+name: 'baliza'
+version: '1.0.0'
+config-version: 2
+
+# This setting configures which "profile" dbt uses for this project.
+profile: 'baliza'
+
+# These configurations specify where dbt should look for different types of files.
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+# Models configuration
+models:
+  baliza:
+    # Raw/staging models - materialized as views for fast development
+    staging:
+      +materialized: view
+      +schema: staging
+    
+    # Core business logic - materialized as tables for performance
+    marts:
+      +materialized: table
+      +schema: marts
+    
+    # Analytics models - materialized as tables with indexes
+    analytics:
+      +materialized: table
+      +schema: analytics
+
+# Seeds configuration (reference data)
+seeds:
+  baliza:
+    +schema: seeds
+
+# Snapshots configuration (SCD Type 2)
+snapshots:
+  baliza:
+    +target_schema: snapshots
+
+# Global configurations
+vars:
+  # Date range for incremental models
+  start_date: '2025-01-01'
+  end_date: '{{ modules.datetime.date.today() }}'
+  
+  # PSA source configuration
+  psa_schema: 'psa'
+  control_schema: 'control'
+  
+  # Business rules
+  suspicious_amount_threshold: 1000000  # R$ 1M for flagging
+  max_contract_duration_days: 1460     # 4 years
