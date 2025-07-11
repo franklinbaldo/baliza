@@ -10,8 +10,7 @@ dependencies = [
     "zstandard",
     "internetarchive",
     "typer[all]",
-    "pandas",
-    "pyarrow", # For Parquet support
+    "duckdb", # Native Parquet support
 ]
 
 [project.optional-dependencies]
