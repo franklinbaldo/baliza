@@ -55,7 +55,7 @@ def test_pncp_api_endpoint(test_date_str):
             print(f"  Items on this page (count): {num_items}")
 
             if num_items > 0:
-                print(f"\n  First item on this page (first 200 chars):")
+                print("\n  First item on this page (first 200 chars):")
                 print(json.dumps(items[0], indent=2, ensure_ascii=False)[:200] + "...")
             else:
                 print("  No items found on the first page for this date.")

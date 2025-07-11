@@ -1,6 +1,5 @@
 import os
 import json
-import datetime
 import csv
 
 LOGS_DIR = os.path.join("baliza_run_logs")

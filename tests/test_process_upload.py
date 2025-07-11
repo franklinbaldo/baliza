@@ -1,9 +1,6 @@
 import pytest
 from unittest.mock import patch, mock_open, MagicMock
 import os
-import json
-import zstandard
-import hashlib
 from baliza.main import process_and_upload_data, PROCESSED_CSV_PATH
 
 

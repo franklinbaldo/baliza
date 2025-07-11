@@ -1,5 +1,3 @@
-import pytest
-from unittest.mock import Mock
 from baliza.main import harvest_endpoint_data
 from tenacity import RetryError
 

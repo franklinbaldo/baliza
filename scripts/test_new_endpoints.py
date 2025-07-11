@@ -7,7 +7,6 @@ Tests the new endpoints: /v1/pca/usuario, /v1/pca/, /v1/contratacoes/proposta
 import requests
 import datetime
 import json
-import sys
 
 BASE_URL = "https://pncp.gov.br/api/consulta"
 

@@ -1,4 +1,3 @@
-import pytest
 from unittest.mock import Mock
 from baliza.main import fetch_data_from_pncp
 
