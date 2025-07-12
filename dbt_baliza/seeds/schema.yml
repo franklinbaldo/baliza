@@ -1,0 +1,39 @@
+version: 2
+
+seeds:
+  - name: ref_entidades_seed
+    description: "Seed table containing reference data for public Brazilian entities (órgãos públicos) filtered from the CNPJ database. Includes normalized CNPJ, company name (razao_social), and state (UF). This data is intended to be updated monthly via the ingest_cnpj_to_seed.py script."
+    config:
+      schema: seeds # Explicitly state schema, though inherited from dbt_project.yml
+      quote_columns: false
+    columns:
+      - name: cnpj_normalizado
+        description: "Normalized CNPJ (first 8 digits of the full CNPJ)."
+        data_type: varchar
+        tests:
+          - not_null
+          - unique
+          - dbt_expectations.expect_column_values_to_match_regex:
+              regex: "^[0-9]{8}$"
+      - name: razao_social
+        description: "The official company name (Razão Social)."
+        data_type: varchar
+        tests:
+          - not_null
+      - name: uf
+        description: "Brazilian state (Unidade Federativa) abbreviation, e.g., SP, RJ."
+        data_type: varchar
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_of_length:
+              min_value: 2
+              max_value: 2
+          - dbt_expectations.expect_column_values_to_match_regex:
+              regex: "^[A-Z]{2}$"
+            # Example of a more specific test if we had a list of valid UFs:
+            # - accepted_values:
+            #     values: ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO']
+    # Note: To use dbt_expectations, it needs to be added to packages.yml and dbt deps run.
+    # If not available, the regex tests are good alternatives.
+    # The 'unique' test on cnpj_normalizado assumes the ingestion script correctly handles duplicates if any.
+    # The 'not_null' tests are good defaults.

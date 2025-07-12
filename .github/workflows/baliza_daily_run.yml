@@ -85,8 +85,122 @@ jobs:
           path: baliza_run_logs/run_summary_${{ steps.get_date.outputs.YESTERDAY_DATE }}.json
           retention-days: 90 # Keep artifacts for 90 days
 
-  deploy_pages:
+  build_coverage_data:
     needs: fetch_and_upload_pncp_data
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # Needed to checkout the repository
+
+    defaults:
+      run:
+        working-directory: ./dbt_baliza # dbt commands should run from project root
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        shell: bash
+
+      - name: Set up Python using uv
+        # Run from repo root for uv sync to find pyproject.toml
+        working-directory: .
+        run: |
+          uv venv --python $(cat .python-version || echo "3.11") .venv
+          echo "VIRTUAL_ENV=.venv" >> $GITHUB_ENV
+          echo "$(pwd)/.venv/bin" >> $GITHUB_PATH # Use absolute path for VENV
+        shell: bash
+
+      - name: Install Python dependencies (including dbt, duckdb)
+        # Run from repo root for uv sync
+        working-directory: .
+        run: |
+          source $VIRTUAL_ENV/bin/activate
+          # Assuming dbt-duckdb and duckdb-cli are in pyproject.toml or requirements.txt
+          uv sync --frozen-lockfile
+        shell: bash
+
+      - name: Install dbt packages
+        run: |
+          source $VIRTUAL_ENV/bin/activate
+          dbt deps
+        shell: bash
+
+      - name: Run dbt seed
+        # This loads ref_entidades_seed.csv into DuckDB
+        # Assumes ref_entidades_seed.csv is committed or generated prior to this job.
+        # The duckdb database file is specified in dbt_baliza/profiles.yml (e.g., ../state/baliza_dbt.duckdb)
+        # Ensure the path in profiles.yml is correct relative to dbt_baliza/
+        run: |
+          source $VIRTUAL_ENV/bin/activate
+          dbt seed --profiles-dir . # Use profiles.yml from current dir (dbt_baliza)
+        shell: bash
+
+      - name: Run dbt models and tests
+        run: |
+          source $VIRTUAL_ENV/bin/activate
+          dbt build --profiles-dir .
+        shell: bash
+
+      - name: Create exports directory (relative to dbt_baliza)
+        run: mkdir -p ../exports # Path relative to dbt_baliza working directory for duckdb state
+
+      - name: Export Parquet files from DuckDB
+        # Uses DuckDB CLI. Path to DB is relative to dbt_baliza (e.g., ../state/baliza_dbt.duckdb)
+        # Output paths are relative to dbt_baliza (e.g. ../exports/)
+        # TODO: Confirm the database path from profiles.yml. Assuming '../state/baliza_dbt.duckdb' for dev target.
+        # The schema 'seeds' and 'marts' are from dbt_project.yml and model configs.
+        run: |
+          source $VIRTUAL_ENV/bin/activate
+          DB_FILE="../state/baliza_dbt.duckdb" # Adjust if your dbt profile uses a different path/name
+          duckdb $DB_FILE -c "COPY (SELECT * FROM seeds.ref_entidades_seed) TO '../exports/ref_entidades_seed.parquet' (FORMAT PARQUET, CODEC 'ZSTD');"
+          duckdb $DB_FILE -c "COPY (SELECT * FROM marts.coverage_temporal) TO '../exports/coverage_temporal.parquet' (FORMAT PARQUET, CODEC 'ZSTD');"
+          duckdb $DB_FILE -c "COPY (SELECT * FROM marts.coverage_entidades) TO '../exports/coverage_entidades.parquet' (FORMAT PARQUET, CODEC 'ZSTD');"
+        shell: bash
+
+      - name: Quality Gate: Check average temporal coverage
+        # Fails if AVG(pct_cobertura_dia) < 80
+        run: |
+          source $VIRTUAL_ENV/bin/activate
+          DB_FILE="../state/baliza_dbt.duckdb"
+          # DuckDB query will exit with 0 if SELECT returns rows, 1 if no rows or error.
+          # We want to exit with non-zero if the condition (avg < 80) is met.
+          # So, if the query `SELECT 1 WHERE (SELECT AVG(pct_cobertura_dia) FROM marts.coverage_temporal) < 80`
+          # returns a row (meaning avg coverage is too low), then `COUNT(*)` will be 1.
+          # We then test if this count is 1.
+          COUNT_LOW_COVERAGE=$(duckdb $DB_FILE -csv -c "SELECT COUNT(*) FROM (SELECT 1 WHERE (SELECT AVG(pct_cobertura_dia) FROM marts.coverage_temporal) < 80);")
+          # COUNT_LOW_COVERAGE will be "count(*)\n1" or "count(*)\n0" (with header)
+          # Need to parse this. A simpler way is to make DuckDB return a specific value or error.
+
+          # Simpler: make the query return a value that bash can easily check.
+          # If avg < 80, return 1 (error code for us), else return 0.
+          # Then use `exit $(value)`
+          FAILURE_CODE=$(duckdb $DB_FILE -noheader -list -c "SELECT CASE WHEN AVG(pct_cobertura_dia) < 80 THEN 1 ELSE 0 END FROM marts.coverage_temporal;")
+          if [ "$FAILURE_CODE" -eq 1 ]; then
+            echo "Quality Gate Failed: Average temporal coverage is less than 80%."
+            exit 1
+          else
+            echo "Quality Gate Passed: Average temporal coverage is sufficient."
+          fi
+        shell: bash
+
+      - name: Upload coverage data artifact
+        # Uploading from repo root, so paths are from there
+        working-directory: .
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-data-artifact
+          path: |
+            exports/
+            site/
+          retention-days: 7
+
+
+  deploy_pages:
+    needs: build_coverage_data # Changed from fetch_and_upload_pncp_data
     runs-on: ubuntu-latest
     permissions:
       pages: write
@@ -97,35 +211,58 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4 # Checks out the repo code, not artifacts
 
-      - name: Set up Python using uv
+      # Python setup for existing stats generation, can be reused if needed
+      - name: Install uv
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-          uv venv --python $(cat .python-version || echo "3.11") .venv # Create venv using .python-version or default
-          echo "VIRTUAL_ENV=.venv" >> $GITHUB_ENV
-          echo ".venv/bin" >> $GITHUB_PATH
         shell: bash
 
-      - name: Install dependencies for stats generation
+      - name: Set up Python using uv
+        run: |
+          uv venv --python $(cat .python-version || echo "3.11") .venv
+          echo "VIRTUAL_ENV=.venv" >> $GITHUB_ENV
+          echo "$(pwd)/.venv/bin" >> $GITHUB_PATH
+        shell: bash
+
+      - name: Install Python dependencies for old stats page
         run: |
           source $VIRTUAL_ENV/bin/activate
           uv sync --frozen-lockfile
         shell: bash
 
-      - name: Collect statistics and generate HTML page
+      - name: Download coverage data artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-data-artifact
+          path: ./downloaded_artifact # Download to a specific subfolder
+
+      - name: Prepare ./docs directory for GitHub Pages
         run: |
+          mkdir -p ./docs/exports
+          # Copy existing stats page files (if they are still generated and needed)
+          # Assuming generate_stats_page.py puts index.html in docs/
           source $VIRTUAL_ENV/bin/activate
-          python baliza/scripts/collect_stats.py
-          python baliza/scripts/generate_stats_page.py
+          python scripts/collect_stats.py # Uses baliza_run_logs - these are not part of artifact
+          python scripts/generate_stats_page.py # Generates docs/index.html
+
+          # Copy new coverage page and its data
+          cp ./downloaded_artifact/site/cobertura.html ./docs/cobertura.html
+          cp ./downloaded_artifact/exports/*.parquet ./docs/exports/
+
+          # Adjust paths in cobertura.html if it was expecting ../exports
+          # Since cobertura.html is now in docs/ and parquet files in docs/exports/
+          # the path should change from ../exports/ to ./exports/ or just exports/
+          sed -i 's|\.\./exports/|exports/|g' ./docs/cobertura.html
         shell: bash
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Upload artifact for GitHub Pages
+        uses: actions/upload-pages-artifact@v3 # v3 is common for pages
         with:
           path: './docs'
 

@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cobertura de Publicações PNCP</title>
+    <!-- DataTables CSS -->
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- Apache Arrow JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/apache-arrow/13.0.0/arrow.js" integrity="sha512-nOQdcIZ3qJSqDRqsX2x0R0P2HSDVn728WbXFjV3qZma9RzJ02h3N72jY/VVIwD8RbsPZ210v0J1vY31Fk0xGA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <!-- jQuery (required for DataTables) -->
+    <script src="https://code.jquery.com/jquery-3.7.0.js"></script>
+    <!-- DataTables JS -->
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+
+    <style>
+        body { font-family: sans-serif; margin: 20px; background-color: #f4f4f4; color: #333; }
+        .container { max-width: 1200px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1, h2 { color: #0056b3; }
+        label { margin-right: 10px; }
+        select, input { padding: 8px; margin-bottom: 20px; border-radius: 4px; border: 1px solid #ddd; }
+        table.dataTable th { background-color: #0056b3; color: white; }
+        .sparkline-container { width: 100px; height: 20px; } /* For temporal heatmaps in table cells if needed */
+        #loadingMessage { font-size: 1.2em; color: #555; }
+        #summaryStats { margin-bottom: 20px; padding: 10px; background-color: #e9ecef; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Painel de Cobertura de Publicações no PNCP</h1>
+        <p>Este painel mostra quais órgãos públicos estão publicando dados no Portal Nacional de Contratações Públicas (PNCP) e a cobertura temporal dessas publicações.</p>
+
+        <div id="loadingMessage">Carregando dados...</div>
+
+        <div id="summaryStats" style="display: none;">
+            <p>Total de Órgãos Monitorados: <span id="totalOrgaos"></span></p>
+            <p>Órgãos que Nunca Publicaram: <span id="nuncaPublicaram"></span></p>
+            <p>Média Geral de Cobertura Temporal (dias publicados): <span id="mediaCobertura"></span>%</p>
+        </div>
+
+        <h2>Filtros</h2>
+        <label for="ufFilter">Filtrar por UF:</label>
+        <select id="ufFilter">
+            <option value="">Todas</option>
+        </select>
+        <label for="searchTerm">Buscar Razão Social:</label>
+        <input type="text" id="searchTerm" placeholder="Digite para buscar...">
+
+
+        <h2>Órgãos Monitorados e Cobertura</h2>
+        <table id="entidadesTable" class="display" style="width:100%">
+            <thead>
+                <tr>
+                    <th>CNPJ Normalizado</th>
+                    <th>Razão Social</th>
+                    <th>UF</th>
+                    <th>Publicou Alguma Vez?</th>
+                    <th>Dias Publicados (desde 2021-04-01)</th>
+                    <th>% Cobertura Temporal</th>
+                    <th>Heatmap Cobertura (Últimos 365 dias)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Data will be populated by JavaScript -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        const arrow = window.Arrow; // Access Arrow via window
+
+        async function loadParquetData(url) {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status} for ${url}`);
+            }
+            const arrayBuffer = await response.arrayBuffer();
+            const table = arrow.tableFromIPC(arrayBuffer);
+            // Convert Arrow Table to array of objects
+            return table.toArray().map(row => row.toJSON());
+        }
+
+        $(document).ready(async function() {
+            const loadingMessage = $('#loadingMessage');
+            const summaryStatsDiv = $('#summaryStats');
+            let dataTable;
+
+            try {
+                console.log("Iniciando carregamento dos dados Parquet...");
+                // Paths relative to where cobertura.html will be served from (e.g., /exports/file.parquet)
+                // Assuming the HTML is in /site/ and parquet in /exports/
+                // Adjust path if HTML is moved to /docs/ alongside exports/
+                const refEntidadesData = await loadParquetData('../exports/ref_entidades_seed.parquet');
+                const coverageEntidadesData = await loadParquetData('../exports/coverage_entidades.parquet');
+                const coverageTemporalData = await loadParquetData('../exports/coverage_temporal.parquet');
+                console.log("Dados carregados:", { refEntidadesData, coverageEntidadesData, coverageTemporalData });
+
+                loadingMessage.hide();
+                summaryStatsDiv.show();
+
+                // Populate UF Filter
+                const ufs = [...new Set(refEntidadesData.map(item => item.uf))].sort();
+                const ufFilter = $('#ufFilter');
+                ufs.forEach(uf => {
+                    ufFilter.append(new Option(uf, uf));
+                });
+
+                // Prepare data for DataTables
+                // Merge coverage_entidades with coverage_temporal based on cnpj_normalizado
+                const temporalMap = new Map(coverageTemporalData.map(item => [item.cnpj_normalizado, item]));
+
+                const tableData = coverageEntidadesData.map(entidade => {
+                    const temporal = temporalMap.get(entidade.cnpj_normalizado) || { dias_publicados: 0, pct_cobertura_dia: 0 };
+                    return {
+                        ...entidade,
+                        dias_publicados: temporal.dias_publicados,
+                        pct_cobertura_dia: temporal.pct_cobertura_dia,
+                        // Placeholder for heatmap - this will be a canvas rendered by Chart.js later
+                        heatmap_placeholder: `<canvas id="chart-${entidade.cnpj_normalizado}" class="sparkline-container"></canvas>`
+                    };
+                });
+
+                // Update summary stats
+                $('#totalOrgaos').text(tableData.length);
+                $('#nuncaPublicaram').text(tableData.filter(d => d.publicou_alguma_vez === 0).length);
+                const avgCoverage = tableData.reduce((sum, d) => sum + (d.pct_cobertura_dia || 0), 0) / (tableData.length || 1);
+                $('#mediaCobertura').text(avgCoverage.toFixed(1));
+
+
+                dataTable = $('#entidadesTable').DataTable({
+                    data: tableData,
+                    columns: [
+                        { data: 'cnpj_normalizado', title: 'CNPJ Normalizado',
+                          render: function(data, type, row) {
+                            return `<a href="entidade.html?cnpj=${data}" target="_blank">${data}</a>`;
+                          }
+                        },
+                        { data: 'razao_social', title: 'Razão Social' },
+                        { data: 'uf', title: 'UF' },
+                        { data: 'publicou_alguma_vez', title: 'Publicou?',
+                          render: function(data, type, row) {
+                            return data === 1 ? 'Sim' : 'Não';
+                          }
+                        },
+                        { data: 'dias_publicados', title: 'Dias Publicados' },
+                        { data: 'pct_cobertura_dia', title: '% Cobertura' },
+                        { data: 'heatmap_placeholder', title: 'Cobertura (365d)', orderable: false } // Placeholder for sparkline/heatmap
+                    ],
+                    pageLength: 25,
+                    responsive: true,
+                    language: {
+                        url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/pt-BR.json',
+                        search: "Buscar na tabela:"
+                    },
+                    // After table is drawn, render mini charts
+                    "drawCallback": function( settings ) {
+                        tableData.forEach(entidade => {
+                            // This is a simplified example. A real heatmap needs daily data for the last X days.
+                            // coverage_temporal.parquet currently only gives pct_cobertura_dia (overall).
+                            // For a daily heatmap, coverage_temporal would need to be grouped by day.
+                            // For now, let's just display the percentage as a simple bar.
+                            const canvas = document.getElementById(`chart-${entidade.cnpj_normalizado}`);
+                            if (canvas) {
+                                new Chart(canvas, {
+                                    type: 'bar',
+                                    data: {
+                                        labels: ['Cobertura'],
+                                        datasets: [{
+                                            label: '% Cobertura',
+                                            data: [entidade.pct_cobertura_dia || 0],
+                                            backgroundColor: entidade.pct_cobertura_dia > 79 ? 'rgba(75, 192, 192, 0.7)' : (entidade.pct_cobertura_dia > 0 ? 'rgba(255, 205, 86, 0.7)' : 'rgba(255, 99, 132, 0.7)'),
+                                            borderColor: entidade.pct_cobertura_dia > 79 ? 'rgba(75, 192, 192, 1)' : (entidade.pct_cobertura_dia > 0 ? 'rgba(255, 205, 86, 1)' : 'rgba(255, 99, 132, 1)'),
+                                            borderWidth: 1,
+                                            barPercentage: 1.0,
+                                            categoryPercentage: 1.0
+                                        }]
+                                    },
+                                    options: {
+                                        indexAxis: 'y',
+                                        responsive: true,
+                                        maintainAspectRatio: false,
+                                        scales: {
+                                            x: { min: 0, max: 100, display: false },
+                                            y: { display: false }
+                                        },
+                                        plugins: { legend: { display: false }, tooltip: { enabled: false } }
+                                    }
+                                });
+                            }
+                        });
+                    }
+                });
+
+                // UF Filter logic
+                $('#ufFilter').on('change', function() {
+                    const selectedUf = $(this).val();
+                    if (selectedUf) {
+                        dataTable.column(2).search('^' + selectedUf + '$', true, false).draw(); // Search UF column (index 2)
+                    } else {
+                        dataTable.column(2).search('').draw(); // Clear UF filter
+                    }
+                });
+
+                // Search term logic
+                $('#searchTerm').on('keyup', function() {
+                    dataTable.column(1).search(this.value).draw(); // Search Razao Social column (index 1)
+                });
+
+
+            } catch (error) {
+                console.error("Erro ao carregar ou processar dados:", error);
+                loadingMessage.text(`Erro ao carregar dados: ${error.message}. Verifique o console para detalhes e se os arquivos Parquet estão nos caminhos corretos (../exports/ via HTTP).`);
+                loadingMessage.css('color', 'red');
+            }
+        });
+    </script>
+</body>
+</html>
