@@ -1,0 +1,40 @@
+version: 2
+
+seeds:
+  - name: ref_entidades_publicas
+    description: "Reference data for public entities based on CNPJ database"
+    columns:
+      - name: cnpj
+        description: "CNPJ of the public entity (formatted with dots/slash/dash)"
+        tests:
+          - unique
+          - not_null
+      
+      - name: found_in_baliza
+        description: "Whether this entity appears in Baliza contract data"
+        tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+      
+      - name: razao_social
+        description: "Corporate name of the entity"
+      
+      - name: uf
+        description: "State code (UF) where entity is located"
+        tests:
+          - accepted_values:
+              values: ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 
+                      'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 
+                      'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO']
+      
+      - name: total_contratos
+        description: "Total number of contracts found in Baliza for this entity"
+        tests:
+          - not_null
+      
+      - name: primeiro_contrato
+        description: "Date of first contract found in Baliza"
+      
+      - name: ultimo_contrato
+        description: "Date of last contract found in Baliza"

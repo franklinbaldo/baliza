@@ -85,8 +85,130 @@ jobs:
           path: baliza_run_logs/run_summary_${{ steps.get_date.outputs.YESTERDAY_DATE }}.json
           retention-days: 90 # Keep artifacts for 90 days
 
-  deploy_pages:
+  build_coverage_data:
     needs: fetch_and_upload_pncp_data
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python using uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          uv venv --python $(cat .python-version || echo "3.11") .venv
+          echo "VIRTUAL_ENV=.venv" >> $GITHUB_ENV
+          echo ".venv/bin" >> $GITHUB_PATH
+        shell: bash
+
+      - name: Install dependencies
+        run: |
+          source $VIRTUAL_ENV/bin/activate
+          uv sync --frozen-lockfile
+          uv add dbt-duckdb dbt-core
+        shell: bash
+
+      - name: Generate CNPJ entities reference data
+        run: |
+          source $VIRTUAL_ENV/bin/activate
+          python scripts/ingest_cnpj_entities.py
+        shell: bash
+
+      - name: Run DBT coverage analysis
+        run: |
+          source $VIRTUAL_ENV/bin/activate
+          cd dbt_baliza
+          dbt deps
+          dbt seed --select ref_entidades_publicas
+          dbt run --select coverage_temporal coverage_entidades
+        shell: bash
+
+      - name: Export coverage data for dashboard
+        run: |
+          source $VIRTUAL_ENV/bin/activate
+          mkdir -p site/data
+          
+          # Export to JSON for web dashboard
+          python -c "
+          import duckdb
+          import json
+          
+          conn = duckdb.connect('state/baliza_dbt.duckdb')
+          
+          # Export entities coverage
+          entities = conn.execute('SELECT * FROM main.coverage_entidades').fetchall()
+          columns = [desc[0] for desc in conn.description]
+          entities_data = [dict(zip(columns, row)) for row in entities]
+          
+          with open('site/data/coverage_entidades.json', 'w') as f:
+              json.dump(entities_data, f, default=str, ensure_ascii=False, indent=2)
+          
+          # Export temporal coverage (last 90 days for performance)
+          temporal = conn.execute('''
+              SELECT * FROM main.coverage_temporal 
+              WHERE data_referencia >= CURRENT_DATE - INTERVAL '90 days'
+              ORDER BY data_referencia DESC
+          ''').fetchall()
+          columns = [desc[0] for desc in conn.description]
+          temporal_data = [dict(zip(columns, row)) for row in temporal]
+          
+          with open('site/data/coverage_temporal.json', 'w') as f:
+              json.dump(temporal_data, f, default=str, ensure_ascii=False, indent=2)
+              
+          conn.close()
+          print('Coverage data exported successfully')
+          "
+        shell: bash
+
+      - name: Calculate coverage quality gate
+        run: |
+          source $VIRTUAL_ENV/bin/activate
+          python -c "
+          import duckdb
+          
+          conn = duckdb.connect('state/baliza_dbt.duckdb')
+          
+          # Calculate average temporal coverage (last 30 days)
+          result = conn.execute('''
+              SELECT 
+                  COUNT(*) as total_days,
+                  SUM(CASE WHEN tem_dados_baliza THEN 1 ELSE 0 END) as days_with_data,
+                  ROUND(100.0 * SUM(CASE WHEN tem_dados_baliza THEN 1 ELSE 0 END) / COUNT(*), 2) as coverage_percent
+              FROM main.coverage_temporal 
+              WHERE data_referencia >= CURRENT_DATE - INTERVAL '30 days'
+                AND dia_publicacao_esperado = true
+                AND uf_sigla = 'TOTAL'
+          ''').fetchone()
+          
+          total_days, days_with_data, coverage_percent = result
+          
+          print(f'Temporal Coverage Quality Gate:')
+          print(f'  Days with data: {days_with_data}/{total_days}')
+          print(f'  Coverage percentage: {coverage_percent}%')
+          
+          # Quality gate: require at least 70% coverage
+          if coverage_percent < 70:
+              print(f'❌ Coverage quality gate FAILED: {coverage_percent}% < 70%')
+              exit(1)
+          else:
+              print(f'✅ Coverage quality gate PASSED: {coverage_percent}% >= 70%')
+          
+          conn.close()
+          "
+        shell: bash
+
+      - name: Upload coverage data artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-data
+          path: site/data/
+          retention-days: 30
+
+  deploy_pages:
+    needs: [fetch_and_upload_pncp_data, build_coverage_data]
     runs-on: ubuntu-latest
     permissions:
       pages: write
@@ -99,11 +221,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Download coverage data
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-data
+          path: site/data/
+
       - name: Set up Python using uv
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-          uv venv --python $(cat .python-version || echo "3.11") .venv # Create venv using .python-version or default
+          uv venv --python $(cat .python-version || echo "3.11") .venv
           echo "VIRTUAL_ENV=.venv" >> $GITHUB_ENV
           echo ".venv/bin" >> $GITHUB_PATH
         shell: bash
@@ -114,11 +242,63 @@ jobs:
           uv sync --frozen-lockfile
         shell: bash
 
-      - name: Collect statistics and generate HTML page
+      - name: Collect statistics and generate HTML pages
         run: |
           source $VIRTUAL_ENV/bin/activate
-          python baliza/scripts/collect_stats.py
-          python baliza/scripts/generate_stats_page.py
+          
+          # Create docs directory structure
+          mkdir -p docs
+          
+          # Copy coverage dashboard
+          cp site/cobertura.html docs/
+          cp -r site/data docs/ 2>/dev/null || true
+          
+          # Generate main stats page (if scripts exist)
+          if [ -f "scripts/collect_stats.py" ]; then
+            python scripts/collect_stats.py
+          fi
+          if [ -f "scripts/generate_stats_page.py" ]; then
+            python scripts/generate_stats_page.py
+          fi
+          
+          # Create index.html that links to coverage dashboard
+          cat > docs/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="pt-BR">
+          <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>BALIZA - Portal de Transparência PNCP</title>
+              <style>
+                  body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
+                  .header { text-align: center; margin-bottom: 40px; }
+                  .card { background: #f8f9fa; padding: 20px; border-radius: 10px; margin: 20px 0; }
+                  .button { display: inline-block; background: #007bff; color: white; padding: 12px 24px; 
+                           text-decoration: none; border-radius: 6px; margin: 10px; }
+                  .button:hover { background: #0056b3; }
+              </style>
+          </head>
+          <body>
+              <div class="header">
+                  <h1>🚀 BALIZA</h1>
+                  <p>Portal de Transparência e Análise do PNCP</p>
+              </div>
+              
+              <div class="card">
+                  <h2>📊 Dashboard de Cobertura PNCP</h2>
+                  <p>Análise de cobertura temporal e entidades do Portal Nacional de Contratações Públicas.</p>
+                  <a href="cobertura.html" class="button">Ver Dashboard de Cobertura</a>
+              </div>
+              
+              <div class="card">
+                  <h2>🎯 Sobre o BALIZA</h2>
+                  <p>O BALIZA é um sistema de coleta, preservação e análise de dados do PNCP, 
+                     focado em transparência e monitoramento de contratações públicas.</p>
+                  <a href="https://github.com/franklinbaldo/baliza" class="button">Ver no GitHub</a>
+              </div>
+          </body>
+          </html>
+          EOF
         shell: bash
 
       - name: Setup Pages
