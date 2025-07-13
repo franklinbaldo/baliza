@@ -1,7 +1,7 @@
 [project]
 name = "baliza"
 version = "0.1.0"
-description = "Add your description here"
+description = "BALIZA: Backup Aberto de Licitações Zelando pelo Acesso - Historical archive of Brazilian public procurement data"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -11,6 +11,9 @@ dependencies = [
     "typer[all]",
     "duckdb", # Native Parquet support with built-in compression
 ]
+
+[project.scripts]
+baliza = "baliza.main:app"
 
 [project.optional-dependencies]
 analytics = [
@@ -238,3 +241,14 @@ exclude_lines = [
 
 [tool.coverage.html]
 directory = "htmlcov"
+
+# Build system configuration
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+# Package discovery
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["baliza*"]
+exclude = ["tests*"]
