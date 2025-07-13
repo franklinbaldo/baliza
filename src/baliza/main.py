@@ -187,13 +187,20 @@ def _generate_run_id(data_date, endpoint_key):
     return f"{endpoint_key}_{data_date}_{timestamp}"
 
 
-def _get_missing_dates(days_back: int = 30) -> list[str]:
+def _get_missing_dates(days_back: int = 0) -> list[str]:
     """Find dates that are missing from our database in the last N days."""
     conn = duckdb.connect(str(BALIZA_DB_PATH))
     
     # Get the date range to check
     end_date = datetime.date.today() - datetime.timedelta(days=1)  # Yesterday
-    start_date = end_date - datetime.timedelta(days=days_back)
+    
+    if days_back == 0:
+        # ALL HISTORY - PNCP started around 2021, but let's be safe and go back further
+        start_date = datetime.date(2020, 1, 1)  # Start from 2020 to capture all possible data
+        typer.echo(f"🏛️ FULL HISTORICAL BACKUP MODE: Checking ALL dates from {start_date} to {end_date}")
+    else:
+        start_date = end_date - datetime.timedelta(days=days_back)
+        typer.echo(f"📅 LIMITED RANGE MODE: Checking last {days_back} days from {start_date} to {end_date}")
     
     # Get all dates that should exist
     all_dates = []
@@ -984,16 +991,16 @@ def run_baliza(
         bool,
         typer.Option(
             "--auto",
-            help="Automatically fetch all missing dates from the last 30 days"
+            help="Automatically fetch ALL missing dates from complete historical archive"
         ),
     ] = False,
     days_back: Annotated[
         int,
         typer.Option(
             "--days-back",
-            help="Number of days to look back when using auto mode (default: 30)"
+            help="Number of days to look back when using auto mode. Use 0 for ALL history (default: ALL)"
         ),
-    ] = 30,
+    ] = 0,
 ):
     """
     Main command to run the Baliza fetching and archiving process.
@@ -1009,7 +1016,10 @@ def run_baliza(
         if date_str is not None:
             typer.echo("Warning: Both --auto and date provided. Using auto mode.", err=True)
         
-        typer.echo(f"🔍 Finding missing dates from the last {days_back} days...")
+        if days_back == 0:
+            typer.echo("🏛️ Finding ALL missing dates from complete historical archive...")
+        else:
+            typer.echo(f"🔍 Finding missing dates from the last {days_back} days...")
         missing_dates = _get_missing_dates(days_back)
         
         if not missing_dates:
