@@ -1,13 +1,15 @@
-import os
-import requests
 import json
+import os
+
+import requests
 
 # URL of the OpenAPI specification
-OPENAPI_URL = "https://pncp.gov.br/pncp-consulta/v3/api-docs" # Corrected URL
+OPENAPI_URL = "https://pncp.gov.br/pncp-consulta/v3/api-docs"  # Corrected URL
 
 # Path to store the downloaded spec
 OUTPUT_DIR = os.path.join("docs", "openapi")
 OUTPUT_FILE = os.path.join(OUTPUT_DIR, "pncp_openapi.json")
+
 
 def fetch_and_save_spec():
     """Fetches the OpenAPI spec and saves it locally."""
@@ -23,7 +25,7 @@ def fetch_and_save_spec():
         print(f"Ensured directory {OUTPUT_DIR} exists.")
 
         # Save the spec content to the file
-        with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
+        with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
             json.dump(spec_content, f, ensure_ascii=False, indent=2)
         print(f"OpenAPI spec saved to {OUTPUT_FILE}")
 
@@ -31,10 +33,11 @@ def fetch_and_save_spec():
         print(f"Error fetching OpenAPI spec: {e}")
     except json.JSONDecodeError as e:
         print(f"Error decoding JSON from response: {e}")
-    except IOError as e:
+    except OSError as e:
         print(f"Error saving OpenAPI spec to file: {e}")
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
+
 
 if __name__ == "__main__":
     fetch_and_save_spec()

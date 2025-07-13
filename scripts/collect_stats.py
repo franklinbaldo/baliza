@@ -1,9 +1,10 @@
-import os
-import json
 import csv
+import json
+import os
 
 LOGS_DIR = os.path.join("baliza_run_logs")
 OUTPUT_FILE = os.path.join("baliza_data", "run_statistics.csv")
+
 
 def collect_statistics():
     print(f"Collecting statistics from {LOGS_DIR}...")
@@ -16,16 +17,18 @@ def collect_statistics():
         if filename.startswith("run_summary_") and filename.endswith(".json"):
             filepath = os.path.join(LOGS_DIR, filename)
             try:
-                with open(filepath, 'r', encoding='utf-8') as f:
+                with open(filepath, encoding="utf-8") as f:
                     summary = json.load(f)
-                    
+
                     # Extract relevant data
                     run_date = summary.get("run_date_iso")
                     target_data_date = summary.get("target_data_date")
                     overall_status = summary.get("overall_status")
 
                     # Aggregate endpoint data
-                    for endpoint_key, endpoint_data in summary.get("endpoints", {}).items():
+                    for endpoint_key, endpoint_data in summary.get(
+                        "endpoints", {}
+                    ).items():
                         stats_entry = {
                             "run_date": run_date,
                             "target_data_date": target_data_date,
@@ -38,14 +41,22 @@ def collect_statistics():
                             "ia_item_url": "N/A",
                             "sha256_checksum": "N/A",
                         }
-                        
+
                         # Get details from the first file generated (assuming one per endpoint for now)
                         if endpoint_data.get("files_generated"):
                             first_file = endpoint_data["files_generated"][0]
-                            stats_entry["upload_status"] = first_file.get("upload_status", "N/A")
-                            stats_entry["ia_identifier"] = first_file.get("ia_identifier", "N/A")
-                            stats_entry["ia_item_url"] = first_file.get("ia_item_url", "N/A")
-                            stats_entry["sha256_checksum"] = first_file.get("sha256_checksum", "N/A")
+                            stats_entry["upload_status"] = first_file.get(
+                                "upload_status", "N/A"
+                            )
+                            stats_entry["ia_identifier"] = first_file.get(
+                                "ia_identifier", "N/A"
+                            )
+                            stats_entry["ia_item_url"] = first_file.get(
+                                "ia_item_url", "N/A"
+                            )
+                            stats_entry["sha256_checksum"] = first_file.get(
+                                "sha256_checksum", "N/A"
+                            )
 
                         all_stats.append(stats_entry)
 
@@ -60,11 +71,12 @@ def collect_statistics():
 
     # Write to CSV
     fieldnames = all_stats[0].keys()
-    with open(OUTPUT_FILE, 'w', newline='', encoding='utf-8') as csvfile:
+    with open(OUTPUT_FILE, "w", newline="", encoding="utf-8") as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(all_stats)
     print(f"Statistics collected and saved to {OUTPUT_FILE}")
+
 
 if __name__ == "__main__":
     collect_statistics()

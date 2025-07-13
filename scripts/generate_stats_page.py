@@ -1,27 +1,30 @@
-import os
 import csv
 import datetime
+import os
 
 STATS_CSV = os.path.join("baliza_data", "run_statistics.csv")
 TEMPLATE_FILE = os.path.join("docs", "stats_template.html")
 OUTPUT_FILE = os.path.join("docs", "index.html")
 
+
 def generate_stats_page():
     print("Generating statistics page...")
 
     if not os.path.exists(STATS_CSV):
-        print(f"Error: Statistics CSV not found at {STATS_CSV}. Run collect_stats.py first.")
+        print(
+            f"Error: Statistics CSV not found at {STATS_CSV}. Run collect_stats.py first."
+        )
         return
 
     if not os.path.exists(TEMPLATE_FILE):
         print(f"Error: HTML template not found at {TEMPLATE_FILE}.")
         return
 
-    with open(STATS_CSV, 'r', encoding='utf-8') as f:
+    with open(STATS_CSV, encoding="utf-8") as f:
         reader = csv.DictReader(f)
         stats_data = list(reader)
 
-    with open(TEMPLATE_FILE, 'r', encoding='utf-8') as f:
+    with open(TEMPLATE_FILE, encoding="utf-8") as f:
         template = f.read()
 
     stats_rows = []
@@ -48,9 +51,15 @@ def generate_stats_page():
         status_class = ""
         if row["endpoint_status"] == "success":
             status_class = "status-success"
-        elif row["endpoint_status"] == "failed" or row["endpoint_status"] == "upload_failed":
+        elif (
+            row["endpoint_status"] == "failed"
+            or row["endpoint_status"] == "upload_failed"
+        ):
             status_class = "status-failed"
-        elif row["endpoint_status"] == "upload_skipped" or row["endpoint_status"] == "no_data":
+        elif (
+            row["endpoint_status"] == "upload_skipped"
+            or row["endpoint_status"] == "no_data"
+        ):
             status_class = "status-skipped"
 
         stats_rows.append(f"""
@@ -69,17 +78,24 @@ def generate_stats_page():
         """)
 
     # Replace placeholders in the template
-    generated_html = template.replace("{{ last_updated }}", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC"))
+    generated_html = template.replace(
+        "{{ last_updated }}", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC")
+    )
     generated_html = generated_html.replace("{{ stats_rows }}", "\n".join(stats_rows))
     generated_html = generated_html.replace("{{ total_runs }}", str(total_runs))
-    generated_html = generated_html.replace("{{ successful_runs }}", str(successful_runs))
+    generated_html = generated_html.replace(
+        "{{ successful_runs }}", str(successful_runs)
+    )
     generated_html = generated_html.replace("{{ failed_runs }}", str(failed_runs))
-    generated_html = generated_html.replace("{{ uploads_skipped }}", str(uploads_skipped))
+    generated_html = generated_html.replace(
+        "{{ uploads_skipped }}", str(uploads_skipped)
+    )
 
-    with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         f.write(generated_html)
 
     print(f"Statistics page generated at {OUTPUT_FILE}")
+
 
 if __name__ == "__main__":
     generate_stats_page()
