@@ -21,11 +21,11 @@
 - Sem séries históricas não há auditoria séria nem detecção de fraude por padrão.
 
 ## Como funciona
-1. **Coleta Agendada**: Diariamente, às 02:15 BRT (05:15 UTC), uma GitHub Action é acionada.
-2. **Busca de Dados**: O script `baliza/src/baliza/main.py` chama os endpoints da API do PNCP (inicialmente `/v1/contratacoes/publicacao`, com planos de expansão para outros como `/v1/contratos/publicacao`, `/v1/pca`). Ele filtra os dados para o dia anterior (`dataInicial=dataFinal=ontem`).
-3. **Processamento e Compactação**: Os dados coletados são agregados em um arquivo `pncp-<tipo>-YYYY-MM-DD.jsonl.zst` (JSONL compactado com Zstandard).
-4. **Upload para o Internet Archive**: O arquivo compactado é enviado para o Internet Archive usando a API S3-like do IA. O identificador do item é no formato `pncp-<tipo>-YYYY-MM-DD`.
-5. **Registro de Checksum (Planejado)**: Está planejado salvar o checksum SHA256 dos arquivos processados (ex: em um `state/processed.csv`) para evitar duplicidade e facilitar o rastreamento. Esta funcionalidade ainda não está implementada no script principal.
+1. **Coleta Automática**: Por padrão, BALIZA processa TODO o histórico disponível (2020-2025+), identificando automaticamente datas faltantes.
+2. **Busca de Dados**: O CLI `baliza` chama os endpoints da API do PNCP (`/v1/contratacoes/publicacao`, `/v1/contratos/publicacao`, `/v1/pca`) com paginação inteligente.
+3. **Processamento e Compactação**: Os dados são organizados em Parquet e DuckDB para análise local, além de JSONL compactado com Zstandard para arquivamento.
+4. **Upload para o Internet Archive**: Arquivos são enviados para o Internet Archive com metadados estruturados e checksums SHA256.
+5. **Federação de Dados**: Sistema de federação permite consultas unificadas entre dados locais e do Internet Archive usando DuckDB.
 
 ## 🚀 Como Usar
 
@@ -45,37 +45,69 @@
 
 #### Pré-requisitos
 - Python 3.11+
-- `uv` (gerenciador de pacotes Python rápido). Se não tiver, instale via `curl -LsSf https://astral.sh/uv/install.sh | sh`.
-- Credenciais do Internet Archive (`IA_ACCESS_KEY` e `IA_SECRET_KEY`).
+- `uv` (gerenciador de pacotes Python rápido). Se não tiver: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+- Credenciais do Internet Archive (`IA_KEY` e `IA_SECRET`).
 
-#### Configuração
-1. Clone o repositório:
+#### 🚀 **Instalação e Uso (Simples)**
+
+1. **Clone e configure o projeto:**
    ```bash
    git clone https://github.com/franklinbaldo/baliza.git
    cd baliza
+   
+   # Instalar dependências
+   uv sync
+   
+   # Instalar BALIZA como CLI tool
+   uv pip install -e .
    ```
 
-2. Instale as dependências:
+2. **Configure credenciais do Internet Archive:**
    ```bash
-   uv venv  # Cria o .venv
-   uv sync  # Instala dependências do uv.lock
+   export IA_KEY="SUA_CHAVE_IA"
+   export IA_SECRET="SEU_SEGREDO_IA"
    ```
 
-3. Configure credenciais do Internet Archive:
+3. **Execute a coleta:**
+
+   **🏛️ MODO AUTOMÁTICO (Recomendado) - Baixa TODO o histórico:**
    ```bash
-   export IA_ACCESS_KEY="SUA_CHAVE_IA"
-   export IA_SECRET_KEY="SEU_SEGREDO_IA"
+   uv run baliza --auto
    ```
-
-4. Execute coleta de dados:
+   
+   **📅 MODO DATA ESPECÍFICA:**
    ```bash
-   python src/baliza/main.py 2024-07-10
+   uv run baliza --date 2024-07-10
+   ```
+   
+   **⚡ MODO ÚLTIMOS N DIAS:**
+   ```bash
+   uv run baliza --auto --days-back 30
    ```
 
-#### Federação com Internet Archive
+#### 📁 **Estrutura de Dados**
+
+BALIZA usa estrutura de diretórios XDG-compliant:
+
+**🏠 Desenvolvimento (padrão):**
+```
+baliza/
+├── data/           # Bancos de dados principais
+├── .cache/         # Cache de downloads do IA
+└── .config/        # Configurações
+```
+
+**🌐 Produção (BALIZA_PRODUCTION=1):**
+```
+~/.local/share/baliza/  # Dados do usuário
+~/.cache/baliza/        # Cache do usuário  
+~/.config/baliza/       # Config do usuário
+```
+
+#### 🔗 **Federação com Internet Archive**
 ```bash
-# Configurar federação para usar dados do IA como fonte primária
-python scripts/setup_ia_federation.py
+# Atualizar federação (incluído automaticamente no --auto)
+uv run python src/baliza/ia_federation.py federate
 
 # Executar análises com DBT
 cd dbt_baliza
@@ -84,9 +116,9 @@ dbt run --select coverage_temporal coverage_entidades
 
 ## Automação com GitHub Actions
 - O projeto inclui um workflow em `.github/workflows/baliza_daily_run.yml`.
-- Este workflow executa o script diariamente às 02:15 BRT (05:15 UTC), utilizando a variável de ambiente `BALIZA_DATE`.
+- Este workflow executa o script diariamente às 02:15 BRT (05:15 UTC) em modo automático completo.
 - O workflow captura um sumário da execução em formato JSON e o armazena como um artefato do GitHub Actions para referência e depuração.
-- **Importante**: Para que o upload automático funcione, você **DEVE** configurar `IA_ACCESS_KEY` e `IA_SECRET_KEY` como "Secrets" nas configurações do seu repositório GitHub (Settings > Secrets and variables > Actions).
+- **Importante**: Para que o upload automático funcione, você **DEVE** configurar `IA_KEY` e `IA_SECRET` como "Secrets" nas configurações do seu repositório GitHub (Settings > Secrets and variables > Actions).
 
 ## Roadmap
 
