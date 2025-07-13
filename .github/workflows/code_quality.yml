@@ -1,0 +1,360 @@
+name: Code Quality
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Cancel previous runs if a new commit is pushed
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  code_quality:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better blame info
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Set up Python with uv
+        run: |
+          uv venv --python 3.11 .venv
+          echo "VIRTUAL_ENV=.venv" >> $GITHUB_ENV
+          echo ".venv/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: |
+          source $VIRTUAL_ENV/bin/activate
+          uv sync --frozen-lockfile
+          
+      - name: Cache pre-commit hooks
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+          restore-keys: |
+            pre-commit-${{ runner.os }}-
+
+      - name: Install pre-commit
+        run: |
+          source $VIRTUAL_ENV/bin/activate
+          pre-commit install
+
+      - name: Run Ruff linting
+        run: |
+          source $VIRTUAL_ENV/bin/activate
+          echo "🔍 Running Ruff linter..."
+          ruff check . --output-format=github
+        continue-on-error: false
+
+      - name: Run Ruff formatting check
+        run: |
+          source $VIRTUAL_ENV/bin/activate
+          echo "🎨 Checking Ruff formatting..."
+          ruff format --check --diff .
+        continue-on-error: false
+
+      - name: Run MyPy type checking
+        run: |
+          source $VIRTUAL_ENV/bin/activate
+          echo "🏷️ Running MyPy type checking..."
+          mypy src/ --show-error-codes --pretty
+        continue-on-error: true  # Type errors shouldn't block PRs initially
+
+      - name: Run security checks with Bandit
+        run: |
+          source $VIRTUAL_ENV/bin/activate
+          echo "🔒 Running Bandit security checks..."
+          bandit -r src/ -f json -o bandit-report.json || true
+          bandit -r src/ -f txt
+        continue-on-error: true
+
+      - name: Upload Bandit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-security-report
+          path: bandit-report.json
+          retention-days: 30
+
+      - name: Run tests with coverage
+        run: |
+          source $VIRTUAL_ENV/bin/activate
+          echo "🧪 Running tests with coverage..."
+          pytest tests/ \
+            --cov=src \
+            --cov-report=term-missing \
+            --cov-report=xml \
+            --cov-report=html \
+            --junitxml=pytest-report.xml \
+            -v
+        continue-on-error: false
+
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: |
+            coverage.xml
+            htmlcov/
+            pytest-report.xml
+          retention-days: 30
+
+      - name: Upload coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v3
+        with:
+          file: coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+      - name: Check import sorting
+        run: |
+          source $VIRTUAL_ENV/bin/activate
+          echo "📦 Checking import sorting..."
+          ruff check --select I .
+        continue-on-error: false
+
+      - name: Check for TODO/FIXME comments
+        run: |
+          echo "📝 Checking for TODO/FIXME comments..."
+          if grep -r "TODO\|FIXME\|XXX\|HACK" src/ tests/ --exclude-dir=.git --exclude-dir=__pycache__ --exclude="*.pyc"; then
+            echo "⚠️ Found TODO/FIXME comments. Consider addressing them."
+          else
+            echo "✅ No TODO/FIXME comments found."
+          fi
+        continue-on-error: true
+
+      - name: Check file permissions
+        run: |
+          echo "🔐 Checking file permissions..."
+          find src/ tests/ -name "*.py" -executable -type f | while read file; do
+            echo "⚠️ Python file has executable permission: $file"
+          done
+        continue-on-error: true
+
+      - name: Validate YAML files
+        run: |
+          source $VIRTUAL_ENV/bin/activate
+          echo "📋 Validating YAML files..."
+          python -c "
+          import yaml
+          import sys
+          import glob
+          
+          yaml_files = glob.glob('**/*.yml', recursive=True) + glob.glob('**/*.yaml', recursive=True)
+          errors = 0
+          
+          for file in yaml_files:
+              try:
+                  with open(file, 'r') as f:
+                      yaml.safe_load(f)
+                  print(f'✅ {file}')
+              except yaml.YAMLError as e:
+                  print(f'❌ {file}: {e}')
+                  errors += 1
+          
+          if errors > 0:
+              print(f'Found {errors} YAML validation errors')
+              sys.exit(1)
+          else:
+              print('All YAML files are valid')
+          "
+
+      - name: Check code complexity
+        run: |
+          source $VIRTUAL_ENV/bin/activate
+          echo "🔢 Checking code complexity..."
+          python -c "
+          import ast
+          import glob
+          
+          def get_complexity(node):
+              complexity = 1
+              for child in ast.walk(node):
+                  if isinstance(child, (ast.If, ast.While, ast.For, ast.comprehension)):
+                      complexity += 1
+                  elif isinstance(child, ast.BoolOp):
+                      complexity += len(child.values) - 1
+              return complexity
+          
+          high_complexity = []
+          
+          for file in glob.glob('src/**/*.py', recursive=True):
+              try:
+                  with open(file, 'r') as f:
+                      tree = ast.parse(f.read())
+                  
+                  for node in ast.walk(tree):
+                      if isinstance(node, ast.FunctionDef):
+                          complexity = get_complexity(node)
+                          if complexity > 10:
+                              high_complexity.append((file, node.name, complexity))
+              except Exception as e:
+                  print(f'Error parsing {file}: {e}')
+          
+          if high_complexity:
+              print('⚠️ Functions with high complexity (>10):')
+              for file, func, complexity in high_complexity:
+                  print(f'  {file}:{func} - {complexity}')
+          else:
+              print('✅ No functions with high complexity found')
+          "
+        continue-on-error: true
+
+  dependency_check:
+    name: Dependency Security Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Set up Python with uv
+        run: |
+          uv venv --python 3.11 .venv
+          echo "VIRTUAL_ENV=.venv" >> $GITHUB_ENV
+          echo ".venv/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: |
+          source $VIRTUAL_ENV/bin/activate
+          uv sync --frozen-lockfile
+
+      - name: Run safety check
+        run: |
+          source $VIRTUAL_ENV/bin/activate
+          # Install safety for dependency vulnerability checking
+          uv add safety --dev
+          echo "🛡️ Checking dependencies for known vulnerabilities..."
+          safety check --json --output safety-report.json || true
+          safety check
+        continue-on-error: true
+
+      - name: Upload safety report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: safety-security-report
+          path: safety-report.json
+          retention-days: 30
+
+  documentation_check:
+    name: Documentation Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check README exists and is substantial
+        run: |
+          echo "📖 Checking documentation..."
+          if [ ! -f "README.md" ]; then
+            echo "❌ README.md not found"
+            exit 1
+          fi
+          
+          lines=$(wc -l < README.md)
+          if [ $lines -lt 20 ]; then
+            echo "⚠️ README.md seems too short ($lines lines)"
+          else
+            echo "✅ README.md exists and has substantial content ($lines lines)"
+          fi
+
+      - name: Check for proper documentation structure
+        run: |
+          echo "📋 Checking documentation structure..."
+          required_sections=("## " "### " "- " "```")
+          missing_sections=()
+          
+          for section in "${required_sections[@]}"; do
+            if ! grep -q "$section" README.md; then
+              missing_sections+=("$section")
+            fi
+          done
+          
+          if [ ${#missing_sections[@]} -gt 0 ]; then
+            echo "⚠️ README.md missing some documentation patterns:"
+            printf '%s\n' "${missing_sections[@]}"
+          else
+            echo "✅ README.md has good documentation structure"
+          fi
+
+      - name: Check for broken internal links
+        run: |
+          echo "🔗 Checking for broken internal links..."
+          # Extract markdown links and check if referenced files exist
+          grep -oP '\[.*?\]\(\K[^)]+' README.md | grep -v '^http' | while read -r link; do
+            if [ ! -f "$link" ] && [ ! -d "$link" ]; then
+              echo "⚠️ Broken internal link: $link"
+            fi
+          done || echo "✅ No broken internal links found"
+
+  quality_gate:
+    name: Quality Gate
+    needs: [code_quality, dependency_check, documentation_check]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Check quality gate status
+        run: |
+          echo "🚪 Quality Gate Summary"
+          echo "======================"
+          
+          code_quality_result="${{ needs.code_quality.result }}"
+          dependency_result="${{ needs.dependency_check.result }}"
+          docs_result="${{ needs.documentation_check.result }}"
+          
+          echo "Code Quality: $code_quality_result"
+          echo "Dependency Check: $dependency_result"
+          echo "Documentation: $docs_result"
+          
+          # Quality gate passes if critical checks pass
+          if [ "$code_quality_result" = "success" ]; then
+            echo "✅ Quality gate PASSED"
+            echo "QUALITY_GATE_STATUS=passed" >> $GITHUB_ENV
+          else
+            echo "❌ Quality gate FAILED"
+            echo "QUALITY_GATE_STATUS=failed" >> $GITHUB_ENV
+            exit 1
+          fi
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const status = process.env.QUALITY_GATE_STATUS;
+            const emoji = status === 'passed' ? '✅' : '❌';
+            const message = status === 'passed' ? 'PASSED' : 'FAILED';
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `${emoji} Quality Gate ${message}\n\nCode quality checks have been completed. See the Actions tab for detailed results.`
+            });

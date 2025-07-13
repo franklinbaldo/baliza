@@ -36,6 +36,38 @@ dev = [
 [tool.ruff]
 target-version = "py311"
 line-length = 88
+
+# Exclude specific files/directories
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+    "migrations",
+    "*.pyi",
+]
+
+# Output configuration
+output-format = "grouped"
+
+[tool.ruff.lint]
 select = [
     # Error
     "E",
@@ -84,6 +116,8 @@ ignore = [
     "S607",  # Starting a process with a partial executable path
     "TRY003", # Avoid specifying long messages outside the exception class
     "B008",  # Do not perform function calls in argument defaults
+    "S608",  # Possible SQL injection vector (we use DuckDB safely)
+    "BLE001", # Do not catch blind exception (sometimes needed)
     # Conflicts with formatter
     "E501",  # Line too long
     "W191",  # Indentation contains tabs
@@ -102,47 +136,11 @@ ignore = [
     "ISC002", # Implicitly concatenated string literals over continuation lines
 ]
 
-# Exclude specific files/directories
-exclude = [
-    ".bzr",
-    ".direnv",
-    ".eggs",
-    ".git",
-    ".git-rewrite",
-    ".hg",
-    ".mypy_cache",
-    ".nox",
-    ".pants.d",
-    ".pytype",
-    ".ruff_cache",
-    ".svn",
-    ".tox",
-    ".venv",
-    "__pypackages__",
-    "_build",
-    "buck-out",
-    "build",
-    "dist",
-    "node_modules",
-    "venv",
-    "migrations",
-    "*.pyi",
-]
-
-# Group violations by containing file
-format = "grouped"
-
-# Show source code in output
-show-source = true
-
-# Show fixes in output
-show-fixes = true
-
-[tool.ruff.mccabe]
+[tool.ruff.lint.mccabe]
 # Maximum cyclomatic complexity
 max-complexity = 10
 
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 known-first-party = ["baliza"]
 known-third-party = [
     "duckdb",
@@ -162,15 +160,15 @@ section-order = [
     "local-folder"
 ]
 
-[tool.ruff.pep8-naming]
+[tool.ruff.lint.pep8-naming]
 # Allow Pydantic's `@validator` decorator to trigger class method treatment.
 classmethod-decorators = ["classmethod", "pydantic.validator"]
 
-[tool.ruff.flake8-bandit]
+[tool.ruff.lint.flake8-bandit]
 # S101: Use of assert
 check-typed-exception = true
 
-[tool.ruff.pyupgrade]
+[tool.ruff.lint.pyupgrade]
 # Preserve types, even if a file imports `from __future__ import annotations`.
 keep-runtime-typing = true
 

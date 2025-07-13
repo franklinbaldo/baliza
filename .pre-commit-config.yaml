@@ -1,0 +1,133 @@
+# Pre-commit configuration for Baliza
+# See https://pre-commit.com for more information
+repos:
+  # Ruff for linting and formatting (replaces black, isort, flake8, etc.)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.3
+    hooks:
+      # Run the linter
+      - id: ruff
+        args: [--fix]
+        types_or: [python, pyi]
+      # Run the formatter  
+      - id: ruff-format
+        types_or: [python, pyi]
+
+  # Built-in pre-commit hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      # General file checks
+      - id: trailing-whitespace
+        exclude: '\.md$'
+      - id: end-of-file-fixer
+        exclude: '\.md$'
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-toml
+      - id: check-json
+      - id: check-xml
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+      
+      # Python-specific checks
+      - id: check-ast
+      - id: check-builtin-literals
+      - id: check-docstring-first
+      - id: debug-statements
+      - id: name-tests-test
+        args: [--pytest-test-first]
+
+  # Security checks with bandit
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.9
+    hooks:
+      - id: bandit
+        args: ['-c', 'pyproject.toml']
+        additional_dependencies: ['bandit[toml]']
+        exclude: '^tests/'
+
+  # Type checking with mypy
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.16.1
+    hooks:
+      - id: mypy
+        additional_dependencies: 
+          - types-requests
+          - types-PyYAML
+        exclude: '^(tests|scripts)/'
+
+  # SQL formatting for DBT files
+  - repo: https://github.com/sqlfluff/sqlfluff
+    rev: 3.5.0
+    hooks:
+      - id: sqlfluff-lint
+        files: '\.(sql)$'
+        additional_dependencies: ['dbt-duckdb', 'sqlfluff-templater-dbt']
+      - id: sqlfluff-fix
+        files: '\.(sql)$'
+        additional_dependencies: ['dbt-duckdb', 'sqlfluff-templater-dbt']
+
+  # Jupyter notebook cleaning
+  - repo: https://github.com/nbQA-dev/nbQA
+    rev: 1.9.1
+    hooks:
+      - id: nbqa-ruff
+        args: [--fix]
+      - id: nbqa-ruff-format
+
+  # YAML formatting
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v4.0.0-alpha.8
+    hooks:
+      - id: prettier
+        files: '\.(yaml|yml)$'
+
+  # Dockerfile linting
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.12.0
+    hooks:
+      - id: hadolint-docker
+        files: 'Dockerfile*'
+
+  # Shell script linting
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        files: '\.(sh|bash)$'
+
+# Global configuration
+default_language_version:
+  python: python3.11
+
+# Fail fast - stop running hooks after first failure
+fail_fast: false
+
+# Default stages to run hooks on
+default_stages: [commit, push]
+
+# Specific configurations for different stages
+repos:
+  # Only run expensive checks on push, not every commit
+  - repo: local
+    hooks:
+      - id: pytest-check
+        name: pytest-check
+        entry: uv run pytest tests/ --maxfail=1 -q
+        language: system
+        stages: [push]
+        pass_filenames: false
+        always_run: true
+      
+      - id: coverage-check
+        name: coverage-check
+        entry: uv run pytest tests/ --cov=src --cov-report=term-missing --cov-fail-under=80
+        language: system
+        stages: [manual]
+        pass_filenames: false
+        always_run: true
