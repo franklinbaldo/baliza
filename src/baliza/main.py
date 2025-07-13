@@ -187,6 +187,112 @@ def _generate_run_id(data_date, endpoint_key):
     return f"{endpoint_key}_{data_date}_{timestamp}"
 
 
+def _get_missing_dates(days_back: int = 30) -> list[str]:
+    """Find dates that are missing from our database in the last N days."""
+    conn = duckdb.connect(str(BALIZA_DB_PATH))
+    
+    # Get the date range to check
+    end_date = datetime.date.today() - datetime.timedelta(days=1)  # Yesterday
+    start_date = end_date - datetime.timedelta(days=days_back)
+    
+    # Get all dates that should exist
+    all_dates = []
+    current_date = start_date
+    while current_date <= end_date:
+        all_dates.append(current_date.isoformat())
+        current_date += datetime.timedelta(days=1)
+    
+    try:
+        # Get dates we already have data for
+        existing_dates = conn.execute("""
+            SELECT DISTINCT data_date 
+            FROM control.runs 
+            WHERE data_date >= ? AND data_date <= ?
+            AND upload_status IN ('success', 'upload_skipped')
+        """, [start_date.isoformat(), end_date.isoformat()]).fetchall()
+        
+        existing_dates_set = {row[0] for row in existing_dates}
+        
+        # Find missing dates
+        missing_dates = [date for date in all_dates if date not in existing_dates_set]
+        
+        conn.close()
+        return sorted(missing_dates)
+        
+    except Exception as e:
+        # If control.runs table doesn't exist yet, return all dates
+        typer.echo(f"Warning: Could not check existing dates: {e}")
+        conn.close()
+        return all_dates
+
+
+def _process_single_date(target_day_iso: str) -> dict:
+    """Process data for a single date and return summary."""
+    typer.echo(f"\n📅 Processing date: {target_day_iso}")
+    
+    # Structured summary data for this run
+    run_summary = {
+        "run_date_iso": datetime.datetime.now(datetime.UTC).isoformat(),
+        "target_data_date": target_day_iso,
+        "overall_status": "pending",
+        "endpoints": {},
+    }
+
+    all_endpoints_successful = True
+
+    for endpoint_key, endpoint_config in ENDPOINTS_CONFIG.items():
+        typer.echo(f"\nProcessing endpoint: {endpoint_key}")
+        run_summary["endpoints"][endpoint_key] = {
+            "status": "pending",
+            "records_fetched": 0,
+            "files_generated": [],  # List to hold details of generated files
+        }
+
+        records = harvest_endpoint_data(target_day_iso, endpoint_key, endpoint_config)
+
+        if records is not None:
+            run_summary["endpoints"][endpoint_key]["records_fetched"] = len(records)
+            process_and_upload_data(
+                target_day_iso,
+                endpoint_key,
+                endpoint_config,
+                records,
+                run_summary["endpoints"],
+            )
+            if run_summary["endpoints"][endpoint_key]["status"] not in [
+                "success",
+                "no_data",
+                "upload_skipped",
+            ]:  # "upload_skipped" is not a hard failure for the script itself
+                all_endpoints_successful = False
+        else:
+            typer.echo(
+                f"Skipping processing and upload for '{endpoint_key}' due to harvesting errors.",
+                err=True,
+            )
+            run_summary["endpoints"][endpoint_key]["status"] = "harvest_failed"
+            all_endpoints_successful = False
+
+    if all_endpoints_successful and any(
+        e["status"] == "success" for e in run_summary["endpoints"].values()
+    ):
+        run_summary["overall_status"] = "success"
+    elif any(
+        e["status"] == "upload_skipped" for e in run_summary["endpoints"].values()
+    ) and all(
+        e["status"] in ["success", "upload_skipped", "no_data"]
+        for e in run_summary["endpoints"].values()
+    ):
+        run_summary["overall_status"] = "completed_upload_skipped"
+    else:
+        run_summary["overall_status"] = "failed"
+
+    # Output the structured summary as a JSON line to stdout
+    typer.echo(f"\n📊 Summary for {target_day_iso}: {run_summary['overall_status']}")
+    
+    return run_summary
+
+
 def _load_to_psa(run_id, data_date, endpoint_key, records):
     """Load raw records to PSA (Persistent Staging Area)."""
     if not records:
@@ -867,99 +973,114 @@ def process_and_upload_data(
 @app.command()
 def run_baliza(
     date_str: Annotated[
-        str,
+        str | None,
         typer.Option(
-            ...,
-            help="The date to fetch data for, in YYYY-MM-DD format.",
+            "--date",
+            help="The date to fetch data for, in YYYY-MM-DD format. If not provided, automatically processes all missing dates.",
             envvar="BALIZA_DATE",
         ),
-    ],
+    ] = None,
+    auto: Annotated[
+        bool,
+        typer.Option(
+            "--auto",
+            help="Automatically fetch all missing dates from the last 30 days"
+        ),
+    ] = False,
+    days_back: Annotated[
+        int,
+        typer.Option(
+            "--days-back",
+            help="Number of days to look back when using auto mode (default: 30)"
+        ),
+    ] = 30,
 ):
     """
-    Main command to run the Baliza fetching and archiving process for a specific date.
+    Main command to run the Baliza fetching and archiving process.
+    
+    Can run for a specific date or automatically process all missing dates.
     """
     # Initialize database on startup
     _init_baliza_db()
 
-    try:
-        target_day_iso = (
-            datetime.datetime.strptime(date_str, "%Y-%m-%d").date().isoformat()
-        )
-    except ValueError as e:
-        typer.echo("Error: Date must be in YYYY-MM-DD format.", err=True)
-        raise typer.Exit(code=1) from e
-
-    typer.echo(f"BALIZA process starting for date: {target_day_iso}")
-
-    # Structured summary data for this run
-    run_summary = {
-        "run_date_iso": datetime.datetime.now(datetime.UTC).isoformat(),
-        "target_data_date": target_day_iso,
-        "overall_status": "pending",
-        "endpoints": {},
-    }
-
-    all_endpoints_successful = True
-
-    for endpoint_key, endpoint_config in ENDPOINTS_CONFIG.items():
-        typer.echo(f"\nProcessing endpoint: {endpoint_key}")
-        run_summary["endpoints"][endpoint_key] = {
-            "status": "pending",
-            "records_fetched": 0,
-            "files_generated": [],  # List to hold details of generated files
-        }
-
-        records = harvest_endpoint_data(target_day_iso, endpoint_key, endpoint_config)
-
-        if records is not None:
-            run_summary["endpoints"][endpoint_key]["records_fetched"] = len(records)
-            process_and_upload_data(
-                target_day_iso,
-                endpoint_key,
-                endpoint_config,
-                records,
-                run_summary["endpoints"],
-            )
-            if run_summary["endpoints"][endpoint_key]["status"] not in [
-                "success",
-                "no_data",
-                "upload_skipped",
-            ]:  # "upload_skipped" is not a hard failure for the script itself
-                all_endpoints_successful = False
-        else:
-            typer.echo(
-                f"Skipping processing and upload for '{endpoint_key}' due to harvesting errors.",
-                err=True,
-            )
-            run_summary["endpoints"][endpoint_key]["status"] = "harvest_failed"
-            all_endpoints_successful = False
-
-    if all_endpoints_successful and any(
-        e["status"] == "success" for e in run_summary["endpoints"].values()
-    ):
-        run_summary["overall_status"] = "success"
-    elif any(
-        e["status"] == "upload_skipped" for e in run_summary["endpoints"].values()
-    ) and all(
-        e["status"] in ["success", "upload_skipped", "no_data"]
-        for e in run_summary["endpoints"].values()
-    ):
-        run_summary["overall_status"] = "completed_upload_skipped"
+    # Determine what dates to process
+    if auto or date_str is None:
+        # Auto mode: find missing dates
+        if date_str is not None:
+            typer.echo("Warning: Both --auto and date provided. Using auto mode.", err=True)
+        
+        typer.echo(f"🔍 Finding missing dates from the last {days_back} days...")
+        missing_dates = _get_missing_dates(days_back)
+        
+        if not missing_dates:
+            typer.echo("✅ No missing dates found! All recent dates already processed.")
+            return
+        
+        typer.echo(f"📅 Found {len(missing_dates)} missing dates: {missing_dates[0]} to {missing_dates[-1]}")
+        target_dates = missing_dates
+        
     else:
-        run_summary["overall_status"] = "failed"
-
-    # Output the structured summary as a JSON line to stdout
-    # This can be captured by GitHub Actions or other tools for Phase 2 processing.
-    typer.echo("\n--- BALIZA RUN SUMMARY ---")
-    typer.echo(json.dumps(run_summary))
-    typer.echo("--- END BALIZA RUN SUMMARY ---\n")
-
-    typer.echo(
-        f"BALIZA process finished for date: {target_day_iso} with overall status: {run_summary['overall_status']}"
-    )
-
-    if run_summary["overall_status"] == "failed":
-        raise typer.Exit(code=1)  # Exit with error code if any critical part failed
+        # Single date mode
+        try:
+            target_day_iso = (
+                datetime.datetime.strptime(date_str, "%Y-%m-%d").date().isoformat()
+            )
+        except ValueError as e:
+            typer.echo("Error: Date must be in YYYY-MM-DD format.", err=True)
+            raise typer.Exit(code=1) from e
+        
+        target_dates = [target_day_iso]
+    
+    # Process all target dates
+    all_summaries = []
+    successful_dates = 0
+    failed_dates = 0
+    
+    typer.echo(f"🚀 BALIZA starting to process {len(target_dates)} date(s)")
+    
+    for i, date in enumerate(target_dates, 1):
+        typer.echo(f"\n{'='*60}")
+        typer.echo(f"📅 Processing date {i}/{len(target_dates)}: {date}")
+        typer.echo(f"{'='*60}")
+        
+        run_summary = _process_single_date(date)
+        all_summaries.append(run_summary)
+        
+        if run_summary["overall_status"] in ["success", "completed_upload_skipped"]:
+            successful_dates += 1
+            typer.echo(f"✅ {date}: {run_summary['overall_status']}")
+        else:
+            failed_dates += 1
+            typer.echo(f"❌ {date}: {run_summary['overall_status']}")
+    
+    # Final summary
+    typer.echo(f"\n{'='*60}")
+    typer.echo("📊 FINAL SUMMARY")
+    typer.echo(f"{'='*60}")
+    typer.echo(f"Total dates processed: {len(target_dates)}")
+    typer.echo(f"Successful: {successful_dates}")
+    typer.echo(f"Failed: {failed_dates}")
+    
+    if len(target_dates) == 1:
+        # Single date mode - output detailed JSON for compatibility
+        typer.echo("\n--- BALIZA RUN SUMMARY ---")
+        typer.echo(json.dumps(all_summaries[0]))
+        typer.echo("--- END BALIZA RUN SUMMARY ---\n")
+        
+        if all_summaries[0]["overall_status"] == "failed":
+            raise typer.Exit(code=1)
+    else:
+        # Multi-date mode - show summary statistics
+        if failed_dates > 0:
+            typer.echo(f"\n⚠️  {failed_dates} dates failed processing")
+            
+        if failed_dates == len(target_dates):
+            typer.echo("❌ All dates failed!")
+            raise typer.Exit(code=1)
+        else:
+            typer.echo(f"✅ Successfully processed {successful_dates}/{len(target_dates)} dates")
+    
+    typer.echo("🎉 BALIZA run completed!")
 
 
 if __name__ == "__main__":
