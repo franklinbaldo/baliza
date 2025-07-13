@@ -63,12 +63,12 @@ class InternetArchiveFederation:
                 if item_metadata["files"]:  # Only include items with Parquet files
                     items.append(item_metadata)
 
-            print(f"✅ Found {len(items)} Baliza items with Parquet files")
-            return items
-
         except Exception as e:
             print(f"❌ Error discovering IA items: {e}")
             return []
+        else:
+            print(f"✅ Found {len(items)} Baliza items with Parquet files")
+            return items
 
     def create_ia_catalog(self) -> str:
         """
@@ -149,7 +149,8 @@ class InternetArchiveFederation:
                             # Try to parse YYYY-MM format
                             year_month = f"{parts[1]}-{parts[2]}"
                             data_date = f"{year_month}-01"  # First day of month
-                        except:
+                        except (IndexError, ValueError):
+                            # Skip if filename doesn't match expected format
                             pass
 
                 conn.execute(
@@ -179,7 +180,9 @@ class InternetArchiveFederation:
 
     def get_cached_file_path(self, url: str) -> Path:
         """Get local cache path for a remote file."""
-        url_hash = hashlib.md5(url.encode()).hexdigest()
+        url_hash = hashlib.sha256(url.encode()).hexdigest()[
+            :16
+        ]  # Use first 16 chars for shorter filenames
         filename = url.split("/")[-1]
         return self.cache_dir / f"{url_hash}_{filename}"
 
@@ -200,59 +203,39 @@ class InternetArchiveFederation:
         print(f"⬇️ Downloading: {url}")
 
         try:
-            response = requests.get(url, stream=True)
+            response = requests.get(url, stream=True, timeout=30)
             response.raise_for_status()
 
-            with open(cache_path, "wb") as f:
+            with cache_path.open("wb") as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
-
-            print(f"✅ Downloaded and cached: {cache_path.name}")
-            return cache_path
 
         except Exception as e:
             print(f"❌ Error downloading {url}: {e}")
             raise
+        else:
+            print(f"✅ Downloaded and cached: {cache_path.name}")
+            return cache_path
 
-    def create_federated_views(self) -> None:
-        """
-        Create DuckDB views that federate with Internet Archive data.
-        """
-        print("🔗 Creating federated views for IA data...")
-
-        # Create catalog first
+    def _setup_federated_db(self) -> tuple[str, any]:
+        """Set up database connection and catalog for federation."""
         catalog_db = self.create_ia_catalog()
-
-        # Connect to main Baliza DB
         conn = duckdb.connect(self.baliza_db_path)
-
-        # Attach catalog
         conn.execute(f"ATTACH '{catalog_db}' AS ia_catalog")
-
-        # Create federated schema
         conn.execute("CREATE SCHEMA IF NOT EXISTS federated")
+        return catalog_db, conn
 
-        # Get available IA files
-        ia_files = conn.execute("""
+    def _get_ia_files(self, conn) -> list[tuple]:
+        """Get available IA files from catalog."""
+        return conn.execute("""
             SELECT identifier, file_name, download_url, data_date, endpoint_type, file_size_bytes
             FROM ia_catalog.catalog.ia_files
             WHERE file_type = 'parquet'
             ORDER BY data_date DESC
         """).fetchall()
 
-        print(f"📊 Found {len(ia_files)} Parquet files in IA")
-
-        if not ia_files:
-            print("⚠️ No IA files found, creating empty federated views")
-            # Create empty structure for compatibility
-            conn.execute("""
-                CREATE OR REPLACE VIEW federated.contratos_ia AS
-                SELECT * FROM psa.contratos_raw WHERE 1=0
-            """)
-            conn.close()
-            return
-
-        # Group files by endpoint type
+    def _group_files_by_endpoint(self, ia_files: list[tuple]) -> dict:
+        """Group IA files by endpoint type."""
         endpoints = {}
         for (
             identifier,
@@ -273,63 +256,52 @@ class InternetArchiveFederation:
                     "size": file_size,
                 }
             )
+        return endpoints
 
-        # Create federated views for each endpoint
-        for endpoint_type, files in endpoints.items():
-            print(
-                f"📋 Creating federated view for {endpoint_type} ({len(files)} files)"
-            )
+    def _create_endpoint_view(
+        self, conn, endpoint_type: str, files: list[dict]
+    ) -> None:
+        """Create federated view for a specific endpoint type."""
+        print(f"📋 Creating federated view for {endpoint_type} ({len(files)} files)")
 
-            # Download and cache first few files for schema detection
-            sample_files = files[:3]  # Use first 3 files for schema
-            cached_paths = []
+        # Download and cache first few files for schema detection
+        sample_files = files[:3]
+        cached_paths = []
 
-            for file_info in sample_files:
-                try:
-                    cached_path = self.download_with_cache(
-                        file_info["url"], file_info.get("size")
-                    )
-                    cached_paths.append(str(cached_path))
-                except Exception as e:
-                    print(f"⚠️ Skipping file {file_info['file_name']}: {e}")
+        for file_info in sample_files:
+            try:
+                cached_path = self.download_with_cache(
+                    file_info["url"], file_info.get("size")
+                )
+                cached_paths.append(str(cached_path))
+            except Exception as e:
+                print(f"⚠️ Skipping file {file_info['file_name']}: {e}")
 
-            if not cached_paths:
-                print(f"❌ No valid files for {endpoint_type}")
-                continue
+        if not cached_paths:
+            print(f"❌ No valid files for {endpoint_type}")
+            return
 
-            # Create union view of all files
-            union_clauses = []
-            for i, file_info in enumerate(files):
-                # For large datasets, we'll create views that download on-demand
-                # For now, limit to cached files for performance
-                if i < len(cached_paths):
-                    # Use local cached file
-                    file_path = cached_paths[i]
-                    union_clauses.append(f"""
-                        SELECT
-                            '{file_info["identifier"]}' AS ia_identifier,
-                            '{file_info["file_name"]}' AS ia_file_name,
-                            '{file_info["data_date"]}' AS ia_data_date,
-                            *
-                        FROM '{file_path}'
-                    """)
-                else:
-                    # For files not yet cached, create placeholder
-                    # In production, this would download on-demand
-                    continue
+        # Create union view
+        union_clauses = []
+        for i, file_info in enumerate(files[: len(cached_paths)]):
+            file_path = cached_paths[i]
+            union_clauses.append(f"""
+                SELECT
+                    '{file_info["identifier"]}' AS ia_identifier,
+                    '{file_info["file_name"]}' AS ia_file_name,
+                    '{file_info["data_date"]}' AS ia_data_date,
+                    *
+                FROM '{file_path}'
+            """)
 
-            if union_clauses:
-                federated_view = f"federated.{endpoint_type}_ia"
-                union_sql = " UNION ALL ".join(union_clauses)
+        if union_clauses:
+            federated_view = f"federated.{endpoint_type}_ia"
+            union_sql = " UNION ALL ".join(union_clauses)
+            conn.execute(f"CREATE OR REPLACE VIEW {federated_view} AS {union_sql}")
+            print(f"✅ Created {federated_view} with {len(union_clauses)} files")
 
-                conn.execute(f"""
-                    CREATE OR REPLACE VIEW {federated_view} AS
-                    {union_sql}
-                """)
-
-                print(f"✅ Created {federated_view} with {len(union_clauses)} files")
-
-        # Create convenience views that prefer IA data
+    def _create_unified_view(self, conn) -> None:
+        """Create unified view combining IA and local data."""
         conn.execute("""
             CREATE OR REPLACE VIEW federated.contratos_unified AS
             SELECT
@@ -339,9 +311,7 @@ class InternetArchiveFederation:
                 ia_data_date::DATE AS source_date,
                 *
             FROM federated.contratos_ia
-
             UNION ALL
-
             SELECT
                 'local' AS data_source,
                 run_id AS ia_identifier,
@@ -356,7 +326,36 @@ class InternetArchiveFederation:
             )
         """)
 
-        conn.close()
+    def create_federated_views(self) -> None:
+        """
+        Create DuckDB views that federate with Internet Archive data.
+        """
+        print("🔗 Creating federated views for IA data...")
+
+        catalog_db, conn = self._setup_federated_db()
+
+        try:
+            ia_files = self._get_ia_files(conn)
+            print(f"📊 Found {len(ia_files)} Parquet files in IA")
+
+            if not ia_files:
+                print("⚠️ No IA files found, creating empty federated views")
+                conn.execute("""
+                    CREATE OR REPLACE VIEW federated.contratos_ia AS
+                    SELECT * FROM psa.contratos_raw WHERE 1=0
+                """)
+                return
+
+            endpoints = self._group_files_by_endpoint(ia_files)
+
+            # Create federated views for each endpoint
+            for endpoint_type, files in endpoints.items():
+                self._create_endpoint_view(conn, endpoint_type, files)
+
+            self._create_unified_view(conn)
+
+        finally:
+            conn.close()
 
         print("✅ Federated views created successfully")
 

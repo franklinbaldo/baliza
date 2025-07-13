@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import time
+from pathlib import Path
 from typing import Annotated
 
 import duckdb
@@ -14,13 +15,13 @@ from tenacity import RetryError, retry, stop_after_attempt, wait_exponential
 
 from .ia_federation import InternetArchiveFederation
 
-BALIZA_DB_PATH = os.path.join("state", "baliza.duckdb")
+BALIZA_DB_PATH = Path("state") / "baliza.duckdb"
 
 
 def _init_baliza_db():
     """Initialize Baliza database with PSA (Persistent Staging Area) and control tables."""
-    os.makedirs("state", exist_ok=True)
-    conn = duckdb.connect(BALIZA_DB_PATH)
+    Path("state").mkdir(parents=True, exist_ok=True)
+    conn = duckdb.connect(str(BALIZA_DB_PATH))
 
     # Check if we should update IA federation
     _ensure_ia_federation_updated()
@@ -126,8 +127,8 @@ def _ensure_ia_federation_updated():
         update_flag_file = "state/ia_federation_last_update"
         should_update = True
 
-        if os.path.exists(update_flag_file):
-            with open(update_flag_file) as f:
+        if Path(update_flag_file).exists():
+            with Path(update_flag_file).open() as f:
                 last_update = f.read().strip()
                 if last_update == datetime.date.today().isoformat():
                     should_update = False
@@ -138,7 +139,7 @@ def _ensure_ia_federation_updated():
             federation.update_federation()
 
             # Mark as updated today
-            with open(update_flag_file, "w") as f:
+            with Path(update_flag_file).open("w") as f:
                 f.write(datetime.date.today().isoformat())
 
             typer.echo("✅ IA federation updated")
@@ -154,7 +155,7 @@ def _check_existing_data_in_ia(day_iso: str, endpoint_key: str) -> bool:
         InternetArchiveFederation(BALIZA_DB_PATH)
 
         # Check IA catalog for existing data
-        conn = duckdb.connect(BALIZA_DB_PATH)
+        conn = duckdb.connect(str(BALIZA_DB_PATH))
 
         # Try to check if federated views exist
         existing = conn.execute(
@@ -191,7 +192,7 @@ def _load_to_psa(run_id, data_date, endpoint_key, records):
     if not records:
         return 0
 
-    conn = duckdb.connect(BALIZA_DB_PATH)
+    conn = duckdb.connect(str(BALIZA_DB_PATH))
 
     try:
         # Prepare records for PSA insertion
@@ -252,8 +253,6 @@ def _load_to_psa(run_id, data_date, endpoint_key, records):
         )
 
         records_inserted = len(psa_records)
-        typer.echo(f"Loaded {records_inserted} records to PSA for run {run_id}")
-
         conn.close()
         return records_inserted
 
@@ -261,16 +260,18 @@ def _load_to_psa(run_id, data_date, endpoint_key, records):
         typer.echo(f"Error loading to PSA: {e}", err=True)
         conn.close()
         return 0
+    else:
+        typer.echo(f"Loaded {records_inserted} records to PSA for run {run_id}")
 
 
 def _log_run_to_db(data):
     """Log run data to control.runs table."""
-    conn = duckdb.connect(BALIZA_DB_PATH)
+    conn = duckdb.connect(str(BALIZA_DB_PATH))
 
     # Get file size if file exists
     file_size = 0
-    if data.get("parquet_file") and os.path.exists(data["parquet_file"]):
-        file_size = os.path.getsize(data["parquet_file"])
+    if data.get("parquet_file") and Path(data["parquet_file"]).exists():
+        file_size = Path(data["parquet_file"]).stat().st_size
 
     conn.execute(
         """
@@ -446,9 +447,9 @@ def get_monthly_filename(day_iso, endpoint_cfg):
 
 def check_file_size_threshold(filepath, max_size_mb=100):
     """Check if file exceeds size threshold (default 100MB)."""
-    if not os.path.exists(filepath):
+    if not Path(filepath).exists():
         return False
-    size_mb = os.path.getsize(filepath) / (1024 * 1024)
+    size_mb = Path(filepath).stat().st_size / (1024 * 1024)
     return size_mb > max_size_mb
 
 
@@ -462,11 +463,11 @@ def append_to_monthly_parquet(
         run_summary_data[endpoint_key]["files_generated"] = []
         return
 
-    output_dir = "baliza_data"
-    os.makedirs(output_dir, exist_ok=True)
+    output_dir = Path("baliza_data")
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     monthly_filename = get_monthly_filename(day_iso, endpoint_cfg)
-    parquet_filename = os.path.join(output_dir, monthly_filename)
+    parquet_filename = output_dir / monthly_filename
 
     # Check if we need to roll over to a new file due to size
     if check_file_size_threshold(parquet_filename):
@@ -476,8 +477,9 @@ def append_to_monthly_parquet(
         timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         date_obj = datetime.datetime.strptime(day_iso, "%Y-%m-%d")
         month_key = date_obj.strftime("%Y-%m")
-        parquet_filename = os.path.join(
-            output_dir, f"{endpoint_cfg['file_prefix']}-{month_key}-{timestamp}.parquet"
+        parquet_filename = (
+            output_dir
+            / f"{endpoint_cfg['file_prefix']}-{month_key}-{timestamp}.parquet"
         )
 
     typer.echo(
@@ -493,11 +495,11 @@ def append_to_monthly_parquet(
 
         # Create temporary JSON file for new records
         temp_json_file = parquet_filename.replace(".parquet", f"_temp_{day_iso}.json")
-        with open(temp_json_file, "w", encoding="utf-8") as f:
+        with Path(temp_json_file).open("w", encoding="utf-8") as f:
             for record in records:
                 f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
-        if os.path.exists(parquet_filename):
+        if Path(parquet_filename).exists():
             # Append to existing file with schema compatibility
             typer.echo(f"Appending to existing monthly file: {parquet_filename}")
             conn.execute(
@@ -528,10 +530,9 @@ def append_to_monthly_parquet(
             )
 
         # Clean up
-        os.remove(temp_json_file)
+        Path(temp_json_file).unlink()
         conn.close()
 
-        typer.echo(f"Successfully updated monthly Parquet file: {parquet_filename}")
         return parquet_filename
 
     except Exception as e:
@@ -540,6 +541,163 @@ def append_to_monthly_parquet(
         )
         run_summary_data[endpoint_key]["status"] = "file_error"
         return None
+    else:
+        typer.echo(f"Successfully updated monthly Parquet file: {parquet_filename}")
+
+
+def _create_parquet_file(
+    parquet_filename: str, records: list, endpoint_key: str, run_summary_data: dict
+) -> dict:
+    """Create Parquet file from records and return file details."""
+    file_details = {
+        "parquet_file": parquet_filename,
+        "sha256_checksum": None,
+        "ia_identifier": None,
+        "ia_item_url": None,
+        "upload_status": "pending",
+    }
+
+    typer.echo(f"Writing {len(records)} records to Parquet file: {parquet_filename}...")
+    try:
+        # Use DuckDB to convert JSON records to Parquet with compression
+        conn = duckdb.connect()
+
+        # Create temporary JSON file for DuckDB to read
+        temp_json_file = parquet_filename.replace(".parquet", "_temp.json")
+        with Path(temp_json_file).open("w", encoding="utf-8") as f:
+            for record in records:
+                f.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+        # Create table from JSONL file and export to Parquet
+        conn.execute(
+            f"CREATE TEMPORARY TABLE temp_data AS SELECT * FROM read_json('{temp_json_file}', auto_detect=true, format='newline_delimited')"
+        )
+        conn.execute(
+            f"COPY temp_data TO '{parquet_filename}' (FORMAT PARQUET, COMPRESSION 'snappy')"
+        )
+
+        # Clean up temporary file
+        Path(temp_json_file).unlink()
+        conn.close()
+
+    except Exception as e:
+        typer.echo(
+            f"Error during Parquet file creation for {endpoint_key}: {e}", err=True
+        )
+        run_summary_data[endpoint_key]["status"] = "file_error"
+        file_details["upload_status"] = "failed_file_error"
+        run_summary_data[endpoint_key]["files_generated"].append(file_details)
+        return file_details
+    else:
+        typer.echo(f"Successfully created Parquet file: {parquet_filename}")
+
+    return file_details
+
+
+def _calculate_file_checksum(
+    parquet_filename: str, file_details: dict, endpoint_key: str, run_summary_data: dict
+) -> bool:
+    """Calculate SHA256 checksum for the file. Returns True on success."""
+    file_hash = hashlib.sha256()
+    try:
+        with Path(parquet_filename).open("rb") as f:
+            while chunk := f.read(8192):
+                file_hash.update(chunk)
+        file_details["sha256_checksum"] = file_hash.hexdigest()
+        typer.echo(
+            f"SHA256 checksum for {parquet_filename}: {file_details['sha256_checksum']}"
+        )
+        return True
+    except OSError as e:
+        typer.echo(f"Error calculating checksum for {parquet_filename}: {e}", err=True)
+        run_summary_data[endpoint_key]["status"] = "checksum_error"
+        file_details["upload_status"] = "failed_checksum_error"
+        run_summary_data[endpoint_key]["files_generated"].append(file_details)
+        return False
+
+
+def _upload_to_internet_archive(
+    parquet_filename: str,
+    file_details: dict,
+    endpoint_cfg: dict,
+    day_iso: str,
+    run_summary_data: dict,
+    endpoint_key: str,
+) -> None:
+    """Upload file to Internet Archive."""
+    ia_identifier = f"{endpoint_cfg['file_prefix']}-{day_iso}"
+    file_details["ia_identifier"] = ia_identifier
+    file_details["ia_item_url"] = f"https://archive.org/details/{ia_identifier}"
+
+    metadata = {
+        "title": f"{endpoint_cfg['ia_title_prefix']} {day_iso}",
+        "collection": "opensource",
+        "subject": "public procurement Brazil; PNCP; government data; baliza",
+        "creator": "Baliza PNCP Mirror Bot",
+        "language": "pt",
+        "date": day_iso,
+        "sha256": file_details["sha256_checksum"],
+        "original_source": "Portal Nacional de Contratações Públicas (PNCP)",
+        "description": f"Daily mirror of {endpoint_cfg['ia_title_prefix']} from Brazil's PNCP for {day_iso}. Raw data in Parquet format with Snappy compression.",
+        "mediatype": "data",
+    }
+
+    ia_access_key = os.getenv("IA_ACCESS_KEY")
+    ia_secret_key = os.getenv("IA_SECRET_KEY")
+
+    try:
+        if not ia_access_key or not ia_secret_key:
+            typer.echo(
+                "Internet Archive credentials (IA_ACCESS_KEY, IA_SECRET_KEY) not found. Skipping upload.",
+                err=True,
+            )
+            file_details["upload_status"] = "skipped_no_credentials"
+            run_summary_data[endpoint_key]["status"] = "upload_skipped"
+        else:
+            typer.echo(
+                f"Uploading {parquet_filename} to Internet Archive with identifier '{ia_identifier}'..."
+            )
+            upload(
+                identifier=ia_identifier,
+                files={Path(parquet_filename).name: parquet_filename},
+                metadata=metadata,
+                access_key=ia_access_key,
+                secret_key=ia_secret_key,
+                retries=3,
+            )
+            typer.echo(f"Successfully uploaded {parquet_filename} to Internet Archive.")
+            file_details["upload_status"] = "success"
+            run_summary_data[endpoint_key]["status"] = "success"
+    except Exception as e:
+        _handle_upload_error(
+            e, file_details, run_summary_data, endpoint_key, parquet_filename
+        )
+
+
+def _handle_upload_error(
+    e: Exception,
+    file_details: dict,
+    run_summary_data: dict,
+    endpoint_key: str,
+    parquet_filename: str,
+) -> None:
+    """Handle upload errors with appropriate status updates."""
+    if file_details["upload_status"] == "pending":
+        typer.echo(
+            f"Failed to upload {parquet_filename} to Internet Archive: {e}",
+            err=True,
+        )
+        file_details["upload_status"] = "failed_upload_error"
+        run_summary_data[endpoint_key]["status"] = "upload_failed"
+    elif file_details["upload_status"] == "skipped_no_credentials":
+        typer.echo(f"An error occurred after deciding to skip upload: {e}", err=True)
+    else:
+        typer.echo(
+            f"An unexpected error occurred during upload/post-upload phase: {e}",
+            err=True,
+        )
+        file_details["upload_status"] = "failed_unknown_error"
+        run_summary_data[endpoint_key]["status"] = "upload_failed"
 
 
 def process_and_upload_data(
@@ -562,49 +720,32 @@ def process_and_upload_data(
         run_summary_data[endpoint_key]["files_generated"] = []
         return
 
-    file_details = {
-        "parquet_file": parquet_filename,
-        "sha256_checksum": None,
-        "ia_identifier": None,
-        "ia_item_url": None,
-        "upload_status": "pending",
-    }
-
-    typer.echo(f"Writing {len(records)} records to Parquet file: {parquet_filename}...")
-    try:
-        # Use DuckDB to convert JSON records to Parquet with compression
-        conn = duckdb.connect()
-
-        # Create temporary JSON file for DuckDB to read
-        temp_json_file = parquet_filename.replace(".parquet", "_temp.json")
-        with open(temp_json_file, "w", encoding="utf-8") as f:
-            for record in records:
-                f.write(json.dumps(record, ensure_ascii=False) + "\n")
-
-        # Create table from JSONL file and export to Parquet
-        conn.execute(
-            f"CREATE TEMPORARY TABLE temp_data AS SELECT * FROM read_json('{temp_json_file}', auto_detect=true, format='newline_delimited')"
-        )
-        conn.execute(
-            f"COPY temp_data TO '{parquet_filename}' (FORMAT PARQUET, COMPRESSION 'snappy')"
-        )
-
-        # Clean up temporary file
-        os.remove(temp_json_file)
-        conn.close()
-        typer.echo(f"Successfully created Parquet file: {parquet_filename}")
-    except Exception as e:
-        typer.echo(
-            f"Error during Parquet file creation for {endpoint_key}: {e}", err=True
-        )
-        run_summary_data[endpoint_key]["status"] = "file_error"
-        file_details["upload_status"] = "failed_file_error"
-        run_summary_data[endpoint_key]["files_generated"].append(file_details)
+    # Create Parquet file and get file details
+    file_details = _create_parquet_file(
+        parquet_filename, records, endpoint_key, run_summary_data
+    )
+    if file_details["upload_status"].startswith("failed"):
         return
+
+    # Calculate file checksum
+    if not _calculate_file_checksum(
+        parquet_filename, file_details, endpoint_key, run_summary_data
+    ):
+        return
+
+    # Upload to Internet Archive
+    _upload_to_internet_archive(
+        parquet_filename,
+        file_details,
+        endpoint_cfg,
+        day_iso,
+        run_summary_data,
+        endpoint_key,
+    )
 
     file_hash = hashlib.sha256()
     try:
-        with open(parquet_filename, "rb") as f:
+        with Path(parquet_filename).open("rb") as f:
             while chunk := f.read(8192):
                 file_hash.update(chunk)
         sha256_checksum = file_hash.hexdigest()
@@ -652,7 +793,7 @@ def process_and_upload_data(
             )
             upload(
                 identifier=ia_identifier,
-                files={os.path.basename(parquet_filename): parquet_filename},
+                files={Path(parquet_filename).name: parquet_filename},
                 metadata=metadata,
                 access_key=ia_access_key,
                 secret_key=ia_secret_key,
@@ -744,9 +885,9 @@ def run_baliza(
         target_day_iso = (
             datetime.datetime.strptime(date_str, "%Y-%m-%d").date().isoformat()
         )
-    except ValueError:
+    except ValueError as e:
         typer.echo("Error: Date must be in YYYY-MM-DD format.", err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
     typer.echo(f"BALIZA process starting for date: {target_day_iso}")
 
