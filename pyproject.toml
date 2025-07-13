@@ -24,7 +24,219 @@ dev = [
 
 [dependency-groups]
 dev = [
+    "mypy>=1.16.1",
     "nbformat>=5.10.4",
+    "pre-commit>=4.2.0",
     "pytest>=8.4.1",
     "pytest-mock>=3.14.1",
+    "ruff>=0.12.3",
 ]
+
+# Ruff configuration for linting and formatting
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+select = [
+    # Error
+    "E",
+    # Warning  
+    "W",
+    # Pyflakes
+    "F",
+    # pycodestyle
+    "E", "W",
+    # mccabe
+    "C90",
+    # isort
+    "I",
+    # pep8-naming
+    "N",
+    # pyupgrade
+    "UP",
+    # flake8-bugbear
+    "B",
+    # flake8-bandit
+    "S",
+    # flake8-blind-except
+    "BLE",
+    # flake8-comprehensions
+    "C4",
+    # flake8-debugger
+    "T10",
+    # flake8-simplify
+    "SIM",
+    # flake8-unused-arguments
+    "ARG",
+    # flake8-use-pathlib
+    "PTH",
+    # pandas-vet
+    "PD",
+    # tryceratops
+    "TRY",
+    # Ruff-specific rules
+    "RUF",
+]
+
+ignore = [
+    # Too aggressive
+    "S101",  # Use of assert
+    "S603",  # subprocess call - check for execution of untrusted input
+    "S607",  # Starting a process with a partial executable path
+    "TRY003", # Avoid specifying long messages outside the exception class
+    "B008",  # Do not perform function calls in argument defaults
+    # Conflicts with formatter
+    "E501",  # Line too long
+    "W191",  # Indentation contains tabs
+    "E111",  # Indentation is not a multiple of 4
+    "E114",  # Indentation is not a multiple of 4 (comment)
+    "E117",  # Over-indented
+    "D206",  # Docstring should be indented with spaces
+    "D300",  # Use """triple double quotes"""
+    "Q000",  # Single quotes found but double quotes preferred
+    "Q001",  # Single quote multiline found but triple quotes preferred
+    "Q002",  # Single quote docstring found but triple quotes preferred
+    "Q003",  # Change outer quotes to avoid escaping inner quotes
+    "COM812", # Missing trailing comma
+    "COM819", # Prohibited trailing comma
+    "ISC001", # Implicitly concatenated string literals on one line
+    "ISC002", # Implicitly concatenated string literals over continuation lines
+]
+
+# Exclude specific files/directories
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+    "migrations",
+    "*.pyi",
+]
+
+# Group violations by containing file
+format = "grouped"
+
+# Show source code in output
+show-source = true
+
+# Show fixes in output
+show-fixes = true
+
+[tool.ruff.mccabe]
+# Maximum cyclomatic complexity
+max-complexity = 10
+
+[tool.ruff.isort]
+known-first-party = ["baliza"]
+known-third-party = [
+    "duckdb",
+    "internetarchive", 
+    "requests",
+    "tenacity",
+    "typer",
+    "pytest",
+    "pandas",
+    "plotly",
+]
+section-order = [
+    "future",
+    "standard-library", 
+    "third-party",
+    "first-party",
+    "local-folder"
+]
+
+[tool.ruff.pep8-naming]
+# Allow Pydantic's `@validator` decorator to trigger class method treatment.
+classmethod-decorators = ["classmethod", "pydantic.validator"]
+
+[tool.ruff.flake8-bandit]
+# S101: Use of assert
+check-typed-exception = true
+
+[tool.ruff.pyupgrade]
+# Preserve types, even if a file imports `from __future__ import annotations`.
+keep-runtime-typing = true
+
+# Mypy configuration for type checking
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+show_error_codes = true
+
+# Be less strict for some patterns
+[[tool.mypy.overrides]]
+module = [
+    "tests.*",
+    "scripts.*"
+]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_decorators = false
+
+# External library stubs
+[[tool.mypy.overrides]]
+module = [
+    "internetarchive.*",
+    "duckdb.*",
+    "tenacity.*",
+    "typer.*",
+    "nbformat.*"
+]
+ignore_missing_imports = true
+
+# Coverage configuration for pytest-cov
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*",
+    "*/migrations/*",
+    "*/venv/*",
+    "*/.venv/*"
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
