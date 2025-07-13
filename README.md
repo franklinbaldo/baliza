@@ -27,40 +27,60 @@
 4. **Upload para o Internet Archive**: O arquivo compactado é enviado para o Internet Archive usando a API S3-like do IA. O identificador do item é no formato `pncp-<tipo>-YYYY-MM-DD`.
 5. **Registro de Checksum (Planejado)**: Está planejado salvar o checksum SHA256 dos arquivos processados (ex: em um `state/processed.csv`) para evitar duplicidade e facilitar o rastreamento. Esta funcionalidade ainda não está implementada no script principal.
 
-## Configuração Inicial e Execução
+## 🚀 Como Usar
 
-### Pré-requisitos
+### 📊 **Para Análise de Dados (Recomendado)**
+
+**🎯 Análise Instantânea no Google Colab:**
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/franklinbaldo/baliza/blob/main/notebooks/analise_pncp_colab.ipynb)
+
+- ✅ **Um clique** e você está analisando milhões de contratos públicos
+- ✅ **Sem configuração** - funciona 100% no navegador  
+- ✅ **Dados atualizados** diretamente do Internet Archive
+- ✅ **Análises pré-configuradas** com visualizações interativas
+- ✅ **Detecção de fraudes** e padrões suspeitos automatizada
+
+### 🔧 **Para Coleta de Dados**
+
+#### Pré-requisitos
 - Python 3.11+
 - `uv` (gerenciador de pacotes Python rápido). Se não tiver, instale via `curl -LsSf https://astral.sh/uv/install.sh | sh`.
 - Credenciais do Internet Archive (`IA_ACCESS_KEY` e `IA_SECRET_KEY`).
 
-### Variáveis de Ambiente
-O script requer as seguintes variáveis de ambiente para o upload no Internet Archive:
-- `IA_ACCESS_KEY`: Sua chave de acesso do Internet Archive.
-- `IA_SECRET_KEY`: Seu segredo do Internet Archive.
+#### Configuração
+1. Clone o repositório:
+   ```bash
+   git clone https://github.com/franklinbaldo/baliza.git
+   cd baliza
+   ```
 
-Estas variáveis são especialmente importantes para a execução automática via GitHub Actions, onde devem ser configuradas como "Secrets" do repositório.
-
-### Executar Localmente
-1. Clone o repositório.
-2. Navegue até a raiz do projeto.
-3. Crie um ambiente virtual e instale as dependências (se ainda não o fez):
+2. Instale as dependências:
    ```bash
    uv venv  # Cria o .venv
    uv sync  # Instala dependências do uv.lock
    ```
-4. Exporte as credenciais do Internet Archive:
+
+3. Configure credenciais do Internet Archive:
    ```bash
    export IA_ACCESS_KEY="SUA_CHAVE_IA"
    export IA_SECRET_KEY="SEU_SEGREDO_IA"
    ```
-5. Execute o script (substitua `YYYY-MM-DD` pela data desejada):
+
+4. Execute coleta de dados:
    ```bash
-   uv run python baliza/src/baliza/main.py --date YYYY-MM-DD
-   # Alternativamente, a data pode ser fornecida pela variável de ambiente BALIZA_DATE
-   # export BALIZA_DATE=YYYY-MM-DD; uv run python baliza/src/baliza/main.py
+   python src/baliza/main.py 2024-07-10
    ```
-   Os arquivos gerados (JSONL, ZST) aparecerão no diretório `baliza_data/` na raiz do projeto.
+
+#### Federação com Internet Archive
+```bash
+# Configurar federação para usar dados do IA como fonte primária
+python scripts/setup_ia_federation.py
+
+# Executar análises com DBT
+cd dbt_baliza
+dbt run --select coverage_temporal coverage_entidades
+```
 
 ## Automação com GitHub Actions
 - O projeto inclui um workflow em `.github/workflows/baliza_daily_run.yml`.
