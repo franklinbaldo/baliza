@@ -13,9 +13,14 @@ WITH contratos_cleaned AS (
     SELECT 
         -- Business keys and identifiers
         numeroControlePncpCompra AS contrato_id,
-        baliza_run_id,
-        baliza_data_date,
-        baliza_extracted_at,
+        COALESCE(baliza_run_id, ia_identifier) AS baliza_run_id,
+        COALESCE(baliza_data_date, source_date) AS baliza_data_date,
+        COALESCE(baliza_extracted_at, CURRENT_TIMESTAMP) AS baliza_extracted_at,
+        
+        -- Data source tracking
+        data_source,
+        ia_identifier,
+        ia_file_name,
         
         -- Contract basic info
         numeroContratoEmpenho AS numero_contrato,
@@ -86,8 +91,8 @@ WITH contratos_cleaned AS (
         -- Raw JSON for complex analysis
         raw_data_json
         
-    FROM {{ source('psa', 'contratos_raw') }}
-    WHERE baliza_data_date >= '{{ var("start_date") }}'
+    FROM {{ source('federated', 'contratos_unified') }}
+    WHERE source_date >= '{{ var("start_date") }}'
 )
 
 SELECT * FROM contratos_cleaned

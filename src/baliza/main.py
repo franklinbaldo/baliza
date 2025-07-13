@@ -10,6 +10,7 @@ from tenacity import retry, wait_exponential, stop_after_attempt, RetryError
 import concurrent.futures
 import time
 import duckdb
+from .ia_federation import InternetArchiveFederation
 
 BALIZA_DB_PATH = os.path.join("state", "baliza.duckdb")
 
@@ -17,6 +18,9 @@ def _init_baliza_db():
     """Initialize Baliza database with PSA (Persistent Staging Area) and control tables."""
     os.makedirs("state", exist_ok=True)
     conn = duckdb.connect(BALIZA_DB_PATH)
+    
+    # Check if we should update IA federation
+    _ensure_ia_federation_updated()
     
     # PSA Schema: Raw data staging tables
     conn.execute("""
@@ -104,6 +108,62 @@ def _init_baliza_db():
     conn.execute("CREATE INDEX IF NOT EXISTS idx_contratos_raw_numero ON psa.contratos_raw(numeroControlePncpCompra)")
     
     conn.close()
+
+def _ensure_ia_federation_updated():
+    """Ensure Internet Archive federation is updated with latest data."""
+    try:
+        # Check if federation should be updated (daily)
+        update_flag_file = "state/ia_federation_last_update"
+        should_update = True
+        
+        if os.path.exists(update_flag_file):
+            with open(update_flag_file, 'r') as f:
+                last_update = f.read().strip()
+                if last_update == datetime.date.today().isoformat():
+                    should_update = False
+        
+        if should_update:
+            typer.echo("🔄 Updating Internet Archive federation...")
+            federation = InternetArchiveFederation(BALIZA_DB_PATH)
+            federation.update_federation()
+            
+            # Mark as updated today
+            with open(update_flag_file, 'w') as f:
+                f.write(datetime.date.today().isoformat())
+            
+            typer.echo("✅ IA federation updated")
+        
+    except Exception as e:
+        typer.echo(f"⚠️ Warning: Could not update IA federation: {e}", err=True)
+        # Continue execution - federation is optional enhancement
+
+def _check_existing_data_in_ia(day_iso: str, endpoint_key: str) -> bool:
+    """Check if data for this day already exists in Internet Archive."""
+    try:
+        federation = InternetArchiveFederation(BALIZA_DB_PATH)
+        
+        # Check IA catalog for existing data
+        conn = duckdb.connect(BALIZA_DB_PATH)
+        
+        # Try to check if federated views exist
+        existing = conn.execute("""
+            SELECT COUNT(*) 
+            FROM federated.contratos_ia 
+            WHERE ia_data_date = ? 
+            LIMIT 1
+        """, [day_iso]).fetchone()
+        
+        conn.close()
+        
+        if existing and existing[0] > 0:
+            typer.echo(f"📦 Data for {day_iso} already available in Internet Archive")
+            return True
+            
+    except Exception as e:
+        # If federation not available, continue with normal processing
+        typer.echo(f"⚠️ Could not check IA data availability: {e}", err=True)
+    
+    return False
 
 def _generate_run_id(data_date, endpoint_key):
     """Generate unique run ID."""
