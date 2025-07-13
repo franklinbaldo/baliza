@@ -5,9 +5,7 @@ baliza:
       type: duckdb
       path: '../state/baliza_dbt.duckdb'
       extensions:
-        - httpfs  # For reading remote files
-        - json    # For JSON processing
-        - spatial # For geographic analysis
+        - json    # For JSON processing in raw data
       settings:
         max_memory: '2GB'
         threads: 4
@@ -16,9 +14,7 @@ baliza:
       type: duckdb
       path: '../state/baliza_prod.duckdb'
       extensions:
-        - httpfs
         - json
-        - spatial
       settings:
         max_memory: '4GB'
         threads: 8

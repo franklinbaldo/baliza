@@ -1,0 +1,44 @@
+[project]
+name = "baliza-analytics"
+version = "0.1.0"
+description = "Advanced analytics and fraud detection for PNCP contract data from Baliza"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "duckdb>=0.9.0",      # Connect to Baliza PSA data
+    "pandas>=2.0.0",      # Data manipulation
+    "numpy>=1.24.0",      # Numerical operations
+    "scikit-learn>=1.3.0", # ML algorithms for anomaly detection
+    "typer[all]>=0.9.0",  # CLI interface
+    "rich>=13.0.0",       # Pretty console output
+    "plotly>=5.15.0",     # Interactive visualizations
+    "marimo>=0.8.0",      # Beautiful interactive reports and notebooks
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "ruff>=0.0.280",
+    "mypy>=1.5.0",
+]
+
+[project.scripts]
+baliza-analytics = "baliza_analytics.main:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+select = ["E", "F", "W", "I", "N", "UP", "RUF"]
+
+[tool.ruff.isort]
+known-first-party = ["baliza_analytics"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true

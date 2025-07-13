@@ -70,19 +70,18 @@ WITH contratos_cleaned AS (
             ELSE NULL
         END AS duracao_contrato_dias,
         
-        -- Data quality flags
+        -- Basic data quality flags (for monitoring only)
         CASE 
-            WHEN valorGlobal > {{ var('suspicious_amount_threshold') }} THEN TRUE 
+            WHEN valorGlobal IS NULL OR valorGlobal <= 0 THEN TRUE 
             ELSE FALSE 
-        END AS flag_valor_suspeito,
+        END AS flag_valor_invalido,
         
         CASE 
-            WHEN DATE_DIFF('day', 
-                          TRY_CAST(dataVigenciaInicio AS DATE), 
-                          TRY_CAST(dataVigenciaFim AS DATE)) > {{ var('max_contract_duration_days') }}
+            WHEN TRY_CAST(dataVigenciaInicio AS DATE) IS NULL 
+                 OR TRY_CAST(dataVigenciaFim AS DATE) IS NULL
             THEN TRUE 
             ELSE FALSE 
-        END AS flag_duracao_suspeita,
+        END AS flag_datas_incompletas,
         
         -- Raw JSON for complex analysis
         raw_data_json
