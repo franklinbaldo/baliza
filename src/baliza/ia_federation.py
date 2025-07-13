@@ -17,9 +17,24 @@ from internetarchive import search_items
 class InternetArchiveFederation:
     """Manages DuckDB federation with Internet Archive stored data."""
 
-    def __init__(self, baliza_db_path: str = "state/baliza.duckdb"):
-        self.baliza_db_path = baliza_db_path
-        self.cache_dir = Path("state/ia_cache")
+    def __init__(self, baliza_db_path: str | Path = None):
+        # Use standard XDG directories
+        import os
+        if not os.getenv("BALIZA_PRODUCTION"):
+            # Development mode
+            data_dir = Path.cwd() / "data"
+            cache_dir = Path.cwd() / ".cache"
+        else:
+            # Production mode
+            data_dir = Path.home() / ".local" / "share" / "baliza"
+            cache_dir = Path.home() / ".cache" / "baliza"
+        
+        if baliza_db_path is None:
+            self.baliza_db_path = str(data_dir / "baliza.duckdb")
+        else:
+            self.baliza_db_path = str(baliza_db_path)
+            
+        self.cache_dir = cache_dir / "ia_cache"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
         # IA collection identifier pattern
@@ -76,7 +91,14 @@ class InternetArchiveFederation:
 
         Returns path to catalog database.
         """
-        catalog_db = "state/ia_catalog.duckdb"
+        # Use same data directory logic
+        import os
+        if not os.getenv("BALIZA_PRODUCTION"):
+            data_dir = Path.cwd() / "data"
+        else:
+            data_dir = Path.home() / ".local" / "share" / "baliza"
+            
+        catalog_db = str(data_dir / "ia_catalog.duckdb")
 
         print("📋 Creating Internet Archive data catalog...")
 

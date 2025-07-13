@@ -15,12 +15,28 @@ from tenacity import RetryError, retry, stop_after_attempt, wait_exponential
 
 from .ia_federation import InternetArchiveFederation
 
-BALIZA_DB_PATH = Path("state") / "baliza.duckdb"
+# Data directory structure - use XDG standard locations
+DATA_DIR = Path.home() / ".local" / "share" / "baliza"
+CACHE_DIR = Path.home() / ".cache" / "baliza"
+CONFIG_DIR = Path.home() / ".config" / "baliza"
+
+# For development, use local data directory if not in production
+if not os.getenv("BALIZA_PRODUCTION"):
+    # Development mode - use local project directory
+    DATA_DIR = Path.cwd() / "data"
+    CACHE_DIR = Path.cwd() / ".cache"
+    CONFIG_DIR = Path.cwd() / ".config"
+
+BALIZA_DB_PATH = DATA_DIR / "baliza.duckdb"
 
 
 def _init_baliza_db():
     """Initialize Baliza database with PSA (Persistent Staging Area) and control tables."""
-    Path("state").mkdir(parents=True, exist_ok=True)
+    # Create all necessary directories
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    
     conn = duckdb.connect(str(BALIZA_DB_PATH))
 
     # Check if we should update IA federation
@@ -124,7 +140,7 @@ def _ensure_ia_federation_updated():
     """Ensure Internet Archive federation is updated with latest data."""
     try:
         # Check if federation should be updated (daily)
-        update_flag_file = "state/ia_federation_last_update"
+        update_flag_file = CONFIG_DIR / "ia_federation_last_update"
         should_update = True
 
         if Path(update_flag_file).exists():
@@ -576,7 +592,7 @@ def append_to_monthly_parquet(
         run_summary_data[endpoint_key]["files_generated"] = []
         return
 
-    output_dir = Path("baliza_data")
+    output_dir = DATA_DIR / "parquet_files"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     monthly_filename = get_monthly_filename(day_iso, endpoint_cfg)
