@@ -276,7 +276,7 @@ def _process_single_date(target_day_iso: str) -> dict:
 
         if records is not None:
             run_summary["endpoints"][endpoint_key]["records_fetched"] = len(records)
-            process_and_upload_data(
+            process_data_only(
                 target_day_iso,
                 endpoint_key,
                 endpoint_config,
@@ -835,6 +835,162 @@ def _handle_upload_error(
         run_summary_data[endpoint_key]["status"] = "upload_failed"
 
 
+def _batch_upload_to_ia(print_func=typer.echo):
+    """Upload all monthly Parquet files to Internet Archive after data collection is complete."""
+    print_func("🚀 Starting batch upload to Internet Archive...")
+    
+    # Find all monthly parquet files that need to be uploaded
+    parquet_dir = DATA_DIR / "parquet_files"
+    if not parquet_dir.exists():
+        print_func("📁 No parquet files directory found")
+        return
+    
+    parquet_files = list(parquet_dir.glob("*.parquet"))
+    if not parquet_files:
+        print_func("📄 No parquet files found to upload")
+        return
+    
+    print_func(f"📦 Found {len(parquet_files)} monthly files to upload")
+    
+    uploaded_count = 0
+    failed_count = 0
+    
+    for parquet_file in parquet_files:
+        try:
+            # Extract metadata from filename: pncp-contratos-publicacao-2024-07.parquet
+            filename_parts = parquet_file.stem.split('-')
+            if len(filename_parts) >= 4:
+                endpoint_type = '-'.join(filename_parts[1:-2])  # contratos-publicacao
+                year_month = '-'.join(filename_parts[-2:])      # 2024-07
+                
+                # Create IA identifier
+                ia_identifier = f"pncp-{endpoint_type}-{year_month}"
+                
+                print_func(f"📤 Uploading {parquet_file.name} as {ia_identifier}...")
+                
+                # Calculate checksum
+                file_hash = hashlib.sha256()
+                with parquet_file.open("rb") as f:
+                    while chunk := f.read(8192):
+                        file_hash.update(chunk)
+                sha256_checksum = file_hash.hexdigest()
+                
+                # Prepare metadata
+                metadata = {
+                    "title": f"PNCP {endpoint_type.title().replace('-', ' ')} Data - {year_month}",
+                    "creator": "BALIZA - Backup Aberto de Licitações Zelando pelo Acesso",
+                    "subject": ["public procurement", "Brazil", "PNCP", "government data"],
+                    "description": f"Monthly consolidated data from Brazilian PNCP (Portal Nacional de Contratações Públicas) for {year_month}. Contains {endpoint_type.replace('-', ' ')} records in Parquet format.",
+                    "mediatype": "data",
+                    "collection": "opensource_data",
+                    "sha256": sha256_checksum,
+                    "baliza_file_type": "monthly_consolidated",
+                    "baliza_year_month": year_month,
+                    "baliza_endpoint": endpoint_type,
+                }
+                
+                # Upload to Internet Archive
+                response = upload(
+                    ia_identifier,
+                    files={parquet_file.name: str(parquet_file)},
+                    metadata=metadata,
+                    verbose=False,
+                    verify=True,
+                )
+                
+                if response[0].status_code in [200, 201]:
+                    uploaded_count += 1
+                    print_func(f"✅ Successfully uploaded {parquet_file.name}")
+                    
+                    # Update database records for this month
+                    _update_db_upload_status(year_month, endpoint_type, ia_identifier, sha256_checksum)
+                else:
+                    failed_count += 1
+                    print_func(f"❌ Failed to upload {parquet_file.name}: HTTP {response[0].status_code}")
+            else:
+                failed_count += 1
+                print_func(f"❌ Cannot parse filename: {parquet_file.name}")
+                
+        except Exception as e:
+            failed_count += 1
+            print_func(f"❌ Error uploading {parquet_file.name}: {e}")
+    
+    # Final upload summary
+    print_func(f"\n📊 Batch Upload Summary:")
+    print_func(f"   ✅ Uploaded: {uploaded_count}")
+    print_func(f"   ❌ Failed: {failed_count}")
+    print_func(f"   📈 Total: {len(parquet_files)}")
+
+
+def _update_db_upload_status(year_month: str, endpoint_type: str, ia_identifier: str, sha256_checksum: str):
+    """Update database records with IA upload information."""
+    try:
+        conn = duckdb.connect(str(BALIZA_DB_PATH))
+        
+        # Update all records for this month/endpoint with IA details
+        conn.execute("""
+            UPDATE control.runs 
+            SET 
+                ia_identifier = ?,
+                sha256_checksum = ?,
+                upload_status = 'success',
+                ia_item_url = ?
+            WHERE data_date LIKE ? 
+              AND endpoint_key LIKE ?
+              AND upload_status = 'data_collected'
+        """, [
+            ia_identifier,
+            sha256_checksum, 
+            f"https://archive.org/details/{ia_identifier}",
+            f"{year_month}-%",  # Matches YYYY-MM-DD pattern
+            f"%{endpoint_type.replace('-', '_')}%"  # Flexible endpoint matching
+        ])
+        
+        conn.close()
+    except Exception as e:
+        typer.echo(f"Warning: Could not update database with IA details: {e}", err=True)
+
+
+def process_data_only(
+    day_iso, endpoint_key, endpoint_cfg, records, run_summary_data
+):
+    """Processes records: PSA loading and monthly Parquet file creation (no IA upload)."""
+    # Generate unique run ID for this execution
+    run_id = _generate_run_id(day_iso, endpoint_key)
+    typer.echo(f"Processing run {run_id}")
+
+    # Load to PSA (Persistent Staging Area) first
+    psa_records_inserted = _load_to_psa(run_id, day_iso, endpoint_key, records)
+
+    # Append to monthly Parquet file (consolidating data)
+    parquet_filename = append_to_monthly_parquet(
+        day_iso, endpoint_key, endpoint_cfg, records, run_summary_data
+    )
+
+    if parquet_filename:
+        run_summary_data[endpoint_key]["status"] = "success"
+        run_summary_data[endpoint_key]["files_generated"] = [{
+            "parquet_file": str(parquet_filename),
+            "upload_status": "pending_batch_upload"
+        }]
+        
+        # Log to database (without IA details yet)
+        _log_run_to_db({
+            "run_id": run_id,
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "data_date": day_iso,
+            "endpoint_key": endpoint_key,
+            "parquet_file": str(parquet_filename),
+            "upload_status": "data_collected",
+            "records_fetched": len(records),
+            "psa_loaded": True,
+            "psa_records_inserted": psa_records_inserted,
+        })
+    else:
+        run_summary_data[endpoint_key]["status"] = "file_error"
+        run_summary_data[endpoint_key]["files_generated"] = []
+
+
 def process_and_upload_data(
     day_iso, endpoint_key, endpoint_cfg, records, run_summary_data
 ):
@@ -1100,6 +1256,11 @@ def run_baliza(
                     progress.console.print(f"❌ {date}: {run_summary['overall_status']}")
                 
                 progress.update(main_task, completed=i)
+            
+            # After all dates processed, upload monthly files to Internet Archive
+            if len(target_dates) > 1:
+                progress.update(main_task, description="[blue]Uploading consolidated files to Internet Archive...")
+                _batch_upload_to_ia(progress.console.print)
     else:
         # Single date - no progress bar needed
         for i, date in enumerate(target_dates, 1):
@@ -1116,6 +1277,13 @@ def run_baliza(
             else:
                 failed_dates += 1
                 typer.echo(f"❌ {date}: {run_summary['overall_status']}")
+    
+    # After all dates processed, upload monthly files to Internet Archive (single date mode)
+    if len(target_dates) == 1:
+        _batch_upload_to_ia(typer.echo)
+    elif len(target_dates) > 1:
+        typer.echo("\n📤 Uploading consolidated files to Internet Archive...")
+        _batch_upload_to_ia(typer.echo)
     
     # Final summary
     typer.echo(f"\n{'='*60}")
