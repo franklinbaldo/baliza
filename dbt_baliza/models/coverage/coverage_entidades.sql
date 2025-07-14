@@ -145,7 +145,7 @@ coverage_with_benchmarks AS (
         -- Data completeness indicators
         CASE 
             WHEN primeiro_contrato_baliza IS NOT NULL 
-                 AND primeiro_contrato_baliza <= DATE '2021-06-01'  -- Early PNCP adopter
+                 AND primeiro_contrato_baliza <= DATE '2021-01-01'  -- Early PNCP adopter
             THEN TRUE ELSE FALSE 
         END AS adocao_precoce_pncp,
         
