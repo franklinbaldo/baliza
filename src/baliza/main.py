@@ -417,7 +417,7 @@ def _log_run_to_db(data):
             data["timestamp"],
             data["data_date"],
             data["endpoint_key"],
-            data.get("parquet_file"),
+            str(data.get("parquet_file")) if data.get("parquet_file") else None,
             data.get("sha256_checksum"),
             data.get("ia_identifier"),
             data.get("ia_item_url"),
@@ -447,7 +447,7 @@ ENDPOINTS_CONFIG = {
         "api_path": "/v1/contratos",
         "file_prefix": "pncp-contratos-publicacao",
         "ia_title_prefix": "PNCP Contratos Publicação",
-        "tamanhoPagina": 100,  # Conservative page size to ensure success
+        "tamanhoPagina": 500,  # Conservative page size to ensure success
         "date_param_initial": "dataInicial",
         "date_param_final": "dataFinal",
         "date_format": "yyyyMMdd",
@@ -629,7 +629,7 @@ def append_to_monthly_parquet(
             record["data_date"] = day_iso
 
         # Create temporary JSON file for new records
-        temp_json_file = parquet_filename.replace(".parquet", f"_temp_{day_iso}.json")
+        temp_json_file = str(parquet_filename).replace(".parquet", f"_temp_{day_iso}.json")
         with Path(temp_json_file).open("w", encoding="utf-8") as f:
             for record in records:
                 f.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -668,7 +668,7 @@ def append_to_monthly_parquet(
         Path(temp_json_file).unlink()
         conn.close()
 
-        return parquet_filename
+        return str(parquet_filename)  # Convert PosixPath to string
 
     except Exception as e:
         typer.echo(
@@ -685,7 +685,7 @@ def _create_parquet_file(
 ) -> dict:
     """Create Parquet file from records and return file details."""
     file_details = {
-        "parquet_file": parquet_filename,
+        "parquet_file": str(parquet_filename),  # Convert PosixPath to string
         "sha256_checksum": None,
         "ia_identifier": None,
         "ia_item_url": None,
@@ -698,7 +698,7 @@ def _create_parquet_file(
         conn = duckdb.connect()
 
         # Create temporary JSON file for DuckDB to read
-        temp_json_file = parquet_filename.replace(".parquet", "_temp.json")
+        temp_json_file = str(parquet_filename).replace(".parquet", "_temp.json")
         with Path(temp_json_file).open("w", encoding="utf-8") as f:
             for record in records:
                 f.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -977,7 +977,7 @@ def process_and_upload_data(
                 "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
                 "data_date": day_iso,
                 "endpoint_key": endpoint_key,
-                "parquet_file": parquet_filename,
+                "parquet_file": str(parquet_filename),  # Convert PosixPath to string
                 "sha256_checksum": file_details[
                     "sha256_checksum"
                 ],  # Should be valid unless checksum failed
