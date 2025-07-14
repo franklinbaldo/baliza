@@ -5,11 +5,12 @@ Simplified script that iterates through all available PNCP endpoints extracting 
 and stores it in a new PSA (Persistent Staging Area) with raw responses.
 """
 
+import asyncio
 import json
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import time
 
 import duckdb
@@ -202,6 +203,82 @@ class SimplePNCPExtractor:
     def _format_date(self, date_obj: datetime) -> str:
         """Format date for PNCP API (YYYYMMDD)."""
         return date_obj.strftime("%Y%m%d")
+    
+    def _check_existing_extraction_range(self, endpoint: Dict[str, Any], start_date: datetime, end_date: datetime, modalidade: Optional[int] = None) -> Dict[str, Any]:
+        """Check if data for this endpoint/date-range/modalidade combination already exists."""
+        # For date ranges, we need to check if we have any overlapping extractions
+        # For simplicity, we'll only consider it "complete" if we have the exact same date range
+        query = """
+            SELECT 
+                COUNT(*) as total_responses,
+                COUNT(CASE WHEN response_code = 200 THEN 1 END) as success_responses,
+                SUM(CASE WHEN response_code = 200 THEN total_records ELSE 0 END) as total_records,
+                MAX(CASE WHEN response_code = 200 THEN total_pages ELSE 0 END) as max_total_pages,
+                COUNT(DISTINCT CASE WHEN response_code = 200 THEN current_page END) as unique_pages_fetched
+            FROM psa.pncp_raw_responses 
+            WHERE endpoint_name = ? 
+            AND request_parameters LIKE ?
+        """
+        
+        # Create a pattern to match the date range in request_parameters JSON
+        # This is a simplified approach - in production, you'd want more robust JSON querying
+        date_pattern = f'%"dataInicial":"{self._format_date(start_date)}"%"dataFinal":"{self._format_date(end_date)}"%'
+        if "dataInicio" in endpoint.get("date_params", []):
+            date_pattern = f'%"dataInicio":"{self._format_date(start_date)}"%"dataFim":"{self._format_date(end_date)}"%'
+        
+        params = [endpoint["name"], date_pattern]
+        
+        # Add modalidade filter if applicable
+        if modalidade is not None:
+            query += " AND modalidade = ?"
+            params.append(modalidade)
+        else:
+            query += " AND modalidade IS NULL"
+        
+        result = self.conn.execute(query, params).fetchone()
+        
+        return {
+            "total_responses": result[0] or 0,
+            "success_responses": result[1] or 0,
+            "total_records": result[2] or 0,
+            "max_total_pages": result[3] or 0,
+            "unique_pages_fetched": result[4] or 0,
+            "is_complete": False  # Will be determined by caller
+        }
+
+    def _check_existing_extraction(self, endpoint: Dict[str, Any], data_date: datetime, modalidade: Optional[int] = None) -> Dict[str, Any]:
+        """Check if data for this endpoint/date/modalidade combination already exists."""
+        # Build the query to check existing data
+        query = """
+            SELECT 
+                COUNT(*) as total_responses,
+                COUNT(CASE WHEN response_code = 200 THEN 1 END) as success_responses,
+                SUM(CASE WHEN response_code = 200 THEN total_records ELSE 0 END) as total_records,
+                MAX(CASE WHEN response_code = 200 THEN total_pages ELSE 0 END) as max_total_pages,
+                COUNT(DISTINCT CASE WHEN response_code = 200 THEN current_page END) as unique_pages_fetched
+            FROM psa.pncp_raw_responses 
+            WHERE endpoint_name = ? 
+            AND data_date = ?
+        """
+        params = [endpoint["name"], data_date.date()]
+        
+        # Add modalidade filter if applicable
+        if modalidade is not None:
+            query += " AND modalidade = ?"
+            params.append(modalidade)
+        else:
+            query += " AND modalidade IS NULL"
+        
+        result = self.conn.execute(query, params).fetchone()
+        
+        return {
+            "total_responses": result[0] or 0,
+            "success_responses": result[1] or 0,
+            "total_records": result[2] or 0,
+            "max_total_pages": result[3] or 0,
+            "unique_pages_fetched": result[4] or 0,
+            "is_complete": False  # Will be determined by caller
+        }
         
     def _make_request(self, endpoint: Dict[str, Any], params: Dict[str, Any]) -> Dict[str, Any]:
         """Make HTTP request to PNCP API endpoint."""
@@ -240,6 +317,38 @@ class SimplePNCPExtractor:
                 "total_pages": 0
             }
     
+    def _store_response_range(self, endpoint: Dict[str, Any], params: Dict[str, Any], 
+                            response_data: Dict[str, Any], start_date: datetime, end_date: datetime, modalidade: Optional[int] = None):
+        """Store raw response in PSA with date range metadata."""
+        endpoint_url = f"{self.base_url}{endpoint['path']}"
+        
+        # For date ranges, we'll use the start_date as the primary data_date 
+        # but store the full range in request_parameters
+        self.conn.execute("""
+            INSERT INTO psa.pncp_raw_responses (
+                endpoint_url, endpoint_name, http_method, request_parameters,
+                response_code, response_content, response_headers,
+                data_date, run_id, endpoint_type, modalidade,
+                total_records, total_pages, current_page, page_size
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, [
+            endpoint_url,
+            endpoint["name"],
+            "GET",
+            json.dumps(params),
+            response_data["status_code"],
+            response_data["content"],
+            json.dumps(response_data["headers"]),
+            start_date.date(),  # Use start_date as primary date
+            self.run_id,
+            endpoint["name"].split("_")[0],  # Extract type: contratos, contratacoes, atas, etc.
+            modalidade,
+            response_data["total_records"],
+            response_data["total_pages"],
+            params.get("pagina", 1),
+            params.get("tamanhoPagina", endpoint["default_page_size"])
+        ])
+
     def _store_response(self, endpoint: Dict[str, Any], params: Dict[str, Any], 
                        response_data: Dict[str, Any], data_date: datetime, modalidade: Optional[int] = None):
         """Store raw response in PSA."""
@@ -270,6 +379,56 @@ class SimplePNCPExtractor:
             params.get("tamanhoPagina", endpoint["default_page_size"])
         ])
         
+    def extract_endpoint_date_range(self, endpoint: Dict[str, Any], start_date: datetime, end_date: datetime) -> Dict[str, Any]:
+        """Extract all data from a single endpoint for a date range."""
+        results = {
+            "endpoint": endpoint["name"],
+            "start_date": start_date.date(),
+            "end_date": end_date.date(),
+            "total_requests": 0,
+            "total_records": 0,
+            "success_requests": 0,
+            "error_requests": 0,
+            "modalidades_processed": [],
+            "skipped_count": 0,
+            "resumed_count": 0
+        }
+        
+        # Handle endpoints that require modalidade iteration
+        if "modalidades" in endpoint:
+            for modalidade in endpoint["modalidades"]:
+                modalidade_results = self._extract_endpoint_modalidade_range(endpoint, start_date, end_date, modalidade)
+                results["total_requests"] += modalidade_results["total_requests"]
+                results["total_records"] += modalidade_results["total_records"]
+                results["success_requests"] += modalidade_results["success_requests"]
+                results["error_requests"] += modalidade_results["error_requests"]
+                
+                if modalidade_results.get("skipped"):
+                    results["skipped_count"] += 1
+                if modalidade_results.get("resumed"):
+                    results["resumed_count"] += 1
+                    
+                results["modalidades_processed"].append({
+                    "modalidade": modalidade,
+                    "records": modalidade_results["total_records"],
+                    "skipped": modalidade_results.get("skipped", False),
+                    "resumed": modalidade_results.get("resumed", False)
+                })
+        else:
+            # Regular endpoint without modalidade
+            modalidade_results = self._extract_endpoint_modalidade_range(endpoint, start_date, end_date, None)
+            results["total_requests"] += modalidade_results["total_requests"]
+            results["total_records"] += modalidade_results["total_records"]
+            results["success_requests"] += modalidade_results["success_requests"]
+            results["error_requests"] += modalidade_results["error_requests"]
+            
+            if modalidade_results.get("skipped"):
+                results["skipped_count"] += 1
+            if modalidade_results.get("resumed"):
+                results["resumed_count"] += 1
+            
+        return results
+
     def extract_endpoint_data(self, endpoint: Dict[str, Any], data_date: datetime) -> Dict[str, Any]:
         """Extract all data from a single endpoint for a specific date."""
         results = {
@@ -279,7 +438,9 @@ class SimplePNCPExtractor:
             "total_records": 0,
             "success_requests": 0,
             "error_requests": 0,
-            "modalidades_processed": []
+            "modalidades_processed": [],
+            "skipped_count": 0,
+            "resumed_count": 0
         }
         
         # Handle endpoints that require modalidade iteration
@@ -290,9 +451,17 @@ class SimplePNCPExtractor:
                 results["total_records"] += modalidade_results["total_records"]
                 results["success_requests"] += modalidade_results["success_requests"]
                 results["error_requests"] += modalidade_results["error_requests"]
+                
+                if modalidade_results.get("skipped"):
+                    results["skipped_count"] += 1
+                if modalidade_results.get("resumed"):
+                    results["resumed_count"] += 1
+                    
                 results["modalidades_processed"].append({
                     "modalidade": modalidade,
-                    "records": modalidade_results["total_records"]
+                    "records": modalidade_results["total_records"],
+                    "skipped": modalidade_results.get("skipped", False),
+                    "resumed": modalidade_results.get("resumed", False)
                 })
         else:
             # Regular endpoint without modalidade
@@ -302,6 +471,99 @@ class SimplePNCPExtractor:
             results["success_requests"] += modalidade_results["success_requests"]
             results["error_requests"] += modalidade_results["error_requests"]
             
+            if modalidade_results.get("skipped"):
+                results["skipped_count"] += 1
+            if modalidade_results.get("resumed"):
+                results["resumed_count"] += 1
+            
+        return results
+
+    def _extract_endpoint_modalidade_range(self, endpoint: Dict[str, Any], start_date: datetime, end_date: datetime, modalidade: Optional[int]) -> Dict[str, Any]:
+        """Extract data from endpoint for a specific modalidade (or no modalidade) using date range."""
+        results = {
+            "total_requests": 0,
+            "total_records": 0,
+            "success_requests": 0,
+            "error_requests": 0,
+            "skipped": False,
+            "resumed": False
+        }
+        
+        # Check if we already have complete data for this combination
+        existing = self._check_existing_extraction_range(endpoint, start_date, end_date, modalidade)
+        
+        # Build base parameters for date range
+        params = {
+            "pagina": 1,
+            "tamanhoPagina": endpoint["default_page_size"]
+        }
+        
+        # Add date parameters for the full range
+        if endpoint["supports_date_range"]:
+            if "dataInicio" in endpoint["date_params"]:
+                params["dataInicio"] = self._format_date(start_date)
+                params["dataFim"] = self._format_date(end_date)
+            else:
+                params["dataInicial"] = self._format_date(start_date)
+                params["dataFinal"] = self._format_date(end_date)
+        else:
+            # For endpoints like proposta that only use dataFinal, use end_date
+            params["dataFinal"] = self._format_date(end_date)
+        
+        # Add modalidade if required
+        if modalidade is not None:
+            params["codigoModalidadeContratacao"] = modalidade
+        
+        # Check if this exact date range extraction is complete
+        if existing["success_responses"] > 0:
+            max_pages = existing["max_total_pages"]
+            pages_fetched = existing["unique_pages_fetched"]
+            
+            if max_pages > 0 and pages_fetched >= max_pages:
+                console.print(f"    ✅ [cyan]Skipping {endpoint['name']} {start_date.date()}-{end_date.date()}" + 
+                            (f" modalidade={modalidade}" if modalidade else "") + 
+                            f" - already complete ({pages_fetched}/{max_pages} pages)[/cyan]")
+                results["skipped"] = True
+                results["total_records"] = existing["total_records"]
+                results["success_requests"] = existing["success_responses"]
+                return results
+        
+        # If we have no existing data or incomplete data, extract fresh
+        # Make first request to get total pages
+        response_data = self._make_request(endpoint, params)
+        results["total_requests"] += 1
+        
+        if response_data["status_code"] == 200:
+            results["success_requests"] += 1
+            total_pages = response_data["total_pages"]
+            results["total_records"] = response_data["total_records"]
+            
+            # Show progress for date range
+            console.print(f"    🔄 [green]Extracting {endpoint['name']} {start_date.date()}-{end_date.date()}" + 
+                        (f" modalidade={modalidade}" if modalidade else "") + 
+                        f" - {total_pages} pages, {results['total_records']:,} records[/green]")
+        else:
+            results["error_requests"] += 1
+            total_pages = 1  # Still store the error response
+            
+        # Store first response with date range metadata
+        self._store_response_range(endpoint, params, response_data, start_date, end_date, modalidade)
+        
+        # Get remaining pages if there are more
+        if total_pages > 1:
+            for page in range(2, total_pages + 1):
+                params["pagina"] = page
+                response_data = self._make_request(endpoint, params)
+                results["total_requests"] += 1
+                
+                if response_data["status_code"] == 200:
+                    results["success_requests"] += 1
+                else:
+                    results["error_requests"] += 1
+                    
+                # Store response with date range metadata
+                self._store_response_range(endpoint, params, response_data, start_date, end_date, modalidade)
+                
         return results
     
     def _extract_endpoint_modalidade(self, endpoint: Dict[str, Any], data_date: datetime, modalidade: Optional[int]) -> Dict[str, Any]:
@@ -310,8 +572,13 @@ class SimplePNCPExtractor:
             "total_requests": 0,
             "total_records": 0,
             "success_requests": 0,
-            "error_requests": 0
+            "error_requests": 0,
+            "skipped": False,
+            "resumed": False
         }
+        
+        # Check if we already have complete data for this combination
+        existing = self._check_existing_extraction(endpoint, data_date, modalidade)
         
         # Build base parameters
         params = {
@@ -335,41 +602,119 @@ class SimplePNCPExtractor:
         if modalidade is not None:
             params["codigoModalidadeContratacao"] = modalidade
         
-        # Make first request to get total pages
-        response_data = self._make_request(endpoint, params)
-        results["total_requests"] += 1
-        
-        if response_data["status_code"] == 200:
-            results["success_requests"] += 1
-            total_pages = response_data["total_pages"]
-            results["total_records"] += response_data["total_records"]
-        else:
-            results["error_requests"] += 1
-            total_pages = 1  # Still store the error response
+        # If we have no existing data, or only error responses, start fresh
+        if existing["success_responses"] == 0:
+            # Make first request to get total pages
+            response_data = self._make_request(endpoint, params)
+            results["total_requests"] += 1
             
-        # Store first response
-        self._store_response(endpoint, params, response_data, data_date, modalidade)
-        
-        # Get remaining pages if there are more
-        if total_pages > 1:
-            for page in range(2, total_pages + 1):
-                params["pagina"] = page
+            if response_data["status_code"] == 200:
+                results["success_requests"] += 1
+                total_pages = response_data["total_pages"]
+                results["total_records"] = response_data["total_records"]
+            else:
+                results["error_requests"] += 1
+                total_pages = 1  # Still store the error response
+                
+            # Store first response
+            self._store_response(endpoint, params, response_data, data_date, modalidade)
+            
+            start_page = 2
+        else:
+            # We have some existing data - check if it's complete
+            max_pages = existing["max_total_pages"]
+            pages_fetched = existing["unique_pages_fetched"]
+            
+            # If we have all pages, skip this extraction entirely
+            if max_pages > 0 and pages_fetched >= max_pages:
+                console.print(f"    ✅ [cyan]Skipping {endpoint['name']} {data_date.date()}" + 
+                            (f" modalidade={modalidade}" if modalidade else "") + 
+                            f" - already complete ({pages_fetched}/{max_pages} pages)[/cyan]")
+                results["skipped"] = True
+                results["total_records"] = existing["total_records"]
+                results["success_requests"] = existing["success_responses"]
+                return results
+            
+            # Incomplete extraction - resume from where we left off
+            total_pages = max_pages
+            results["total_records"] = existing["total_records"]
+            results["success_requests"] = existing["success_responses"]
+            results["resumed"] = True
+            
+            # Find which pages we still need
+            existing_pages_query = """
+                SELECT DISTINCT current_page 
+                FROM psa.pncp_raw_responses 
+                WHERE endpoint_name = ? AND data_date = ? AND response_code = 200
+            """
+            existing_params = [endpoint["name"], data_date.date()]
+            if modalidade is not None:
+                existing_pages_query += " AND modalidade = ?"
+                existing_params.append(modalidade)
+            else:
+                existing_pages_query += " AND modalidade IS NULL"
+            
+            existing_pages = {row[0] for row in self.conn.execute(existing_pages_query, existing_params).fetchall()}
+            missing_pages = [p for p in range(1, total_pages + 1) if p not in existing_pages]
+            
+            if not missing_pages:
+                console.print(f"    ✅ [cyan]Skipping {endpoint['name']} {data_date.date()}" + 
+                            (f" modalidade={modalidade}" if modalidade else "") + 
+                            f" - already complete ({pages_fetched}/{max_pages} pages)[/cyan]")
+                results["skipped"] = True
+                return results
+            
+            console.print(f"    🔄 [yellow]Resuming {endpoint['name']} {data_date.date()}" + 
+                        (f" modalidade={modalidade}" if modalidade else "") + 
+                        f" - fetching {len(missing_pages)} missing pages[/yellow]")
+            
+            start_page = min(missing_pages)
+            
+            # If we need page 1, make the first request
+            if 1 in missing_pages:
                 response_data = self._make_request(endpoint, params)
                 results["total_requests"] += 1
                 
                 if response_data["status_code"] == 200:
                     results["success_requests"] += 1
+                    # Update total_pages from fresh response
+                    total_pages = response_data["total_pages"]
                 else:
                     results["error_requests"] += 1
                     
-                # Store response
+                # Store first response
                 self._store_response(endpoint, params, response_data, data_date, modalidade)
+                
+                missing_pages.remove(1)
+            
+            # Update missing pages list if total_pages changed
+            if total_pages != max_pages:
+                missing_pages = [p for p in range(start_page, total_pages + 1) if p not in existing_pages]
+        
+        # Get remaining pages
+        remaining_pages = list(range(start_page, total_pages + 1)) if not results["resumed"] else missing_pages
+        
+        for page in remaining_pages:
+            if page == 1:  # Already handled above
+                continue
+                
+            params["pagina"] = page
+            response_data = self._make_request(endpoint, params)
+            results["total_requests"] += 1
+            
+            if response_data["status_code"] == 200:
+                results["success_requests"] += 1
+            else:
+                results["error_requests"] += 1
+                
+            # Store response
+            self._store_response(endpoint, params, response_data, data_date, modalidade)
                 
         return results
     
     def extract_all_data(self, start_date: datetime, end_date: datetime) -> Dict[str, Any]:
         """Extract data from all endpoints for a date range."""
-        console.print(Panel(f"🔄 Starting PNCP Data Extraction", style="bold blue"))
+        console.print(Panel("🔄 Starting PNCP Data Extraction", style="bold blue"))
         console.print(f"📅 Date Range: {start_date.date()} to {end_date.date()}")
         console.print(f"🆔 Run ID: {self.run_id}")
         console.print(f"📊 Endpoints: {len(PNCP_ENDPOINTS)}")
@@ -383,16 +728,27 @@ class SimplePNCPExtractor:
             "success_requests": 0,
             "error_requests": 0,
             "endpoints_processed": [],
-            "dates_processed": []
+            "dates_processed": [],
+            "skipped_extractions": 0,
+            "resumed_extractions": 0
         }
         
-        # Process each date
-        current_date = start_date
-        while current_date <= end_date:
-            console.print(f"\n📅 Processing Date: {current_date.date()}")
+        # Process in date range chunks (up to 365 days per chunk)
+        current_start = start_date
+        chunk_number = 1
+        
+        while current_start <= end_date:
+            # Calculate chunk end date (max 365 days or end_date, whichever is smaller)
+            chunk_end = min(current_start + timedelta(days=364), end_date)  # 364 + 1 = 365 days
+            days_in_chunk = (chunk_end - current_start).days + 1
             
-            date_results = {
-                "date": current_date.date(),
+            console.print(f"\n📅 Processing Date Range Chunk {chunk_number}: {current_start.date()} to {chunk_end.date()} ({days_in_chunk} days)")
+            
+            chunk_results = {
+                "chunk_number": chunk_number,
+                "start_date": current_start.date(),
+                "end_date": chunk_end.date(),
+                "days_in_chunk": days_in_chunk,
                 "total_requests": 0,
                 "total_records": 0,
                 "success_requests": 0,
@@ -400,30 +756,36 @@ class SimplePNCPExtractor:
                 "endpoints": []
             }
             
-            # Process each endpoint
+            # Process each endpoint for this date range chunk
             with Progress() as progress:
-                task = progress.add_task(f"[green]Processing {current_date.date()}", total=len(PNCP_ENDPOINTS))
+                task = progress.add_task(f"[green]Processing chunk {chunk_number} ({days_in_chunk} days)", total=len(PNCP_ENDPOINTS))
                 
                 for endpoint in PNCP_ENDPOINTS:
                     progress.update(task, description=f"[green]{endpoint['name']}")
                     
-                    endpoint_results = self.extract_endpoint_data(endpoint, current_date)
+                    endpoint_results = self.extract_endpoint_date_range(endpoint, current_start, chunk_end)
                     
-                    date_results["total_requests"] += endpoint_results["total_requests"]
-                    date_results["total_records"] += endpoint_results["total_records"]
-                    date_results["success_requests"] += endpoint_results["success_requests"]
-                    date_results["error_requests"] += endpoint_results["error_requests"]
-                    date_results["endpoints"].append(endpoint_results)
+                    chunk_results["total_requests"] += endpoint_results["total_requests"]
+                    chunk_results["total_records"] += endpoint_results["total_records"]
+                    chunk_results["success_requests"] += endpoint_results["success_requests"]
+                    chunk_results["error_requests"] += endpoint_results["error_requests"]
+                    chunk_results["endpoints"].append(endpoint_results)
+                    
+                    # Track resume/skip statistics
+                    total_results["skipped_extractions"] += endpoint_results["skipped_count"]
+                    total_results["resumed_extractions"] += endpoint_results["resumed_count"]
                     
                     progress.advance(task)
             
-            total_results["total_requests"] += date_results["total_requests"]
-            total_results["total_records"] += date_results["total_records"]
-            total_results["success_requests"] += date_results["success_requests"]
-            total_results["error_requests"] += date_results["error_requests"]
-            total_results["dates_processed"].append(date_results)
+            total_results["total_requests"] += chunk_results["total_requests"]
+            total_results["total_records"] += chunk_results["total_records"]
+            total_results["success_requests"] += chunk_results["success_requests"]
+            total_results["error_requests"] += chunk_results["error_requests"]
+            total_results["dates_processed"].append(chunk_results)
             
-            current_date += timedelta(days=1)
+            # Move to next chunk
+            current_start = chunk_end + timedelta(days=1)
+            chunk_number += 1
         
         self._print_summary(total_results)
         return total_results
@@ -441,6 +803,12 @@ class SimplePNCPExtractor:
         table.add_row("Total Records", f"{results['total_records']:,}")
         table.add_row("Success Requests", f"{results['success_requests']:,}")
         table.add_row("Error Requests", f"{results['error_requests']:,}")
+        
+        # Add resume/skip statistics
+        if results.get("skipped_extractions", 0) > 0:
+            table.add_row("Skipped (Complete)", f"{results['skipped_extractions']:,}", style="cyan")
+        if results.get("resumed_extractions", 0) > 0:
+            table.add_row("Resumed (Partial)", f"{results['resumed_extractions']:,}", style="yellow")
         
         success_rate = (results['success_requests'] / results['total_requests'] * 100) if results['total_requests'] > 0 else 0
         table.add_row("Success Rate", f"{success_rate:.1f}%")
