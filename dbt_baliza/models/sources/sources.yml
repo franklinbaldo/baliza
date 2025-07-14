@@ -1,42 +1,7 @@
 version: 2
 
 sources:
-  - name: psa
-    description: "Persistent Staging Area - Raw data from PNCP API"
+  - name: pncp_raw_data
     tables:
-      - name: contratos_raw
-        description: "Raw contract data from PNCP API (local storage)"
-        columns:
-          - name: baliza_extracted_at
-            description: "Timestamp when data was extracted"
-          - name: baliza_data_date
-            description: "Date of the data being collected"
-          - name: numeroControlePncpCompra
-            description: "PNCP contract control number"
-            tests:
-              - not_null
-
-  - name: federated
-    description: "Federated data sources from Internet Archive"
-    tables:
-      - name: contratos_ia
-        description: "Contract data federated from Internet Archive Parquet files"
-        columns:
-          - name: ia_identifier
-            description: "Internet Archive item identifier"
-          - name: ia_file_name
-            description: "Original Parquet file name in IA"
-          - name: ia_data_date
-            description: "Data date extracted from IA file"
-          - name: numeroControlePncpCompra
-            description: "PNCP contract control number"
-
-      - name: contratos_unified
-        description: "Unified view of IA + local data (preferring IA)"
-        columns:
-          - name: data_source
-            description: "Source of data: 'ia' or 'local'"
-          - name: source_date
-            description: "Date of the source data"
-          - name: numeroControlePncpCompra
-            description: "PNCP contract control number"
+      - name: contratos_publicacao
+        identifier: "read_parquet('data/parquet_files/pncp-contratos-publicacao_*.parquet')"
