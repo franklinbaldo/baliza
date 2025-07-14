@@ -12,6 +12,7 @@ import requests
 import typer
 from internetarchive import upload
 from tenacity import RetryError, retry, stop_after_attempt, wait_exponential
+from rich.progress import Progress, TaskID
 
 from .ia_federation import InternetArchiveFederation
 
@@ -211,8 +212,8 @@ def _get_missing_dates(days_back: int = 0) -> list[str]:
     end_date = datetime.date.today() - datetime.timedelta(days=1)  # Yesterday
     
     if days_back == 0:
-        # ALL HISTORY - PNCP started around 2021, but let's be safe and go back further
-        start_date = datetime.date(2020, 1, 1)  # Start from 2020 to capture all possible data
+        # ALL HISTORY - PNCP started operations around mid-2021
+        start_date = datetime.date(2021, 6, 1)  # Start from June 2021 when PNCP began operations
         typer.echo(f"🏛️ FULL HISTORICAL BACKUP MODE: Checking ALL dates from {start_date} to {end_date}")
     else:
         start_date = end_date - datetime.timedelta(days=days_back)
@@ -463,6 +464,13 @@ def fetch_data_from_pncp(endpoint_path, params):
         typer.echo(f"Making request to: {full_url} with params: {params}")
         response = requests.get(full_url, params=params, timeout=30)
         typer.echo(f"Response status: {response.status_code}")
+        
+        # Handle 204 No Content as "no data available" rather than error
+        if response.status_code == 204:
+            typer.echo("No data available for this date/endpoint (HTTP 204)")
+            return {"data": [], "totalRegistros": 0, "totalPaginas": 0}
+        
+        # For other status codes, use standard error handling
         response.raise_for_status()
         data = response.json()
         typer.echo(
@@ -531,11 +539,10 @@ def harvest_endpoint_data(day_iso, endpoint_key, endpoint_cfg):
         return []
 
     all_records = items
-    typer.echo(
-        f"Found {total_pages} total pages for '{endpoint_key}', fetching remaining pages concurrently..."
-    )
-
     if total_pages > 1:
+        # Fetch remaining pages concurrently 
+        typer.echo(f"Fetching {total_pages} pages concurrently...")
+        
         # Fetch remaining pages concurrently (max 5 concurrent requests)
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             future_to_page = {
@@ -545,21 +552,20 @@ def harvest_endpoint_data(day_iso, endpoint_key, endpoint_cfg):
                 for page in range(2, total_pages + 1)
             }
 
+            completed_pages = 1  # Already have page 1
             for future in concurrent.futures.as_completed(future_to_page):
                 page_num, page_items, _ = future.result()
                 if page_items is not None:
                     all_records.extend(page_items)
-                    typer.echo(
-                        f"Completed page {page_num}/{total_pages} for '{endpoint_key}' ({len(page_items)} items)"
-                    )
+                    completed_pages += 1
+                    typer.echo(f"✅ Page {page_num}/{total_pages}: {len(page_items)} items ({completed_pages}/{total_pages} complete)")
                 else:
-                    typer.echo(
-                        f"Failed to fetch page {page_num} for '{endpoint_key}'",
-                        err=True,
-                    )
+                    typer.echo(f"❌ Failed to fetch page {page_num}", err=True)
 
                 # Small delay to be respectful to the API
                 time.sleep(0.1)
+    else:
+        typer.echo(f"Found only 1 page for '{endpoint_key}'")
 
     typer.echo(
         f"Harvested {len(all_records)} records for '{endpoint_key}' on {day_iso}."
@@ -1042,7 +1048,11 @@ def run_baliza(
             typer.echo("✅ No missing dates found! All recent dates already processed.")
             return
         
-        typer.echo(f"📅 Found {len(missing_dates)} missing dates: {missing_dates[0]} to {missing_dates[-1]}")
+        if len(missing_dates) <= 10:
+            typer.echo(f"📅 Found {len(missing_dates)} missing dates: {', '.join(missing_dates)}")
+        else:
+            typer.echo(f"📅 Found {len(missing_dates)} missing dates: {missing_dates[0]} to {missing_dates[-1]}")
+            typer.echo(f"   (Range: {(datetime.date.fromisoformat(missing_dates[-1]) - datetime.date.fromisoformat(missing_dates[0])).days + 1} days total)")
         target_dates = missing_dates
         
     else:
@@ -1064,20 +1074,48 @@ def run_baliza(
     
     typer.echo(f"🚀 BALIZA starting to process {len(target_dates)} date(s)")
     
-    for i, date in enumerate(target_dates, 1):
-        typer.echo(f"\n{'='*60}")
-        typer.echo(f"📅 Processing date {i}/{len(target_dates)}: {date}")
-        typer.echo(f"{'='*60}")
-        
-        run_summary = _process_single_date(date)
-        all_summaries.append(run_summary)
-        
-        if run_summary["overall_status"] in ["success", "completed_upload_skipped"]:
-            successful_dates += 1
-            typer.echo(f"✅ {date}: {run_summary['overall_status']}")
-        else:
-            failed_dates += 1
-            typer.echo(f"❌ {date}: {run_summary['overall_status']}")
+    # Use rich progress bar for multiple dates
+    if len(target_dates) > 1:
+        with Progress() as progress:
+            main_task = progress.add_task(
+                f"[green]Processing {len(target_dates)} dates...", 
+                total=len(target_dates)
+            )
+            
+            for i, date in enumerate(target_dates, 1):
+                progress.update(
+                    main_task, 
+                    description=f"[green]Processing date {i}/{len(target_dates)}: {date}",
+                    completed=i-1
+                )
+                
+                run_summary = _process_single_date(date)
+                all_summaries.append(run_summary)
+                
+                if run_summary["overall_status"] in ["success", "completed_upload_skipped"]:
+                    successful_dates += 1
+                    progress.console.print(f"✅ {date}: {run_summary['overall_status']}")
+                else:
+                    failed_dates += 1
+                    progress.console.print(f"❌ {date}: {run_summary['overall_status']}")
+                
+                progress.update(main_task, completed=i)
+    else:
+        # Single date - no progress bar needed
+        for i, date in enumerate(target_dates, 1):
+            typer.echo(f"\n{'='*60}")
+            typer.echo(f"📅 Processing date {i}/{len(target_dates)}: {date}")
+            typer.echo(f"{'='*60}")
+            
+            run_summary = _process_single_date(date)
+            all_summaries.append(run_summary)
+            
+            if run_summary["overall_status"] in ["success", "completed_upload_skipped"]:
+                successful_dates += 1
+                typer.echo(f"✅ {date}: {run_summary['overall_status']}")
+            else:
+                failed_dates += 1
+                typer.echo(f"❌ {date}: {run_summary['overall_status']}")
     
     # Final summary
     typer.echo(f"\n{'='*60}")
