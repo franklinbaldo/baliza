@@ -11,7 +11,7 @@ dependencies = [
 ]
 
 [project.scripts]
-baliza = "baliza.simple_pncp_extractor:app"
+baliza = "baliza.pncp_extractor:app"
 
 [project.optional-dependencies]
 dev = [

@@ -23,7 +23,7 @@ uv run baliza stats
 uv run baliza extract --start-date 2024-07-10 --end-date 2024-07-10
 
 # Test script directly
-uv run python src/baliza/simple_pncp_extractor.py stats
+uv run python src/baliza/pncp_extractor.py stats
 ```
 
 ### **What is Tested**
@@ -36,7 +36,7 @@ uv run python src/baliza/simple_pncp_extractor.py stats
 ## 🔧 Future Test Improvements
 
 Potential areas for adding tests back:
-1. **Unit Tests**: Test individual functions in `simple_pncp_extractor.py`
+1. **Unit Tests**: Test individual functions in `pncp_extractor.py`
 2. **Integration Tests**: Test database operations
 3. **API Tests**: Mock PNCP API responses
 4. **Performance Tests**: Test with large datasets
