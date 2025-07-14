@@ -1,5 +1,6 @@
 import concurrent.futures
 import datetime
+import gc  # Import the garbage collection module
 import hashlib
 import json
 import os
@@ -15,7 +16,6 @@ from rich.progress import Progress
 from tenacity import RetryError
 
 from .ia_federation import InternetArchiveFederation
-from .pncp_client import PNCPClient
 
 # Data directory structure - use XDG standard locations
 DATA_DIR = Path.home() / ".local" / "share" / "baliza"
@@ -32,12 +32,21 @@ if not os.getenv("BALIZA_PRODUCTION"):
 BALIZA_DB_PATH = DATA_DIR / "baliza.duckdb"
 
 
-def _init_baliza_db():
+def _init_baliza_db(base_path: Path = None):
     """Initialize Baliza database with PSA (Persistent Staging Area) and control tables."""
+    global DATA_DIR, CACHE_DIR, CONFIG_DIR, BALIZA_DB_PATH
+
+    if base_path:
+        DATA_DIR = base_path / "data"
+        CACHE_DIR = base_path / ".cache"
+        CONFIG_DIR = base_path / ".config"
+        BALIZA_DB_PATH = base_path / "state" / "baliza.duckdb"
+
     # Create all necessary directories
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    BALIZA_DB_PATH.parent.mkdir(parents=True, exist_ok=True)  # Ensure state directory exists
 
     conn = duckdb.connect(str(BALIZA_DB_PATH))
 
@@ -413,7 +422,7 @@ def _process_date_range(start_date: str, end_date: str) -> dict:
                             "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
                             "data_date": current_date.isoformat(),
                             "endpoint_key": endpoint_key,
-                            "parquet_file": run_summary["endpoints"][endpoint_key]["files_generated"][0]["parquet_file"]
+                            "parquet_file": run_summary["endpoints"][endpoint_key]["files_generated"]
                             if run_summary["endpoints"][endpoint_key]["files_generated"]
                             else None,
                             "upload_status": "data_collected",
@@ -595,53 +604,51 @@ def _load_to_psa(run_id, data_date, endpoint_key, records):
         )
 
         records_inserted = len(psa_records)
+    finally:
         conn.close()
-        return records_inserted
-
-    except Exception as e:
-        typer.echo(f"Error loading to PSA: {e}", err=True)
-        conn.close()
-        return 0
-    else:
-        typer.echo(f"Loaded {records_inserted} records to PSA for run {run_id}")
+        gc.collect()
+    return records_inserted
 
 
 def _log_run_to_db(data):
     """Log run data to control.runs table."""
     conn = duckdb.connect(str(BALIZA_DB_PATH))
 
-    # Get file size if file exists
-    file_size = 0
-    if data.get("parquet_file") and Path(data["parquet_file"]).exists():
-        file_size = Path(data["parquet_file"]).stat().st_size
+    try:
+        # Get file size if file exists
+        file_size = 0
+        if data.get("parquet_file") and Path(data["parquet_file"]).exists():
+            file_size = Path(data["parquet_file"]).stat().st_size
 
-    conn.execute(
-        """
-        INSERT INTO control.runs (
-            run_id, timestamp, data_date, endpoint_key, parquet_file,
-            sha256_checksum, ia_identifier, ia_item_url,
-            upload_status, records_fetched, file_size_bytes,
-            psa_loaded, psa_records_inserted
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """,
-        [
-            data.get("run_id"),
-            data["timestamp"],
-            data["data_date"],
-            data["endpoint_key"],
-            str(data.get("parquet_file")) if data.get("parquet_file") else None,
-            data.get("sha256_checksum"),
-            data.get("ia_identifier"),
-            data.get("ia_item_url"),
-            data["upload_status"],
-            data["records_fetched"],
-            file_size,
-            data.get("psa_loaded", False),
-            data.get("psa_records_inserted", 0),
-        ],
-    )
+        conn.execute(
+            """
+            INSERT INTO control.runs (
+                run_id, timestamp, data_date, endpoint_key, parquet_file,
+                sha256_checksum, ia_identifier, ia_item_url,
+                upload_status, records_fetched, file_size_bytes,
+                psa_loaded, psa_records_inserted
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+            [
+                data.get("run_id"),
+                data["timestamp"],
+                data["data_date"],
+                data["endpoint_key"],
+                str(data.get("parquet_file")) if data.get("parquet_file") else None,
+                data.get("sha256_checksum"),
+                data.get("ia_identifier"),
+                data.get("ia_item_url"),
+                data["upload_status"],
+                data["records_fetched"],
+                file_size,
+                data.get("psa_loaded", False),
+                data.get("psa_records_inserted", 0),
+            ],
+        )
 
-    conn.close()
+    finally:
+        conn.close()
+        gc.collect()
 
 
 # Create a Typer app instance
@@ -651,9 +658,6 @@ app = typer.Typer(
 
 # Base URL for PNCP API
 BASE_URL = "https://pncp.gov.br/api/consulta"
-
-# Initialize the PNCP OpenAPI client
-pncp_client = PNCPClient(base_url=BASE_URL)
 
 # Endpoints to fetch data from.
 # Working endpoints - focus on /v1/contratos which we confirmed has data
@@ -672,50 +676,33 @@ ENDPOINTS_CONFIG = {
 
 
 def fetch_data_from_pncp(endpoint_path, params):
-    """Fetches data from a PNCP endpoint with retries using OpenAPI client."""
+    """Fetches data from a PNCP endpoint with retries using requests."""
     try:
         typer.echo(f"Making request to: {BASE_URL}{endpoint_path} with params: {params}")
-        
-        # For contratos endpoint, use the OpenAPI client
-        if endpoint_path == "/v1/contratos":
-            data = pncp_client.fetch_contratos_data(
-                data_inicial=params.get("dataInicial", ""),
-                data_final=params.get("dataFinal", ""),
-                pagina=params.get("pagina", 1),
-                tamanho_pagina=params.get("tamanhoPagina", 500)
-            )
-            
-            # Determine status for logging (inferred from response)
-            if data.get("totalRegistros", 0) == 0:
-                typer.echo("🌐 HTTP 204 📭 No data available")
-            else:
-                typer.echo("🌐 HTTP 200 ✅ Success")
-                
+
+        full_url = f"{BASE_URL}{endpoint_path}"
+        response = requests.get(full_url, params=params, timeout=30)
+
+        # Show HTTP status with clear indicator
+        if response.status_code == 200:
+            typer.echo("🌐 HTTP 200 ✅ Success")
+        elif response.status_code == 204:
+            typer.echo("🌐 HTTP 204 📭 No data available")
         else:
-            # Fallback to manual requests for other endpoints
-            full_url = f"{BASE_URL}{endpoint_path}"
-            response = requests.get(full_url, params=params, timeout=30)
+            typer.echo(f"🌐 HTTP {response.status_code} ⚠️ {response.reason}")
 
-            # Show HTTP status with clear indicator
-            if response.status_code == 200:
-                typer.echo("🌐 HTTP 200 ✅ Success")
-            elif response.status_code == 204:
-                typer.echo("🌐 HTTP 204 📭 No data available")
-            else:
-                typer.echo(f"🌐 HTTP {response.status_code} ⚠️ {response.reason}")
+        # Handle 204 No Content as "no data available" rather than error
+        if response.status_code == 204:
+            typer.echo("No data available for this date/endpoint (HTTP 204)")
+            return {"data": [], "totalRegistros": 0, "totalPaginas": 0}
 
-            # Handle 204 No Content as "no data available" rather than error
-            if response.status_code == 204:
-                typer.echo("No data available for this date/endpoint (HTTP 204)")
-                return {"data": [], "totalRegistros": 0, "totalPaginas": 0}
+        # For other status codes, use standard error handling
+        response.raise_for_status()
+        data = response.json()
 
-            # For other status codes, use standard error handling
-            response.raise_for_status()
-            data = response.json()
-        
         typer.echo(f"Response data summary: {len(data.get('data', []))} items, total: {data.get('totalRegistros', 0)}")
         return data
-        
+
     except Exception as e:
         typer.echo(f"Request failed for {endpoint_path} with params {params}: {e}", err=True)
         raise
@@ -913,16 +900,15 @@ def append_to_monthly_parquet(day_iso, endpoint_key, endpoint_cfg, records, run_
 
     typer.echo(f"Appending {len(records)} records to monthly file: {parquet_filename}...")
 
+    conn = duckdb.connect()
     try:
-        conn = duckdb.connect()
-
         # Add data_date column to new records
         for record in records:
             record["data_date"] = day_iso
 
         # Create temporary JSON file for new records
         temp_json_file = str(parquet_filename).replace(".parquet", f"_temp_{day_iso}.json")
-        with Path(temp_json_file).open("w", encoding="utf-8") as f:
+        with open(temp_json_file, "w", encoding="utf-8") as f:
             for record in records:
                 f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
@@ -952,7 +938,6 @@ def append_to_monthly_parquet(day_iso, endpoint_key, endpoint_cfg, records, run_
 
         # Clean up
         Path(temp_json_file).unlink()
-        conn.close()
 
         return str(parquet_filename)  # Convert PosixPath to string
 
@@ -960,8 +945,9 @@ def append_to_monthly_parquet(day_iso, endpoint_key, endpoint_cfg, records, run_
         typer.echo(f"Error during monthly Parquet update for {endpoint_key}: {e}", err=True)
         run_summary_data[endpoint_key]["status"] = "file_error"
         return None
-    else:
-        typer.echo(f"Successfully updated monthly Parquet file: {parquet_filename}")
+    finally:
+        conn.close()
+        gc.collect()
 
 
 def _create_parquet_file(parquet_filename: str, records: list, endpoint_key: str, run_summary_data: dict) -> dict:
@@ -975,13 +961,13 @@ def _create_parquet_file(parquet_filename: str, records: list, endpoint_key: str
     }
 
     typer.echo(f"Writing {len(records)} records to Parquet file: {parquet_filename}...")
+    conn = duckdb.connect()
     try:
         # Use DuckDB to convert JSON records to Parquet with compression
-        conn = duckdb.connect()
 
         # Create temporary JSON file for DuckDB to read
         temp_json_file = str(parquet_filename).replace(".parquet", "_temp.json")
-        with Path(temp_json_file).open("w", encoding="utf-8") as f:
+        with open(temp_json_file, "w", encoding="utf-8") as f:
             for record in records:
                 f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
@@ -993,7 +979,6 @@ def _create_parquet_file(parquet_filename: str, records: list, endpoint_key: str
 
         # Clean up temporary file
         Path(temp_json_file).unlink()
-        conn.close()
 
     except Exception as e:
         typer.echo(f"Error during Parquet file creation for {endpoint_key}: {e}", err=True)
@@ -1001,8 +986,9 @@ def _create_parquet_file(parquet_filename: str, records: list, endpoint_key: str
         file_details["upload_status"] = "failed_file_error"
         run_summary_data[endpoint_key]["files_generated"].append(file_details)
         return file_details
-    else:
-        typer.echo(f"Successfully created Parquet file: {parquet_filename}")
+    finally:
+        conn.close()
+        gc.collect()
 
     return file_details
 
@@ -1170,7 +1156,7 @@ def _batch_upload_to_ia(print_func=typer.echo):
                 # Upload to Internet Archive
                 response = upload(
                     ia_identifier,
-                    files={parquet_file.name: str(parquet_file)},
+                    files={Path(parquet_file).name: str(parquet_file)},
                     metadata=metadata,
                     verbose=False,
                     verify=True,
@@ -1202,9 +1188,8 @@ def _batch_upload_to_ia(print_func=typer.echo):
 
 def _update_db_upload_status(year_month: str, endpoint_type: str, ia_identifier: str, sha256_checksum: str):
     """Update database records with IA upload information."""
+    conn = duckdb.connect(str(BALIZA_DB_PATH))
     try:
-        conn = duckdb.connect(str(BALIZA_DB_PATH))
-
         # Update all records for this month/endpoint with IA details
         conn.execute(
             """
@@ -1227,9 +1212,9 @@ def _update_db_upload_status(year_month: str, endpoint_type: str, ia_identifier:
             ],
         )
 
+    finally:
         conn.close()
-    except Exception as e:
-        typer.echo(f"Warning: Could not update database with IA details: {e}", err=True)
+        gc.collect()
 
 
 def process_data_only(day_iso, endpoint_key, endpoint_cfg, records, run_summary_data):
@@ -1328,15 +1313,15 @@ def process_and_upload_data(day_iso, endpoint_key, endpoint_cfg, records, run_su
 
     metadata = {
         "title": f"{endpoint_cfg['ia_title_prefix']} {day_iso}",
-        "collection": "opensource",  # Use accessible collection
+        "collection": "opensource",
         "subject": "public procurement Brazil; PNCP; government data; baliza",
         "creator": "Baliza PNCP Mirror Bot",
         "language": "pt",
         "date": day_iso,
-        "sha256": sha256_checksum,
+        "sha256": file_details["sha256_checksum"],
         "original_source": "Portal Nacional de Contratações Públicas (PNCP)",
         "description": f"Daily mirror of {endpoint_cfg['ia_title_prefix']} from Brazil's PNCP for {day_iso}. Raw data in Parquet format with Snappy compression.",
-        "mediatype": "data",  # Specify media type for data uploads
+        "mediatype": "data",
     }
 
     ia_access_key = os.getenv("IA_ACCESS_KEY")
@@ -1364,29 +1349,8 @@ def process_and_upload_data(day_iso, endpoint_key, endpoint_cfg, records, run_su
             typer.echo(f"Successfully uploaded {parquet_filename} to Internet Archive.")
             file_details["upload_status"] = "success"
             run_summary_data[endpoint_key]["status"] = "success"
-
     except Exception as e:
-        # This catches exceptions from the upload block, or if other unexpected error happens before/during upload decision
-        # For instance, if getenv itself failed, though unlikely.
-        # More relevant for the actual upload() call.
-        if file_details["upload_status"] == "pending":  # Only update if not already set to skipped
-            typer.echo(
-                f"Failed to upload {parquet_filename} to Internet Archive: {e}",
-                err=True,
-            )
-            file_details["upload_status"] = "failed_upload_error"
-            run_summary_data[endpoint_key]["status"] = "upload_failed"
-        elif file_details["upload_status"] == "skipped_no_credentials":
-            # This means the error happened somewhere outside the direct upload call, but after skip decision
-            typer.echo(f"An error occurred after deciding to skip upload: {e}", err=True)
-            # Keep status as skipped, but log error.
-        else:  # Should not happen if logic is correct (e.g. success path)
-            typer.echo(
-                f"An unexpected error occurred during upload/post-upload phase: {e}",
-                err=True,
-            )
-            file_details["upload_status"] = "failed_unknown_error"  # Generic error status
-            run_summary_data[endpoint_key]["status"] = "upload_failed"
+        _handle_upload_error(e, file_details, run_summary_data, endpoint_key, parquet_filename)
 
     finally:
         # This block executes regardless of upload success, failure, or skip.

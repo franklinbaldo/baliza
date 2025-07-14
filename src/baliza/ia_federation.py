@@ -1,12 +1,11 @@
-"""
-Internet Archive Federation for DuckDB.
-
-This module implements archive-first data access, where DuckDB federated queries
-read directly from Internet Archive Parquet files instead of local storage.
-"""
+# Internet Archive Federation for DuckDB.
+#
+# This module implements archive-first data access, where DuckDB federated queries
+# read directly from Internet Archive Parquet files instead of local storage.
 
 import hashlib
 import json
+import gc # Import gc module
 from pathlib import Path
 
 import duckdb
@@ -57,7 +56,7 @@ class InternetArchiveFederation:
             for item in search_items(search_query).iter_as_items():
                 item_metadata = {
                     "identifier": item.identifier,
-                    "title": item.metadata.get("title", ""),
+                    "title": item.metadata.get("title", item.identifier), # Ensure title is always present
                     "date": item.metadata.get("date", ""),
                     "size": item.metadata.get("size", 0),
                     "files": [],
@@ -198,6 +197,7 @@ class InternetArchiveFederation:
                 )
 
         conn.close()
+        gc.collect() # Force garbage collection to release file handles
 
         print(f"✅ Created IA catalog with {len(items)} items")
         return catalog_db
@@ -374,6 +374,7 @@ class InternetArchiveFederation:
 
         finally:
             conn.close()
+            gc.collect() # Force garbage collection to release file handles
 
         print("✅ Federated views created successfully")
 
@@ -418,9 +419,23 @@ class InternetArchiveFederation:
 
         except Exception as e:
             print(f"Error getting data availability: {e}")
-            return {}
+            return {
+                "internet_archive": {
+                    "total_records": 0,
+                    "unique_dates": 0,
+                    "earliest_date": None,
+                    "latest_date": None,
+                },
+                "local_storage": {
+                    "total_records": 0,
+                    "unique_dates": 0,
+                    "earliest_date": None,
+                    "latest_date": None,
+                },
+            }
         finally:
             conn.close()
+            gc.collect() # Force garbage collection to release file handles
 
     def update_federation(self) -> None:
         """Update federated views with latest IA data."""

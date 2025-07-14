@@ -3,7 +3,7 @@ import os
 
 import pytest
 
-from src.baliza.main import ENDPOINTS_CONFIG
+from baliza.main import ENDPOINTS_CONFIG
 
 SPEC_FILE_PATH = os.path.join(
     os.path.dirname(__file__), "..", "docs", "openapi", "pncp_openapi.json"

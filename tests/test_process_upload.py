@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
 
-from baliza.main import PROCESSED_CSV_PATH, process_and_upload_data
+from baliza.main import process_and_upload_data
 
 
 @pytest.fixture
@@ -107,7 +107,7 @@ def test_process_and_upload_data_success(
         mock_run_summary_data["test_endpoint"]["files_generated"][0]["upload_status"]
         == "success"
     )
-    mock_write_csv.assert_called_once()
+    # mock_write_csv.assert_called_once() # This function is no longer called
 
     # Assertions for cleanup
     mock_remove_file.assert_called_once()
@@ -120,9 +120,9 @@ def test_process_and_upload_data_success(
 @patch("zstandard.ZstdCompressor")
 @patch("internetarchive.upload")
 @patch("os.getenv", side_effect=lambda x: None)  # No credentials
-@patch("baliza.main._write_to_processed_csv")
+# @patch("baliza.main._write_to_processed_csv") # This function is no longer called
 def test_process_and_upload_data_no_credentials(
-    mock_write_csv,
+    # mock_write_csv, # This function is no longer called
     mock_getenv,
     mock_ia_upload,
     mock_zstd_compressor,
@@ -150,8 +150,8 @@ def test_process_and_upload_data_no_credentials(
     expected_jsonl_path = os.path.join(output_dir, f"{base_filename}.jsonl")
 
     def path_exists_side_effect(path_arg):
-        if path_arg == PROCESSED_CSV_PATH:
-            return False  # Assume CSV doesn't exist for header writing by _write_to_processed_csv
+        # if path_arg == PROCESSED_CSV_PATH:
+        #     return False  # Assume CSV doesn't exist for header writing by _write_to_processed_csv
         if path_arg == expected_jsonl_path:
             return True  # JSONL file exists for cleanup
         return False  # Default for any other paths
@@ -168,7 +168,7 @@ def test_process_and_upload_data_no_credentials(
         mock_run_summary_data["test_endpoint"]["files_generated"][0]["upload_status"]
         == "skipped_no_credentials"
     )
-    mock_write_csv.assert_called_once()
+    # mock_write_csv.assert_called_once() # This function is no longer called
     mock_remove_file.assert_called_once()
 
 
@@ -182,9 +182,9 @@ def test_process_and_upload_data_no_credentials(
     "os.getenv",
     side_effect=lambda x: "test_key" if x in ["IA_KEY", "IA_SECRET"] else None,
 )
-@patch("baliza.main._write_to_processed_csv")
+# @patch("baliza.main._write_to_processed_csv") # This function is no longer called
 def test_process_and_upload_data_upload_failure(
-    mock_write_csv,
+    # mock_write_csv, # This function is no longer called
     mock_getenv,
     mock_ia_upload,
     mock_zstd_compressor,
@@ -221,5 +221,5 @@ def test_process_and_upload_data_upload_failure(
         mock_run_summary_data["test_endpoint"]["files_generated"][0]["upload_status"]
         == "failed_upload_error"
     )
-    mock_write_csv.assert_called_once()
+    # mock_write_csv.assert_called_once() # This function is no longer called
     mock_remove_file.assert_called_once()

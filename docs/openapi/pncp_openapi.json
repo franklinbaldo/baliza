@@ -110,26 +110,6 @@
           }
         ],
         "responses": {
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "oneOf": [
-                    {
-                      "type": "object",
-                      "additionalProperties": {
-                        "type": "string"
-                      }
-                    },
-                    {
-                      "$ref": "#/components/schemas/RespostaErroValidacaoDTO"
-                    }
-                  ]
-                }
-              }
-            }
-          },
           "422": {
             "description": "Unprocessable Entity",
             "content": {
@@ -152,6 +132,26 @@
                   "additionalProperties": {
                     "type": "string"
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/RespostaErroValidacaoDTO"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    }
+                  ]
                 }
               }
             }
@@ -252,26 +252,6 @@
           }
         ],
         "responses": {
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "oneOf": [
-                    {
-                      "type": "object",
-                      "additionalProperties": {
-                        "type": "string"
-                      }
-                    },
-                    {
-                      "$ref": "#/components/schemas/RespostaErroValidacaoDTO"
-                    }
-                  ]
-                }
-              }
-            }
-          },
           "422": {
             "description": "Unprocessable Entity",
             "content": {
@@ -294,6 +274,26 @@
                   "additionalProperties": {
                     "type": "string"
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/RespostaErroValidacaoDTO"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    }
+                  ]
                 }
               }
             }
@@ -381,26 +381,6 @@
           }
         ],
         "responses": {
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "oneOf": [
-                    {
-                      "type": "object",
-                      "additionalProperties": {
-                        "type": "string"
-                      }
-                    },
-                    {
-                      "$ref": "#/components/schemas/RespostaErroValidacaoDTO"
-                    }
-                  ]
-                }
-              }
-            }
-          },
           "422": {
             "description": "Unprocessable Entity",
             "content": {
@@ -423,6 +403,26 @@
                   "additionalProperties": {
                     "type": "string"
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/RespostaErroValidacaoDTO"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    }
+                  ]
                 }
               }
             }
@@ -497,26 +497,6 @@
           }
         ],
         "responses": {
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "oneOf": [
-                    {
-                      "type": "object",
-                      "additionalProperties": {
-                        "type": "string"
-                      }
-                    },
-                    {
-                      "$ref": "#/components/schemas/RespostaErroValidacaoDTO"
-                    }
-                  ]
-                }
-              }
-            }
-          },
           "422": {
             "description": "Unprocessable Entity",
             "content": {
@@ -539,6 +519,26 @@
                   "additionalProperties": {
                     "type": "string"
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/RespostaErroValidacaoDTO"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    }
+                  ]
                 }
               }
             }
@@ -640,26 +640,6 @@
           }
         ],
         "responses": {
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "oneOf": [
-                    {
-                      "type": "object",
-                      "additionalProperties": {
-                        "type": "string"
-                      }
-                    },
-                    {
-                      "$ref": "#/components/schemas/RespostaErroValidacaoDTO"
-                    }
-                  ]
-                }
-              }
-            }
-          },
           "422": {
             "description": "Unprocessable Entity",
             "content": {
@@ -682,6 +662,26 @@
                   "additionalProperties": {
                     "type": "string"
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/RespostaErroValidacaoDTO"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    }
+                  ]
                 }
               }
             }
@@ -791,26 +791,6 @@
           }
         ],
         "responses": {
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "oneOf": [
-                    {
-                      "type": "object",
-                      "additionalProperties": {
-                        "type": "string"
-                      }
-                    },
-                    {
-                      "$ref": "#/components/schemas/RespostaErroValidacaoDTO"
-                    }
-                  ]
-                }
-              }
-            }
-          },
           "422": {
             "description": "Unprocessable Entity",
             "content": {
@@ -833,6 +813,26 @@
                   "additionalProperties": {
                     "type": "string"
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/RespostaErroValidacaoDTO"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    }
+                  ]
                 }
               }
             }
@@ -942,26 +942,6 @@
           }
         ],
         "responses": {
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "oneOf": [
-                    {
-                      "type": "object",
-                      "additionalProperties": {
-                        "type": "string"
-                      }
-                    },
-                    {
-                      "$ref": "#/components/schemas/RespostaErroValidacaoDTO"
-                    }
-                  ]
-                }
-              }
-            }
-          },
           "422": {
             "description": "Unprocessable Entity",
             "content": {
@@ -984,6 +964,26 @@
                   "additionalProperties": {
                     "type": "string"
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/RespostaErroValidacaoDTO"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    }
+                  ]
                 }
               }
             }
@@ -1127,26 +1127,6 @@
           }
         ],
         "responses": {
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "oneOf": [
-                    {
-                      "type": "object",
-                      "additionalProperties": {
-                        "type": "string"
-                      }
-                    },
-                    {
-                      "$ref": "#/components/schemas/RespostaErroValidacaoDTO"
-                    }
-                  ]
-                }
-              }
-            }
-          },
           "422": {
             "description": "Unprocessable Entity",
             "content": {
@@ -1169,6 +1149,26 @@
                   "additionalProperties": {
                     "type": "string"
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/RespostaErroValidacaoDTO"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    }
+                  ]
                 }
               }
             }
@@ -1297,26 +1297,6 @@
           }
         ],
         "responses": {
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "oneOf": [
-                    {
-                      "type": "object",
-                      "additionalProperties": {
-                        "type": "string"
-                      }
-                    },
-                    {
-                      "$ref": "#/components/schemas/RespostaErroValidacaoDTO"
-                    }
-                  ]
-                }
-              }
-            }
-          },
           "422": {
             "description": "Unprocessable Entity",
             "content": {
@@ -1339,6 +1319,26 @@
                   "additionalProperties": {
                     "type": "string"
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/RespostaErroValidacaoDTO"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    }
+                  ]
                 }
               }
             }
@@ -1482,26 +1482,6 @@
           }
         ],
         "responses": {
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "oneOf": [
-                    {
-                      "type": "object",
-                      "additionalProperties": {
-                        "type": "string"
-                      }
-                    },
-                    {
-                      "$ref": "#/components/schemas/RespostaErroValidacaoDTO"
-                    }
-                  ]
-                }
-              }
-            }
-          },
           "422": {
             "description": "Unprocessable Entity",
             "content": {
@@ -1524,6 +1504,26 @@
                   "additionalProperties": {
                     "type": "string"
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/RespostaErroValidacaoDTO"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    }
+                  ]
                 }
               }
             }
@@ -1635,26 +1635,6 @@
           }
         ],
         "responses": {
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "oneOf": [
-                    {
-                      "type": "object",
-                      "additionalProperties": {
-                        "type": "string"
-                      }
-                    },
-                    {
-                      "$ref": "#/components/schemas/RespostaErroValidacaoDTO"
-                    }
-                  ]
-                }
-              }
-            }
-          },
           "422": {
             "description": "Unprocessable Entity",
             "content": {
@@ -1677,6 +1657,26 @@
                   "additionalProperties": {
                     "type": "string"
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/RespostaErroValidacaoDTO"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    }
+                  ]
                 }
               }
             }
@@ -1788,26 +1788,6 @@
           }
         ],
         "responses": {
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "oneOf": [
-                    {
-                      "type": "object",
-                      "additionalProperties": {
-                        "type": "string"
-                      }
-                    },
-                    {
-                      "$ref": "#/components/schemas/RespostaErroValidacaoDTO"
-                    }
-                  ]
-                }
-              }
-            }
-          },
           "422": {
             "description": "Unprocessable Entity",
             "content": {
@@ -1830,6 +1810,26 @@
                   "additionalProperties": {
                     "type": "string"
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/RespostaErroValidacaoDTO"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    }
+                  ]
                 }
               }
             }
@@ -1939,24 +1939,24 @@
             "type": "integer",
             "format": "int32"
           },
-          "dataPublicacaoPNCP": {
-            "type": "string",
-            "format": "date-time",
-            "example": "2025-06-17T15:16:15"
-          },
-          "dataAtualizacaoGlobalPCA": {
-            "type": "string",
-            "format": "date-time",
-            "example": "2025-06-17T15:16:15"
-          },
           "idPcaPncp": {
+            "type": "string"
+          },
+          "orgaoEntidadeRazaoSocial": {
             "type": "string"
           },
           "orgaoEntidadeCnpj": {
             "type": "string"
           },
-          "orgaoEntidadeRazaoSocial": {
-            "type": "string"
+          "dataPublicacaoPNCP": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2025-06-17T12:01:34"
+          },
+          "dataAtualizacaoGlobalPCA": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2025-06-17T12:01:34"
           }
         }
       },
@@ -1974,6 +1974,23 @@
           },
           "pdmCodigo": {
             "type": "string"
+          },
+          "dataInclusao": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2025-06-17T12:01:34"
+          },
+          "numeroItem": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "dataAtualizacao": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2025-06-17T12:01:34"
+          },
+          "valorTotal": {
+            "type": "number"
           },
           "pdmDescricao": {
             "type": "string"
@@ -2009,23 +2026,6 @@
             "type": "string",
             "format": "date"
           },
-          "dataInclusao": {
-            "type": "string",
-            "format": "date-time",
-            "example": "2025-06-17T15:16:15"
-          },
-          "numeroItem": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "dataAtualizacao": {
-            "type": "string",
-            "format": "date-time",
-            "example": "2025-06-17T15:16:15"
-          },
-          "valorTotal": {
-            "type": "number"
-          },
           "categoriaItemPcaNome": {
             "type": "string"
           },
@@ -2051,7 +2051,7 @@
           "dataInclusao": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-17T15:16:15"
+            "example": "2025-06-17T12:01:34"
           }
         }
       },
@@ -2175,17 +2175,17 @@
           "dataPublicacaoPncp": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-17T15:16:15"
+            "example": "2025-06-17T12:01:34"
           },
           "dataAberturaProposta": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-17T15:16:15"
+            "example": "2025-06-17T12:01:34"
           },
           "dataEncerramentoProposta": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-17T15:16:15"
+            "example": "2025-06-17T12:01:34"
           },
           "situacaoCompraId": {
             "type": "string",
@@ -2205,17 +2205,17 @@
           "dataInclusao": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-17T15:16:15"
+            "example": "2025-06-17T12:01:34"
           },
           "dataAtualizacao": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-17T15:16:15"
+            "example": "2025-06-17T12:01:34"
           },
           "dataAtualizacaoGlobal": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-17T15:16:15"
+            "example": "2025-06-17T12:01:34"
           },
           "usuarioNome": {
             "type": "string"
@@ -2248,16 +2248,16 @@
           "codigoIbge": {
             "type": "string"
           },
-          "ufSigla": {
-            "type": "string"
-          },
-          "municipioNome": {
-            "type": "string"
-          },
           "codigoUnidade": {
             "type": "string"
           },
           "nomeUnidade": {
+            "type": "string"
+          },
+          "ufSigla": {
+            "type": "string"
+          },
+          "municipioNome": {
             "type": "string"
           }
         }
@@ -2315,7 +2315,7 @@
           "dataConsultaNFe": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-17T15:16:15"
+            "example": "2025-06-17T12:01:34"
           },
           "statusResponseNFe": {
             "type": "string"
@@ -2329,12 +2329,12 @@
           "dataInclusao": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-17T15:16:15"
+            "example": "2025-06-17T12:01:34"
           },
           "dataAtualizacao": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-17T15:16:15"
+            "example": "2025-06-17T12:01:34"
           },
           "recuperarContratoDTO": {
             "$ref": "#/components/schemas/RecuperarContratoDTO"
@@ -2448,12 +2448,12 @@
           "dataInclusao": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-17T15:16:15"
+            "example": "2025-06-17T12:01:34"
           },
           "dataAtualizacao": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-17T15:16:15"
+            "example": "2025-06-17T12:01:34"
           },
           "itens": {
             "type": "array",
@@ -2502,23 +2502,14 @@
       "RecuperarContratoDTO": {
         "type": "object",
         "properties": {
-          "numeroControlePncpCompra": {
-            "type": "string"
-          },
           "codigoPaisFornecedor": {
             "type": "string"
           },
-          "informacaoComplementar": {
+          "numeroControlePncpCompra": {
             "type": "string"
           },
-          "processo": {
+          "nomeRazaoSocialFornecedor": {
             "type": "string"
-          },
-          "unidadeSubRogada": {
-            "$ref": "#/components/schemas/RecuperarUnidadeOrgaoDTO"
-          },
-          "orgaoSubRogado": {
-            "$ref": "#/components/schemas/RecuperarOrgaoEntidadeDTO"
           },
           "anoContrato": {
             "type": "integer",
@@ -2562,27 +2553,39 @@
           "dataPublicacaoPncp": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-17T15:16:15"
+            "example": "2025-06-17T12:01:34"
           },
           "dataAtualizacao": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-17T15:16:15"
+            "example": "2025-06-17T12:01:34"
           },
           "sequencialContrato": {
             "type": "integer",
             "format": "int32"
           },
-          "nomeRazaoSocialFornecedor": {
-            "type": "string"
-          },
           "unidadeOrgao": {
             "$ref": "#/components/schemas/RecuperarUnidadeOrgaoDTO"
+          },
+          "informacaoComplementar": {
+            "type": "string"
+          },
+          "processo": {
+            "type": "string"
+          },
+          "unidadeSubRogada": {
+            "$ref": "#/components/schemas/RecuperarUnidadeOrgaoDTO"
+          },
+          "orgaoSubRogado": {
+            "$ref": "#/components/schemas/RecuperarOrgaoEntidadeDTO"
           },
           "niFornecedorSubContratado": {
             "type": "string"
           },
           "nomeFornecedorSubContratado": {
+            "type": "string"
+          },
+          "numeroControlePNCP": {
             "type": "string"
           },
           "receita": {
@@ -2622,15 +2625,12 @@
           "dataAtualizacaoGlobal": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-17T15:16:15"
+            "example": "2025-06-17T12:01:34"
           },
           "identificadorCipi": {
             "type": "string"
           },
           "urlCipi": {
-            "type": "string"
-          },
-          "numeroControlePNCP": {
             "type": "string"
           },
           "usuarioNome": {
@@ -2666,12 +2666,12 @@
           "dataInclusao": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-17T15:16:15"
+            "example": "2025-06-17T12:01:34"
           },
           "dataAtualizacao": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-17T15:16:15"
+            "example": "2025-06-17T12:01:34"
           },
           "statusAtivo": {
             "type": "boolean"
@@ -2741,6 +2741,54 @@
       "RecuperarCompraPublicacaoDTO": {
         "type": "object",
         "properties": {
+          "srp": {
+            "type": "boolean"
+          },
+          "orgaoEntidade": {
+            "$ref": "#/components/schemas/RecuperarOrgaoEntidadeDTO"
+          },
+          "anoCompra": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sequencialCompra": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "dataInclusao": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2025-06-17T12:01:34"
+          },
+          "dataPublicacaoPncp": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2025-06-17T12:01:34"
+          },
+          "dataAtualizacao": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2025-06-17T12:01:34"
+          },
+          "numeroCompra": {
+            "type": "string"
+          },
+          "unidadeOrgao": {
+            "$ref": "#/components/schemas/RecuperarUnidadeOrgaoDTO"
+          },
+          "amparoLegal": {
+            "$ref": "#/components/schemas/RecuperarAmparoLegalDTO"
+          },
+          "dataAberturaProposta": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2025-06-17T12:01:34"
+          },
+          "dataEncerramentoProposta": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2025-06-17T12:01:34"
+          },
           "informacaoComplementar": {
             "type": "string"
           },
@@ -2765,75 +2813,30 @@
           "valorTotalHomologado": {
             "type": "number"
           },
-          "srp": {
-            "type": "boolean"
-          },
-          "amparoLegal": {
-            "$ref": "#/components/schemas/RecuperarAmparoLegalDTO"
-          },
-          "dataAberturaProposta": {
-            "type": "string",
-            "format": "date-time",
-            "example": "2025-06-17T15:16:15"
-          },
-          "dataEncerramentoProposta": {
-            "type": "string",
-            "format": "date-time",
-            "example": "2025-06-17T15:16:15"
-          },
-          "orgaoEntidade": {
-            "$ref": "#/components/schemas/RecuperarOrgaoEntidadeDTO"
-          },
-          "anoCompra": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "sequencialCompra": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "dataInclusao": {
-            "type": "string",
-            "format": "date-time",
-            "example": "2025-06-17T15:16:15"
-          },
-          "dataPublicacaoPncp": {
-            "type": "string",
-            "format": "date-time",
-            "example": "2025-06-17T15:16:15"
-          },
-          "dataAtualizacao": {
-            "type": "string",
-            "format": "date-time",
-            "example": "2025-06-17T15:16:15"
-          },
-          "numeroCompra": {
+          "numeroControlePNCP": {
             "type": "string"
           },
-          "unidadeOrgao": {
-            "$ref": "#/components/schemas/RecuperarUnidadeOrgaoDTO"
-          },
           "modoDisputaId": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "modalidadeId": {
             "type": "integer",
             "format": "int64"
           },
           "dataAtualizacaoGlobal": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-17T15:16:15"
+            "example": "2025-06-17T12:01:34"
           },
           "linkProcessoEletronico": {
             "type": "string"
           },
-          "numeroControlePNCP": {
-            "type": "string"
+          "modalidadeId": {
+            "type": "integer",
+            "format": "int64"
           },
           "valorTotalEstimado": {
             "type": "number"
+          },
+          "modalidadeNome": {
+            "type": "string"
           },
           "modoDisputaNome": {
             "type": "string"
@@ -2865,9 +2868,6 @@
           },
           "usuarioNome": {
             "type": "string"
-          },
-          "modalidadeNome": {
-            "type": "string"
           }
         }
       },
@@ -2893,42 +2893,42 @@
           "dataCancelamento": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-17T15:16:15"
+            "example": "2025-06-17T12:01:34"
           },
           "dataAssinatura": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-17T15:16:15"
+            "example": "2025-06-17T12:01:34"
           },
           "vigenciaInicio": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-17T15:16:15"
+            "example": "2025-06-17T12:01:34"
           },
           "vigenciaFim": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-17T15:16:15"
+            "example": "2025-06-17T12:01:34"
           },
           "dataPublicacaoPncp": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-17T15:16:15"
+            "example": "2025-06-17T12:01:34"
           },
           "dataInclusao": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-17T15:16:15"
+            "example": "2025-06-17T12:01:34"
           },
           "dataAtualizacao": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-17T15:16:15"
+            "example": "2025-06-17T12:01:34"
           },
           "dataAtualizacaoGlobal": {
             "type": "string",
             "format": "date-time",
-            "example": "2025-06-17T15:16:15"
+            "example": "2025-06-17T12:01:34"
           },
           "usuario": {
             "type": "string"

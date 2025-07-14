@@ -1,13 +1,11 @@
-"""
-Pytest configuration and shared fixtures for Baliza tests.
-"""
-
 import os
 import sys
 import tempfile
 from pathlib import Path
+import gc
 
 import pytest
+import duckdb # Import duckdb
 
 # Add src to Python path for all tests
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -104,6 +102,18 @@ def temp_baliza_workspace():
         # Restore original directory
         os.chdir(original_cwd)
 
+        # Ensure all DuckDB connections are closed and garbage collected
+        gc.collect()
+
+
+@pytest.fixture
+def duckdb_conn():
+    """Provides a DuckDB in-memory connection for testing."""
+    conn = duckdb.connect(database=':memory:')
+    yield conn
+    conn.close()
+    gc.collect()
+
 
 @pytest.fixture
 def mock_environment_variables():
@@ -134,9 +144,26 @@ def sample_pncp_data():
                     "cnpj": "11111111000111",
                     "uf": "RO",
                 },
-            }
+                "tipoContrato": {"codigo": "1", "descricao": "Serviços"},
+            },
+            {
+                "numeroControlePncpCompra": "12345-2024-002",
+                "anoContrato": 2024,
+                "dataAssinatura": "20240116",
+                "niFornecedor": "98765432000123",
+                "nomeRazaoSocialFornecedor": "Outra Empresa SA",
+                "objetoContrato": "Fornecimento de materiais",
+                "valorInicial": 75000.00,
+                "valorGlobal": 75000.00,
+                "orgaoEntidade": {
+                    "razaoSocial": "Governo do Estado",
+                    "cnpj": "22222222000222",
+                    "uf": "RO",
+                },
+                "tipoContrato": {"codigo": "2", "descricao": "Materiais"},
+            },
         ],
-        "totalRegistros": 1,
+        "totalRegistros": 2,
         "totalPaginas": 1,
         "paginaAtual": 1,
     }

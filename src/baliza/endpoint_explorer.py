@@ -13,10 +13,20 @@ from rich.table import Table
 from rich.panel import Panel
 from rich.progress import Progress, TaskID
 
-from .pncp_client import PNCPClient
-from .api_pncp_consulta_client.api.contrato_empenho import (
+# from .pncp_client import PNCPClient # Removed old client
+from baliza.pncp_client.api_pncp_consulta_client import Client
+from baliza.pncp_client.api_pncp_consulta_client.api.contrato_empenho import (
     consultar_contratos_por_data_publicacao,
     consultar_contratos_por_data_atualizacao_global
+)
+from baliza.pncp_client.api_pncp_consulta_client.api.contrata_ç_o import (
+    consultar_contratacao_por_data_de_publicacao,
+    consultar_contratacao_por_data_ultima_atualizacao,
+    consultar_contratacao_periodo_recebimento_propostas
+)
+from baliza.pncp_client.api_pncp_consulta_client.api.ata import (
+    consultar_ata_registro_preco_periodo,
+    consultar_ata_registro_preco_data_atualizacao
 )
 
 console = Console()
@@ -25,7 +35,8 @@ class PNCPEndpointExplorer:
     """Comprehensive explorer for all PNCP API endpoints."""
     
     def __init__(self, base_url: str = "https://pncp.gov.br/api/consulta"):
-        self.client = PNCPClient(base_url=base_url)
+        # self.client = PNCPClient(base_url=base_url) # Old client
+        self.client = Client(base_url=base_url) # New generated client
         self.base_url = base_url
         self.results_dir = Path("data/endpoint_analysis")
         self.results_dir.mkdir(parents=True, exist_ok=True)
@@ -110,19 +121,27 @@ class PNCPEndpointExplorer:
         
         try:
             # Use existing wrapper method
-            data = self.client.fetch_contratos_data(
+            response = consultar_contratos_por_data_publicacao.sync_detailed(
+                client=self.client,
                 data_inicial=test_date,
                 data_final=test_date,
                 pagina=1,
                 tamanho_pagina=10
             )
             
-            endpoint_info["status"] = "success"
-            endpoint_info["total_records"] = data.get("totalRegistros", 0)
-            
-            if data.get("data") and len(data["data"]) > 0:
-                endpoint_info["sample_data"] = data["data"][:3]  # First 3 records
-                endpoint_info["sample_fields"] = list(data["data"][0].keys())
+            if response.status_code == 200:
+                data = self._parse_response_content(response)
+                endpoint_info["status"] = "success"
+                endpoint_info["total_records"] = data.get("totalRegistros", 0)
+                
+                if data.get("data") and len(data["data"]) > 0:
+                    endpoint_info["sample_data"] = data["data"][:3]  # First 3 records
+                    endpoint_info["sample_fields"] = list(data["data"][0].keys())
+            elif response.status_code == 204:
+                endpoint_info["status"] = "no_data"
+            else:
+                endpoint_info["status"] = "error"
+                endpoint_info["error"] = f"HTTP {response.status_code}"
                 
         except Exception as e:
             endpoint_info["status"] = "error"
@@ -145,7 +164,7 @@ class PNCPEndpointExplorer:
         
         try:
             response = consultar_contratos_por_data_atualizacao_global.sync_detailed(
-                client=self.client.client,
+                client=self.client,
                 data_inicial=test_date,
                 data_final=test_date,
                 pagina=1,
@@ -187,7 +206,7 @@ class PNCPEndpointExplorer:
         
         try:
             response = consultar_contratacao_por_data_de_publicacao.sync_detailed(
-                client=self.client.client,
+                client=self.client,
                 data_inicial=test_date,
                 data_final=test_date,
                 pagina=1,
@@ -229,7 +248,7 @@ class PNCPEndpointExplorer:
         
         try:
             response = consultar_contratacao_por_data_ultima_atualizacao.sync_detailed(
-                client=self.client.client,
+                client=self.client,
                 data_inicial=test_date,
                 data_final=test_date,
                 pagina=1,
@@ -271,7 +290,7 @@ class PNCPEndpointExplorer:
         
         try:
             response = consultar_contratacao_periodo_recebimento_propostas.sync_detailed(
-                client=self.client.client,
+                client=self.client,
                 data_inicial=test_date,
                 data_final=test_date,
                 pagina=1,
@@ -313,7 +332,7 @@ class PNCPEndpointExplorer:
         
         try:
             response = consultar_ata_registro_preco_periodo.sync_detailed(
-                client=self.client.client,
+                client=self.client,
                 data_inicial=test_date,
                 data_final=test_date,
                 pagina=1,
@@ -355,7 +374,7 @@ class PNCPEndpointExplorer:
         
         try:
             response = consultar_ata_registro_preco_data_atualizacao.sync_detailed(
-                client=self.client.client,
+                client=self.client,
                 data_inicial=test_date,
                 data_final=test_date,
                 pagina=1,

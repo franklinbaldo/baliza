@@ -37,7 +37,7 @@ def test_workflow_file_exists(workflow_path):
 
 def test_workflow_yaml_syntax(workflow_path):
     """Test that workflow YAML has valid syntax."""
-    with open(workflow_path) as f:
+    with open(workflow_path, encoding='utf-8') as f:
         workflow_config = yaml.safe_load(f)
 
     # Basic workflow structure validation
@@ -48,7 +48,7 @@ def test_workflow_yaml_syntax(workflow_path):
 
 def test_workflow_trigger_configuration(workflow_path):
     """Test workflow trigger configuration."""
-    with open(workflow_path) as f:
+    with open(workflow_path, encoding='utf-8') as f:
         workflow_config = yaml.safe_load(f)
 
     triggers = workflow_config["on"]
@@ -69,7 +69,7 @@ def test_workflow_trigger_configuration(workflow_path):
 
 def test_workflow_jobs_structure(workflow_path):
     """Test workflow jobs structure."""
-    with open(workflow_path) as f:
+    with open(workflow_path, encoding='utf-8') as f:
         workflow_config = yaml.safe_load(f)
 
     jobs = workflow_config["jobs"]
@@ -84,7 +84,7 @@ def test_workflow_jobs_structure(workflow_path):
 
 def test_workflow_environment_setup(workflow_path):
     """Test workflow environment setup."""
-    with open(workflow_path) as f:
+    with open(workflow_path, encoding='utf-8') as f:
         workflow_config = yaml.safe_load(f)
 
     # Get the main job (first job)
@@ -105,7 +105,7 @@ def test_workflow_environment_setup(workflow_path):
 
 def test_workflow_dependency_installation(workflow_path):
     """Test workflow dependency installation."""
-    with open(workflow_path) as f:
+    with open(workflow_path, encoding='utf-8') as f:
         workflow_config = yaml.safe_load(f)
 
     first_job = list(workflow_config["jobs"].values())[0]
@@ -128,7 +128,7 @@ def test_workflow_dependency_installation(workflow_path):
 
 def test_workflow_environment_variables(workflow_path):
     """Test workflow environment variables configuration."""
-    with open(workflow_path) as f:
+    with open(workflow_path, encoding='utf-8') as f:
         workflow_config = yaml.safe_load(f)
 
     first_job = list(workflow_config["jobs"].values())[0]
@@ -159,7 +159,7 @@ def test_workflow_environment_variables(workflow_path):
 
 def test_workflow_baliza_execution(workflow_path):
     """Test workflow Baliza execution steps."""
-    with open(workflow_path) as f:
+    with open(workflow_path, encoding='utf-8') as f:
         workflow_config = yaml.safe_load(f)
 
     first_job = list(workflow_config["jobs"].values())[0]
@@ -182,7 +182,7 @@ def test_workflow_baliza_execution(workflow_path):
 
 def test_workflow_artifact_handling(workflow_path):
     """Test workflow artifact handling."""
-    with open(workflow_path) as f:
+    with open(workflow_path, encoding='utf-8') as f:
         workflow_config = yaml.safe_load(f)
 
     first_job = list(workflow_config["jobs"].values())[0]
@@ -209,7 +209,7 @@ def test_workflow_artifact_handling(workflow_path):
 
 def test_workflow_error_handling(workflow_path):
     """Test workflow error handling configuration."""
-    with open(workflow_path) as f:
+    with open(workflow_path, encoding='utf-8') as f:
         workflow_config = yaml.safe_load(f)
 
     first_job = list(workflow_config["jobs"].values())[0]
@@ -236,10 +236,9 @@ def test_workflow_error_handling(workflow_path):
     # Should have some error handling considerations
     print(f"Found {error_handling_steps} steps with error handling")
 
-
 def test_workflow_schedule_timing(workflow_path):
     """Test workflow schedule timing is appropriate."""
-    with open(workflow_path) as f:
+    with open(workflow_path, encoding='utf-8') as f:
         workflow_config = yaml.safe_load(f)
 
     triggers = workflow_config["on"]
@@ -288,7 +287,7 @@ def test_secrets_documentation():
 
     for doc_file in docs_to_check:
         if doc_file.exists():
-            with open(doc_file) as f:
+            with open(doc_file, encoding='utf-8') as f:
                 content = f.read()
 
             for secret in required_secrets:
@@ -301,7 +300,7 @@ def test_secrets_documentation():
 
 def test_workflow_runs_on_correct_os(workflow_path):
     """Test that workflow runs on appropriate OS."""
-    with open(workflow_path) as f:
+    with open(workflow_path, encoding='utf-8') as f:
         workflow_config = yaml.safe_load(f)
 
     first_job = list(workflow_config["jobs"].values())[0]
@@ -318,7 +317,7 @@ def test_workflow_runs_on_correct_os(workflow_path):
 
 def test_workflow_python_version(workflow_path):
     """Test that workflow uses appropriate Python version."""
-    with open(workflow_path) as f:
+    with open(workflow_path, encoding='utf-8') as f:
         workflow_config = yaml.safe_load(f)
 
     first_job = list(workflow_config["jobs"].values())[0]
@@ -347,7 +346,7 @@ def test_workflow_python_version(workflow_path):
 
 def test_workflow_output_capture(workflow_path):
     """Test that workflow captures execution outputs."""
-    with open(workflow_path) as f:
+    with open(workflow_path, encoding='utf-8') as f:
         workflow_config = yaml.safe_load(f)
 
     first_job = list(workflow_config["jobs"].values())[0]
@@ -378,7 +377,7 @@ def test_workflow_output_capture(workflow_path):
 
 def test_workflow_date_parameter(workflow_path):
     """Test that workflow correctly handles date parameters."""
-    with open(workflow_path) as f:
+    with open(workflow_path, encoding='utf-8') as f:
         workflow_config = yaml.safe_load(f)
 
     first_job = list(workflow_config["jobs"].values())[0]
@@ -424,7 +423,7 @@ def test_workflow_environment_simulation():
 
 def test_workflow_concurrent_execution_safety(workflow_path):
     """Test that workflow handles concurrent execution safely."""
-    with open(workflow_path) as f:
+    with open(workflow_path, encoding='utf-8') as f:
         workflow_config = yaml.safe_load(f)
 
     # Check for concurrency control
@@ -445,7 +444,7 @@ def test_workflow_concurrent_execution_safety(workflow_path):
 
 def test_workflow_timeout_configuration(workflow_path):
     """Test workflow timeout configuration."""
-    with open(workflow_path) as f:
+    with open(workflow_path, encoding='utf-8') as f:
         workflow_config = yaml.safe_load(f)
 
     first_job = list(workflow_config["jobs"].values())[0]
@@ -471,7 +470,7 @@ def test_workflow_timeout_configuration(workflow_path):
 
 def test_workflow_cache_configuration(workflow_path):
     """Test workflow cache configuration for dependencies."""
-    with open(workflow_path) as f:
+    with open(workflow_path, encoding='utf-8') as f:
         workflow_config = yaml.safe_load(f)
 
     first_job = list(workflow_config["jobs"].values())[0]
