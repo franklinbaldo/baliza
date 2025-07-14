@@ -204,8 +204,8 @@ def _generate_run_id(data_date, endpoint_key):
     return f"{endpoint_key}_{data_date}_{timestamp}"
 
 
-def _get_missing_dates(days_back: int = 0) -> list[str]:
-    """Find dates that are missing from our database in the last N days."""
+def _get_missing_dates(days_back: int = 0, force_retry: bool = False) -> list[tuple[str, str]]:
+    """Find date ranges that are missing from our database. Returns list of (start_date, end_date) tuples."""
     conn = duckdb.connect(str(BALIZA_DB_PATH))
     
     # Get the date range to check
@@ -219,35 +219,234 @@ def _get_missing_dates(days_back: int = 0) -> list[str]:
         start_date = end_date - datetime.timedelta(days=days_back)
         typer.echo(f"📅 LIMITED RANGE MODE: Checking last {days_back} days from {start_date} to {end_date}")
     
-    # Get all dates that should exist
-    all_dates = []
-    current_date = start_date
-    while current_date <= end_date:
-        all_dates.append(current_date.isoformat())
-        current_date += datetime.timedelta(days=1)
-    
     try:
         # Get dates we already have data for
-        existing_dates = conn.execute("""
-            SELECT DISTINCT data_date 
-            FROM control.runs 
-            WHERE data_date >= ? AND data_date <= ?
-            AND upload_status IN ('success', 'upload_skipped')
-        """, [start_date.isoformat(), end_date.isoformat()]).fetchall()
+        if force_retry:
+            # When force_retry is enabled, only skip dates with actual data (not no_data)
+            existing_dates_query = """
+                SELECT DISTINCT data_date 
+                FROM control.runs 
+                WHERE data_date >= ? AND data_date <= ?
+                AND upload_status IN ('success', 'upload_skipped', 'data_collected')
+                ORDER BY data_date
+            """
+            if existing_dates_query:
+                typer.echo("🔄 Force retry enabled: Will retry dates that previously returned no data")
+        else:
+            # Normal mode: skip dates with data OR that returned no data  
+            existing_dates_query = """
+                SELECT DISTINCT data_date 
+                FROM control.runs 
+                WHERE data_date >= ? AND data_date <= ?
+                AND upload_status IN ('success', 'upload_skipped', 'no_data', 'data_collected')
+                ORDER BY data_date
+            """
         
+        existing_dates = conn.execute(existing_dates_query, [start_date.isoformat(), end_date.isoformat()]).fetchall()
         existing_dates_set = {row[0] for row in existing_dates}
         
-        # Find missing dates
-        missing_dates = [date for date in all_dates if date not in existing_dates_set]
-        
         conn.close()
-        return sorted(missing_dates)
+        
+        # Generate optimal date ranges for missing periods
+        return _generate_optimal_date_ranges(start_date, end_date, existing_dates_set)
         
     except Exception as e:
-        # If control.runs table doesn't exist yet, return all dates
+        # If control.runs table doesn't exist yet, generate ranges for full period
         typer.echo(f"Warning: Could not check existing dates: {e}")
         conn.close()
-        return all_dates
+        return _generate_optimal_date_ranges(start_date, end_date, set())
+
+
+def _generate_optimal_date_ranges(start_date: datetime.date, end_date: datetime.date, existing_dates: set[str]) -> list[tuple[str, str]]:
+    """Generate optimal date ranges using 365-day windows, monthly chunks, and 1-day overlap."""
+    ranges = []
+    current_date = start_date
+    
+    while current_date <= end_date:
+        # Skip dates we already have
+        if current_date.isoformat() in existing_dates:
+            current_date += datetime.timedelta(days=1)
+            continue
+        
+        # Find the start of a missing period
+        range_start = current_date
+        
+        # Find the end of this missing period
+        range_end = current_date
+        while range_end <= end_date and range_end.isoformat() not in existing_dates:
+            range_end += datetime.timedelta(days=1)
+        
+        # range_end is now the first existing date or end_date + 1
+        range_end = range_end - datetime.timedelta(days=1)  # Last missing date
+        
+        # Split large missing periods into optimal chunks
+        period_ranges = _split_into_optimal_chunks(range_start, range_end)
+        ranges.extend(period_ranges)
+        
+        # Move to the next period
+        current_date = range_end + datetime.timedelta(days=1)
+    
+    if ranges:
+        total_days = sum((datetime.date.fromisoformat(end) - datetime.date.fromisoformat(start)).days + 1 
+                        for start, end in ranges)
+        typer.echo(f"📅 Found {len(ranges)} missing date ranges covering {total_days} total days")
+        
+        # Show first few ranges for user visibility
+        for i, (start, end) in enumerate(ranges[:3]):
+            days_in_range = (datetime.date.fromisoformat(end) - datetime.date.fromisoformat(start)).days + 1
+            typer.echo(f"   📄 Range {i+1}: {start} to {end} ({days_in_range} days)")
+        
+        if len(ranges) > 3:
+            typer.echo(f"   ... and {len(ranges) - 3} more ranges")
+    
+    return ranges
+
+
+def _split_into_optimal_chunks(start_date: datetime.date, end_date: datetime.date) -> list[tuple[str, str]]:
+    """Split a date range into optimal chunks with 1-day overlap."""
+    chunks = []
+    current_start = start_date
+    
+    while current_start <= end_date:
+        # Determine chunk size based on remaining days
+        remaining_days = (end_date - current_start).days + 1
+        
+        if remaining_days >= 365:
+            # Use 365-day chunks for large periods
+            chunk_days = 365
+        elif remaining_days >= 60:
+            # Use monthly chunks (30-31 days) for medium periods
+            chunk_days = min(remaining_days, 31)
+        else:
+            # Use remaining days for small periods
+            chunk_days = remaining_days
+        
+        current_end = current_start + datetime.timedelta(days=chunk_days - 1)
+        current_end = min(current_end, end_date)  # Don't exceed the range
+        
+        chunks.append((current_start.isoformat(), current_end.isoformat()))
+        
+        # Move to next chunk with 1-day overlap for safety
+        if current_end < end_date:
+            current_start = current_end  # 1-day overlap (reprocess last day)
+        else:
+            break
+    
+    return chunks
+
+
+def _process_date_range(start_date: str, end_date: str) -> dict:
+    """Process data for a date range and return summary."""
+    days_in_range = (datetime.date.fromisoformat(end_date) - datetime.date.fromisoformat(start_date)).days + 1
+    typer.echo(f"\n📅 Processing date range: {start_date} to {end_date} ({days_in_range} days)")
+    
+    # Structured summary data for this range
+    run_summary = {
+        "run_date_iso": datetime.datetime.now(datetime.UTC).isoformat(),
+        "target_date_range": f"{start_date} to {end_date}",
+        "days_in_range": days_in_range,
+        "overall_status": "pending",
+        "endpoints": {},
+    }
+
+    all_endpoints_successful = True
+
+    for endpoint_key, endpoint_config in ENDPOINTS_CONFIG.items():
+        typer.echo(f"\nProcessing endpoint: {endpoint_key}")
+        
+        # Initialize endpoint summary
+        run_summary["endpoints"][endpoint_key] = {
+            "status": "pending",
+            "records_fetched": 0,
+            "files_generated": [],
+        }
+
+        records = harvest_endpoint_data_range(start_date, end_date, endpoint_key, endpoint_config)
+
+        if records is not None:
+            run_summary["endpoints"][endpoint_key]["records_fetched"] = len(records)
+            
+            # Handle empty results (no data available)
+            if len(records) == 0:
+                typer.echo(f"📭 No data available for '{endpoint_key}' in range {start_date} to {end_date}")
+                run_summary["endpoints"][endpoint_key]["status"] = "no_data"
+                
+                # Log the no_data status to database for each day in the range
+                current_date = datetime.date.fromisoformat(start_date)
+                end_date_obj = datetime.date.fromisoformat(end_date)
+                
+                while current_date <= end_date_obj:
+                    run_id = _generate_run_id(current_date.isoformat(), endpoint_key)
+                    _log_run_to_db({
+                        "run_id": run_id,
+                        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                        "data_date": current_date.isoformat(),
+                        "endpoint_key": endpoint_key,
+                        "parquet_file": None,
+                        "upload_status": "no_data",
+                        "records_fetched": 0,
+                        "psa_loaded": False,
+                        "psa_records_inserted": 0,
+                    })
+                    current_date += datetime.timedelta(days=1)
+            else:
+                # Process the data using the middle date of the range for file naming
+                middle_date = datetime.date.fromisoformat(start_date) + datetime.timedelta(days=days_in_range // 2)
+                process_data_only(
+                    middle_date.isoformat(),
+                    endpoint_key,
+                    endpoint_config,
+                    records,
+                    run_summary["endpoints"],
+                )
+                
+                # Log successful processing for each day in the range
+                current_date = datetime.date.fromisoformat(start_date)
+                end_date_obj = datetime.date.fromisoformat(end_date)
+                records_per_day = len(records) // days_in_range if days_in_range > 0 else 0
+                
+                while current_date <= end_date_obj:
+                    run_id = _generate_run_id(current_date.isoformat(), endpoint_key)
+                    _log_run_to_db({
+                        "run_id": run_id,
+                        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                        "data_date": current_date.isoformat(),
+                        "endpoint_key": endpoint_key,
+                        "parquet_file": run_summary["endpoints"][endpoint_key]["files_generated"][0]["parquet_file"] if run_summary["endpoints"][endpoint_key]["files_generated"] else None,
+                        "upload_status": "data_collected",
+                        "records_fetched": records_per_day,
+                        "psa_loaded": True,
+                        "psa_records_inserted": records_per_day,
+                    })
+                    current_date += datetime.timedelta(days=1)
+                    
+            if run_summary["endpoints"][endpoint_key]["status"] not in [
+                "success",
+                "no_data",
+                "upload_skipped",
+            ]:
+                all_endpoints_successful = False
+        else:
+            typer.echo(
+                f"Skipping processing for '{endpoint_key}' due to harvesting errors.",
+                err=True,
+            )
+            run_summary["endpoints"][endpoint_key]["status"] = "harvest_failed"
+            all_endpoints_successful = False
+
+    if all_endpoints_successful and any(
+        e["status"] == "success" for e in run_summary["endpoints"].values()
+    ):
+        run_summary["overall_status"] = "success"
+    elif any(e["status"] == "no_data" for e in run_summary["endpoints"].values()) and all(
+        e["status"] in ["no_data", "success"] for e in run_summary["endpoints"].values()
+    ):
+        run_summary["overall_status"] = "completed_no_data"
+    else:
+        run_summary["overall_status"] = "failed"
+
+    typer.echo(f"\n📊 Summary for {start_date} to {end_date}: {run_summary['overall_status']}")
+    return run_summary
 
 
 def _process_single_date(target_day_iso: str) -> dict:
@@ -276,13 +475,33 @@ def _process_single_date(target_day_iso: str) -> dict:
 
         if records is not None:
             run_summary["endpoints"][endpoint_key]["records_fetched"] = len(records)
-            process_data_only(
-                target_day_iso,
-                endpoint_key,
-                endpoint_config,
-                records,
-                run_summary["endpoints"],
-            )
+            
+            # Handle empty results (no data available)
+            if len(records) == 0:
+                typer.echo(f"📭 No data available for '{endpoint_key}' on {target_day_iso}")
+                run_summary["endpoints"][endpoint_key]["status"] = "no_data"
+                
+                # Log the no_data status to database
+                run_id = _generate_run_id(target_day_iso, endpoint_key)
+                _log_run_to_db({
+                    "run_id": run_id,
+                    "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                    "data_date": target_day_iso,
+                    "endpoint_key": endpoint_key,
+                    "parquet_file": None,
+                    "upload_status": "no_data",
+                    "records_fetched": 0,
+                    "psa_loaded": False,
+                    "psa_records_inserted": 0,
+                })
+            else:
+                process_data_only(
+                    target_day_iso,
+                    endpoint_key,
+                    endpoint_config,
+                    records,
+                    run_summary["endpoints"],
+                )
             if run_summary["endpoints"][endpoint_key]["status"] not in [
                 "success",
                 "no_data",
@@ -463,7 +682,14 @@ def fetch_data_from_pncp(endpoint_path, params):
         full_url = f"{BASE_URL}{endpoint_path}"
         typer.echo(f"Making request to: {full_url} with params: {params}")
         response = requests.get(full_url, params=params, timeout=30)
-        typer.echo(f"Response status: {response.status_code}")
+        
+        # Show HTTP status with clear indicator
+        if response.status_code == 200:
+            typer.echo(f"🌐 HTTP {response.status_code} ✅ Success")
+        elif response.status_code == 204:
+            typer.echo(f"🌐 HTTP {response.status_code} 📭 No data available")
+        else:
+            typer.echo(f"🌐 HTTP {response.status_code} ⚠️ {response.reason}")
         
         # Handle 204 No Content as "no data available" rather than error
         if response.status_code == 204:
@@ -499,6 +725,75 @@ def fetch_page_data(endpoint_cfg, base_params, page_num, endpoint_key):
             f"Failed to fetch data for {endpoint_key} page {page_num}: {e}", err=True
         )
         return page_num, None, 0
+
+
+def harvest_endpoint_data_range(start_date: str, end_date: str, endpoint_key, endpoint_cfg):
+    """Harvest data for a date range from a PNCP endpoint."""
+    typer.echo(f"Starting harvest for '{endpoint_key}' from {start_date} to {end_date}")
+    
+    # Convert to date format expected by API (YYYYMMDD)
+    start_api_format = start_date.replace("-", "")
+    end_api_format = end_date.replace("-", "")
+    
+    # Build base parameters for API call
+    base_params = {
+        endpoint_cfg["date_param_initial"]: start_api_format,
+        endpoint_cfg["date_param_final"]: end_api_format,
+        "tamanhoPagina": endpoint_cfg["tamanhoPagina"],
+    }
+
+    # Add any required endpoint-specific parameters
+    if endpoint_cfg.get("required_params"):
+        base_params.update(endpoint_cfg["required_params"])
+
+    log_params = base_params.copy()
+    days_in_range = (datetime.date.fromisoformat(end_date) - datetime.date.fromisoformat(start_date)).days + 1
+    typer.echo(f"Starting harvest for '{endpoint_key}' from {start_date} to {end_date} ({days_in_range} days) with params: {log_params}")
+
+    # First, get page 1 to determine total pages
+    page_num, items, total_pages = fetch_page_data(
+        endpoint_cfg, base_params, 1, endpoint_key
+    )
+
+    if items is None:
+        typer.echo(f"Failed to fetch initial page for '{endpoint_key}' range {start_date} to {end_date}", err=True)
+        return None
+
+    if not items:
+        typer.echo(f"No data found for '{endpoint_key}' in range {start_date} to {end_date}.")
+        return []
+
+    all_records = items
+    if total_pages > 1:
+        # Fetch remaining pages concurrently 
+        typer.echo(f"Fetching {total_pages} pages concurrently for range {start_date} to {end_date}...")
+        
+        # Fetch remaining pages concurrently (max 5 concurrent requests)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            future_to_page = {
+                executor.submit(
+                    fetch_page_data, endpoint_cfg, base_params, page, endpoint_key
+                ): page
+                for page in range(2, total_pages + 1)
+            }
+
+            completed_pages = 1  # Already have page 1
+            for future in concurrent.futures.as_completed(future_to_page):
+                page_num, page_items, _ = future.result()
+                if page_items is not None:
+                    all_records.extend(page_items)
+                    completed_pages += 1
+                    typer.echo(f"✅ Page {page_num}/{total_pages}: {len(page_items)} items ({completed_pages}/{total_pages} complete)")
+                else:
+                    typer.echo(f"❌ Failed to fetch page {page_num}", err=True)
+
+                # Small delay to be respectful to the API
+                time.sleep(0.1)
+    else:
+        typer.echo(f"Found only 1 page for '{endpoint_key}' range")
+
+    typer.echo(f"Harvested {len(all_records)} records for '{endpoint_key}' from {start_date} to {end_date}.")
+    return all_records
 
 
 def harvest_endpoint_data(day_iso, endpoint_key, endpoint_cfg):
@@ -1179,6 +1474,13 @@ def run_baliza(
             help="Number of days to look back when using auto mode. Use 0 for ALL history (default: ALL)"
         ),
     ] = 0,
+    force_retry: Annotated[
+        bool,
+        typer.Option(
+            "--force-retry",
+            help="Force retry dates that previously returned no data (HTTP 204)"
+        ),
+    ] = False,
 ):
     """
     Main command to run the Baliza fetching and archiving process.
@@ -1198,21 +1500,16 @@ def run_baliza(
             typer.echo("🏛️ Finding ALL missing dates from complete historical archive...")
         else:
             typer.echo(f"🔍 Finding missing dates from the last {days_back} days...")
-        missing_dates = _get_missing_dates(days_back)
+        missing_date_ranges = _get_missing_dates(days_back, force_retry)
         
-        if not missing_dates:
-            typer.echo("✅ No missing dates found! All recent dates already processed.")
+        if not missing_date_ranges:
+            typer.echo("✅ No missing date ranges found! All recent dates already processed.")
             return
         
-        if len(missing_dates) <= 10:
-            typer.echo(f"📅 Found {len(missing_dates)} missing dates: {', '.join(missing_dates)}")
-        else:
-            typer.echo(f"📅 Found {len(missing_dates)} missing dates: {missing_dates[0]} to {missing_dates[-1]}")
-            typer.echo(f"   (Range: {(datetime.date.fromisoformat(missing_dates[-1]) - datetime.date.fromisoformat(missing_dates[0])).days + 1} days total)")
-        target_dates = missing_dates
+        target_date_ranges = missing_date_ranges
         
     else:
-        # Single date mode
+        # Single date mode - convert to range format
         try:
             target_day_iso = (
                 datetime.datetime.strptime(date_str, "%Y-%m-%d").date().isoformat()
@@ -1221,67 +1518,71 @@ def run_baliza(
             typer.echo("Error: Date must be in YYYY-MM-DD format.", err=True)
             raise typer.Exit(code=1) from e
         
-        target_dates = [target_day_iso]
+        target_date_ranges = [(target_day_iso, target_day_iso)]
     
-    # Process all target dates
+    # Process all target date ranges
     all_summaries = []
-    successful_dates = 0
-    failed_dates = 0
+    successful_ranges = 0
+    failed_ranges = 0
     
-    typer.echo(f"🚀 BALIZA starting to process {len(target_dates)} date(s)")
+    total_days = sum((datetime.date.fromisoformat(end) - datetime.date.fromisoformat(start)).days + 1 
+                    for start, end in target_date_ranges)
+    typer.echo(f"🚀 BALIZA starting to process {len(target_date_ranges)} date range(s) covering {total_days} days")
     
-    # Use rich progress bar for multiple dates
-    if len(target_dates) > 1:
+    # Use rich progress bar for multiple ranges
+    if len(target_date_ranges) > 1:
         with Progress() as progress:
             main_task = progress.add_task(
-                f"[green]Processing {len(target_dates)} dates...", 
-                total=len(target_dates)
+                f"[green]Processing {len(target_date_ranges)} date ranges...", 
+                total=len(target_date_ranges)
             )
             
-            for i, date in enumerate(target_dates, 1):
+            for i, (start_date, end_date) in enumerate(target_date_ranges, 1):
+                days_in_range = (datetime.date.fromisoformat(end_date) - datetime.date.fromisoformat(start_date)).days + 1
                 progress.update(
                     main_task, 
-                    description=f"[green]Processing date {i}/{len(target_dates)}: {date}",
+                    description=f"[green]Processing range {i}/{len(target_date_ranges)}: {start_date} to {end_date} ({days_in_range} days)",
                     completed=i-1
                 )
                 
-                run_summary = _process_single_date(date)
+                run_summary = _process_date_range(start_date, end_date)
                 all_summaries.append(run_summary)
                 
                 if run_summary["overall_status"] in ["success", "completed_upload_skipped"]:
-                    successful_dates += 1
-                    progress.console.print(f"✅ {date}: {run_summary['overall_status']}")
+                    successful_ranges += 1
+                    progress.console.print(f"✅ Range {i}: {start_date} to {end_date} - {run_summary['overall_status']}")
                 else:
-                    failed_dates += 1
-                    progress.console.print(f"❌ {date}: {run_summary['overall_status']}")
+                    failed_ranges += 1
+                    progress.console.print(f"❌ Range {i}: {start_date} to {end_date} - {run_summary['overall_status']}")
                 
                 progress.update(main_task, completed=i)
             
-            # After all dates processed, upload monthly files to Internet Archive
-            if len(target_dates) > 1:
+            # After all ranges processed, upload monthly files to Internet Archive
+            if len(target_date_ranges) > 1:
                 progress.update(main_task, description="[blue]Uploading consolidated files to Internet Archive...")
                 _batch_upload_to_ia(progress.console.print)
     else:
-        # Single date - no progress bar needed
-        for i, date in enumerate(target_dates, 1):
+        # Single range - no progress bar needed
+        for i, (start_date, end_date) in enumerate(target_date_ranges, 1):
+            days_in_range = (datetime.date.fromisoformat(end_date) - datetime.date.fromisoformat(start_date)).days + 1
             typer.echo(f"\n{'='*60}")
-            typer.echo(f"📅 Processing date {i}/{len(target_dates)}: {date}")
+            typer.echo(f"📅 Processing range {i}/{len(target_date_ranges)}: {start_date} to {end_date} ({days_in_range} days)")
             typer.echo(f"{'='*60}")
             
-            run_summary = _process_single_date(date)
+            run_summary = _process_date_range(start_date, end_date)
             all_summaries.append(run_summary)
             
-            if run_summary["overall_status"] in ["success", "completed_upload_skipped"]:
-                successful_dates += 1
-                typer.echo(f"✅ {date}: {run_summary['overall_status']}")
+            if run_summary["overall_status"] in ["success", "completed_upload_skipped", "completed_no_data"]:
+                successful_ranges += 1
+                typer.echo(f"✅ Range {i}: {start_date} to {end_date} - {run_summary['overall_status']}")
             else:
-                failed_dates += 1
-                typer.echo(f"❌ {date}: {run_summary['overall_status']}")
+                failed_ranges += 1
+                typer.echo(f"❌ Range {i}: {start_date} to {end_date} - {run_summary['overall_status']}")
     
-    # After all dates processed, upload monthly files to Internet Archive (single date mode)
-    if len(target_dates) == 1:
+    # After all ranges processed, upload monthly files to Internet Archive (single range mode)
+    if len(target_date_ranges) == 1:
         _batch_upload_to_ia(typer.echo)
-    elif len(target_dates) > 1:
+    elif len(target_date_ranges) > 1:
         typer.echo("\n📤 Uploading consolidated files to Internet Archive...")
         _batch_upload_to_ia(typer.echo)
     
@@ -1289,11 +1590,12 @@ def run_baliza(
     typer.echo(f"\n{'='*60}")
     typer.echo("📊 FINAL SUMMARY")
     typer.echo(f"{'='*60}")
-    typer.echo(f"Total dates processed: {len(target_dates)}")
-    typer.echo(f"Successful: {successful_dates}")
-    typer.echo(f"Failed: {failed_dates}")
+    typer.echo(f"Total date ranges processed: {len(target_date_ranges)}")
+    typer.echo(f"Total days covered: {total_days}")
+    typer.echo(f"Successful ranges: {successful_ranges}")
+    typer.echo(f"Failed ranges: {failed_ranges}")
     
-    if len(target_dates) == 1:
+    if len(target_date_ranges) == 1:
         # Single date mode - output detailed JSON for compatibility
         typer.echo("\n--- BALIZA RUN SUMMARY ---")
         typer.echo(json.dumps(all_summaries[0]))
@@ -1302,15 +1604,15 @@ def run_baliza(
         if all_summaries[0]["overall_status"] == "failed":
             raise typer.Exit(code=1)
     else:
-        # Multi-date mode - show summary statistics
-        if failed_dates > 0:
-            typer.echo(f"\n⚠️  {failed_dates} dates failed processing")
+        # Multi-range mode - show summary statistics
+        if failed_ranges > 0:
+            typer.echo(f"\n⚠️  {failed_ranges} date ranges failed processing")
             
-        if failed_dates == len(target_dates):
-            typer.echo("❌ All dates failed!")
+        if failed_ranges == len(target_date_ranges):
+            typer.echo("❌ All date ranges failed!")
             raise typer.Exit(code=1)
         else:
-            typer.echo(f"✅ Successfully processed {successful_dates}/{len(target_dates)} dates")
+            typer.echo(f"✅ Successfully processed {successful_ranges}/{len(target_date_ranges)} date ranges")
     
     typer.echo("🎉 BALIZA run completed!")
 
