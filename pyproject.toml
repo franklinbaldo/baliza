@@ -5,23 +5,15 @@ description = "BALIZA: Backup Aberto de Licitações Zelando pelo Acesso - Histo
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "requests",
-    "tenacity", 
-    "internetarchive",
     "typer[all]",
     "duckdb", # Native Parquet support with built-in compression
-    "httpx", # Required for openapi-python-client
-    "attrs", # Required for openapi-python-client
+    "httpx", # HTTP client for API requests
 ]
 
 [project.scripts]
-baliza = "baliza.main:app"
+baliza = "baliza.simple_pncp_extractor:app"
 
 [project.optional-dependencies]
-analytics = [
-    "dbt-duckdb",  # DBT adapter for DuckDB
-    "dbt-core",
-]
 dev = [
     "pytest",
     "pytest-mock",
@@ -30,12 +22,10 @@ dev = [
 [dependency-groups]
 dev = [
     "mypy>=1.16.1",
-    "nbformat>=5.10.4", 
     "pre-commit>=4.2.0",
     "pytest>=8.4.1",
     "pytest-mock>=3.14.1",
     "ruff>=0.12.3",
-    "openapi-python-client>=0.21.0",  # For generating API client
 ]
 
 # Ruff configuration for linting and formatting
@@ -150,13 +140,10 @@ max-complexity = 10
 known-first-party = ["baliza"]
 known-third-party = [
     "duckdb",
-    "internetarchive", 
-    "requests",
-    "tenacity",
+    "httpx",
     "typer",
     "pytest",
-    "pandas",
-    "plotly",
+    "rich",
 ]
 section-order = [
     "future",
@@ -208,11 +195,10 @@ disallow_untyped_decorators = false
 # External library stubs
 [[tool.mypy.overrides]]
 module = [
-    "internetarchive.*",
     "duckdb.*",
-    "tenacity.*",
+    "httpx.*",
     "typer.*",
-    "nbformat.*"
+    "rich.*"
 ]
 ignore_missing_imports = true
 

@@ -1,7 +1,0 @@
-version: 2
-
-sources:
-  - name: pncp_raw_data
-    tables:
-      - name: contratos_publicacao
-        identifier: "read_parquet('data/parquet_files/pncp-contratos-publicacao_*.parquet')"

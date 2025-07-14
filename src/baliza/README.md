@@ -1,124 +1,43 @@
-# api-pncp-consulta-client
-A client library for accessing API PNCP CONSULTA
+# BALIZA - Simplified PNCP Data Extractor
+
+This directory contains the Baliza Python package source code.
+
+## Structure
+
+- `simple_pncp_extractor.py`: Simplified PNCP data extractor (main application)
 
 ## Usage
-First, create a client:
 
-```python
-from api_pncp_consulta_client import Client
+Extract data from PNCP endpoints:
 
-client = Client(base_url="https://api.example.com")
+```bash
+# Extract data for a specific date
+python -m baliza.simple_pncp_extractor extract --start-date 2024-07-10 --end-date 2024-07-10
+
+# View extraction statistics
+python -m baliza.simple_pncp_extractor stats
+
+# Or use the installed command
+baliza extract --start-date 2024-07-10 --end-date 2024-07-10
+baliza stats
 ```
 
-If the endpoints you're going to hit require authentication, use `AuthenticatedClient` instead:
+## Features
 
-```python
-from api_pncp_consulta_client import AuthenticatedClient
+- **Simplified Architecture**: Single script that handles all PNCP endpoints
+- **Comprehensive Coverage**: Extracts data from all 12 authentication-free PNCP endpoints
+- **Raw Data Storage**: Stores all responses with complete metadata
+- **Unified Schema**: Single PSA table for all data types
+- **Rate Limiting**: Built-in rate limiting to avoid API throttling
+- **Progress Tracking**: Rich console interface with progress bars
 
-client = AuthenticatedClient(base_url="https://api.example.com", token="SuperSecretToken")
-```
+## Database Schema
 
-Now call your endpoint and use your models:
+All data is stored in a single table `psa.pncp_raw_responses` with complete request and response metadata:
 
-```python
-from api_pncp_consulta_client.models import MyDataModel
-from api_pncp_consulta_client.api.my_tag import get_my_data_model
-from api_pncp_consulta_client.types import Response
-
-with client as client:
-    my_data: MyDataModel = get_my_data_model.sync(client=client)
-    # or if you need more info (e.g. status_code)
-    response: Response[MyDataModel] = get_my_data_model.sync_detailed(client=client)
-```
-
-Or do the same thing with an async version:
-
-```python
-from api_pncp_consulta_client.models import MyDataModel
-from api_pncp_consulta_client.api.my_tag import get_my_data_model
-from api_pncp_consulta_client.types import Response
-
-async with client as client:
-    my_data: MyDataModel = await get_my_data_model.asyncio(client=client)
-    response: Response[MyDataModel] = await get_my_data_model.asyncio_detailed(client=client)
-```
-
-By default, when you're calling an HTTPS API it will attempt to verify that SSL is working correctly. Using certificate verification is highly recommended most of the time, but sometimes you may need to authenticate to a server (especially an internal server) using a custom certificate bundle.
-
-```python
-client = AuthenticatedClient(
-    base_url="https://internal_api.example.com", 
-    token="SuperSecretToken",
-    verify_ssl="/path/to/certificate_bundle.pem",
-)
-```
-
-You can also disable certificate validation altogether, but beware that **this is a security risk**.
-
-```python
-client = AuthenticatedClient(
-    base_url="https://internal_api.example.com", 
-    token="SuperSecretToken", 
-    verify_ssl=False
-)
-```
-
-Things to know:
-1. Every path/method combo becomes a Python module with four functions:
-    1. `sync`: Blocking request that returns parsed data (if successful) or `None`
-    1. `sync_detailed`: Blocking request that always returns a `Request`, optionally with `parsed` set if the request was successful.
-    1. `asyncio`: Like `sync` but async instead of blocking
-    1. `asyncio_detailed`: Like `sync_detailed` but async instead of blocking
-
-1. All path/query params, and bodies become method arguments.
-1. If your endpoint had any tags on it, the first tag will be used as a module name for the function (my_tag above)
-1. Any endpoint which did not have a tag will be in `api_pncp_consulta_client.api.default`
-
-## Advanced customizations
-
-There are more settings on the generated `Client` class which let you control more runtime behavior, check out the docstring on that class for more info. You can also customize the underlying `httpx.Client` or `httpx.AsyncClient` (depending on your use-case):
-
-```python
-from api_pncp_consulta_client import Client
-
-def log_request(request):
-    print(f"Request event hook: {request.method} {request.url} - Waiting for response")
-
-def log_response(response):
-    request = response.request
-    print(f"Response event hook: {request.method} {request.url} - Status {response.status_code}")
-
-client = Client(
-    base_url="https://api.example.com",
-    httpx_args={"event_hooks": {"request": [log_request], "response": [log_response]}},
-)
-
-# Or get the underlying httpx client to modify directly with client.get_httpx_client() or client.get_async_httpx_client()
-```
-
-You can even set the httpx client directly, but beware that this will override any existing settings (e.g., base_url):
-
-```python
-import httpx
-from api_pncp_consulta_client import Client
-
-client = Client(
-    base_url="https://api.example.com",
-)
-# Note that base_url needs to be re-set, as would any shared cookies, headers, etc.
-client.set_httpx_client(httpx.Client(base_url="https://api.example.com", proxies="http://localhost:8030"))
-```
-
-## Building / publishing this package
-This project uses [Poetry](https://python-poetry.org/) to manage dependencies  and packaging.  Here are the basics:
-1. Update the metadata in pyproject.toml (e.g. authors, version)
-1. If you're using a private repository, configure it with Poetry
-    1. `poetry config repositories.<your-repository-name> <url-to-your-repository>`
-    1. `poetry config http-basic.<your-repository-name> <username> <password>`
-1. Publish the client with `poetry publish --build -r <your-repository-name>` or, if for public PyPI, just `poetry publish --build`
-
-If you want to install this client into another project without publishing it (e.g. for development) then:
-1. If that project **is using Poetry**, you can simply do `poetry add <path-to-this-client>` from that project
-1. If that project is not using Poetry:
-    1. Build a wheel with `poetry build -f wheel`
-    1. Install that wheel from the other project `pip install <path-to-wheel>`
+- URL used
+- Request parameters
+- Response code
+- Response content
+- Timestamp
+- Endpoint metadata
