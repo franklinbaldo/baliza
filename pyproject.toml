@@ -6,10 +6,12 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "requests",
-    "tenacity",
+    "tenacity", 
     "internetarchive",
     "typer[all]",
     "duckdb", # Native Parquet support with built-in compression
+    "httpx", # Required for openapi-python-client
+    "attrs", # Required for openapi-python-client
 ]
 
 [project.scripts]
@@ -28,11 +30,12 @@ dev = [
 [dependency-groups]
 dev = [
     "mypy>=1.16.1",
-    "nbformat>=5.10.4",
+    "nbformat>=5.10.4", 
     "pre-commit>=4.2.0",
     "pytest>=8.4.1",
     "pytest-mock>=3.14.1",
     "ruff>=0.12.3",
+    "openapi-python-client>=0.21.0",  # For generating API client
 ]
 
 # Ruff configuration for linting and formatting

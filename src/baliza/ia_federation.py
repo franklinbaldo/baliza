@@ -20,6 +20,7 @@ class InternetArchiveFederation:
     def __init__(self, baliza_db_path: str | Path = None):
         # Use standard XDG directories
         import os
+
         if not os.getenv("BALIZA_PRODUCTION"):
             # Development mode
             data_dir = Path.cwd() / "data"
@@ -28,12 +29,12 @@ class InternetArchiveFederation:
             # Production mode
             data_dir = Path.home() / ".local" / "share" / "baliza"
             cache_dir = Path.home() / ".cache" / "baliza"
-        
+
         if baliza_db_path is None:
             self.baliza_db_path = str(data_dir / "baliza.duckdb")
         else:
             self.baliza_db_path = str(baliza_db_path)
-            
+
         self.cache_dir = cache_dir / "ia_cache"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
@@ -93,11 +94,12 @@ class InternetArchiveFederation:
         """
         # Use same data directory logic
         import os
+
         if not os.getenv("BALIZA_PRODUCTION"):
             data_dir = Path.cwd() / "data"
         else:
             data_dir = Path.home() / ".local" / "share" / "baliza"
-            
+
         catalog_db = str(data_dir / "ia_catalog.duckdb")
 
         print("📋 Creating Internet Archive data catalog...")
@@ -202,9 +204,7 @@ class InternetArchiveFederation:
 
     def get_cached_file_path(self, url: str) -> Path:
         """Get local cache path for a remote file."""
-        url_hash = hashlib.sha256(url.encode()).hexdigest()[
-            :16
-        ]  # Use first 16 chars for shorter filenames
+        url_hash = hashlib.sha256(url.encode()).hexdigest()[:16]  # Use first 16 chars for shorter filenames
         filename = url.split("/")[-1]
         return self.cache_dir / f"{url_hash}_{filename}"
 
@@ -280,9 +280,7 @@ class InternetArchiveFederation:
             )
         return endpoints
 
-    def _create_endpoint_view(
-        self, conn, endpoint_type: str, files: list[dict]
-    ) -> None:
+    def _create_endpoint_view(self, conn, endpoint_type: str, files: list[dict]) -> None:
         """Create federated view for a specific endpoint type."""
         print(f"📋 Creating federated view for {endpoint_type} ({len(files)} files)")
 
@@ -292,9 +290,7 @@ class InternetArchiveFederation:
 
         for file_info in sample_files:
             try:
-                cached_path = self.download_with_cache(
-                    file_info["url"], file_info.get("size")
-                )
+                cached_path = self.download_with_cache(file_info["url"], file_info.get("size"))
                 cached_paths.append(str(cached_path))
             except Exception as e:
                 print(f"⚠️ Skipping file {file_info['file_name']}: {e}")

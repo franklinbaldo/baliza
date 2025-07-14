@@ -1,15 +1,20 @@
 Metadata-Version: 2.4
 Name: baliza
 Version: 0.1.0
-Summary: Add your description here
+Summary: BALIZA: Backup Aberto de Licitações Zelando pelo Acesso - Historical archive of Brazilian public procurement data
 Requires-Python: >=3.11
 Description-Content-Type: text/markdown
 License-File: LICENSE
 Requires-Dist: requests
 Requires-Dist: tenacity
-Requires-Dist: zstandard
 Requires-Dist: internetarchive
 Requires-Dist: typer[all]
+Requires-Dist: duckdb
+Requires-Dist: httpx
+Requires-Dist: attrs
+Provides-Extra: analytics
+Requires-Dist: dbt-duckdb; extra == "analytics"
+Requires-Dist: dbt-core; extra == "analytics"
 Provides-Extra: dev
 Requires-Dist: pytest; extra == "dev"
 Requires-Dist: pytest-mock; extra == "dev"
@@ -38,50 +43,102 @@ Dynamic: license-file
 - Sem séries históricas não há auditoria séria nem detecção de fraude por padrão.
 
 ## Como funciona
-1. **Coleta Agendada**: Diariamente, às 02:15 BRT (05:15 UTC), uma GitHub Action é acionada.
-2. **Busca de Dados**: O script `baliza/src/baliza/main.py` chama os endpoints da API do PNCP (inicialmente `/v1/contratacoes/publicacao`, com planos de expansão para outros como `/v1/contratos/publicacao`, `/v1/pca`). Ele filtra os dados para o dia anterior (`dataInicial=dataFinal=ontem`).
-3. **Processamento e Compactação**: Os dados coletados são agregados em um arquivo `pncp-<tipo>-YYYY-MM-DD.jsonl.zst` (JSONL compactado com Zstandard).
-4. **Upload para o Internet Archive**: O arquivo compactado é enviado para o Internet Archive usando a API S3-like do IA. O identificador do item é no formato `pncp-<tipo>-YYYY-MM-DD`.
-5. **Registro de Checksum (Planejado)**: Está planejado salvar o checksum SHA256 dos arquivos processados (ex: em um `state/processed.csv`) para evitar duplicidade e facilitar o rastreamento. Esta funcionalidade ainda não está implementada no script principal.
+1. **Coleta Automática**: Por padrão, BALIZA processa TODO o histórico disponível (2020-2025+), identificando automaticamente datas faltantes.
+2. **Busca de Dados**: O CLI `baliza` chama os endpoints da API do PNCP (`/v1/contratacoes/publicacao`, `/v1/contratos/publicacao`, `/v1/pca`) com paginação inteligente.
+3. **Processamento e Compactação**: Os dados são organizados em Parquet e DuckDB para análise local, além de JSONL compactado com Zstandard para arquivamento.
+4. **Upload para o Internet Archive**: Arquivos são enviados para o Internet Archive com metadados estruturados e checksums SHA256.
+5. **Federação de Dados**: Sistema de federação permite consultas unificadas entre dados locais e do Internet Archive usando DuckDB.
 
-## Configuração Inicial e Execução
+## 🚀 Como Usar
 
-### Pré-requisitos
+### 📊 **Para Análise de Dados (Recomendado)**
+
+**🎯 Análise Instantânea no Google Colab:**
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/franklinbaldo/baliza/blob/main/notebooks/analise_pncp_colab.ipynb)
+
+- ✅ **Um clique** e você está analisando milhões de contratos públicos
+- ✅ **Sem configuração** - funciona 100% no navegador  
+- ✅ **Dados atualizados** diretamente do Internet Archive
+- ✅ **Análises pré-configuradas** com visualizações interativas
+- ✅ **Detecção de fraudes** e padrões suspeitos automatizada
+
+### 🔧 **Para Coleta de Dados**
+
+#### Pré-requisitos
 - Python 3.11+
-- `uv` (gerenciador de pacotes Python rápido). Se não tiver, instale via `curl -LsSf https://astral.sh/uv/install.sh | sh`.
+- `uv` (gerenciador de pacotes Python rápido). Se não tiver: `curl -LsSf https://astral.sh/uv/install.sh | sh`
 - Credenciais do Internet Archive (`IA_KEY` e `IA_SECRET`).
 
-### Variáveis de Ambiente
-O script requer as seguintes variáveis de ambiente para o upload no Internet Archive:
-- `IA_KEY`: Sua chave de acesso do Internet Archive.
-- `IA_SECRET`: Seu segredo do Internet Archive.
+#### 🚀 **Instalação e Uso (Simples)**
 
-Estas variáveis são especialmente importantes para a execução automática via GitHub Actions, onde devem ser configuradas como "Secrets" do repositório.
-
-### Executar Localmente
-1. Clone o repositório.
-2. Navegue até a raiz do projeto.
-3. Crie um ambiente virtual e instale as dependências (se ainda não o fez):
+1. **Clone e configure o projeto:**
    ```bash
-   uv venv  # Cria o .venv
-   uv sync  # Instala dependências do uv.lock
+   git clone https://github.com/franklinbaldo/baliza.git
+   cd baliza
+   
+   # Instalar dependências
+   uv sync
+   
+   # Instalar BALIZA como CLI tool
+   uv pip install -e .
    ```
-4. Exporte as credenciais do Internet Archive:
+
+2. **Configure credenciais do Internet Archive:**
    ```bash
    export IA_KEY="SUA_CHAVE_IA"
    export IA_SECRET="SEU_SEGREDO_IA"
    ```
-5. Execute o script (substitua `YYYY-MM-DD` pela data desejada):
+
+3. **Execute a coleta:**
+
+   **🏛️ MODO AUTOMÁTICO (Recomendado) - Baixa TODO o histórico:**
    ```bash
-   uv run python baliza/src/baliza/main.py --date YYYY-MM-DD
-   # Alternativamente, a data pode ser fornecida pela variável de ambiente BALIZA_DATE
-   # export BALIZA_DATE=YYYY-MM-DD; uv run python baliza/src/baliza/main.py
+   uv run baliza --auto
    ```
-   Os arquivos gerados (JSONL, ZST) aparecerão no diretório `baliza_data/` na raiz do projeto.
+   
+   **📅 MODO DATA ESPECÍFICA:**
+   ```bash
+   uv run baliza --date 2024-07-10
+   ```
+   
+   **⚡ MODO ÚLTIMOS N DIAS:**
+   ```bash
+   uv run baliza --auto --days-back 30
+   ```
+
+#### 📁 **Estrutura de Dados**
+
+BALIZA usa estrutura de diretórios XDG-compliant:
+
+**🏠 Desenvolvimento (padrão):**
+```
+baliza/
+├── data/           # Bancos de dados principais
+├── .cache/         # Cache de downloads do IA
+└── .config/        # Configurações
+```
+
+**🌐 Produção (BALIZA_PRODUCTION=1):**
+```
+~/.local/share/baliza/  # Dados do usuário
+~/.cache/baliza/        # Cache do usuário  
+~/.config/baliza/       # Config do usuário
+```
+
+#### 🔗 **Federação com Internet Archive**
+```bash
+# Atualizar federação (incluído automaticamente no --auto)
+uv run python src/baliza/ia_federation.py federate
+
+# Executar análises com DBT
+cd dbt_baliza
+dbt run --select coverage_temporal coverage_entidades
+```
 
 ## Automação com GitHub Actions
 - O projeto inclui um workflow em `.github/workflows/baliza_daily_run.yml`.
-- Este workflow executa o script diariamente às 02:15 BRT (05:15 UTC), utilizando a variável de ambiente `BALIZA_DATE`.
+- Este workflow executa o script diariamente às 02:15 BRT (05:15 UTC) em modo automático completo.
 - O workflow captura um sumário da execução em formato JSON e o armazena como um artefato do GitHub Actions para referência e depuração.
 - **Importante**: Para que o upload automático funcione, você **DEVE** configurar `IA_KEY` e `IA_SECRET` como "Secrets" nas configurações do seu repositório GitHub (Settings > Secrets and variables > Actions).
 
@@ -103,13 +160,18 @@ Estas variáveis são especialmente importantes para a execução automática vi
     * [ ] Configurar GitHub Pages para hospedar a página.
 * [ ] **Atualização do Workflow**: Incrementar o GitHub Actions para executar os scripts de coleta de estatísticas, geração de manifesto de torrents e da página web, e fazer commit dos artefatos atualizados.
 
-### Funcionalidades Adicionais (Consideradas para o Futuro - Pós Fase 2)
-* [ ] Implementar coleta para endpoint `/v1/contratos/publicacao`.
-* [ ] Implementar coleta para endpoint `/v1/pca` (planejamento).
+### Fase 3: Expansão de Endpoints (Implementado)
+* [x] **Implementar coleta para novos endpoints**:
+    * [x] `/v1/pca/usuario` - Consultar Itens de PCA por Ano do PCA, IdUsuario e Código de Classificação Superior.
+    * [x] `/v1/pca/` - Consultar Itens de PCA por Ano do PCA e Código de Classificação Superior (endpoint geral).
+    * [x] `/v1/contratacoes/proposta` - Consultar Contratações com Recebimento de Propostas Aberto.
+
+### Funcionalidades Adicionais (Consideradas para o Futuro - Pós Fase 3)
 * [ ] Implementar persistência robusta de checksums e estado de processamento (e.g., `state/processed.csv`) para evitar reprocessamento e duplicatas de forma mais granular.
 * [ ] Avaliar a criação de um dump automático para ClickHouse a partir dos dados no Internet Archive.
 * [ ] Desenvolver um painel analítico (Superset/Metabase) com KPIs (e.g., sobrepreço) utilizando os dados coletados.
 * [ ] Configurar alertas de anomalia (e.g., via Webhook) para falhas na coleta ou problemas nos dados.
+* [ ] Implementar configuração dinâmica de parâmetros para os novos endpoints PCA.
 
 ## Próximos Passos (Comunidade e Testes)
 1. **Teste Manual Extensivo**: Execute o script com `--date` para diferentes dias passados para garantir a robustez do hash, da coleta e do upload.

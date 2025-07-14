@@ -1,8 +1,14 @@
 requests
 tenacity
-zstandard
 internetarchive
 typer[all]
+duckdb
+httpx
+attrs
+
+[analytics]
+dbt-duckdb
+dbt-core
 
 [dev]
 pytest
