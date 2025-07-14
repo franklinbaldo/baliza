@@ -1,0 +1,75 @@
+name: 'baliza'
+version: '1.0.0'
+config-version: 2
+
+# This setting configures which "profile" dbt uses for this project.
+profile: 'baliza'
+
+# These configurations specify where dbt should look for different types of files.
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+# Configuring models
+models:
+  baliza:
+    # Raw/staging models
+    staging:
+      +materialized: view
+      +schema: staging
+    
+    # Dimension models
+    dimensions:
+      +materialized: table
+      +schema: dimensions
+    
+    # Fact models
+    facts:
+      +materialized: table
+      +schema: facts
+    
+    # Marts/analytics models
+    marts:
+      +materialized: table
+      +schema: marts
+
+# Variables
+vars:
+  # Database configuration
+  database_name: 'baliza'
+  psa_schema: 'psa'
+  
+  # Date range for processing (can be overridden at runtime)
+  start_date: '2024-01-01'
+  end_date: '2024-12-31'
+  
+  # Endpoint configurations
+  endpoints:
+    contratos_publicacao: 'contratos_publicacao'
+    contratos_atualizacao: 'contratos_atualizacao'
+    contratacoes_publicacao: 'contratacoes_publicacao'
+    contratacoes_atualizacao: 'contratacoes_atualizacao'
+    contratacoes_proposta: 'contratacoes_proposta'
+    atas_periodo: 'atas_periodo'
+    atas_atualizacao: 'atas_atualizacao'
+    instrumentos_cobranca: 'instrumentos_cobranca'
+    pca_atualizacao: 'pca_atualizacao'
+
+# Tests
+tests:
+  +schema: tests
+
+# Snapshots
+snapshots:
+  +schema: snapshots
+
+# Seeds
+seeds:
+  +schema: seeds

@@ -5,7 +5,7 @@ description = "BALIZA: Backup Aberto de Licitações Zelando pelo Acesso - Histo
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "typer[all]",
+    "typer",
     "duckdb", # Native Parquet support with built-in compression
     "httpx", # HTTP client for API requests
 ]
@@ -17,6 +17,10 @@ baliza = "baliza.simple_pncp_extractor:app"
 dev = [
     "pytest",
     "pytest-mock",
+]
+analytics = [
+    "dbt-core>=1.7.0",
+    "dbt-duckdb>=1.7.0",
 ]
 
 [dependency-groups]

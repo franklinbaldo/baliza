@@ -1,0 +1,16 @@
+baliza:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: '../data/baliza.duckdb'
+      threads: 4
+      keepalives_idle: 0
+      search_path: psa
+    
+    prod:
+      type: duckdb
+      path: '../data/baliza.duckdb'
+      threads: 8
+      keepalives_idle: 0
+      search_path: psa
