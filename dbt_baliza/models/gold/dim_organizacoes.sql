@@ -8,28 +8,28 @@
 WITH org_from_contracts AS (
   SELECT DISTINCT
     {{ extract_organization_data('orgao_entidade_json', 'org') }}
-  FROM {{ ref('gld_contratos') }}
+  FROM {{ ref('int_contratos') }}
   WHERE orgao_entidade_json IS NOT NULL
 ),
 
 org_from_procurements AS (
   SELECT DISTINCT
     {{ extract_organization_data('orgao_entidade_json', 'org') }}
-  FROM {{ ref('gld_contratacoes') }}
+  FROM {{ ref('int_contratacoes') }}
   WHERE orgao_entidade_json IS NOT NULL
 ),
 
 subrog_from_contracts AS (
   SELECT DISTINCT
     {{ extract_organization_data('orgao_subrogado_json', 'org') }}
-  FROM {{ ref('gld_contratos') }}
+  FROM {{ ref('int_contratos') }}
   WHERE orgao_subrogado_json IS NOT NULL
 ),
 
 subrog_from_procurements AS (
   SELECT DISTINCT
     {{ extract_organization_data('orgao_subrogado_json', 'org') }}
-  FROM {{ ref('gld_contratacoes') }}
+  FROM {{ ref('int_contratacoes') }}
   WHERE orgao_subrogado_json IS NOT NULL
 ),
 

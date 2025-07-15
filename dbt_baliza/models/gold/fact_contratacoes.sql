@@ -25,7 +25,7 @@ WITH procurements_with_keys AS (
     subrog_org.org_key AS subrog_org_key,
     subrog_unit.unit_key AS subrog_unit_key
     
-  FROM {{ ref('gld_contratacoes') }} p
+  FROM {{ ref('int_contratacoes') }} p
   
   -- Main organization
   LEFT JOIN {{ ref('dim_organizacoes') }} org
