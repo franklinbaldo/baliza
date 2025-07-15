@@ -181,6 +181,39 @@ class SimplePNCPExtractor:
         """Format date for PNCP API (YYYYMMDD)."""
         return date_obj.strftime("%Y%m%d")
     
+    def _check_exact_url_exists(self, endpoint: Dict[str, Any], params: Dict[str, Any]) -> bool:
+        """Check if an exact URL with these parameters already exists in PSA."""
+        # Generate the exact URL that would be called
+        endpoint_url = f"{self.base_url}{endpoint['path']}"
+        
+        # Check if we have this exact URL and parameters combination
+        query = """
+            SELECT COUNT(*) 
+            FROM psa.pncp_raw_responses 
+            WHERE endpoint_url = ? 
+            AND json_extract(request_parameters, '$.pagina') = ?
+            AND json_extract(request_parameters, '$.tamanhoPagina') = ?
+        """
+        
+        query_params = [endpoint_url, str(params.get('pagina', 1)), str(params.get('tamanhoPagina', 500))]
+        
+        # Add date parameter checks
+        for date_param in endpoint.get("date_params", []):
+            if date_param in params:
+                query += f" AND json_extract(request_parameters, '$.{date_param}') = ?"
+                query_params.append(str(params[date_param]))
+        
+        # Add modalidade check if applicable
+        if 'codigoModalidadeContratacao' in params:
+            query += " AND json_extract(request_parameters, '$.codigoModalidadeContratacao') = ?"
+            query_params.append(str(params['codigoModalidadeContratacao']))
+        
+        # Only consider successful responses
+        query += " AND response_code = 200"
+        
+        result = self.conn.execute(query, query_params).fetchone()
+        return (result[0] if result else 0) > 0
+
     def _check_existing_extraction_range(self, endpoint: Dict[str, Any], start_date: datetime, end_date: datetime, modalidade: Optional[int] = None) -> Dict[str, Any]:
         """Check if data for this endpoint/date-range/modalidade combination already exists."""
         # For date ranges, we need to check if we have any overlapping extractions
@@ -394,7 +427,7 @@ class SimplePNCPExtractor:
             }
     
     def _store_response_range(self, endpoint: Dict[str, Any], params: Dict[str, Any], 
-                            response_data: Dict[str, Any], start_date: datetime, end_date: datetime, modalidade: Optional[int] = None):
+                            response_data: Dict[str, Any], start_date: datetime, end_date: datetime, modalidade: Optional[int] = None):  # noqa: ARG002
         """Store raw response in PSA with date range metadata."""
         endpoint_url = f"{self.base_url}{endpoint['path']}"
         
@@ -607,7 +640,7 @@ class SimplePNCPExtractor:
             
         return results
 
-    def _extract_endpoint_modalidade_range(self, endpoint: Dict[str, Any], start_date: datetime, end_date: datetime, modalidade: Optional[int]) -> Dict[str, Any]:
+    def _extract_endpoint_modalidade_range(self, endpoint: Dict[str, Any], start_date: datetime, end_date: datetime, modalidade: Optional[int], force: bool = False) -> Dict[str, Any]:
         """Extract data from endpoint for a specific modalidade (or no modalidade) using date range."""
         results = {
             "total_requests": 0,
@@ -643,8 +676,8 @@ class SimplePNCPExtractor:
         if modalidade is not None:
             params["codigoModalidadeContratacao"] = modalidade
         
-        # Check if this exact date range extraction is complete
-        if existing["success_responses"] > 0:
+        # Check if this exact date range extraction is complete (unless force=True)
+        if not force and existing["success_responses"] > 0:
             max_pages = existing["max_total_pages"]
             pages_fetched = existing["unique_pages_fetched"]
             
@@ -702,7 +735,7 @@ class SimplePNCPExtractor:
                 
         return results
 
-    async def _extract_endpoint_modalidade_range_async(self, endpoint: Dict[str, Any], start_date: datetime, end_date: datetime, modalidade: Optional[int]) -> Dict[str, Any]:
+    async def _extract_endpoint_modalidade_range_async(self, endpoint: Dict[str, Any], start_date: datetime, end_date: datetime, modalidade: Optional[int], force: bool = False) -> Dict[str, Any]:
         """Async version of _extract_endpoint_modalidade_range for concurrent modalidade processing."""
         results = {
             "total_requests": 0,
@@ -738,8 +771,8 @@ class SimplePNCPExtractor:
         if modalidade is not None:
             params["codigoModalidadeContratacao"] = modalidade
         
-        # Check if this exact date range extraction is complete
-        if existing["success_responses"] > 0:
+        # Check if this exact date range extraction is complete (unless force=True)
+        if not force and existing["success_responses"] > 0:
             max_pages = existing["max_total_pages"]
             pages_fetched = existing["unique_pages_fetched"]
             
@@ -751,6 +784,12 @@ class SimplePNCPExtractor:
                 results["total_records"] = existing["total_records"]
                 results["success_requests"] = existing["success_responses"]
                 return results
+        
+        # If force=True, show that we're re-extracting
+        if force and existing["success_responses"] > 0:
+            console.print(f"    🔄 [yellow]Force re-extracting {endpoint['name']} {start_date.date()}-{end_date.date()}" + 
+                        (f" modalidade={modalidade}" if modalidade else "") + 
+                        " - overriding existing data[/yellow]")
         
         # If we have no existing data or incomplete data, extract fresh
         # Make first request to get total pages (async version)
@@ -841,7 +880,7 @@ class SimplePNCPExtractor:
         
         return results
     
-    def _extract_endpoint_modalidade(self, endpoint: Dict[str, Any], data_date: datetime, modalidade: Optional[int]) -> Dict[str, Any]:
+    def _extract_endpoint_modalidade(self, endpoint: Dict[str, Any], data_date: datetime, modalidade: Optional[int], force: bool = False) -> Dict[str, Any]:
         """Extract data from endpoint for a specific modalidade (or no modalidade)."""
         results = {
             "total_requests": 0,
@@ -877,8 +916,14 @@ class SimplePNCPExtractor:
         if modalidade is not None:
             params["codigoModalidadeContratacao"] = modalidade
         
-        # If we have no existing data, or only error responses, start fresh
-        if existing["success_responses"] == 0:
+        # If force=True, show that we're re-extracting
+        if force and existing["success_responses"] > 0:
+            console.print(f"    🔄 [yellow]Force re-extracting {endpoint['name']} {data_date.date()}" + 
+                        (f" modalidade={modalidade}" if modalidade else "") + 
+                        " - overriding existing data[/yellow]")
+        
+        # If we have no existing data, or only error responses, start fresh (or if force=True)
+        if existing["success_responses"] == 0 or force:
             # Make first request to get total pages
             response_data = self._make_request(endpoint, params)
             results["total_requests"] += 1
@@ -987,12 +1032,18 @@ class SimplePNCPExtractor:
                 
         return results
     
-    async def extract_all_data(self, start_date: datetime, end_date: datetime) -> Dict[str, Any]:
+    def _extract_endpoint_modalidade_single(self, endpoint: Dict[str, Any], data_date: datetime, modalidade: Optional[int], force: bool = False) -> Dict[str, Any]:
+        """Extract data from endpoint for a single date."""
+        return self._extract_endpoint_modalidade(endpoint, data_date, modalidade, force)
+    
+    async def extract_all_data(self, start_date: datetime, end_date: datetime, force: bool = False) -> Dict[str, Any]:
         """Extract data from all endpoints for a date range."""
         console.print(Panel("🔄 Starting PNCP Data Extraction", style="bold blue"))
         console.print(f"📅 Date Range: {start_date.date()} to {end_date.date()}")
         console.print(f"🆔 Run ID: {self.run_id}")
         console.print(f"📊 Endpoints: {len(PNCP_ENDPOINTS)}")
+        if force:
+            console.print("⚠️ [yellow]Force mode enabled - will re-extract existing data[/yellow]")
         
         # Start extraction timer for RPS tracking
         self._start_extraction_timer()
@@ -1011,55 +1062,80 @@ class SimplePNCPExtractor:
             "resumed_extractions": 0
         }
         
-        # Process in date range chunks (up to 365 days per chunk)
-        current_start = start_date
-        chunk_number = 1
+        # Calculate total date range chunks for progress bar
+        total_chunks = 0
+        temp_start = start_date
+        while temp_start <= end_date:
+            temp_end = min(temp_start + timedelta(days=364), end_date)
+            total_chunks += 1
+            temp_start = temp_end + timedelta(days=1)
         
-        while current_start <= end_date:
-            # Calculate chunk end date (max 365 days or end_date, whichever is smaller)
-            chunk_end = min(current_start + timedelta(days=364), end_date)  # 364 + 1 = 365 days
-            days_in_chunk = (chunk_end - current_start).days + 1
+        # Process in date range chunks (up to 365 days per chunk) with progress bar
+        from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn, MofNCompleteColumn
+        
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+            console=console,
+            transient=False
+        ) as progress:
             
-            console.print(f"\n📅 Processing Date Range Chunk {chunk_number}: {current_start.date()} to {chunk_end.date()} ({days_in_chunk} days)")
+            # Main date range progress bar
+            date_range_task = progress.add_task(
+                "📅 Processing Date Ranges", 
+                total=total_chunks
+            )
             
-            chunk_results = {
-                "chunk_number": chunk_number,
-                "start_date": current_start.date(),
-                "end_date": chunk_end.date(),
-                "days_in_chunk": days_in_chunk,
-                "total_requests": 0,
-                "total_records": 0,
-                "success_requests": 0,
-                "error_requests": 0,
-                "endpoints": []
-            }
+            current_start = start_date
+            chunk_number = 1
             
-            # Process each endpoint for this date range chunk with individual progress bars
-            await self._extract_chunk_with_progress_bars(chunk_results, total_results, current_start, chunk_end, chunk_number, days_in_chunk)
-            
-            total_results["total_requests"] += chunk_results["total_requests"]
-            total_results["total_records"] += chunk_results["total_records"]
-            total_results["success_requests"] += chunk_results["success_requests"]
-            total_results["error_requests"] += chunk_results["error_requests"]
-            total_results["dates_processed"].append(chunk_results)
-            
-            # Move to next chunk
-            current_start = chunk_end + timedelta(days=1)
-            chunk_number += 1
+            while current_start <= end_date:
+                # Calculate chunk end date (max 365 days or end_date, whichever is smaller)
+                chunk_end = min(current_start + timedelta(days=364), end_date)  # 364 + 1 = 365 days
+                days_in_chunk = (chunk_end - current_start).days + 1
+                
+                progress.update(date_range_task, description=f"📅 Processing Chunk {chunk_number}: {current_start.date()} to {chunk_end.date()} ({days_in_chunk} days)")
+                
+                chunk_results = {
+                    "chunk_number": chunk_number,
+                    "start_date": current_start.date(),
+                    "end_date": chunk_end.date(),
+                    "days_in_chunk": days_in_chunk,
+                    "total_requests": 0,
+                    "total_records": 0,
+                    "success_requests": 0,
+                    "error_requests": 0,
+                    "endpoints": []
+                }
+                
+                # Process each endpoint for this date range chunk with individual progress bars
+                await self._extract_chunk_with_progress_bars(chunk_results, total_results, current_start, chunk_end, chunk_number, days_in_chunk, force)
+                
+                total_results["total_requests"] += chunk_results["total_requests"]
+                total_results["total_records"] += chunk_results["total_records"]
+                total_results["success_requests"] += chunk_results["success_requests"]
+                total_results["error_requests"] += chunk_results["error_requests"]
+                total_results["dates_processed"].append(chunk_results)
+                
+                # Update progress
+                progress.update(date_range_task, advance=1)
+                
+                # Move to next chunk
+                current_start = chunk_end + timedelta(days=1)
+                chunk_number += 1
         
         self._print_summary(total_results)
         return total_results
 
     async def _extract_chunk_with_progress_bars(self, chunk_results: Dict[str, Any], total_results: Dict[str, Any], 
-                                               start_date: datetime, end_date: datetime, chunk_number: int, days_in_chunk: int):
+                                               start_date: datetime, end_date: datetime, chunk_number: int, days_in_chunk: int, force: bool = False):
         """Extract data with individual progress bars for each URL pattern."""
-        from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn
-        
-        console.print(f"\n📅 Processing Date Range Chunk {chunk_number}: {start_date.date()} to {end_date.date()} ({days_in_chunk} days)")
         
         # Step 1: Discover all URL patterns and create progress bars
         url_patterns = []
-        pattern_tasks = {}
         
         for endpoint in PNCP_ENDPOINTS:
             if "modalidades" in endpoint and endpoint.get("modalidade_strategy") != "optional_unrestricted":
@@ -1084,62 +1160,51 @@ class SimplePNCPExtractor:
                     "modalidade": None
                 })
         
-        # Step 2: Create progress bars and make first requests to set totals
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(bar_width=None),
-            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            TextColumn("•"),
-            TextColumn("[cyan]{task.completed}/{task.total} pages"),
-            TimeElapsedColumn(),
-            console=console,
-            refresh_per_second=4
-        ) as progress:
+        # Step 2: Process patterns sequentially for now (to avoid nested progress bar conflicts)
+        console.print(f"\n📅 Processing Date Range Chunk {chunk_number}: {start_date.date()} to {end_date.date()} ({days_in_chunk} days)")
+        
+        # Process each pattern individually
+        for pattern in url_patterns:
+            endpoint = pattern["endpoint"]
+            modalidade = pattern["modalidade"]
             
-            # Create progress bars and make discovery requests
-            discovery_tasks = []
-            for pattern in url_patterns:
-                task_id = progress.add_task(
-                    f"[blue]{pattern['name']}[/blue]",
-                    total=None,  # Will be set after first request
-                    start=False
-                )
-                pattern_tasks[pattern['id']] = task_id
-                
-                # Create async task for discovery
-                discovery_task = self._discover_pattern_total(pattern, start_date, end_date, progress, task_id)
-                discovery_tasks.append(discovery_task)
-            
-            # Wait for all discovery requests to complete
-            pattern_results = await asyncio.gather(*discovery_tasks, return_exceptions=True)
-            
-            # Step 3: Process remaining pages for all patterns concurrently
-            extraction_tasks = []
-            for pattern, result in zip(url_patterns, pattern_results):
-                if isinstance(result, Exception):
-                    console.print(f"❌ Discovery failed for {pattern['name']}: {result}")
-                    continue
-                    
-                if result["total_pages"] > 1:
-                    # Extract remaining pages
-                    task = self._extract_pattern_pages(pattern, start_date, end_date, result, progress, pattern_tasks[pattern['id']])
-                    extraction_tasks.append(task)
-            
-            # Wait for all extractions to complete
-            if extraction_tasks:
-                extraction_results = await asyncio.gather(*extraction_tasks, return_exceptions=True)
+            # Extract this pattern using the existing method
+            try:
+                if endpoint.get("supports_date_range", True):
+                    # Use date range extraction (async version)
+                    result = await self._extract_endpoint_modalidade_range_async(endpoint, start_date, end_date, modalidade, force)
+                else:
+                    # Use single date extraction for endpoints that don't support ranges
+                    result = self._extract_endpoint_modalidade(endpoint, end_date, modalidade, force)
                 
                 # Aggregate results
-                for result in extraction_results:
-                    if isinstance(result, Exception):
-                        console.print(f"❌ Extraction failed: {result}")
-                        continue
-                    if isinstance(result, dict):
-                        chunk_results["total_requests"] += result.get("total_requests", 0)
-                        chunk_results["total_records"] += result.get("total_records", 0)
-                        chunk_results["success_requests"] += result.get("success_requests", 0)
-                        chunk_results["error_requests"] += result.get("error_requests", 0)
+                chunk_results["total_requests"] += result.get("total_requests", 0)
+                chunk_results["total_records"] += result.get("total_records", 0)
+                chunk_results["success_requests"] += result.get("success_requests", 0)
+                chunk_results["error_requests"] += result.get("error_requests", 0)
+                
+                # Track specific endpoint results
+                endpoint_result = {
+                    "endpoint_name": endpoint["name"],
+                    "modalidade": modalidade,
+                    "total_requests": result.get("total_requests", 0),
+                    "total_records": result.get("total_records", 0),
+                    "success_requests": result.get("success_requests", 0),
+                    "error_requests": result.get("error_requests", 0),
+                    "skipped": result.get("skipped", False),
+                    "resumed": result.get("resumed", False)
+                }
+                chunk_results["endpoints"].append(endpoint_result)
+                
+                # Update global counters
+                if result.get("skipped"):
+                    total_results["skipped_extractions"] += 1
+                if result.get("resumed"):
+                    total_results["resumed_extractions"] += 1
+                    
+            except Exception as e:
+                console.print(f"❌ [red]Error processing {pattern['name']}: {e}[/red]")
+                chunk_results["error_requests"] += 1
 
     async def _discover_pattern_total(self, pattern: Dict[str, Any], start_date: datetime, end_date: datetime, progress, task_id) -> Dict[str, Any]:
         """Make first request to discover total pages for a URL pattern."""
@@ -1353,6 +1418,11 @@ def extract(
     end_date: str = typer.Option(
         datetime.now().strftime("%Y-%m-%d"),
         help="End date (YYYY-MM-DD) - defaults to today"
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Force re-extraction even if data already exists in PSA"
     )
 ):
     """Extract data from all PNCP endpoints for a date range."""
@@ -1368,7 +1438,7 @@ def extract(
         raise typer.Exit(1)
     
     extractor = SimplePNCPExtractor()
-    results = asyncio.run(extractor.extract_all_data(start_dt, end_dt))
+    results = asyncio.run(extractor.extract_all_data(start_dt, end_dt, force=force))
     
     # Save results to file
     results_file = DATA_DIR / f"extraction_results_{results['run_id']}.json"
