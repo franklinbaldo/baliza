@@ -17,7 +17,6 @@ import duckdb
 import httpx
 import typer
 from rich.console import Console
-from rich.progress import Progress
 from rich.table import Table
 from rich.panel import Panel
 
@@ -34,6 +33,7 @@ DATA_DIR = Path.cwd() / "data"
 BALIZA_DB_PATH = DATA_DIR / "baliza.duckdb"
 
 # All authentication-free endpoints from OpenAPI analysis
+# Only keep endpoints that work reliably without 400 errors
 PNCP_ENDPOINTS = [
     {
         "name": "contratos_publicacao",
@@ -43,7 +43,7 @@ PNCP_ENDPOINTS = [
         "required_params": ["pagina", "tamanhoPagina"],
         "optional_params": ["cnpjOrgao", "codigoUnidadeAdministrativa", "usuarioId"],
         "max_page_size": 500,
-        "default_page_size": 100,
+        "default_page_size": 500,
         "supports_date_range": True
     },
     {
@@ -54,43 +54,8 @@ PNCP_ENDPOINTS = [
         "required_params": ["pagina", "tamanhoPagina"],
         "optional_params": ["cnpjOrgao", "codigoUnidadeAdministrativa", "usuarioId"],
         "max_page_size": 500,
-        "default_page_size": 100,
+        "default_page_size": 500,
         "supports_date_range": True
-    },
-    {
-        "name": "contratacoes_publicacao",
-        "path": "/v1/contratacoes/publicacao",
-        "description": "Contratações por Data de Publicação",
-        "date_params": ["dataInicial", "dataFinal"],
-        "required_params": ["pagina", "tamanhoPagina", "codigoModalidadeContratacao"],
-        "optional_params": ["codigoModoDisputa", "uf", "codigoMunicipioIbge", "cnpj", "codigoUnidadeAdministrativa", "idUsuario"],
-        "max_page_size": 50,
-        "default_page_size": 50,
-        "supports_date_range": True,
-        "modalidades": [1, 3, 4, 6, 8, 9, 10, 11, 12, 13, 14]  # From enhanced_endpoint_test.py
-    },
-    {
-        "name": "contratacoes_atualizacao",
-        "path": "/v1/contratacoes/atualizacao", 
-        "description": "Contratações por Data de Atualização Global",
-        "date_params": ["dataInicial", "dataFinal"],
-        "required_params": ["pagina", "tamanhoPagina", "codigoModalidadeContratacao"],
-        "optional_params": ["codigoModoDisputa", "uf", "codigoMunicipioIbge", "cnpj", "codigoUnidadeAdministrativa", "idUsuario"],
-        "max_page_size": 50,
-        "default_page_size": 50,
-        "supports_date_range": True,
-        "modalidades": [1, 3, 4, 6, 8, 9, 10, 11, 12, 13, 14]
-    },
-    {
-        "name": "contratacoes_proposta",
-        "path": "/v1/contratacoes/proposta",
-        "description": "Contratações com Recebimento de Propostas Aberto",
-        "date_params": ["dataFinal"],
-        "required_params": ["pagina", "tamanhoPagina"],
-        "optional_params": ["codigoModalidadeContratacao", "uf", "codigoMunicipioIbge", "cnpj", "codigoUnidadeAdministrativa", "idUsuario"],
-        "max_page_size": 50,
-        "default_page_size": 50,
-        "supports_date_range": False
     },
     {
         "name": "atas_periodo",
@@ -100,7 +65,7 @@ PNCP_ENDPOINTS = [
         "required_params": ["pagina", "tamanhoPagina"],
         "optional_params": ["idUsuario", "cnpj", "codigoUnidadeAdministrativa"],
         "max_page_size": 500,
-        "default_page_size": 100,
+        "default_page_size": 500,
         "supports_date_range": True
     },
     {
@@ -111,29 +76,7 @@ PNCP_ENDPOINTS = [
         "required_params": ["pagina", "tamanhoPagina"],
         "optional_params": ["idUsuario", "cnpj", "codigoUnidadeAdministrativa"],
         "max_page_size": 500,
-        "default_page_size": 100,
-        "supports_date_range": True
-    },
-    {
-        "name": "instrumentos_cobranca",
-        "path": "/v1/instrumentoscobranca/inclusao",
-        "description": "Instrumentos de Cobrança por Data de Inclusão",
-        "date_params": ["dataInicial", "dataFinal"],
-        "required_params": ["pagina", "tamanhoPagina"],
-        "optional_params": ["tipoInstrumentoCobranca", "cnpjOrgao"],
-        "max_page_size": 100,
-        "default_page_size": 100,
-        "supports_date_range": True
-    },
-    {
-        "name": "pca_atualizacao",
-        "path": "/v1/pca/atualizacao",
-        "description": "PCA por Data de Atualização Global",
-        "date_params": ["dataInicio", "dataFim"],
-        "required_params": ["pagina", "tamanhoPagina"],
-        "optional_params": ["cnpj", "codigoUnidade"],
-        "max_page_size": 500,
-        "default_page_size": 100,
+        "default_page_size": 500,
         "supports_date_range": True
     }
 ]
@@ -149,8 +92,42 @@ class SimplePNCPExtractor:
             timeout=REQUEST_TIMEOUT,
             headers={"User-Agent": USER_AGENT}
         )
+        # Add async client for concurrent requests
+        self.async_client = None
         self.run_id = str(uuid.uuid4())
+        
+        # Request tracking for progress and metrics
+        self.total_requests_made = 0
+        self.total_pages_processed = 0
+        self.total_pages_expected = 0
+        self.extraction_start_time = None
+        
         self._init_database()
+        
+    def _start_extraction_timer(self):
+        """Start the extraction timer for RPS calculations."""
+        self.extraction_start_time = time.time()
+        self.total_requests_made = 0
+        self.total_pages_processed = 0
+        self.total_pages_expected = 0
+        console.print("📊 [dim]Starting page and RPS tracking...[/dim]")
+        
+    def _get_rps(self) -> float:
+        """Calculate current requests per second."""
+        if self.extraction_start_time is None or self.total_requests_made == 0:
+            return 0.0
+        elapsed = time.time() - self.extraction_start_time
+        return self.total_requests_made / elapsed if elapsed > 0 else 0.0
+        
+    def _get_progress_info(self) -> Dict[str, Any]:
+        """Get current progress information."""
+        return {
+            "pages_processed": self.total_pages_processed,
+            "pages_expected": self.total_pages_expected,
+            "requests_made": self.total_requests_made,
+            "rps": self._get_rps(),
+            "progress_percent": (self.total_pages_processed / self.total_pages_expected * 100) if self.total_pages_expected > 0 else 0
+        }
         
     def _init_database(self):
         """Initialize database with simplified PSA schema."""
@@ -280,12 +257,77 @@ class SimplePNCPExtractor:
             "is_complete": False  # Will be determined by caller
         }
         
+    async def _init_async_client(self):
+        """Initialize async HTTP client."""
+        if self.async_client is None:
+            self.async_client = httpx.AsyncClient(
+                base_url=self.base_url,
+                timeout=REQUEST_TIMEOUT,
+                headers={"User-Agent": USER_AGENT},
+                limits=httpx.Limits(max_connections=10, max_keepalive_connections=5)
+            )
+
+    async def _make_request_async(self, endpoint: Dict[str, Any], params: Dict[str, Any]) -> Dict[str, Any]:
+        """Make async HTTP request to PNCP API endpoint."""
+        try:
+            # Rate limiting with async sleep
+            await asyncio.sleep(RATE_LIMIT_DELAY)
+            
+            if self.async_client is None:
+                await self._init_async_client()
+            
+            # Track request
+            self.total_requests_made += 1
+            
+            response = await self.async_client.get(endpoint["path"], params=params)
+            
+            # Track page processed if successful
+            if response.status_code == 200:
+                self.total_pages_processed += 1
+            
+            # Parse response content if possible
+            response_content = response.text
+            total_records = 0
+            total_pages = 0
+            
+            if response.status_code == 200:
+                try:
+                    json_data = response.json()
+                    total_records = json_data.get("totalRegistros", 0)
+                    total_pages = json_data.get("totalPaginas", 0)
+                except Exception:
+                    pass
+            
+            return {
+                "status_code": response.status_code,
+                "content": response_content,
+                "headers": dict(response.headers),
+                "total_records": total_records,
+                "total_pages": total_pages
+            }
+            
+        except Exception as e:
+            return {
+                "status_code": 0,
+                "content": f"Error: {str(e)}",
+                "headers": {},
+                "total_records": 0,
+                "total_pages": 0
+            }
+
     def _make_request(self, endpoint: Dict[str, Any], params: Dict[str, Any]) -> Dict[str, Any]:
         """Make HTTP request to PNCP API endpoint."""
         try:
             time.sleep(RATE_LIMIT_DELAY)  # Rate limiting
             
+            # Track request
+            self.total_requests_made += 1
+            
             response = self.client.get(endpoint["path"], params=params)
+            
+            # Track page processed if successful
+            if response.status_code == 200:
+                self.total_pages_processed += 1
             
             # Parse response content if possible
             response_content = response.text
@@ -379,8 +421,8 @@ class SimplePNCPExtractor:
             params.get("tamanhoPagina", endpoint["default_page_size"])
         ])
         
-    def extract_endpoint_date_range(self, endpoint: Dict[str, Any], start_date: datetime, end_date: datetime) -> Dict[str, Any]:
-        """Extract all data from a single endpoint for a date range."""
+    async def extract_endpoint_date_range(self, endpoint: Dict[str, Any], start_date: datetime, end_date: datetime) -> Dict[str, Any]:
+        """Extract all data from a single endpoint for a date range with concurrent modalidade processing."""
         results = {
             "endpoint": endpoint["name"],
             "start_date": start_date.date(),
@@ -394,29 +436,44 @@ class SimplePNCPExtractor:
             "resumed_count": 0
         }
         
-        # Handle endpoints that require modalidade iteration
+        # Handle endpoints based on modalidade strategy
         if "modalidades" in endpoint:
-            for modalidade in endpoint["modalidades"]:
-                modalidade_results = self._extract_endpoint_modalidade_range(endpoint, start_date, end_date, modalidade)
-                results["total_requests"] += modalidade_results["total_requests"]
-                results["total_records"] += modalidade_results["total_records"]
-                results["success_requests"] += modalidade_results["success_requests"]
-                results["error_requests"] += modalidade_results["error_requests"]
+            modalidade_strategy = endpoint.get("modalidade_strategy", "required_individual")
+            
+            if modalidade_strategy == "optional_unrestricted":
+                # Try unrestricted extraction first (no modalidade parameter)
+                console.print(f"    🔍 [blue]Trying unrestricted extraction for {endpoint['name']}[/blue]")
+                unrestricted_results = await self._extract_endpoint_modalidade_range_async(endpoint, start_date, end_date, None)
                 
-                if modalidade_results.get("skipped"):
-                    results["skipped_count"] += 1
-                if modalidade_results.get("resumed"):
-                    results["resumed_count"] += 1
+                if unrestricted_results["success_requests"] > 0 and unrestricted_results["total_records"] > 0:
+                    # Unrestricted extraction succeeded and has data
+                    console.print(f"    ✅ [green]Unrestricted extraction successful: {unrestricted_results['total_records']:,} records[/green]")
+                    results["total_requests"] += unrestricted_results["total_requests"]
+                    results["total_records"] += unrestricted_results["total_records"]
+                    results["success_requests"] += unrestricted_results["success_requests"]
+                    results["error_requests"] += unrestricted_results["error_requests"]
                     
-                results["modalidades_processed"].append({
-                    "modalidade": modalidade,
-                    "records": modalidade_results["total_records"],
-                    "skipped": modalidade_results.get("skipped", False),
-                    "resumed": modalidade_results.get("resumed", False)
-                })
+                    if unrestricted_results.get("skipped"):
+                        results["skipped_count"] += 1
+                    if unrestricted_results.get("resumed"):
+                        results["resumed_count"] += 1
+                        
+                    results["modalidades_processed"].append({
+                        "modalidade": "unrestricted",
+                        "records": unrestricted_results["total_records"],
+                        "skipped": unrestricted_results.get("skipped", False),
+                        "resumed": unrestricted_results.get("resumed", False)
+                    })
+                else:
+                    # Unrestricted failed, fallback to individual modalidades
+                    console.print(f"    ⚠️ [yellow]Unrestricted extraction failed (success: {unrestricted_results['success_requests']}, records: {unrestricted_results['total_records']}, errors: {unrestricted_results['error_requests']}), falling back to individual modalidades[/yellow]")
+                    await self._process_individual_modalidades(endpoint, start_date, end_date, results)
+            else:
+                # Default: process individual modalidades
+                await self._process_individual_modalidades(endpoint, start_date, end_date, results)
         else:
             # Regular endpoint without modalidade
-            modalidade_results = self._extract_endpoint_modalidade_range(endpoint, start_date, end_date, None)
+            modalidade_results = await self._extract_endpoint_modalidade_range_async(endpoint, start_date, end_date, None)
             results["total_requests"] += modalidade_results["total_requests"]
             results["total_records"] += modalidade_results["total_records"]
             results["success_requests"] += modalidade_results["success_requests"]
@@ -428,6 +485,44 @@ class SimplePNCPExtractor:
                 results["resumed_count"] += 1
             
         return results
+
+    async def _process_individual_modalidades(self, endpoint: Dict[str, Any], start_date: datetime, end_date: datetime, results: Dict[str, Any]):
+        """Process modalidades individually with concurrent execution."""
+        # Process modalidades concurrently
+        modalidade_tasks = []
+        for modalidade in endpoint["modalidades"]:
+            task = self._extract_endpoint_modalidade_range_async(endpoint, start_date, end_date, modalidade)
+            modalidade_tasks.append(task)
+        
+        # Wait for all modalidades to complete
+        modalidade_results_list = await asyncio.gather(*modalidade_tasks, return_exceptions=True)
+        
+        # Process results
+        for i, modalidade_results in enumerate(modalidade_results_list):
+            modalidade = endpoint["modalidades"][i]
+            
+            # Handle exceptions
+            if isinstance(modalidade_results, Exception):
+                console.print(f"❌ Error processing modalidade {modalidade}: {modalidade_results}")
+                results["error_requests"] += 1
+                continue
+            
+            results["total_requests"] += modalidade_results["total_requests"]
+            results["total_records"] += modalidade_results["total_records"]
+            results["success_requests"] += modalidade_results["success_requests"]
+            results["error_requests"] += modalidade_results["error_requests"]
+            
+            if modalidade_results.get("skipped"):
+                results["skipped_count"] += 1
+            if modalidade_results.get("resumed"):
+                results["resumed_count"] += 1
+                
+            results["modalidades_processed"].append({
+                "modalidade": modalidade,
+                "records": modalidade_results["total_records"],
+                "skipped": modalidade_results.get("skipped", False),
+                "resumed": modalidade_results.get("resumed", False)
+            })
 
     def extract_endpoint_data(self, endpoint: Dict[str, Any], data_date: datetime) -> Dict[str, Any]:
         """Extract all data from a single endpoint for a specific date."""
@@ -538,10 +633,19 @@ class SimplePNCPExtractor:
             total_pages = response_data["total_pages"]
             results["total_records"] = response_data["total_records"]
             
-            # Show progress for date range
+            # Track expected pages for progress display
+            self.total_pages_expected += total_pages
+            
+            # Show progress for date range with URL pattern
+            endpoint_url = f"{PNCP_BASE_URL}{endpoint['path']}"
+            sample_params = {k: v for k, v in params.items() if k != 'pagina'}
+            sample_params['pagina'] = '[1-N]'
+            url_pattern = f"{endpoint_url}?{'&'.join([f'{k}={v}' for k, v in sample_params.items()])}"
+            
             console.print(f"    🔄 [green]Extracting {endpoint['name']} {start_date.date()}-{end_date.date()}" + 
                         (f" modalidade={modalidade}" if modalidade else "") + 
                         f" - {total_pages} pages, {results['total_records']:,} records[/green]")
+            console.print(f"    🌐 [dim cyan]URL: {url_pattern}[/dim cyan]")
         else:
             results["error_requests"] += 1
             total_pages = 1  # Still store the error response
@@ -549,21 +653,158 @@ class SimplePNCPExtractor:
         # Store first response with date range metadata
         self._store_response_range(endpoint, params, response_data, start_date, end_date, modalidade)
         
-        # Get remaining pages if there are more
+        # Get remaining pages if there are more - process concurrently
         if total_pages > 1:
-            for page in range(2, total_pages + 1):
-                params["pagina"] = page
-                response_data = self._make_request(endpoint, params)
-                results["total_requests"] += 1
+            # Process pages concurrently for better performance
+            remaining_pages = list(range(2, total_pages + 1))
+            concurrent_results = asyncio.run(self._fetch_pages_concurrently(
+                endpoint, params, remaining_pages, start_date, end_date, modalidade
+            ))
+            
+            # Aggregate results from concurrent processing
+            results["total_requests"] += concurrent_results["total_requests"]
+            results["success_requests"] += concurrent_results["success_requests"]
+            results["error_requests"] += concurrent_results["error_requests"]
                 
-                if response_data["status_code"] == 200:
-                    results["success_requests"] += 1
-                else:
-                    results["error_requests"] += 1
-                    
-                # Store response with date range metadata
+        return results
+
+    async def _extract_endpoint_modalidade_range_async(self, endpoint: Dict[str, Any], start_date: datetime, end_date: datetime, modalidade: Optional[int]) -> Dict[str, Any]:
+        """Async version of _extract_endpoint_modalidade_range for concurrent modalidade processing."""
+        results = {
+            "total_requests": 0,
+            "total_records": 0,
+            "success_requests": 0,
+            "error_requests": 0,
+            "skipped": False,
+            "resumed": False
+        }
+        
+        # Check if we already have complete data for this combination
+        existing = self._check_existing_extraction_range(endpoint, start_date, end_date, modalidade)
+        
+        # Build base parameters for date range
+        params = {
+            "pagina": 1,
+            "tamanhoPagina": endpoint["default_page_size"]
+        }
+        
+        # Add date parameters for the full range
+        if endpoint["supports_date_range"]:
+            if "dataInicio" in endpoint["date_params"]:
+                params["dataInicio"] = self._format_date(start_date)
+                params["dataFim"] = self._format_date(end_date)
+            else:
+                params["dataInicial"] = self._format_date(start_date)
+                params["dataFinal"] = self._format_date(end_date)
+        else:
+            # For endpoints like proposta that only use dataFinal, use end_date
+            params["dataFinal"] = self._format_date(end_date)
+        
+        # Add modalidade if required
+        if modalidade is not None:
+            params["codigoModalidadeContratacao"] = modalidade
+        
+        # Check if this exact date range extraction is complete
+        if existing["success_responses"] > 0:
+            max_pages = existing["max_total_pages"]
+            pages_fetched = existing["unique_pages_fetched"]
+            
+            if max_pages > 0 and pages_fetched >= max_pages:
+                console.print(f"    ✅ [cyan]Skipping {endpoint['name']} {start_date.date()}-{end_date.date()}" + 
+                            (f" modalidade={modalidade}" if modalidade else "") + 
+                            f" - already complete ({pages_fetched}/{max_pages} pages)[/cyan]")
+                results["skipped"] = True
+                results["total_records"] = existing["total_records"]
+                results["success_requests"] = existing["success_responses"]
+                return results
+        
+        # If we have no existing data or incomplete data, extract fresh
+        # Make first request to get total pages (async version)
+        response_data = await self._make_request_async(endpoint, params)
+        results["total_requests"] += 1
+        
+        if response_data["status_code"] == 200:
+            results["success_requests"] += 1
+            total_pages = response_data["total_pages"]
+            results["total_records"] = response_data["total_records"]
+            
+            # Track expected pages for progress display
+            self.total_pages_expected += total_pages
+            
+            # Show progress for date range with URL pattern
+            endpoint_url = f"{PNCP_BASE_URL}{endpoint['path']}"
+            sample_params = {k: v for k, v in params.items() if k != 'pagina'}
+            sample_params['pagina'] = '[1-N]'
+            url_pattern = f"{endpoint_url}?{'&'.join([f'{k}={v}' for k, v in sample_params.items()])}"
+            
+            console.print(f"    🔄 [green]Extracting {endpoint['name']} {start_date.date()}-{end_date.date()}" + 
+                        (f" modalidade={modalidade}" if modalidade else "") + 
+                        f" - {total_pages} pages, {results['total_records']:,} records[/green]")
+            console.print(f"    🌐 [dim cyan]URL: {url_pattern}[/dim cyan]")
+        else:
+            results["error_requests"] += 1
+            total_pages = 1  # Still store the error response
+            
+        # Store first response with date range metadata
+        self._store_response_range(endpoint, params, response_data, start_date, end_date, modalidade)
+        
+        # Get remaining pages if there are more - process concurrently
+        if total_pages > 1:
+            # Process pages concurrently for better performance
+            remaining_pages = list(range(2, total_pages + 1))
+            concurrent_results = await self._fetch_pages_concurrently(
+                endpoint, params, remaining_pages, start_date, end_date, modalidade
+            )
+            
+            # Aggregate results from concurrent processing
+            results["total_requests"] += concurrent_results["total_requests"]
+            results["success_requests"] += concurrent_results["success_requests"]
+            results["error_requests"] += concurrent_results["error_requests"]
+                
+        return results
+
+    async def _fetch_pages_concurrently(self, endpoint: Dict[str, Any], base_params: Dict[str, Any], 
+                                       page_numbers: List[int], start_date: datetime, end_date: datetime, 
+                                       modalidade: Optional[int] = None, max_concurrent: int = 5) -> Dict[str, Any]:
+        """Fetch multiple pages concurrently with controlled concurrency."""
+        results = {
+            "total_requests": 0,
+            "success_requests": 0,
+            "error_requests": 0
+        }
+        
+        # Create semaphore to limit concurrent requests
+        semaphore = asyncio.Semaphore(max_concurrent)
+        
+        async def fetch_single_page(page_num: int) -> Dict[str, Any]:
+            async with semaphore:
+                # Create new params dict for this page
+                params = base_params.copy()
+                params["pagina"] = page_num
+                
+                # Make async request
+                response_data = await self._make_request_async(endpoint, params)
+                
+                # Store response (note: this is still synchronous database write)
                 self._store_response_range(endpoint, params, response_data, start_date, end_date, modalidade)
                 
+                return {
+                    "status_code": response_data["status_code"],
+                    "page": page_num
+                }
+        
+        # Execute all page requests concurrently
+        tasks = [fetch_single_page(page) for page in page_numbers]
+        page_results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Aggregate results
+        for result in page_results:
+            results["total_requests"] += 1
+            if isinstance(result, dict) and result.get("status_code") == 200:
+                results["success_requests"] += 1
+            else:
+                results["error_requests"] += 1
+        
         return results
     
     def _extract_endpoint_modalidade(self, endpoint: Dict[str, Any], data_date: datetime, modalidade: Optional[int]) -> Dict[str, Any]:
@@ -712,12 +953,15 @@ class SimplePNCPExtractor:
                 
         return results
     
-    def extract_all_data(self, start_date: datetime, end_date: datetime) -> Dict[str, Any]:
+    async def extract_all_data(self, start_date: datetime, end_date: datetime) -> Dict[str, Any]:
         """Extract data from all endpoints for a date range."""
         console.print(Panel("🔄 Starting PNCP Data Extraction", style="bold blue"))
         console.print(f"📅 Date Range: {start_date.date()} to {end_date.date()}")
         console.print(f"🆔 Run ID: {self.run_id}")
         console.print(f"📊 Endpoints: {len(PNCP_ENDPOINTS)}")
+        
+        # Start extraction timer for RPS tracking
+        self._start_extraction_timer()
         
         total_results = {
             "run_id": self.run_id,
@@ -756,26 +1000,8 @@ class SimplePNCPExtractor:
                 "endpoints": []
             }
             
-            # Process each endpoint for this date range chunk
-            with Progress() as progress:
-                task = progress.add_task(f"[green]Processing chunk {chunk_number} ({days_in_chunk} days)", total=len(PNCP_ENDPOINTS))
-                
-                for endpoint in PNCP_ENDPOINTS:
-                    progress.update(task, description=f"[green]{endpoint['name']}")
-                    
-                    endpoint_results = self.extract_endpoint_date_range(endpoint, current_start, chunk_end)
-                    
-                    chunk_results["total_requests"] += endpoint_results["total_requests"]
-                    chunk_results["total_records"] += endpoint_results["total_records"]
-                    chunk_results["success_requests"] += endpoint_results["success_requests"]
-                    chunk_results["error_requests"] += endpoint_results["error_requests"]
-                    chunk_results["endpoints"].append(endpoint_results)
-                    
-                    # Track resume/skip statistics
-                    total_results["skipped_extractions"] += endpoint_results["skipped_count"]
-                    total_results["resumed_extractions"] += endpoint_results["resumed_count"]
-                    
-                    progress.advance(task)
+            # Process each endpoint for this date range chunk with individual progress bars
+            await self._extract_chunk_with_progress_bars(chunk_results, total_results, current_start, chunk_end, chunk_number, days_in_chunk)
             
             total_results["total_requests"] += chunk_results["total_requests"]
             total_results["total_records"] += chunk_results["total_records"]
@@ -789,9 +1015,220 @@ class SimplePNCPExtractor:
         
         self._print_summary(total_results)
         return total_results
+
+    async def _extract_chunk_with_progress_bars(self, chunk_results: Dict[str, Any], total_results: Dict[str, Any], 
+                                               start_date: datetime, end_date: datetime, chunk_number: int, days_in_chunk: int):
+        """Extract data with individual progress bars for each URL pattern."""
+        from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn
+        
+        console.print(f"\n📅 Processing Date Range Chunk {chunk_number}: {start_date.date()} to {end_date.date()} ({days_in_chunk} days)")
+        
+        # Step 1: Discover all URL patterns and create progress bars
+        url_patterns = []
+        pattern_tasks = {}
+        
+        for endpoint in PNCP_ENDPOINTS:
+            if "modalidades" in endpoint and endpoint.get("modalidade_strategy") != "optional_unrestricted":
+                # Create a pattern for each modalidade
+                for modalidade in endpoint["modalidades"]:
+                    pattern_id = f"{endpoint['name']}_mod_{modalidade}"
+                    pattern_name = f"{endpoint['name']} (modalidade {modalidade})"
+                    url_patterns.append({
+                        "id": pattern_id,
+                        "name": pattern_name,
+                        "endpoint": endpoint,
+                        "modalidade": modalidade
+                    })
+            else:
+                # Single pattern for endpoint without modalidades
+                pattern_id = endpoint['name']
+                pattern_name = endpoint['name']
+                url_patterns.append({
+                    "id": pattern_id,
+                    "name": pattern_name,
+                    "endpoint": endpoint,
+                    "modalidade": None
+                })
+        
+        # Step 2: Create progress bars and make first requests to set totals
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(bar_width=None),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            TextColumn("•"),
+            TextColumn("[cyan]{task.completed}/{task.total} pages"),
+            TimeElapsedColumn(),
+            console=console,
+            refresh_per_second=4
+        ) as progress:
+            
+            # Create progress bars and make discovery requests
+            discovery_tasks = []
+            for pattern in url_patterns:
+                task_id = progress.add_task(
+                    f"[blue]{pattern['name']}[/blue]",
+                    total=None,  # Will be set after first request
+                    start=False
+                )
+                pattern_tasks[pattern['id']] = task_id
+                
+                # Create async task for discovery
+                discovery_task = self._discover_pattern_total(pattern, start_date, end_date, progress, task_id)
+                discovery_tasks.append(discovery_task)
+            
+            # Wait for all discovery requests to complete
+            pattern_results = await asyncio.gather(*discovery_tasks, return_exceptions=True)
+            
+            # Step 3: Process remaining pages for all patterns concurrently
+            extraction_tasks = []
+            for pattern, result in zip(url_patterns, pattern_results):
+                if isinstance(result, Exception):
+                    console.print(f"❌ Discovery failed for {pattern['name']}: {result}")
+                    continue
+                    
+                if result["total_pages"] > 1:
+                    # Extract remaining pages
+                    task = self._extract_pattern_pages(pattern, start_date, end_date, result, progress, pattern_tasks[pattern['id']])
+                    extraction_tasks.append(task)
+            
+            # Wait for all extractions to complete
+            if extraction_tasks:
+                extraction_results = await asyncio.gather(*extraction_tasks, return_exceptions=True)
+                
+                # Aggregate results
+                for result in extraction_results:
+                    if isinstance(result, Exception):
+                        console.print(f"❌ Extraction failed: {result}")
+                        continue
+                    if isinstance(result, dict):
+                        chunk_results["total_requests"] += result.get("total_requests", 0)
+                        chunk_results["total_records"] += result.get("total_records", 0)
+                        chunk_results["success_requests"] += result.get("success_requests", 0)
+                        chunk_results["error_requests"] += result.get("error_requests", 0)
+
+    async def _discover_pattern_total(self, pattern: Dict[str, Any], start_date: datetime, end_date: datetime, progress, task_id) -> Dict[str, Any]:
+        """Make first request to discover total pages for a URL pattern."""
+        endpoint = pattern["endpoint"]
+        modalidade = pattern["modalidade"]
+        
+        # Build parameters
+        params = {
+            "pagina": 1,
+            "tamanhoPagina": endpoint["default_page_size"]
+        }
+        
+        # Add date parameters
+        if endpoint["supports_date_range"]:
+            if "dataInicio" in endpoint["date_params"]:
+                params["dataInicio"] = self._format_date(start_date)
+                params["dataFim"] = self._format_date(end_date)
+            else:
+                params["dataInicial"] = self._format_date(start_date)
+                params["dataFinal"] = self._format_date(end_date)
+        else:
+            params["dataFinal"] = self._format_date(end_date)
+        
+        # Add modalidade if required
+        if modalidade is not None:
+            params["codigoModalidadeContratacao"] = modalidade
+        
+        # Make discovery request
+        response_data = await self._make_request_async(endpoint, params)
+        
+        if response_data["status_code"] == 200:
+            total_pages = response_data["total_pages"]
+            total_records = response_data["total_records"]
+            
+            # Update progress bar with discovered total
+            progress.update(task_id, total=total_pages, completed=1)
+            progress.start_task(task_id)
+            
+            # Show URL and stats
+            endpoint_url = f"{PNCP_BASE_URL}{endpoint['path']}"
+            sample_params = {k: v for k, v in params.items() if k != 'pagina'}
+            sample_params['pagina'] = '[1-N]'
+            url_pattern = f"{endpoint_url}?{'&'.join([f'{k}={v}' for k, v in sample_params.items()])}"
+            console.print(f"🌐 [dim cyan]{pattern['name']}: {total_pages} pages, {total_records:,} records[/dim cyan]")
+            console.print(f"   [dim]{url_pattern}[/dim]")
+            
+            # Store first response
+            self._store_response_range(endpoint, params, response_data, start_date, end_date, modalidade)
+            
+            return {
+                "total_pages": total_pages,
+                "total_records": total_records,
+                "params": params,
+                "success": True
+            }
+        else:
+            progress.update(task_id, total=1, completed=1)
+            progress.start_task(task_id)
+            console.print(f"❌ [red]{pattern['name']}: Failed with status {response_data['status_code']}[/red]")
+            return {
+                "total_pages": 1,
+                "total_records": 0,
+                "params": params,
+                "success": False
+            }
+
+    async def _extract_pattern_pages(self, pattern: Dict[str, Any], start_date: datetime, end_date: datetime, 
+                                   discovery_result: Dict[str, Any], progress, task_id) -> Dict[str, Any]:
+        """Extract remaining pages for a URL pattern with progress updates."""
+        endpoint = pattern["endpoint"]
+        modalidade = pattern["modalidade"]
+        total_pages = discovery_result["total_pages"]
+        base_params = discovery_result["params"]
+        
+        results = {
+            "total_requests": 1,  # Include discovery request
+            "total_records": discovery_result["total_records"],
+            "success_requests": 1 if discovery_result["success"] else 0,
+            "error_requests": 0 if discovery_result["success"] else 1
+        }
+        
+        if total_pages > 1:
+            # Extract remaining pages concurrently
+            remaining_pages = list(range(2, total_pages + 1))
+            
+            # Use semaphore to limit concurrent requests per pattern
+            semaphore = asyncio.Semaphore(3)  # 3 concurrent requests per pattern
+            
+            async def fetch_single_page(page_num: int) -> Dict[str, Any]:
+                async with semaphore:
+                    params = base_params.copy()
+                    params["pagina"] = page_num
+                    
+                    response_data = await self._make_request_async(endpoint, params)
+                    self._store_response_range(endpoint, params, response_data, start_date, end_date, modalidade)
+                    
+                    # Update progress bar
+                    progress.advance(task_id)
+                    
+                    return {
+                        "status_code": response_data["status_code"],
+                        "page": page_num
+                    }
+            
+            # Execute all page requests concurrently
+            tasks = [fetch_single_page(page) for page in remaining_pages]
+            page_results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # Aggregate results
+            for result in page_results:
+                results["total_requests"] += 1
+                if isinstance(result, dict) and result.get("status_code") == 200:
+                    results["success_requests"] += 1
+                else:
+                    results["error_requests"] += 1
+        
+        return results
     
     def _print_summary(self, results: Dict[str, Any]):
-        """Print extraction summary."""
+        """Print extraction summary with performance metrics."""
+        final_progress = self._get_progress_info()
+        total_time = time.time() - self.extraction_start_time if self.extraction_start_time else 0
+        
         table = Table(title="🔍 PNCP Data Extraction Summary")
         
         table.add_column("Metric", style="cyan")
@@ -800,9 +1237,12 @@ class SimplePNCPExtractor:
         table.add_row("Run ID", results["run_id"])
         table.add_row("Date Range", f"{results['start_date']} to {results['end_date']}")
         table.add_row("Total Requests", f"{results['total_requests']:,}")
+        table.add_row("Total Pages", f"{final_progress['pages_processed']:,}")
         table.add_row("Total Records", f"{results['total_records']:,}")
         table.add_row("Success Requests", f"{results['success_requests']:,}")
         table.add_row("Error Requests", f"{results['error_requests']:,}")
+        table.add_row("Avg RPS", f"{final_progress['rps']:.2f}")
+        table.add_row("Total Time", f"{total_time:.1f}s")
         
         # Add resume/skip statistics
         if results.get("skipped_extractions", 0) > 0:
@@ -857,6 +1297,12 @@ class SimplePNCPExtractor:
         """Cleanup."""
         if hasattr(self, 'client'):
             self.client.close()
+        if hasattr(self, 'async_client') and self.async_client:
+            # Close async client if it exists
+            try:
+                asyncio.run(self.async_client.aclose())
+            except Exception:
+                pass  # May fail if event loop is already closed
         if hasattr(self, 'conn'):
             self.conn.close()
 
@@ -867,12 +1313,12 @@ app = typer.Typer()
 @app.command()
 def extract(
     start_date: str = typer.Option(
-        (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d"),
-        help="Start date (YYYY-MM-DD)"
+        "2021-01-01",
+        help="Start date (YYYY-MM-DD) - defaults to 2021-01-01 for full historical extraction"
     ),
     end_date: str = typer.Option(
-        (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d"),
-        help="End date (YYYY-MM-DD)"
+        datetime.now().strftime("%Y-%m-%d"),
+        help="End date (YYYY-MM-DD) - defaults to today"
     )
 ):
     """Extract data from all PNCP endpoints for a date range."""
@@ -888,7 +1334,7 @@ def extract(
         raise typer.Exit(1)
     
     extractor = SimplePNCPExtractor()
-    results = extractor.extract_all_data(start_dt, end_dt)
+    results = asyncio.run(extractor.extract_all_data(start_dt, end_dt))
     
     # Save results to file
     results_file = DATA_DIR / f"extraction_results_{results['run_id']}.json"
