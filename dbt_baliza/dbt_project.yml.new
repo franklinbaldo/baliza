@@ -35,11 +35,11 @@ vars:
   # Database configuration
   database_name: 'baliza'
   psa_schema: 'psa'
-  
+
   # Date range for processing (can be overridden at runtime)
   start_date: '2024-01-01'
   end_date: '2024-12-31'
-  
+
   # Endpoint configurations
   endpoints:
     contratos_publicacao: 'contratos_publicacao'

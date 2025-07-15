@@ -1,0 +1,70 @@
+version: 2
+
+models:
+  - name: bronze_pncp_responses
+    description: "Bronze layer for PNCP raw responses"
+    columns:
+      - name: id
+        description: "Unique identifier for each response"
+        data_type: UUID
+        tests:
+          - not_null
+          - unique
+
+      - name: extracted_at
+        description: "Timestamp when the response was extracted"
+        data_type: TIMESTAMP
+        tests:
+          - not_null
+
+      - name: endpoint_url
+        description: "Full URL that was called"
+        data_type: VARCHAR
+        tests:
+          - not_null
+
+      - name: endpoint_name
+        description: "Name of the endpoint (e.g., contratos_publicacao)"
+        data_type: VARCHAR
+        tests:
+          - not_null
+
+      - name: response_code
+        description: "HTTP response status code"
+        data_type: INTEGER
+        tests:
+          - not_null
+
+      - name: response_content
+        description: "Raw response content as text"
+        data_type: VARCHAR
+        tests:
+          - not_null
+
+      - name: data_date
+        description: "Date for which the data was extracted"
+        data_type: DATE
+        tests:
+          - not_null
+
+      - name: run_id
+        description: "Unique identifier for extraction run"
+        data_type: VARCHAR
+        tests:
+          - not_null
+
+      - name: modalidade
+        description: "Modalidade code for contratacoes endpoints"
+        data_type: INTEGER
+
+      - name: total_records
+        description: "Total number of records in the response"
+        data_type: INTEGER
+
+      - name: total_pages
+        description: "Total number of pages for the query"
+        data_type: INTEGER
+
+      - name: current_page
+        description: "Current page number"
+        data_type: INTEGER

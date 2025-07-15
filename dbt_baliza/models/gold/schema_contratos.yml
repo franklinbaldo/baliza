@@ -1,0 +1,76 @@
+version: 2
+
+models:
+  - name: gld_contratos
+    description: "Gold layer for contracts, selecting and casting columns from the silver layer."
+    columns:
+      - name: response_id
+        description: "Foreign key to the bronze_pncp_responses table"
+        data_type: UUID
+        tests:
+          - not_null
+
+      - name: extracted_at
+        description: "Timestamp when the response was extracted"
+        data_type: TIMESTAMP
+        tests:
+          - not_null
+
+      - name: endpoint_name
+        description: "Name of the endpoint (e.g., contratos_publicacao)"
+        data_type: VARCHAR
+        tests:
+          - not_null
+
+      - name: endpoint_url
+        description: "Full URL that was called"
+        data_type: VARCHAR
+        tests:
+          - not_null
+
+      - name: data_date
+        description: "Date for which the data was extracted"
+        data_type: DATE
+        tests:
+          - not_null
+
+      - name: run_id
+        description: "Unique identifier for extraction run"
+        data_type: VARCHAR
+        tests:
+          - not_null
+
+      - name: modalidade
+        description: "Modalidade code for contratacoes endpoints"
+        data_type: INTEGER
+
+      - name: total_records
+        description: "Total number of records in the response"
+        data_type: INTEGER
+
+      - name: total_pages
+        description: "Total number of pages for the query"
+        data_type: INTEGER
+
+      - name: current_page
+        description: "Current page number"
+        data_type: INTEGER
+
+      - name: record_index
+        description: "Index of the record within the response"
+        data_type: INTEGER
+        tests:
+          - not_null
+
+      - name: numero_controle_pncp
+        description: "Unique identifier for the procurement"
+        data_type: VARCHAR
+        tests:
+          - not_null
+          - unique
+
+      - name: contract_json
+        description: "JSON object for a single contract"
+        data_type: JSON
+        tests:
+          - not_null

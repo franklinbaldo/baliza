@@ -1,57 +1,13 @@
 {{
   config(
     materialized='view',
-    description='Staged raw procurements data from PNCP API responses'
+    description='Gold layer for procurements, selecting and casting columns from the silver layer.'
   )
 }}
 
-WITH raw_responses AS (
+WITH silver_procurements AS (
   SELECT *
-  FROM {{ source('psa', 'pncp_raw_responses') }}
-  WHERE endpoint_name IN ('contratacoes_publicacao', 'contratacoes_atualizacao', 'contratacoes_proposta')
-    AND response_code = 200
-    AND response_content IS NOT NULL
-    AND response_content != ''
-),
-
-parsed_responses AS (
-  SELECT
-    id,
-    extracted_at,
-    endpoint_name,
-    endpoint_url,
-    data_date,
-    run_id,
-    modalidade,
-    total_records,
-    total_pages,
-    current_page,
-    -- Parse the JSON response content
-    TRY_CAST(response_content AS JSON) AS response_json
-  FROM raw_responses
-  WHERE TRY_CAST(response_content AS JSON) IS NOT NULL
-),
-
--- Extract individual procurement records from the data array
-procurement_records AS (
-  SELECT
-    parsed_responses.id AS response_id,
-    parsed_responses.extracted_at,
-    parsed_responses.endpoint_name,
-    parsed_responses.endpoint_url,
-    parsed_responses.data_date,
-    parsed_responses.run_id,
-    parsed_responses.modalidade,
-    parsed_responses.total_records,
-    parsed_responses.total_pages,
-    parsed_responses.current_page,
-    -- Generate a unique key for each procurement record
-    ROW_NUMBER() OVER (PARTITION BY parsed_responses.id ORDER BY procurement_data_table.value) AS record_index,
-    -- Extract individual procurement data
-    procurement_data_table.value AS procurement_data
-  FROM parsed_responses
-  CROSS JOIN json_each(json_extract(parsed_responses.response_json, '$.data')) AS procurement_data_table
-  WHERE json_extract(parsed_responses.response_json, '$.data') IS NOT NULL
+  FROM {{ ref('silver_contratacoes') }}
 )
 
 SELECT
@@ -123,4 +79,4 @@ SELECT
   -- Full procurement data as JSON for fallback
   procurement_data AS procurement_json
 
-FROM procurement_records
+FROM silver_procurements

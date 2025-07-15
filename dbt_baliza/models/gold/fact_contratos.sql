@@ -24,7 +24,7 @@ WITH contracts_with_keys AS (
     subrog_org.org_key AS subrog_org_key,
     subrog_unit.unit_key AS subrog_unit_key
     
-  FROM {{ ref('stg_contratos_raw') }} c
+  FROM {{ ref('gld_contratos') }} c
   
   -- Main organization
   LEFT JOIN {{ ref('dim_organizacoes') }} org
