@@ -285,6 +285,16 @@ class SimplePNCPExtractor:
             if response.status_code == 200:
                 self.total_pages_processed += 1
             
+            # Log error responses with full request details for debugging
+            if response.status_code >= 400:
+                full_url = f"{self.base_url}{endpoint['path']}"
+                param_str = "&".join([f"{k}={v}" for k, v in params.items()])
+                console.print(f"    ❌ [red]HTTP {response.status_code} - {endpoint['name']}[/red]")
+                console.print(f"    🌐 [dim red]Full URL: {full_url}?{param_str}[/dim red]")
+                console.print(f"    📋 [dim red]Parameters: {params}[/dim red]")
+                if response.text and len(response.text) < 500:
+                    console.print(f"    📄 [dim red]Response: {response.text[:200]}[/dim red]")
+            
             # Parse response content if possible
             response_content = response.text
             total_records = 0
@@ -307,6 +317,13 @@ class SimplePNCPExtractor:
             }
             
         except Exception as e:
+            full_url = f"{self.base_url}{endpoint['path']}"
+            param_str = "&".join([f"{k}={v}" for k, v in params.items()])
+            console.print(f"    💥 [red]Request Exception - {endpoint['name']}[/red]")
+            console.print(f"    🌐 [dim red]Full URL: {full_url}?{param_str}[/dim red]")
+            console.print(f"    📋 [dim red]Parameters: {params}[/dim red]")
+            console.print(f"    ⚠️ [dim red]Error: {str(e)}[/dim red]")
+            
             return {
                 "status_code": 0,
                 "content": f"Error: {str(e)}",
@@ -329,6 +346,16 @@ class SimplePNCPExtractor:
             if response.status_code == 200:
                 self.total_pages_processed += 1
             
+            # Log error responses with full request details for debugging
+            if response.status_code >= 400:
+                full_url = f"{self.base_url}{endpoint['path']}"
+                param_str = "&".join([f"{k}={v}" for k, v in params.items()])
+                console.print(f"    ❌ [red]HTTP {response.status_code} - {endpoint['name']}[/red]")
+                console.print(f"    🌐 [dim red]Full URL: {full_url}?{param_str}[/dim red]")
+                console.print(f"    📋 [dim red]Parameters: {params}[/dim red]")
+                if response.text and len(response.text) < 500:
+                    console.print(f"    📄 [dim red]Response: {response.text[:200]}[/dim red]")
+            
             # Parse response content if possible
             response_content = response.text
             total_records = 0
@@ -351,6 +378,13 @@ class SimplePNCPExtractor:
             }
             
         except Exception as e:
+            full_url = f"{self.base_url}{endpoint['path']}"
+            param_str = "&".join([f"{k}={v}" for k, v in params.items()])
+            console.print(f"    💥 [red]Request Exception - {endpoint['name']}[/red]")
+            console.print(f"    🌐 [dim red]Full URL: {full_url}?{param_str}[/dim red]")
+            console.print(f"    📋 [dim red]Parameters: {params}[/dim red]")
+            console.print(f"    ⚠️ [dim red]Error: {str(e)}[/dim red]")
+            
             return {
                 "status_code": 0,
                 "content": f"Error: {str(e)}",
