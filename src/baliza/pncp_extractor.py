@@ -108,7 +108,7 @@ class AsyncPNCPExtractor:
         # Create PSA schema
         self.conn.execute("CREATE SCHEMA IF NOT EXISTS psa")
 
-        # Create raw responses table
+        # Create raw responses table with correct schema
         self.conn.execute("""
             CREATE TABLE IF NOT EXISTS psa.pncp_raw_responses (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
