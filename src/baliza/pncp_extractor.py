@@ -16,7 +16,13 @@ import duckdb
 import httpx
 import typer
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn
+from rich.progress import (
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    BarColumn,
+    TimeElapsedColumn,
+)
 
 console = Console()
 
@@ -26,6 +32,7 @@ CONCURRENCY = 8  # Concurrent requests limit
 PAGE_SIZE = 500  # Maximum page size
 REQUEST_TIMEOUT = 30
 USER_AGENT = "BALIZA/3.0 (Backup Aberto de Licitacoes)"
+BATCH_FLUSH_SIZE = 1000  # Flush batch every N responses
 
 # Data directory
 DATA_DIR = Path.cwd() / "data"
@@ -39,15 +46,15 @@ PNCP_ENDPOINTS = [
         "description": "Contratos por Data de Publicação",
         "date_params": ["dataInicial", "dataFinal"],
         "max_days": 365,
-        "supports_date_range": True
+        "supports_date_range": True,
     },
     {
-        "name": "contratos_atualizacao", 
+        "name": "contratos_atualizacao",
         "path": "/v1/contratos/atualizacao",
         "description": "Contratos por Data de Atualização Global",
         "date_params": ["dataInicial", "dataFinal"],
         "max_days": 365,
-        "supports_date_range": True
+        "supports_date_range": True,
     },
     {
         "name": "atas_periodo",
@@ -55,7 +62,7 @@ PNCP_ENDPOINTS = [
         "description": "Atas de Registro de Preço por Período de Vigência",
         "date_params": ["dataInicial", "dataFinal"],
         "max_days": 365,
-        "supports_date_range": True
+        "supports_date_range": True,
     },
     {
         "name": "atas_atualizacao",
@@ -63,36 +70,44 @@ PNCP_ENDPOINTS = [
         "description": "Atas por Data de Atualização Global",
         "date_params": ["dataInicial", "dataFinal"],
         "max_days": 365,
-        "supports_date_range": True
-    }
+        "supports_date_range": True,
+    },
 ]
 
 
 class AsyncPNCPExtractor:
     """True async PNCP extractor with semaphore back-pressure."""
-    
+
     def __init__(self, concurrency: int = CONCURRENCY):
         self.concurrency = concurrency
         self.semaphore = asyncio.Semaphore(concurrency)
         self.run_id = str(uuid.uuid4())
         self.client = None
-        
+
         # Statistics
         self.total_requests = 0
         self.successful_requests = 0
         self.failed_requests = 0
         self.total_records = 0
-        
+
+        # Batch processing
+        self.batch_buffer = []
+        self.batch_lock = asyncio.Lock()
+
+        # Retry queue for failed 5xx responses
+        self.retry_queue = []
+        self.retry_lock = asyncio.Lock()
+
         self._init_database()
-        
+
     def _init_database(self):
         """Initialize DuckDB with PSA schema."""
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         self.conn = duckdb.connect(str(BALIZA_DB_PATH))
-        
+
         # Create PSA schema
         self.conn.execute("CREATE SCHEMA IF NOT EXISTS psa")
-        
+
         # Create raw responses table
         self.conn.execute("""
             CREATE TABLE IF NOT EXISTS psa.pncp_raw_responses (
@@ -112,36 +127,61 @@ class AsyncPNCPExtractor:
                 page_size INTEGER
             )
         """)
-        
+
         # Create indexes
-        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_endpoint_date_page ON psa.pncp_raw_responses(endpoint_name, data_date, current_page)")
-        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_response_code ON psa.pncp_raw_responses(response_code)")
-        
-    async def _init_client(self):
-        """Initialize HTTP client with optimal settings."""
-        self.client = httpx.AsyncClient(
-            base_url=PNCP_BASE_URL,
-            timeout=REQUEST_TIMEOUT,
-            headers={
-                "User-Agent": USER_AGENT,
-                "Accept-Encoding": "gzip, br",
-                "Accept": "application/json"
-            },
-            # http2=True,  # HTTP/2 support - requires h2 package
-            limits=httpx.Limits(
-                max_connections=self.concurrency * 2,
-                max_keepalive_connections=self.concurrency
-            )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_endpoint_date_page ON psa.pncp_raw_responses(endpoint_name, data_date, current_page)"
         )
-        
-    async def _fetch_with_backpressure(self, url: str, params: Dict[str, Any]) -> Dict[str, Any]:
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_response_code ON psa.pncp_raw_responses(response_code)"
+        )
+
+    async def _init_client(self):
+        """Initialize HTTP client with optimal settings and HTTP/2 fallback."""
+        try:
+            # Try with HTTP/2 first
+            self.client = httpx.AsyncClient(
+                base_url=PNCP_BASE_URL,
+                timeout=REQUEST_TIMEOUT,
+                headers={
+                    "User-Agent": USER_AGENT,
+                    "Accept-Encoding": "gzip, br",
+                    "Accept": "application/json",
+                },
+                http2=True,
+                limits=httpx.Limits(
+                    max_connections=self.concurrency,
+                    max_keepalive_connections=self.concurrency,
+                ),
+            )
+            console.print("✅ HTTP/2 enabled")
+        except ImportError:
+            # Fallback to HTTP/1.1 if h2 not available
+            self.client = httpx.AsyncClient(
+                base_url=PNCP_BASE_URL,
+                timeout=REQUEST_TIMEOUT,
+                headers={
+                    "User-Agent": USER_AGENT,
+                    "Accept-Encoding": "gzip, br",
+                    "Accept": "application/json",
+                },
+                limits=httpx.Limits(
+                    max_connections=self.concurrency,
+                    max_keepalive_connections=self.concurrency,
+                ),
+            )
+            console.print("⚠️ HTTP/2 not available, using HTTP/1.1")
+
+    async def _fetch_with_backpressure(
+        self, url: str, params: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Fetch with semaphore back-pressure and retry logic."""
         async with self.semaphore:
             for attempt in range(3):
                 try:
                     self.total_requests += 1
                     response = await self.client.get(url, params=params)
-                    
+
                     if response.status_code == 200:
                         self.successful_requests += 1
                         data = response.json()
@@ -152,7 +192,7 @@ class AsyncPNCPExtractor:
                             "headers": dict(response.headers),
                             "total_records": data.get("totalRegistros", 0),
                             "total_pages": data.get("totalPaginas", 1),
-                            "content": response.text
+                            "content": response.text,
                         }
                     else:
                         # Log error but don't retry 4xx errors
@@ -163,97 +203,230 @@ class AsyncPNCPExtractor:
                                 "status_code": response.status_code,
                                 "error": f"HTTP {response.status_code}",
                                 "content": response.text,
-                                "headers": dict(response.headers)
+                                "headers": dict(response.headers),
                             }
-                        
+
                         # Retry on 5xx errors
                         if attempt < 2:
-                            await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                            await asyncio.sleep(2**attempt)  # Exponential backoff
                             continue
-                            
+
+                        # Add to retry queue for later processing
+                        await self._add_to_retry_queue(
+                            url, params, response.status_code
+                        )
+
                         self.failed_requests += 1
                         return {
                             "success": False,
                             "status_code": response.status_code,
                             "error": f"HTTP {response.status_code} after {attempt + 1} attempts",
                             "content": response.text,
-                            "headers": dict(response.headers)
+                            "headers": dict(response.headers),
                         }
-                        
+
                 except Exception as e:
                     if attempt < 2:
-                        await asyncio.sleep(2 ** attempt)
+                        await asyncio.sleep(2**attempt)
                         continue
-                    
+
                     self.failed_requests += 1
                     return {
                         "success": False,
                         "status_code": 0,
                         "error": str(e),
                         "content": "",
-                        "headers": {}
+                        "headers": {},
                     }
-                    
+
     def _format_date(self, date_obj: date) -> str:
         """Format date for PNCP API (YYYYMMDD)."""
         return date_obj.strftime("%Y%m%d")
-        
-    def _year_chunks(self, start_date: date, end_date: date, max_days: int = 365) -> List[Tuple[date, date]]:
+
+    def _year_chunks(
+        self, start_date: date, end_date: date, max_days: int = 365
+    ) -> List[Tuple[date, date]]:
         """Generate date chunks of max_days."""
         chunks = []
         current = start_date
-        
+
         while current <= end_date:
             chunk_end = min(current + timedelta(days=max_days - 1), end_date)
             chunks.append((current, chunk_end))
             current = chunk_end + timedelta(days=1)
-            
+
         return chunks
-        
-    def _check_page_exists(self, endpoint_name: str, data_date: date, page: int) -> bool:
+
+    def _check_page_exists(
+        self, endpoint_name: str, data_date: date, page: int
+    ) -> bool:
         """Check if a specific page already exists with success status."""
-        result = self.conn.execute("""
+        result = self.conn.execute(
+            """
             SELECT COUNT(*) FROM psa.pncp_raw_responses 
             WHERE endpoint_name = ? AND data_date = ? AND current_page = ? AND response_code = 200
-        """, [endpoint_name, data_date, page]).fetchone()
-        
+        """,
+            [endpoint_name, data_date, page],
+        ).fetchone()
+
         return (result[0] if result else 0) > 0
-        
+
+    async def _add_to_batch_buffer(self, response: Dict[str, Any]):
+        """Add response to batch buffer and flush if needed."""
+        async with self.batch_lock:
+            self.batch_buffer.append(response)
+            if len(self.batch_buffer) >= BATCH_FLUSH_SIZE:
+                await self._flush_batch_buffer()
+
+    async def _flush_batch_buffer(self):
+        """Flush batch buffer to database."""
+        async with self.batch_lock:
+            if self.batch_buffer:
+                self._batch_store_responses(self.batch_buffer)
+                self.batch_buffer.clear()
+
+    async def _add_to_retry_queue(
+        self, url: str, params: Dict[str, Any], status_code: int
+    ):
+        """Add failed 5xx request to retry queue."""
+        async with self.retry_lock:
+            self.retry_queue.append(
+                {
+                    "url": url,
+                    "params": params,
+                    "status_code": status_code,
+                    "attempts": 0,
+                    "timestamp": time.time(),
+                }
+            )
+
+    async def _process_retry_queue(self) -> int:
+        """Process retry queue and return number of successful retries."""
+        if not self.retry_queue:
+            return 0
+
+        successful_retries = 0
+
+        async with self.retry_lock:
+            retry_tasks = []
+            for retry_item in self.retry_queue:
+                if retry_item["attempts"] < 3:  # Max 3 retry attempts
+                    retry_tasks.append(self._retry_request(retry_item))
+
+            if retry_tasks:
+                retry_results = await asyncio.gather(
+                    *retry_tasks, return_exceptions=True
+                )
+
+                # Process results
+                for result in retry_results:
+                    if isinstance(result, dict) and result.get("success"):
+                        successful_retries += 1
+
+            # Clear processed items
+            self.retry_queue.clear()
+
+        return successful_retries
+
+    async def _retry_request(self, retry_item: Dict[str, Any]) -> Dict[str, Any]:
+        """Retry a single failed request without adding to retry queue."""
+        retry_item["attempts"] += 1
+
+        # Exponential backoff based on attempts
+        await asyncio.sleep(2 ** retry_item["attempts"])
+
+        # Direct HTTP request without retry queue
+        async with self.semaphore:
+            try:
+                self.total_requests += 1
+                response = await self.client.get(
+                    retry_item["url"], params=retry_item["params"]
+                )
+
+                if response.status_code == 200:
+                    self.successful_requests += 1
+                    data = response.json()
+                    return {
+                        "success": True,
+                        "status_code": response.status_code,
+                        "data": data,
+                        "headers": dict(response.headers),
+                        "total_records": data.get("totalRegistros", 0),
+                        "total_pages": data.get("totalPaginas", 1),
+                        "content": response.text,
+                    }
+                else:
+                    self.failed_requests += 1
+                    return {
+                        "success": False,
+                        "status_code": response.status_code,
+                        "error": f"HTTP {response.status_code}",
+                        "content": response.text,
+                        "headers": dict(response.headers),
+                    }
+            except Exception as e:
+                self.failed_requests += 1
+                return {
+                    "success": False,
+                    "status_code": 0,
+                    "error": str(e),
+                    "content": "",
+                    "headers": {},
+                }
+
     def _batch_store_responses(self, responses: List[Dict[str, Any]]):
-        """Store multiple responses in a single batch operation."""
+        """Store multiple responses in a single batch operation with transaction."""
         if not responses:
             return
-            
+
         # Prepare batch data
         batch_data = []
         for resp in responses:
-            batch_data.append([
-                resp["endpoint_url"],
-                resp["endpoint_name"],
-                json.dumps(resp["request_parameters"]),
-                resp["response_code"],
-                resp["response_content"],
-                json.dumps(resp["response_headers"]),
-                resp["data_date"],
-                resp["run_id"],
-                resp["total_records"],
-                resp["total_pages"],
-                resp["current_page"],
-                resp["page_size"]
-            ])
-            
-        # Batch insert
-        self.conn.executemany("""
-            INSERT INTO psa.pncp_raw_responses (
-                endpoint_url, endpoint_name, request_parameters,
-                response_code, response_content, response_headers,
-                data_date, run_id, total_records, total_pages,
-                current_page, page_size
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, batch_data)
-        
-    async def _crawl_endpoint_range(self, endpoint: Dict[str, Any], start_date: date, end_date: date, 
-                                  progress: Progress, task_id: int, force: bool = False) -> Dict[str, Any]:
+            batch_data.append(
+                [
+                    resp["endpoint_url"],
+                    resp["endpoint_name"],
+                    json.dumps(resp["request_parameters"]),
+                    resp["response_code"],
+                    resp["response_content"],
+                    json.dumps(resp["response_headers"]),
+                    resp["data_date"],
+                    resp["run_id"],
+                    resp["total_records"],
+                    resp["total_pages"],
+                    resp["current_page"],
+                    resp["page_size"],
+                ]
+            )
+
+        # Batch insert with transaction
+        self.conn.execute("BEGIN TRANSACTION")
+        try:
+            self.conn.executemany(
+                """
+                INSERT INTO psa.pncp_raw_responses (
+                    endpoint_url, endpoint_name, request_parameters,
+                    response_code, response_content, response_headers,
+                    data_date, run_id, total_records, total_pages,
+                    current_page, page_size
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+                batch_data,
+            )
+            self.conn.execute("COMMIT")
+        except Exception as e:
+            self.conn.execute("ROLLBACK")
+            raise e
+
+    async def _crawl_endpoint_range(
+        self,
+        endpoint: Dict[str, Any],
+        start_date: date,
+        end_date: date,
+        progress: Progress,
+        task_id: int,
+        force: bool = False,
+    ) -> Dict[str, Any]:
         """Crawl a single endpoint for a date range."""
         results = {
             "endpoint_name": endpoint["name"],
@@ -264,48 +437,56 @@ class AsyncPNCPExtractor:
             "failed_requests": 0,
             "total_records": 0,
             "pages_processed": 0,
-            "pages_skipped": 0
+            "pages_skipped": 0,
         }
-        
+
         # Build base parameters
         base_params = {
             "tamanhoPagina": PAGE_SIZE,
             "dataInicial": self._format_date(start_date),
-            "dataFinal": self._format_date(end_date)
+            "dataFinal": self._format_date(end_date),
         }
-        
+
         # Step 1: Fetch first page to discover total pages
         first_page_params = base_params.copy()
         first_page_params["pagina"] = 1
-        
+
         # Check if we should skip this range
         if not force and self._check_page_exists(endpoint["name"], start_date, 1):
-            progress.update(task_id, description=f"[blue]{endpoint['name']}[/blue] - Skipping (exists)")
+            progress.update(
+                task_id,
+                description=f"[blue]{endpoint['name']}[/blue] - Skipping (exists)",
+            )
             results["pages_skipped"] += 1
             return results
-            
+
         # Fetch first page
-        first_response = await self._fetch_with_backpressure(endpoint["path"], first_page_params)
+        first_response = await self._fetch_with_backpressure(
+            endpoint["path"], first_page_params
+        )
         results["total_requests"] += 1
-        
+
         if not first_response["success"]:
             results["failed_requests"] += 1
-            progress.update(task_id, description=f"[red]{endpoint['name']}[/red] - Failed")
+            progress.update(
+                task_id, description=f"[red]{endpoint['name']}[/red] - Failed"
+            )
             return results
-            
+
         total_pages = first_response["total_pages"]
         total_records = first_response["total_records"]
         results["successful_requests"] += 1
         results["total_records"] = total_records
-        
-        # Update progress bar
-        progress.update(task_id, total=total_pages, description=f"[green]{endpoint['name']}[/green] - {total_records:,} records")
-        
-        # Prepare batch storage
-        batch_responses = []
-        
-        # Store first page
-        batch_responses.append({
+
+        # Update progress bar with real total
+        progress.update(
+            task_id,
+            total=total_pages,
+            description=f"[green]{endpoint['name']}[/green] - {total_records:,} records",
+        )
+
+        # Store first page with batch buffering
+        first_page_response = {
             "endpoint_url": f"{PNCP_BASE_URL}{endpoint['path']}",
             "endpoint_name": endpoint["name"],
             "request_parameters": first_page_params,
@@ -317,44 +498,50 @@ class AsyncPNCPExtractor:
             "total_records": first_response["total_records"],
             "total_pages": first_response["total_pages"],
             "current_page": 1,
-            "page_size": PAGE_SIZE
-        })
-        
+            "page_size": PAGE_SIZE,
+        }
+
+        await self._add_to_batch_buffer(first_page_response)
+
         results["pages_processed"] += 1
         progress.update(task_id, advance=1)
-        
+
         # Step 2: Fetch remaining pages concurrently
         if total_pages > 1:
             # Determine which pages to fetch
             pages_to_fetch = []
             for page in range(2, total_pages + 1):
-                if force or not self._check_page_exists(endpoint["name"], start_date, page):
+                if force or not self._check_page_exists(
+                    endpoint["name"], start_date, page
+                ):
                     pages_to_fetch.append(page)
                 else:
                     results["pages_skipped"] += 1
                     progress.update(task_id, advance=1)
-            
+
             # Fetch pages concurrently
             if pages_to_fetch:
                 page_tasks = []
                 for page in pages_to_fetch:
                     page_params = base_params.copy()
                     page_params["pagina"] = page
-                    page_tasks.append(self._fetch_with_backpressure(endpoint["path"], page_params))
-                
+                    page_tasks.append(
+                        self._fetch_with_backpressure(endpoint["path"], page_params)
+                    )
+
                 # Wait for all pages
                 page_responses = await asyncio.gather(*page_tasks)
-                
+
                 # Process results
                 for page_num, response in zip(pages_to_fetch, page_responses):
                     results["total_requests"] += 1
-                    
+
                     if response["success"]:
                         results["successful_requests"] += 1
                         results["pages_processed"] += 1
-                        
-                        # Add to batch
-                        batch_responses.append({
+
+                        # Add to batch buffer
+                        success_response = {
                             "endpoint_url": f"{PNCP_BASE_URL}{endpoint['path']}",
                             "endpoint_name": endpoint["name"],
                             "request_parameters": {**base_params, "pagina": page_num},
@@ -366,13 +553,14 @@ class AsyncPNCPExtractor:
                             "total_records": response.get("total_records", 0),
                             "total_pages": response.get("total_pages", total_pages),
                             "current_page": page_num,
-                            "page_size": PAGE_SIZE
-                        })
+                            "page_size": PAGE_SIZE,
+                        }
+                        await self._add_to_batch_buffer(success_response)
                     else:
                         results["failed_requests"] += 1
-                        
+
                         # Store failed response too
-                        batch_responses.append({
+                        failed_response = {
                             "endpoint_url": f"{PNCP_BASE_URL}{endpoint['path']}",
                             "endpoint_name": endpoint["name"],
                             "request_parameters": {**base_params, "pagina": page_num},
@@ -384,38 +572,43 @@ class AsyncPNCPExtractor:
                             "total_records": 0,
                             "total_pages": total_pages,
                             "current_page": page_num,
-                            "page_size": PAGE_SIZE
-                        })
-                    
+                            "page_size": PAGE_SIZE,
+                        }
+                        await self._add_to_batch_buffer(failed_response)
+
                     progress.update(task_id, advance=1)
-        
-        # Batch store all responses
-        self._batch_store_responses(batch_responses)
-        
+
+        # Flush any remaining responses in buffer
+        await self._flush_batch_buffer()
+
         return results
-        
-    async def extract_data(self, start_date: date, end_date: date, force: bool = False) -> Dict[str, Any]:
+
+    async def extract_data(
+        self, start_date: date, end_date: date, force: bool = False
+    ) -> Dict[str, Any]:
         """Main extraction method with true async architecture."""
         console.print("🚀 Starting Async PNCP Extraction")
         console.print(f"📅 Date Range: {start_date} to {end_date}")
         console.print(f"🔧 Concurrency: {self.concurrency}")
         console.print(f"🆔 Run ID: {self.run_id}")
-        
+
         if force:
-            console.print("⚠️ [yellow]Force mode enabled - will re-extract existing data[/yellow]")
-            
+            console.print(
+                "⚠️ [yellow]Force mode enabled - will re-extract existing data[/yellow]"
+            )
+
         # Initialize client
         await self._init_client()
-        
+
         start_time = time.time()
-        
+
         # Create all endpoint-range combinations
         all_tasks = []
         for endpoint in PNCP_ENDPOINTS:
             date_chunks = self._year_chunks(start_date, end_date, endpoint["max_days"])
             for chunk_start, chunk_end in date_chunks:
                 all_tasks.append((endpoint, chunk_start, chunk_end))
-        
+
         # Create progress bars
         with Progress(
             SpinnerColumn(),
@@ -425,23 +618,30 @@ class AsyncPNCPExtractor:
             TextColumn("•"),
             TextColumn("{task.completed}/{task.total}"),
             TimeElapsedColumn(),
-            console=console
+            console=console,
         ) as progress:
-            
             # Create tasks with progress bars
             extraction_tasks = []
             for endpoint, chunk_start, chunk_end in all_tasks:
                 task_id = progress.add_task(
                     f"[blue]{endpoint['name']}[/blue] {chunk_start} to {chunk_end}",
-                    total=None
+                    total=1,
                 )
-                
-                task = self._crawl_endpoint_range(endpoint, chunk_start, chunk_end, progress, task_id, force)
+
+                task = self._crawl_endpoint_range(
+                    endpoint, chunk_start, chunk_end, progress, task_id, force
+                )
                 extraction_tasks.append(task)
-            
+
             # Run all tasks concurrently
             results = await asyncio.gather(*extraction_tasks)
-        
+
+        # Final flush of any remaining batch buffer
+        await self._flush_batch_buffer()
+
+        # Process retry queue for failed 5xx responses
+        retry_successes = await self._process_retry_queue()
+
         # Aggregate results
         total_results = {
             "run_id": self.run_id,
@@ -450,55 +650,51 @@ class AsyncPNCPExtractor:
             "total_requests": sum(r["total_requests"] for r in results),
             "successful_requests": sum(r["successful_requests"] for r in results),
             "failed_requests": sum(r["failed_requests"] for r in results),
+            "retry_successes": retry_successes,
             "total_records": sum(r["total_records"] for r in results),
             "pages_processed": sum(r["pages_processed"] for r in results),
             "pages_skipped": sum(r["pages_skipped"] for r in results),
             "duration": time.time() - start_time,
-            "endpoints": results
+            "endpoints": results,
         }
-        
+
         # Print summary
         console.print("\n🎉 Extraction Complete!")
         console.print(f"📊 Total Requests: {total_results['total_requests']:,}")
         console.print(f"✅ Successful: {total_results['successful_requests']:,}")
         console.print(f"❌ Failed: {total_results['failed_requests']:,}")
+        console.print(f"🔄 Retry Successes: {total_results['retry_successes']:,}")
         console.print(f"📈 Total Records: {total_results['total_records']:,}")
         console.print(f"⏱️ Duration: {total_results['duration']:.1f}s")
-        console.print(f"🚀 Avg RPS: {total_results['total_requests'] / total_results['duration']:.2f}")
-        
+        console.print(
+            f"🚀 Avg RPS: {total_results['total_requests'] / total_results['duration']:.2f}"
+        )
+
         # Close client
         await self.client.aclose()
-        
+
         return total_results
-        
+
     def __del__(self):
         """Cleanup."""
-        if hasattr(self, 'conn'):
+        if hasattr(self, "conn"):
             self.conn.close()
 
 
 # CLI interface
 app = typer.Typer()
 
+
 @app.command()
 def extract(
-    start_date: str = typer.Option(
-        "2021-01-01",
-        help="Start date (YYYY-MM-DD)"
-    ),
+    start_date: str = typer.Option("2021-01-01", help="Start date (YYYY-MM-DD)"),
     end_date: str = typer.Option(
-        datetime.now().strftime("%Y-%m-%d"),
-        help="End date (YYYY-MM-DD)"
+        datetime.now().strftime("%Y-%m-%d"), help="End date (YYYY-MM-DD)"
     ),
-    concurrency: int = typer.Option(
-        CONCURRENCY,
-        help="Number of concurrent requests"
-    ),
+    concurrency: int = typer.Option(CONCURRENCY, help="Number of concurrent requests"),
     force: bool = typer.Option(
-        False,
-        "--force",
-        help="Force re-extraction even if data exists"
-    )
+        False, "--force", help="Force re-extraction even if data exists"
+    ),
 ):
     """Extract data using true async architecture."""
     try:
@@ -507,40 +703,47 @@ def extract(
     except ValueError:
         console.print("❌ Invalid date format. Use YYYY-MM-DD", style="bold red")
         raise typer.Exit(1)
-    
+
     if start_dt > end_dt:
         console.print("❌ Start date must be before end date", style="bold red")
         raise typer.Exit(1)
-    
+
     async def main():
         extractor = AsyncPNCPExtractor(concurrency=concurrency)
         results = await extractor.extract_data(start_dt, end_dt, force)
-        
+
         # Save results
         results_file = DATA_DIR / f"async_extraction_results_{results['run_id']}.json"
-        with open(results_file, 'w') as f:
+        with open(results_file, "w") as f:
             json.dump(results, f, indent=2, default=str)
-        
+
         console.print(f"📄 Results saved to: {results_file}")
-        
+
     asyncio.run(main())
+
 
 @app.command()
 def stats():
     """Show extraction statistics."""
     conn = duckdb.connect(str(BALIZA_DB_PATH))
-    
+
     # Overall stats
-    total_responses = conn.execute("SELECT COUNT(*) FROM psa.pncp_raw_responses").fetchone()[0]
-    success_responses = conn.execute("SELECT COUNT(*) FROM psa.pncp_raw_responses WHERE response_code = 200").fetchone()[0]
-    
+    total_responses = conn.execute(
+        "SELECT COUNT(*) FROM psa.pncp_raw_responses"
+    ).fetchone()[0]
+    success_responses = conn.execute(
+        "SELECT COUNT(*) FROM psa.pncp_raw_responses WHERE response_code = 200"
+    ).fetchone()[0]
+
     console.print(f"📊 Total Responses: {total_responses:,}")
     console.print(f"✅ Successful: {success_responses:,}")
     console.print(f"❌ Failed: {total_responses - success_responses:,}")
-    
+
     if total_responses > 0:
-        console.print(f"📈 Success Rate: {success_responses / total_responses * 100:.1f}%")
-    
+        console.print(
+            f"📈 Success Rate: {success_responses / total_responses * 100:.1f}%"
+        )
+
     # Endpoint breakdown
     endpoint_stats = conn.execute("""
         SELECT endpoint_name, COUNT(*) as responses, SUM(total_records) as total_records
@@ -549,12 +752,13 @@ def stats():
         GROUP BY endpoint_name
         ORDER BY total_records DESC
     """).fetchall()
-    
+
     console.print("\n📋 Endpoint Statistics:")
     for name, responses, records in endpoint_stats:
         console.print(f"  {name}: {responses:,} responses, {records:,} records")
-    
+
     conn.close()
+
 
 if __name__ == "__main__":
     app()

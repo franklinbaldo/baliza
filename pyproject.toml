@@ -8,6 +8,7 @@ dependencies = [
     "typer",
     "duckdb", # Native Parquet support with built-in compression
     "httpx", # HTTP client for API requests
+    "h2", # HTTP/2 support for httpx
 ]
 
 [project.scripts]
