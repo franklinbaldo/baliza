@@ -271,6 +271,120 @@ class AsyncPNCPExtractor:
 
         return (result[0] if result else 0) > 0
 
+    def _get_existing_page_info(
+        self, endpoint_name: str, data_date: date, page: int
+    ) -> Dict[str, Any] | None:
+        """Get information about an existing page."""
+        result = self.conn.execute(
+            """
+            SELECT total_pages, total_records, response_content 
+            FROM psa.pncp_raw_responses 
+            WHERE endpoint_name = ? AND data_date = ? AND current_page = ? AND response_code = 200
+            LIMIT 1
+        """,
+            [endpoint_name, data_date, page],
+        ).fetchone()
+
+        if result:
+            return {
+                "total_pages": result[0],
+                "total_records": result[1],
+                "content": result[2],
+            }
+        return None
+
+    async def _fetch_missing_pages(
+        self,
+        endpoint: Dict[str, Any],
+        start_date: date,
+        end_date: date,
+        missing_pages: List[int],
+        total_pages: int,
+        progress: Progress,
+        task_id: int,
+        results: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Fetch only the missing pages for a partially complete range."""
+        base_params = {
+            "tamanhoPagina": PAGE_SIZE,
+            "dataInicial": self._format_date(start_date),
+            "dataFinal": self._format_date(end_date),
+        }
+
+        # Get total records from existing first page
+        existing_first_page = self._get_existing_page_info(
+            endpoint["name"], start_date, 1
+        )
+        if existing_first_page:
+            results["total_records"] = existing_first_page.get("total_records", 0)
+
+        # Update progress with correct counts
+        results["pages_skipped"] = total_pages - len(missing_pages)
+
+        # Fetch missing pages concurrently
+        if missing_pages:
+            page_tasks = []
+            for page in missing_pages:
+                page_params = base_params.copy()
+                page_params["pagina"] = page
+                page_tasks.append(
+                    self._fetch_with_backpressure(endpoint["path"], page_params)
+                )
+
+            # Wait for all missing pages
+            page_responses = await asyncio.gather(*page_tasks)
+
+            # Process results
+            for page_num, response in zip(missing_pages, page_responses):
+                results["total_requests"] += 1
+
+                if response["success"]:
+                    results["successful_requests"] += 1
+                    results["pages_processed"] += 1
+
+                    # Add to batch buffer
+                    success_response = {
+                        "endpoint_url": f"{PNCP_BASE_URL}{endpoint['path']}",
+                        "endpoint_name": endpoint["name"],
+                        "request_parameters": {**base_params, "pagina": page_num},
+                        "response_code": response["status_code"],
+                        "response_content": response["content"],
+                        "response_headers": response["headers"],
+                        "data_date": start_date,
+                        "run_id": self.run_id,
+                        "total_records": response.get("total_records", 0),
+                        "total_pages": response.get("total_pages", total_pages),
+                        "current_page": page_num,
+                        "page_size": PAGE_SIZE,
+                    }
+                    await self._add_to_batch_buffer(success_response)
+                else:
+                    results["failed_requests"] += 1
+
+                    # Store failed response too
+                    failed_response = {
+                        "endpoint_url": f"{PNCP_BASE_URL}{endpoint['path']}",
+                        "endpoint_name": endpoint["name"],
+                        "request_parameters": {**base_params, "pagina": page_num},
+                        "response_code": response["status_code"],
+                        "response_content": response["content"],
+                        "response_headers": response["headers"],
+                        "data_date": start_date,
+                        "run_id": self.run_id,
+                        "total_records": 0,
+                        "total_pages": total_pages,
+                        "current_page": page_num,
+                        "page_size": PAGE_SIZE,
+                    }
+                    await self._add_to_batch_buffer(failed_response)
+
+                progress.update(task_id, advance=1)
+
+        # Flush any remaining responses in buffer
+        await self._flush_batch_buffer()
+
+        return results
+
     async def _add_to_batch_buffer(self, response: Dict[str, Any]):
         """Add response to batch buffer and flush if needed."""
         async with self.batch_lock:
@@ -451,14 +565,57 @@ class AsyncPNCPExtractor:
         first_page_params = base_params.copy()
         first_page_params["pagina"] = 1
 
-        # Check if we should skip this range
+        # Check if we should skip this range completely
+        # Only skip if we have page 1 AND we know the total pages from previous runs
         if not force and self._check_page_exists(endpoint["name"], start_date, 1):
-            progress.update(
-                task_id,
-                description=f"[blue]{endpoint['name']}[/blue] - Skipping (exists)",
+            # Get total pages from existing first page
+            existing_first_page = self._get_existing_page_info(
+                endpoint["name"], start_date, 1
             )
-            results["pages_skipped"] += 1
-            return results
+            if existing_first_page:
+                total_pages = existing_first_page.get("total_pages", 1)
+
+                # Check if we have all pages for this range
+                missing_pages = []
+                for page in range(1, total_pages + 1):
+                    if not self._check_page_exists(endpoint["name"], start_date, page):
+                        missing_pages.append(page)
+
+                if not missing_pages:
+                    # We have all pages, skip completely
+                    progress.update(
+                        task_id,
+                        description=f"[blue]{endpoint['name']}[/blue] - Skipping (complete)",
+                    )
+                    results["pages_skipped"] += total_pages
+                    return results
+                else:
+                    # We have partial data, fetch missing pages
+                    progress.update(
+                        task_id,
+                        total=total_pages,
+                        description=f"[yellow]{endpoint['name']}[/yellow] - Partial ({len(missing_pages)} missing)",
+                    )
+
+                    # Fetch missing pages
+                    return await self._fetch_missing_pages(
+                        endpoint,
+                        start_date,
+                        end_date,
+                        missing_pages,
+                        total_pages,
+                        progress,
+                        task_id,
+                        results,
+                    )
+            else:
+                # Page 1 exists but we can't get info, skip
+                progress.update(
+                    task_id,
+                    description=f"[blue]{endpoint['name']}[/blue] - Skipping (exists)",
+                )
+                results["pages_skipped"] += 1
+                return results
 
         # Fetch first page
         first_response = await self._fetch_with_backpressure(
