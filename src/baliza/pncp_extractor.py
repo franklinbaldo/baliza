@@ -585,7 +585,7 @@ class AsyncPNCPExtractor:
                     # We have all pages, skip completely
                     progress.update(
                         task_id,
-                        description=f"[blue]{endpoint['name']}[/blue] - Skipping (complete)",
+                        description=f"[blue]{endpoint['name']}[/blue] {start_date} to {end_date} - Skipping (complete)",
                     )
                     results["pages_skipped"] += total_pages
                     return results
@@ -594,7 +594,7 @@ class AsyncPNCPExtractor:
                     progress.update(
                         task_id,
                         total=total_pages,
-                        description=f"[yellow]{endpoint['name']}[/yellow] - Partial ({len(missing_pages)} missing)",
+                        description=f"[yellow]{endpoint['name']}[/yellow] {start_date} to {end_date} - Partial ({len(missing_pages)} missing)",
                     )
 
                     # Fetch missing pages
@@ -612,7 +612,7 @@ class AsyncPNCPExtractor:
                 # Page 1 exists but we can't get info, skip
                 progress.update(
                     task_id,
-                    description=f"[blue]{endpoint['name']}[/blue] - Skipping (exists)",
+                    description=f"[blue]{endpoint['name']}[/blue] {start_date} to {end_date} - Skipping (exists)",
                 )
                 results["pages_skipped"] += 1
                 return results
@@ -626,7 +626,7 @@ class AsyncPNCPExtractor:
         if not first_response["success"]:
             results["failed_requests"] += 1
             progress.update(
-                task_id, description=f"[red]{endpoint['name']}[/red] - Failed"
+                task_id, description=f"[red]{endpoint['name']}[/red] {start_date} to {end_date} - Failed"
             )
             return results
 
@@ -639,7 +639,7 @@ class AsyncPNCPExtractor:
         progress.update(
             task_id,
             total=total_pages,
-            description=f"[green]{endpoint['name']}[/green] - {total_records:,} records",
+            description=f"[green]{endpoint['name']}[/green] {start_date} to {end_date} - {total_records:,} records",
         )
 
         # Store first page with batch buffering
