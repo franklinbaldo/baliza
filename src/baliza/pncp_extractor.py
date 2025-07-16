@@ -224,8 +224,10 @@ class AsyncPNCPExtractor:
                 try:
                     self.conn.commit()  # Commit any pending changes
                     self.conn.close()
-                except Exception:
-                    pass  # DB might already be closed
+                except (duckdb.Error, AttributeError) as db_err:
+                    logger.warning(
+                        "Error during database cleanup", error=str(db_err)
+                    )  # Log the specific error
 
             console.print("🔄 Graceful shutdown completed")
 
@@ -258,8 +260,10 @@ class AsyncPNCPExtractor:
                 if marker_exists:
                     return  # Migration already completed
 
-            except Exception:
-                pass  # Table might not exist or have run_id column yet
+            except (duckdb.Error, AttributeError) as db_err:
+                logger.debug(
+                    "Table might not exist or have run_id column yet", error=str(db_err)
+                )
 
             # Check if table already has ZSTD compression by attempting to create a duplicate
             try:
@@ -762,9 +766,7 @@ class AsyncPNCPExtractor:
             self.conn.commit()
             progress.update(discovery_progress, advance=1)
 
-    async def _fetch_page(
-        self, task_id: str, endpoint_name: str, data_date: date, page_number: int
-    ):
+    async def _fetch_page(self, endpoint_name: str, data_date: date, page_number: int):
         """Helper to fetch a single page and enqueue it."""
         endpoint = next(
             (ep for ep in PNCP_ENDPOINTS if ep["name"] == endpoint_name), None
@@ -826,10 +828,8 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
         )
 
         fetch_tasks = []
-        for task_id, endpoint_name, data_date, page_number in pages_to_fetch:
-            fetch_tasks.append(
-                self._fetch_page(task_id, endpoint_name, data_date, page_number)
-            )
+        for _task_id, endpoint_name, data_date, page_number in pages_to_fetch:
+            fetch_tasks.append(self._fetch_page(endpoint_name, data_date, page_number))
 
         for future in asyncio.as_completed(fetch_tasks):
             await future  # we just wait for it to complete
@@ -1020,7 +1020,7 @@ def extract(
         end_dt = datetime.strptime(end_date, "%Y-%m-%d").date()
     except ValueError:
         console.print("❌ Invalid date format. Use YYYY-MM-DD", style="bold red")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
     if start_dt > end_dt:
         console.print("❌ Start date must be before end date", style="bold red")
