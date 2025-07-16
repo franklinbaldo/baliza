@@ -185,7 +185,9 @@ class AsyncPNCPExtractor:
 
                     if response.status_code == 200:
                         self.successful_requests += 1
-                        data = response.json()
+                        # Get text once and parse JSON from it
+                        content_text = response.text
+                        data = json.loads(content_text)
                         return {
                             "success": True,
                             "status_code": response.status_code,
@@ -193,7 +195,7 @@ class AsyncPNCPExtractor:
                             "headers": dict(response.headers),
                             "total_records": data.get("totalRegistros", 0),
                             "total_pages": data.get("totalPaginas", 1),
-                            "content": response.text,
+                            "content": content_text,
                         }
                     else:
                         # Log error but don't retry 4xx errors
@@ -213,8 +215,18 @@ class AsyncPNCPExtractor:
                             continue
 
                         # Add to retry queue for later processing
+                        # Extract endpoint name from URL and date from params
+                        endpoint_name = url.split("/")[-1] if "/" in url else "unknown"
+                        data_date = None
+                        if "dataInicial" in params:
+                            try:
+                                date_str = params["dataInicial"]
+                                data_date = datetime.strptime(date_str, "%Y%m%d").date()
+                            except (ValueError, TypeError):
+                                pass
+
                         await self._add_to_retry_queue(
-                            url, params, response.status_code
+                            url, params, response.status_code, endpoint_name, data_date
                         )
 
                         self.failed_requests += 1
@@ -305,7 +317,7 @@ class AsyncPNCPExtractor:
         """Get info about existing pages, inferring total_pages from any successful page."""
         result = self.conn.execute(
             """
-            SELECT total_pages, total_records, current_page, response_content 
+            SELECT total_pages, total_records, current_page
             FROM psa.pncp_raw_responses 
             WHERE endpoint_name = ? AND data_date = ? AND response_code = 200
             ORDER BY current_page
@@ -319,17 +331,16 @@ class AsyncPNCPExtractor:
                 "total_pages": result[0],
                 "total_records": result[1],
                 "current_page": result[2],
-                "content": result[3],
             }
         return None
 
     def _get_existing_page_info(
         self, endpoint_name: str, data_date: date, page: int
     ) -> Dict[str, Any] | None:
-        """Get information about an existing page."""
+        """Get information about an existing page (optimized - no response_content)."""
         result = self.conn.execute(
             """
-            SELECT total_pages, total_records, response_content 
+            SELECT total_pages, total_records
             FROM psa.pncp_raw_responses 
             WHERE endpoint_name = ? AND data_date = ? AND current_page = ? AND response_code = 200
             LIMIT 1
@@ -341,7 +352,6 @@ class AsyncPNCPExtractor:
             return {
                 "total_pages": result[0],
                 "total_records": result[1],
-                "content": result[2],
             }
         return None
 
@@ -439,28 +449,47 @@ class AsyncPNCPExtractor:
 
     async def _add_to_batch_buffer(self, response: Dict[str, Any]):
         """Add response to batch buffer and flush if needed."""
+        batch_to_flush = None
         async with self.batch_lock:
             self.batch_buffer.append(response)
             if len(self.batch_buffer) >= BATCH_FLUSH_SIZE:
-                await self._flush_batch_buffer()
+                # Create copy and clear buffer while holding lock
+                batch_to_flush = self.batch_buffer[:]
+                self.batch_buffer.clear()
+
+        # Flush outside the lock to avoid deadlock
+        if batch_to_flush:
+            self._batch_store_responses(batch_to_flush)
 
     async def _flush_batch_buffer(self):
         """Flush batch buffer to database."""
+        batch_to_flush = None
         async with self.batch_lock:
             if self.batch_buffer:
-                self._batch_store_responses(self.batch_buffer)
+                batch_to_flush = self.batch_buffer[:]
                 self.batch_buffer.clear()
 
+        # Flush outside the lock to avoid deadlock
+        if batch_to_flush:
+            self._batch_store_responses(batch_to_flush)
+
     async def _add_to_retry_queue(
-        self, url: str, params: Dict[str, Any], status_code: int
+        self,
+        url: str,
+        params: Dict[str, Any],
+        status_code: int,
+        endpoint_name: str = "",
+        data_date: date = None,
     ):
-        """Add failed 5xx request to retry queue."""
+        """Add failed 5xx request to retry queue with metadata."""
         async with self.retry_lock:
             self.retry_queue.append(
                 {
                     "url": url,
                     "params": params,
                     "status_code": status_code,
+                    "endpoint_name": endpoint_name,
+                    "data_date": data_date,
                     "attempts": 0,
                     "timestamp": time.time(),
                 }
@@ -484,10 +513,36 @@ class AsyncPNCPExtractor:
                     *retry_tasks, return_exceptions=True
                 )
 
-                # Process results
-                for result in retry_results:
+                # Process results and persist successful retries
+                for i, result in enumerate(retry_results):
                     if isinstance(result, dict) and result.get("success"):
                         successful_retries += 1
+
+                        # Create response object for database storage
+                        retry_item = (
+                            self.retry_queue[i] if i < len(self.retry_queue) else {}
+                        )
+                        retry_response = {
+                            "endpoint_url": retry_item.get("url", ""),
+                            "endpoint_name": retry_item.get("endpoint_name", "unknown"),
+                            "request_parameters": retry_item.get("params", {}),
+                            "response_code": result["status_code"],
+                            "response_content": result["content"],
+                            "response_headers": result["headers"],
+                            "data_date": retry_item.get("data_date"),
+                            "run_id": self.run_id,
+                            "total_records": result.get("total_records", 0),
+                            "total_pages": result.get("total_pages", 1),
+                            "current_page": retry_item.get("params", {}).get(
+                                "pagina", 1
+                            ),
+                            "page_size": retry_item.get("params", {}).get(
+                                "tamanhoPagina", PAGE_SIZE
+                            ),
+                        }
+
+                        # Add to batch buffer for persistence
+                        await self._add_to_batch_buffer(retry_response)
 
             # Clear processed items
             self.retry_queue.clear()
@@ -888,6 +943,10 @@ class AsyncPNCPExtractor:
         # Close client
         await self.client.aclose()
 
+        # Compact database after extraction
+        console.print("🗜️ Compacting database...")
+        self.conn.execute("VACUUM")
+
         return total_results
 
     def __del__(self):
@@ -898,9 +957,11 @@ class AsyncPNCPExtractor:
 
 def _get_current_month_end() -> str:
     """Get the last day of the current month as YYYY-MM-DD."""
-    now = datetime.now()
-    _, last_day = calendar.monthrange(now.year, now.month)
-    return now.replace(day=last_day).strftime("%Y-%m-%d")
+    today = date.today()
+    # Get last day of current month safely
+    _, last_day = calendar.monthrange(today.year, today.month)
+    month_end = today.replace(day=last_day)
+    return month_end.strftime("%Y-%m-%d")
 
 
 # CLI interface
