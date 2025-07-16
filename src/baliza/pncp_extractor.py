@@ -16,6 +16,7 @@ import time
 import duckdb
 import httpx
 import typer
+import orjson
 from rich.console import Console
 from rich.progress import (
     Progress,
@@ -26,6 +27,19 @@ from rich.progress import (
 )
 
 console = Console()
+
+# JSON parsing with orjson fallback
+def parse_json_robust(content: str) -> Any:
+    """Parse JSON with orjson (fast) and fallback to stdlib json for edge cases."""
+    try:
+        return orjson.loads(content)
+    except orjson.JSONDecodeError:
+        # Fallback for NaN/Infinity or other edge cases
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError as e:
+            console.print(f"⚠️ JSON parse error: {e}")
+            raise
 
 # Configuration
 PNCP_BASE_URL = "https://pncp.gov.br/api/consulta"
@@ -109,7 +123,7 @@ class AsyncPNCPExtractor:
         # Create PSA schema
         self.conn.execute("CREATE SCHEMA IF NOT EXISTS psa")
 
-        # Create raw responses table with correct schema
+        # Create raw responses table with ZSTD compression for response_content
         self.conn.execute("""
             CREATE TABLE IF NOT EXISTS psa.pncp_raw_responses (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -126,7 +140,7 @@ class AsyncPNCPExtractor:
                 total_pages INTEGER,
                 current_page INTEGER,
                 page_size INTEGER
-            )
+            ) WITH (compression = "zstd")
         """)
 
         # Create indexes
@@ -137,102 +151,145 @@ class AsyncPNCPExtractor:
             "CREATE INDEX IF NOT EXISTS idx_response_code ON psa.pncp_raw_responses(response_code)"
         )
         
-        # Migrate data from pncp_meta table if it exists
-        self._migrate_from_compressed_storage()
-    
-    def _migrate_from_compressed_storage(self):
-        """Migrate data from compressed storage back to pncp_raw_responses table."""
+        # Migrate existing table to use ZSTD compression
+        self._migrate_to_zstd_compression()
+
+    async def __aenter__(self):
+        """Async context manager entry."""
+        await self._init_client()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit with graceful cleanup."""
+        await self._graceful_shutdown()
+
+    async def _graceful_shutdown(self):
+        """Graceful shutdown of all connections and resources."""
         try:
-            # Check if pncp_meta table exists
-            meta_exists = self.conn.execute(
-                "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'pncp_meta' AND table_schema = 'psa'"
-            ).fetchone()[0] > 0
-            
-            if not meta_exists:
-                return
-            
-            # Check if we have data to migrate
-            meta_count = self.conn.execute(
-                "SELECT COUNT(*) FROM psa.pncp_meta"
-            ).fetchone()[0]
-            
-            if meta_count == 0:
-                return
-            
-            console.print(f"📦 Migrating {meta_count} records from compressed storage...")
-            
-            # Get all records from pncp_meta
-            meta_records = self.conn.execute(
-                "SELECT * FROM psa.pncp_meta ORDER BY extracted_at"
-            ).fetchall()
-            
-            # Get column names
-            meta_columns = [desc[0] for desc in self.conn.description]
-            
-            migrated_count = 0
-            for record in meta_records:
-                record_dict = dict(zip(meta_columns, record))
+            # Signal writer to stop gracefully
+            if hasattr(self, 'writer_running') and self.writer_running:
+                await self.page_queue.put(None)  # Send sentinel
                 
-                # Check if this record already exists in pncp_raw_responses
-                existing = self.conn.execute(
-                    """
-                    SELECT COUNT(*) FROM psa.pncp_raw_responses 
-                    WHERE endpoint_name = ? AND data_date = ? AND current_page = ?
-                    """,
-                    [record_dict['endpoint_name'], record_dict['data_date'], record_dict['current_page']]
-                ).fetchone()[0]
+            # Close HTTP client
+            if hasattr(self, 'client') and self.client:
+                await self.client.aclose()
                 
-                if existing > 0:
-                    continue  # Skip if already exists
-                
-                # Read the compressed file and get the JSON content
+            # Close database connection
+            if hasattr(self, 'conn') and self.conn:
                 try:
-                    file_path = DATA_DIR / record_dict['path_raw']
-                    if file_path.exists():
-                        # For now, skip files that don't exist since we removed zstd
-                        # In a real migration, you'd need to handle this properly
-                        console.print(f"⚠️ Skipping compressed file: {file_path}")
-                        continue
+                    self.conn.commit()  # Commit any pending changes
+                    self.conn.close()
+                except Exception:
+                    pass  # DB might already be closed
                     
-                    # Insert into pncp_raw_responses (without the compressed content for now)
-                    self.conn.execute(
-                        """
-                        INSERT INTO psa.pncp_raw_responses (
-                            extracted_at, endpoint_url, endpoint_name, request_parameters,
-                            response_code, response_content, response_headers, data_date,
-                            run_id, total_records, total_pages, current_page, page_size
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """,
-                        [
-                            record_dict['extracted_at'],
-                            record_dict['endpoint_url'],
-                            record_dict['endpoint_name'],
-                            record_dict['request_parameters'],
-                            record_dict['response_code'],
-                            '',  # Empty response_content since we can't decompress
-                            record_dict['response_headers'],
-                            record_dict['data_date'],
-                            record_dict['run_id'],
-                            record_dict['total_records'],
-                            record_dict['total_pages'],
-                            record_dict['current_page'],
-                            record_dict['page_size']
-                        ]
-                    )
-                    migrated_count += 1
-                    
-                except Exception as e:
-                    console.print(f"⚠️ Error migrating record: {e}")
-                    continue
-            
-            if migrated_count > 0:
-                self.conn.commit()
-                console.print(f"✅ Migrated {migrated_count} records to pncp_raw_responses")
-                console.print("⚠️ Note: Response content is empty - only metadata migrated")
+            console.print("🔄 Graceful shutdown completed")
             
         except Exception as e:
-            console.print(f"⚠️ Migration error: {e}")
-            self.conn.rollback()
+            console.print(f"⚠️ Shutdown error: {e}")
+
+    def _migrate_to_zstd_compression(self):
+        """Migrate existing table to use ZSTD compression for better storage efficiency."""
+        try:
+            # Check if table exists and has data
+            table_exists = self.conn.execute(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'pncp_raw_responses' AND table_schema = 'psa'"
+            ).fetchone()[0] > 0
+            
+            if not table_exists:
+                return  # Table doesn't exist yet, will be created with ZSTD
+            
+            # Check if migration already happened by looking for a marker
+            try:
+                marker_exists = self.conn.execute(
+                    "SELECT COUNT(*) FROM psa.pncp_raw_responses WHERE run_id = 'ZSTD_MIGRATION_MARKER'"
+                ).fetchone()[0] > 0
+                
+                if marker_exists:
+                    return  # Migration already completed
+                    
+            except Exception:
+                pass  # Table might not exist or have run_id column yet
+            
+            # Check if table already has ZSTD compression by attempting to create a duplicate
+            try:
+                self.conn.execute("""
+                    CREATE TABLE psa.pncp_raw_responses_zstd (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        extracted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        endpoint_url VARCHAR NOT NULL,
+                        endpoint_name VARCHAR NOT NULL,
+                        request_parameters JSON,
+                        response_code INTEGER NOT NULL,
+                        response_content TEXT,
+                        response_headers JSON,
+                        data_date DATE,
+                        run_id VARCHAR,
+                        total_records INTEGER,
+                        total_pages INTEGER,
+                        current_page INTEGER,
+                        page_size INTEGER
+                    ) WITH (compression = "zstd")
+                """)
+                
+                # Check if we have data to migrate
+                row_count = self.conn.execute("SELECT COUNT(*) FROM psa.pncp_raw_responses").fetchone()[0]
+                
+                if row_count > 0:
+                    console.print(f"🗜️ Migrating {row_count:,} rows to ZSTD compression...")
+                    
+                    # Copy data to new compressed table
+                    self.conn.execute("""
+                        INSERT INTO psa.pncp_raw_responses_zstd 
+                        SELECT * FROM psa.pncp_raw_responses
+                    """)
+                    
+                    # Add migration marker
+                    self.conn.execute("""
+                        INSERT INTO psa.pncp_raw_responses_zstd 
+                        (endpoint_url, endpoint_name, request_parameters, response_code, response_content, response_headers, run_id)
+                        VALUES ('MIGRATION_MARKER', 'ZSTD_MIGRATION', '{}', 0, 'Migration completed', '{}', 'ZSTD_MIGRATION_MARKER')
+                    """)
+                    
+                    # Drop old table and rename new one
+                    self.conn.execute("DROP TABLE psa.pncp_raw_responses")
+                    self.conn.execute("ALTER TABLE psa.pncp_raw_responses_zstd RENAME TO pncp_raw_responses")
+                    
+                    # Recreate indexes
+                    self.conn.execute(
+                        "CREATE INDEX idx_endpoint_date_page ON psa.pncp_raw_responses(endpoint_name, data_date, current_page)"
+                    )
+                    self.conn.execute(
+                        "CREATE INDEX idx_response_code ON psa.pncp_raw_responses(response_code)"
+                    )
+                    
+                    self.conn.commit()
+                    console.print("✅ Successfully migrated to ZSTD compression")
+                else:
+                    # No data to migrate, just replace table
+                    self.conn.execute("DROP TABLE psa.pncp_raw_responses")
+                    self.conn.execute("ALTER TABLE psa.pncp_raw_responses_zstd RENAME TO pncp_raw_responses")
+                    console.print("✅ Empty table replaced with ZSTD compression")
+                    
+            except Exception as create_error:
+                # If table already exists with ZSTD, clean up
+                try:
+                    self.conn.execute("DROP TABLE psa.pncp_raw_responses_zstd")
+                except Exception:
+                    pass
+                
+                # This likely means the table already has ZSTD or migration already happened
+                if "already exists" in str(create_error):
+                    pass  # Expected, migration already done
+                else:
+                    raise create_error
+                    
+        except Exception as e:
+            console.print(f"⚠️ ZSTD migration error: {e}")
+            # Rollback on error
+            try:
+                self.conn.rollback()
+            except Exception:
+                pass
 
     async def _init_client(self):
         """Initialize HTTP client with optimal settings and HTTP/2 fallback."""
@@ -253,6 +310,10 @@ class AsyncPNCPExtractor:
                 ),
             )
             console.print("✅ HTTP/2 enabled")
+            
+            # Verify HTTP/2 is actually working
+            await self._verify_http2_status()
+            
         except ImportError:
             # Fallback to HTTP/1.1 if h2 not available
             self.client = httpx.AsyncClient(
@@ -270,6 +331,39 @@ class AsyncPNCPExtractor:
             )
             console.print("⚠️ HTTP/2 not available, using HTTP/1.1")
 
+    async def _verify_http2_status(self):
+        """Verify that HTTP/2 is actually being used."""
+        try:
+            # Make a test request to check protocol
+            response = await self.client.get("/", timeout=5)
+            
+            # Check if HTTP/2 was actually used
+            if hasattr(response, 'http_version') and response.http_version == "HTTP/2":
+                console.print("🔗 HTTP/2 protocol confirmed")
+            else:
+                protocol = getattr(response, 'http_version', 'HTTP/1.1')
+                console.print(f"⚠️ Using protocol: {protocol} (fallback from HTTP/2)")
+                
+        except Exception as e:
+            console.print(f"⚠️ HTTP/2 verification failed: {e}")
+
+    async def _complete_task_and_print(self, progress: Progress, task_id: int, final_message: str):
+        """Complete task and print final message, letting it scroll up."""
+        # Update to final state
+        progress.update(task_id, description=final_message)
+        
+        # Small delay to show final state
+        await asyncio.sleep(0.5)
+        
+        # Print final message to console (will scroll up)
+        console.print(f"✅ {final_message}")
+        
+        # Remove from progress after printing
+        try:
+            progress.remove_task(task_id)
+        except Exception:
+            pass
+
     async def _fetch_with_backpressure(
         self, url: str, params: Dict[str, Any]
     ) -> Dict[str, Any]:
@@ -284,7 +378,7 @@ class AsyncPNCPExtractor:
                         self.successful_requests += 1
                         # Get text once and parse JSON from it
                         content_text = response.text
-                        data = json.loads(content_text)
+                        data = parse_json_robust(content_text)
                         return {
                             "success": True,
                             "status_code": response.status_code,
@@ -540,6 +634,10 @@ class AsyncPNCPExtractor:
                 progress.update(task_id, advance=1)
 
         # All responses are now handled by the queue/writer worker
+        
+        # Complete task and let it scroll up
+        final_message = f"{endpoint['name']} {start_date} to {end_date} - Completed {results['pages_processed']} pages"
+        asyncio.create_task(self._complete_task_and_print(progress, task_id, final_message))
 
         return results
 
@@ -737,7 +835,7 @@ class AsyncPNCPExtractor:
 
                 if response.status_code == 200:
                     self.successful_requests += 1
-                    data = response.json()
+                    data = parse_json_robust(response.text)
                     return {
                         "success": True,
                         "status_code": response.status_code,
@@ -861,11 +959,21 @@ class AsyncPNCPExtractor:
 
                 if not missing_pages:
                     # We have all pages, skip completely
+                    total_records = existing_pages_info.get("total_records", 0)
+                    final_message = f"{endpoint['name']} {start_date} to {end_date} - Skipping (complete) {total_records:,} records"
+                    
                     progress.update(
                         task_id,
-                        description=f"[blue]{endpoint['name']}[/blue] {start_date} to {end_date} - Skipping (complete)",
+                        total=total_pages,
+                        completed=total_pages,
+                        description=f"[blue]{endpoint['name']}[/blue] {start_date} to {end_date} - Skipping (complete) {total_records:,} records",
                     )
+                    
+                    # Complete task and let it scroll up
+                    asyncio.create_task(self._complete_task_and_print(progress, task_id, final_message))
+                    
                     results["pages_skipped"] += total_pages
+                    results["total_records"] = total_records
                     return results
                 else:
                     # We have partial data, fetch missing pages (including page 1 if needed)
@@ -893,11 +1001,26 @@ class AsyncPNCPExtractor:
                     )
             else:
                 # Some pages exist but we can't get metadata info, skip with warning
+                # Count how many pages actually exist
+                actual_pages = self.conn.execute(
+                    "SELECT COUNT(DISTINCT current_page) FROM psa.pncp_raw_responses WHERE endpoint_name = ? AND data_date = ? AND response_code = 200",
+                    [endpoint["name"], start_date]
+                ).fetchone()[0]
+                
+                estimated_pages = max(1, actual_pages)  # At least 1 page exists
+                final_message = f"{endpoint['name']} {start_date} to {end_date} - Skipping (partial data, no metadata)"
+                
                 progress.update(
                     task_id,
+                    total=estimated_pages,
+                    completed=estimated_pages,
                     description=f"[blue]{endpoint['name']}[/blue] {start_date} to {end_date} - Skipping (partial data, no metadata)",
                 )
-                results["pages_skipped"] += 1
+                
+                # Complete task and let it scroll up
+                asyncio.create_task(self._complete_task_and_print(progress, task_id, final_message))
+                
+                results["pages_skipped"] += estimated_pages
                 return results
 
         # Fetch first page
@@ -908,10 +1031,21 @@ class AsyncPNCPExtractor:
 
         if not first_response["success"]:
             results["failed_requests"] += 1
+            
+            # Get error details for debugging
+            error_code = first_response.get("status_code", 0)
+            error_msg = first_response.get("error", "Unknown error")
+            
+            final_message = f"{endpoint['name']} {start_date} to {end_date} - Failed (HTTP {error_code}: {error_msg})"
+            
             progress.update(
                 task_id,
-                description=f"[red]{endpoint['name']}[/red] {start_date} to {end_date} - Failed",
+                description=f"[red]{endpoint['name']}[/red] {start_date} to {end_date} - Failed (HTTP {error_code})",
             )
+            
+            # Complete failed task and let it scroll up
+            asyncio.create_task(self._complete_task_and_print(progress, task_id, final_message))
+            
             return results
 
         total_pages = first_response["total_pages"]
@@ -1020,6 +1154,10 @@ class AsyncPNCPExtractor:
                     progress.update(task_id, advance=1)
 
         # All responses are now handled by the queue/writer worker
+        
+        # Complete task and let it scroll up
+        final_message = f"{endpoint['name']} {start_date} to {end_date} - Completed {results['pages_processed']} pages"
+        asyncio.create_task(self._complete_task_and_print(progress, task_id, final_message))
 
         return results
 
@@ -1037,8 +1175,9 @@ class AsyncPNCPExtractor:
                 "⚠️ [yellow]Force mode enabled - will re-extract existing data[/yellow]"
             )
 
-        # Initialize client
-        await self._init_client()
+        # Client initialized in __aenter__ if using context manager
+        if not hasattr(self, 'client') or self.client is None:
+            await self._init_client()
 
         start_time = time.time()
 
@@ -1166,15 +1305,15 @@ def extract(
         raise typer.Exit(1)
 
     async def main():
-        extractor = AsyncPNCPExtractor(concurrency=concurrency)
-        results = await extractor.extract_data(start_dt, end_dt, force)
+        async with AsyncPNCPExtractor(concurrency=concurrency) as extractor:
+            results = await extractor.extract_data(start_dt, end_dt, force)
 
-        # Save results
-        results_file = DATA_DIR / f"async_extraction_results_{results['run_id']}.json"
-        with open(results_file, "w") as f:
-            json.dump(results, f, indent=2, default=str)
+            # Save results
+            results_file = DATA_DIR / f"async_extraction_results_{results['run_id']}.json"
+            with open(results_file, "w") as f:
+                json.dump(results, f, indent=2, default=str)
 
-        console.print(f"📄 Results saved to: {results_file}")
+            console.print(f"📄 Results saved to: {results_file}")
 
     asyncio.run(main())
 
