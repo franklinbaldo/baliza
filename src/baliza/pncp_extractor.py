@@ -845,17 +845,14 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
             console.print("Phase 3: Execution - No pages to fetch.")
             return
 
-        # Group pages by endpoint and month
-        endpoint_month_pages = {}
+        # Group pages by endpoint only
+        endpoint_pages = {}
         for task_id, endpoint_name, data_date, page_number in pages_to_fetch:
-            month_key = data_date.strftime("%Y-%m")
-            if endpoint_name not in endpoint_month_pages:
-                endpoint_month_pages[endpoint_name] = {}
-            if month_key not in endpoint_month_pages[endpoint_name]:
-                endpoint_month_pages[endpoint_name][month_key] = []
-            endpoint_month_pages[endpoint_name][month_key].append((task_id, data_date, page_number))
+            if endpoint_name not in endpoint_pages:
+                endpoint_pages[endpoint_name] = []
+            endpoint_pages[endpoint_name].append((task_id, data_date, page_number))
 
-        # Create progress bars for each endpoint and month
+        # Create progress bars for each endpoint
         progress_bars = {}
         endpoint_icons = {
             "contratos_publicacao": "📋",
@@ -867,35 +864,30 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
 
         console.print("\n📊 PNCP Data Extraction Progress\n")
         
-        for endpoint_name, months in endpoint_month_pages.items():
+        for endpoint_name, pages in endpoint_pages.items():
             # Get endpoint description
             endpoint_desc = next((ep["description"] for ep in PNCP_ENDPOINTS if ep["name"] == endpoint_name), endpoint_name)
             icon = endpoint_icons.get(endpoint_name, "📄")
             
-            console.print(f"{icon} {endpoint_desc}")
-            
-            progress_bars[endpoint_name] = {}
-            for month_key, pages in months.items():
-                task_description = f"  ├─ {month_key}"
-                progress_bars[endpoint_name][month_key] = progress.add_task(
-                    task_description, total=len(pages)
-                )
+            task_description = f"{icon} {endpoint_desc}"
+            progress_bars[endpoint_name] = progress.add_task(
+                task_description, total=len(pages)
+            )
 
         # Execute all fetches
         fetch_tasks = []
-        for endpoint_name, months in endpoint_month_pages.items():
-            for month_key, pages in months.items():
-                for task_id, data_date, page_number in pages:
-                    fetch_tasks.append(self._fetch_page_with_progress(
-                        endpoint_name, data_date, page_number, 
-                        progress, progress_bars[endpoint_name][month_key]
-                    ))
+        for endpoint_name, pages in endpoint_pages.items():
+            for task_id, data_date, page_number in pages:
+                fetch_tasks.append(self._fetch_page_with_progress(
+                    endpoint_name, data_date, page_number, 
+                    progress, progress_bars[endpoint_name]
+                ))
 
         # Wait for all tasks to complete
         await asyncio.gather(*fetch_tasks)
         
         # Print overall summary
-        total_pages = sum(len(pages) for months in endpoint_month_pages.values() for pages in months.values())
+        total_pages = sum(len(pages) for pages in endpoint_pages.values())
         console.print(f"\n📊 Overall: {total_pages:,} pages completed")
         console.print("")
 
