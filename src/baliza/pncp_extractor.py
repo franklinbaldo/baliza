@@ -46,7 +46,7 @@ def parse_json_robust(content: str) -> Any:
 
 # Configuration
 PNCP_BASE_URL = "https://pncp.gov.br/api/consulta"
-CONCURRENCY = 8  # Concurrent requests limit
+CONCURRENCY = 2  # Concurrent requests limit
 PAGE_SIZE = 500  # Maximum page size
 REQUEST_TIMEOUT = 30
 USER_AGENT = "BALIZA/3.0 (Backup Aberto de Licitacoes)"

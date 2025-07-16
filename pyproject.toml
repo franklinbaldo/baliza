@@ -11,6 +11,7 @@ dependencies = [
     "h2", # HTTP/2 support for httpx
     "pandas>=2.3.1",
     "orjson", # Fast JSON parsing with fallback
+    "structlog>=25.4.0",
 ]
 
 [project.scripts]
