@@ -903,7 +903,7 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
 
         if force:
             console.print(
-                "⚠️ [yellow]Force mode enabled - will reset tasks and re-extract all data.[/yellow]"
+                "[yellow]Force mode enabled - will reset tasks and re-extract all data.[/yellow]"
             )
             self.conn.execute("DELETE FROM psa.pncp_extraction_tasks")
             self.conn.execute("DELETE FROM psa.pncp_raw_responses")
