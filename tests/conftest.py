@@ -5,7 +5,7 @@ from pathlib import Path
 import gc
 
 import pytest
-import duckdb # Import duckdb
+import duckdb  # Import duckdb
 
 # Add src to Python path for all tests
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -109,7 +109,7 @@ def temp_baliza_workspace():
 @pytest.fixture
 def duckdb_conn():
     """Provides a DuckDB in-memory connection for testing."""
-    conn = duckdb.connect(database=':memory:')
+    conn = duckdb.connect(database=":memory:")
     yield conn
     conn.close()
     gc.collect()
