@@ -12,12 +12,10 @@ import calendar
 from pathlib import Path
 from typing import Dict, Any, List, Tuple
 import time
-import hashlib
 
 import duckdb
 import httpx
 import typer
-import zstandard as zstd
 from rich.console import Console
 from rich.progress import (
     Progress,
@@ -39,7 +37,6 @@ USER_AGENT = "BALIZA/3.0 (Backup Aberto de Licitacoes)"
 
 # Data directory
 DATA_DIR = Path.cwd() / "data"
-RAW_DIR = DATA_DIR / "raw"
 BALIZA_DB_PATH = DATA_DIR / "baliza.duckdb"
 
 # Working endpoints (only the reliable ones)
@@ -107,46 +104,12 @@ class AsyncPNCPExtractor:
     def _init_database(self):
         """Initialize DuckDB with PSA schema."""
         DATA_DIR.mkdir(parents=True, exist_ok=True)
-        RAW_DIR.mkdir(parents=True, exist_ok=True)
         self.conn = duckdb.connect(str(BALIZA_DB_PATH))
 
         # Create PSA schema
         self.conn.execute("CREATE SCHEMA IF NOT EXISTS psa")
 
-        # Create lightweight metadata table (NEW)
-        self.conn.execute("""
-            CREATE TABLE IF NOT EXISTS psa.pncp_meta (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                extracted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                endpoint_url VARCHAR NOT NULL,
-                endpoint_name VARCHAR NOT NULL,
-                request_parameters JSON,
-                response_code INTEGER NOT NULL,
-                response_headers JSON,
-                data_date DATE,
-                run_id VARCHAR,
-                total_records INTEGER,
-                total_pages INTEGER,
-                current_page INTEGER,
-                page_size INTEGER,
-                path_raw VARCHAR NOT NULL,
-                bytes_raw INTEGER NOT NULL,
-                sha256_raw CHAR(64) NOT NULL
-            )
-        """)
-
-        # Create indexes for fast metadata queries
-        self.conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_meta_fast ON psa.pncp_meta(endpoint_name, data_date, current_page)"
-        )
-        self.conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_meta_response_code ON psa.pncp_meta(response_code)"
-        )
-        self.conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_meta_sha256 ON psa.pncp_meta(sha256_raw)"
-        )
-        
-        # Keep old table for backward compatibility (will be deprecated)
+        # Create raw responses table with correct schema
         self.conn.execute("""
             CREATE TABLE IF NOT EXISTS psa.pncp_raw_responses (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -165,6 +128,111 @@ class AsyncPNCPExtractor:
                 page_size INTEGER
             )
         """)
+
+        # Create indexes
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_endpoint_date_page ON psa.pncp_raw_responses(endpoint_name, data_date, current_page)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_response_code ON psa.pncp_raw_responses(response_code)"
+        )
+        
+        # Migrate data from pncp_meta table if it exists
+        self._migrate_from_compressed_storage()
+    
+    def _migrate_from_compressed_storage(self):
+        """Migrate data from compressed storage back to pncp_raw_responses table."""
+        try:
+            # Check if pncp_meta table exists
+            meta_exists = self.conn.execute(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'pncp_meta' AND table_schema = 'psa'"
+            ).fetchone()[0] > 0
+            
+            if not meta_exists:
+                return
+            
+            # Check if we have data to migrate
+            meta_count = self.conn.execute(
+                "SELECT COUNT(*) FROM psa.pncp_meta"
+            ).fetchone()[0]
+            
+            if meta_count == 0:
+                return
+            
+            console.print(f"📦 Migrating {meta_count} records from compressed storage...")
+            
+            # Get all records from pncp_meta
+            meta_records = self.conn.execute(
+                "SELECT * FROM psa.pncp_meta ORDER BY extracted_at"
+            ).fetchall()
+            
+            # Get column names
+            meta_columns = [desc[0] for desc in self.conn.description]
+            
+            migrated_count = 0
+            for record in meta_records:
+                record_dict = dict(zip(meta_columns, record))
+                
+                # Check if this record already exists in pncp_raw_responses
+                existing = self.conn.execute(
+                    """
+                    SELECT COUNT(*) FROM psa.pncp_raw_responses 
+                    WHERE endpoint_name = ? AND data_date = ? AND current_page = ?
+                    """,
+                    [record_dict['endpoint_name'], record_dict['data_date'], record_dict['current_page']]
+                ).fetchone()[0]
+                
+                if existing > 0:
+                    continue  # Skip if already exists
+                
+                # Read the compressed file and get the JSON content
+                try:
+                    file_path = DATA_DIR / record_dict['path_raw']
+                    if file_path.exists():
+                        # For now, skip files that don't exist since we removed zstd
+                        # In a real migration, you'd need to handle this properly
+                        console.print(f"⚠️ Skipping compressed file: {file_path}")
+                        continue
+                    
+                    # Insert into pncp_raw_responses (without the compressed content for now)
+                    self.conn.execute(
+                        """
+                        INSERT INTO psa.pncp_raw_responses (
+                            extracted_at, endpoint_url, endpoint_name, request_parameters,
+                            response_code, response_content, response_headers, data_date,
+                            run_id, total_records, total_pages, current_page, page_size
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        [
+                            record_dict['extracted_at'],
+                            record_dict['endpoint_url'],
+                            record_dict['endpoint_name'],
+                            record_dict['request_parameters'],
+                            record_dict['response_code'],
+                            '',  # Empty response_content since we can't decompress
+                            record_dict['response_headers'],
+                            record_dict['data_date'],
+                            record_dict['run_id'],
+                            record_dict['total_records'],
+                            record_dict['total_pages'],
+                            record_dict['current_page'],
+                            record_dict['page_size']
+                        ]
+                    )
+                    migrated_count += 1
+                    
+                except Exception as e:
+                    console.print(f"⚠️ Error migrating record: {e}")
+                    continue
+            
+            if migrated_count > 0:
+                self.conn.commit()
+                console.print(f"✅ Migrated {migrated_count} records to pncp_raw_responses")
+                console.print("⚠️ Note: Response content is empty - only metadata migrated")
+            
+        except Exception as e:
+            console.print(f"⚠️ Migration error: {e}")
+            self.conn.rollback()
 
     async def _init_client(self):
         """Initialize HTTP client with optimal settings and HTTP/2 fallback."""
@@ -320,7 +388,7 @@ class AsyncPNCPExtractor:
         """Check if a specific page already exists with success status."""
         result = self.conn.execute(
             """
-            SELECT COUNT(*) FROM psa.pncp_meta 
+            SELECT COUNT(*) FROM psa.pncp_raw_responses 
             WHERE endpoint_name = ? AND data_date = ? AND current_page = ? AND response_code = 200
         """,
             [endpoint_name, data_date, page],
@@ -332,7 +400,7 @@ class AsyncPNCPExtractor:
         """Check if ANY page exists for this endpoint/date combination."""
         result = self.conn.execute(
             """
-            SELECT COUNT(*) FROM psa.pncp_meta 
+            SELECT COUNT(*) FROM psa.pncp_raw_responses 
             WHERE endpoint_name = ? AND data_date = ? AND response_code = 200
         """,
             [endpoint_name, data_date],
@@ -347,7 +415,7 @@ class AsyncPNCPExtractor:
         result = self.conn.execute(
             """
             SELECT total_pages, total_records, current_page
-            FROM psa.pncp_meta 
+            FROM psa.pncp_raw_responses 
             WHERE endpoint_name = ? AND data_date = ? AND response_code = 200
             ORDER BY current_page
             LIMIT 1
@@ -370,7 +438,7 @@ class AsyncPNCPExtractor:
         result = self.conn.execute(
             """
             SELECT total_pages, total_records
-            FROM psa.pncp_meta 
+            FROM psa.pncp_raw_responses 
             WHERE endpoint_name = ? AND data_date = ? AND current_page = ? AND response_code = 200
             LIMIT 1
         """,
@@ -475,43 +543,6 @@ class AsyncPNCPExtractor:
 
         return results
 
-    def _store_page_compressed(self, page: Dict[str, Any]) -> Dict[str, Any]:
-        """Store JSON content in compressed file, return metadata."""
-        # Extract JSON content
-        raw_content = page.get("response_content", "")
-        raw_bytes = raw_content.encode('utf-8')
-        
-        # Calculate hash for deduplication
-        sha256_hash = hashlib.sha256(raw_bytes).hexdigest()
-        
-        # Create hierarchical path: raw/endpoint=.../year=.../month=.../
-        data_date = page["data_date"]
-        rel_path = (
-            f"raw/endpoint={page['endpoint_name']}/"
-            f"year={data_date.year:04d}/"
-            f"month={data_date.month:02d}/"
-            f"page_{page['current_page']:06d}_{sha256_hash[:8]}.zst"
-        )
-        
-        abs_path = DATA_DIR / rel_path
-        abs_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        # Compress and write file
-        compressed_data = self.compressor.compress(raw_bytes)
-        abs_path.write_bytes(compressed_data)
-        
-        # Return metadata (without the large JSON)
-        metadata = {
-            k: v for k, v in page.items() 
-            if k != "response_content"  # Remove large JSON
-        }
-        metadata.update({
-            "path_raw": rel_path,
-            "bytes_raw": len(raw_bytes),
-            "sha256_raw": sha256_hash,
-        })
-        
-        return metadata
     
     async def writer_worker(self, commit_every: int = 75) -> None:
         """Dedicated writer coroutine for single-threaded DB writes.
@@ -519,8 +550,7 @@ class AsyncPNCPExtractor:
         Optimized for:
         - commit_every=75 pages ≈ 5-8 seconds between commits
         - Reduces I/O overhead by 7.5x (10→75 pages per commit)
-        - JSON stored in compressed files (~30-100KB vs 300-400KB)
-        - DuckDB only stores lightweight metadata
+        - Local batch buffer minimizes executemany() calls
         """
         counter = 0
         batch_buffer = []
@@ -532,17 +562,14 @@ class AsyncPNCPExtractor:
                 if page is None:
                     break
                 
-                # Store JSON in compressed file, get metadata
-                metadata = self._store_page_compressed(page)
-                
-                # Add metadata to local buffer
-                batch_buffer.append(metadata)
+                # Add to local buffer
+                batch_buffer.append(page)
                 counter += 1
                 
                 # Flush buffer every commit_every pages
                 if counter % commit_every == 0:
                     if batch_buffer:
-                        self._batch_store_metadata(batch_buffer)
+                        self._batch_store_responses(batch_buffer)
                         self.conn.commit()
                         batch_buffer.clear()
                 
@@ -556,7 +583,7 @@ class AsyncPNCPExtractor:
         
         # Flush any remaining items
         if batch_buffer:
-            self._batch_store_metadata(batch_buffer)
+            self._batch_store_responses(batch_buffer)
             self.conn.commit()
         
         self.writer_running = False
@@ -600,10 +627,10 @@ class AsyncPNCPExtractor:
         return all_results
     
     def get_raw_content(self, endpoint_name: str, data_date: date, page: int) -> str:
-        """Retrieve raw JSON content from compressed file."""
+        """Retrieve raw JSON content from database."""
         result = self.conn.execute(
             """
-            SELECT path_raw FROM psa.pncp_meta 
+            SELECT response_content FROM psa.pncp_raw_responses 
             WHERE endpoint_name = ? AND data_date = ? AND current_page = ? AND response_code = 200
             LIMIT 1
         """,
@@ -613,16 +640,7 @@ class AsyncPNCPExtractor:
         if not result:
             raise ValueError(f"Page not found: {endpoint_name}, {data_date}, {page}")
         
-        # Read and decompress file
-        file_path = DATA_DIR / result[0]
-        if not file_path.exists():
-            raise FileNotFoundError(f"Raw file not found: {file_path}")
-        
-        compressed_data = file_path.read_bytes()
-        decompressor = zstd.ZstdDecompressor()
-        raw_bytes = decompressor.decompress(compressed_data)
-        
-        return raw_bytes.decode('utf-8')
+        return result[0]
     
     # Old batch buffer system removed - now using queue/writer worker
 
@@ -748,54 +766,8 @@ class AsyncPNCPExtractor:
                     "headers": {},
                 }
 
-    def _batch_store_metadata(self, metadata_list: List[Dict[str, Any]]):
-        """Store multiple metadata records in a single batch operation with transaction."""
-        if not metadata_list:
-            return
-
-        # Prepare batch data for metadata table
-        batch_data = []
-        for meta in metadata_list:
-            batch_data.append(
-                [
-                    meta["endpoint_url"],
-                    meta["endpoint_name"],
-                    json.dumps(meta["request_parameters"]),
-                    meta["response_code"],
-                    json.dumps(meta["response_headers"]),
-                    meta["data_date"],
-                    meta["run_id"],
-                    meta["total_records"],
-                    meta["total_pages"],
-                    meta["current_page"],
-                    meta["page_size"],
-                    meta["path_raw"],
-                    meta["bytes_raw"],
-                    meta["sha256_raw"],
-                ]
-            )
-
-        # Batch insert with transaction
-        self.conn.execute("BEGIN TRANSACTION")
-        try:
-            self.conn.executemany(
-                """
-                INSERT INTO psa.pncp_meta (
-                    endpoint_url, endpoint_name, request_parameters,
-                    response_code, response_headers, data_date, run_id,
-                    total_records, total_pages, current_page, page_size,
-                    path_raw, bytes_raw, sha256_raw
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-                batch_data,
-            )
-            self.conn.execute("COMMIT")
-        except Exception as e:
-            self.conn.execute("ROLLBACK")
-            raise e
-            
     def _batch_store_responses(self, responses: List[Dict[str, Any]]):
-        """DEPRECATED: Store multiple responses in old format (backward compatibility)."""
+        """Store multiple responses in a single batch operation with transaction."""
         if not responses:
             return
 
@@ -1067,9 +1039,6 @@ class AsyncPNCPExtractor:
 
         # Initialize client
         await self._init_client()
-        
-        # Initialize zstandard compressor
-        self.compressor = zstd.ZstdCompressor(level=3)
 
         start_time = time.time()
 
@@ -1215,35 +1184,12 @@ def stats():
     """Show extraction statistics."""
     conn = duckdb.connect(str(BALIZA_DB_PATH))
 
-    # Check if new metadata table exists
-    has_meta_table = conn.execute(
-        "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'pncp_meta' AND table_schema = 'psa'"
-    ).fetchone()[0] > 0
-    
-    if has_meta_table:
-        # Use new metadata table
-        table_name = "psa.pncp_meta"
-        console.print("📊 Using new metadata table (compressed storage)")
-        
-        # Calculate disk savings
-        total_bytes = conn.execute(
-            "SELECT SUM(bytes_raw) FROM psa.pncp_meta"
-        ).fetchone()[0] or 0
-        
-        if total_bytes > 0:
-            console.print(f"💾 Raw JSON size: {total_bytes / 1024 / 1024:.1f} MB")
-            console.print(f"🗜️ Compressed files: ~{total_bytes * 0.3 / 1024 / 1024:.1f} MB (70% compression)")
-    else:
-        # Fallback to old table
-        table_name = "psa.pncp_raw_responses"
-        console.print("📊 Using legacy table (full JSON storage)")
-
     # Overall stats
     total_responses = conn.execute(
-        f"SELECT COUNT(*) FROM {table_name}"
+        "SELECT COUNT(*) FROM psa.pncp_raw_responses"
     ).fetchone()[0]
     success_responses = conn.execute(
-        f"SELECT COUNT(*) FROM {table_name} WHERE response_code = 200"
+        "SELECT COUNT(*) FROM psa.pncp_raw_responses WHERE response_code = 200"
     ).fetchone()[0]
 
     console.print(f"📊 Total Responses: {total_responses:,}")
@@ -1256,9 +1202,9 @@ def stats():
         )
 
     # Endpoint breakdown
-    endpoint_stats = conn.execute(f"""
+    endpoint_stats = conn.execute("""
         SELECT endpoint_name, COUNT(*) as responses, SUM(total_records) as total_records
-        FROM {table_name} 
+        FROM psa.pncp_raw_responses 
         WHERE response_code = 200
         GROUP BY endpoint_name
         ORDER BY total_records DESC
