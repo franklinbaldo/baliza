@@ -1,11 +1,11 @@
+import gc
 import os
 import sys
 import tempfile
 from pathlib import Path
-import gc
 
-import pytest
 import duckdb  # Import duckdb
+import pytest
 
 # Add src to Python path for all tests
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -95,7 +95,7 @@ def temp_baliza_workspace():
         ]
 
         for dir_path in dirs_to_create:
-            os.makedirs(dir_path, exist_ok=True)
+            Path(dir_path).mkdir(parents=True, exist_ok=True)
 
         yield tmpdir
 

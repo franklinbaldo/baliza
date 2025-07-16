@@ -964,7 +964,7 @@ def extract(
 
             # Save results
             results_file = DATA_DIR / f"async_extraction_results_{results['run_id']}.json"
-            with open(results_file, "w") as f:
+            with Path(results_file).open("w") as f:
                 json.dump(results, f, indent=2, default=str)
 
             console.print(f"📄 Results saved to: {results_file}")
@@ -1213,7 +1213,7 @@ def extract(
 
             # Save results
             results_file = DATA_DIR / f"async_extraction_results_{results['run_id']}.json"
-            with open(results_file, "w") as f:
+            with Path(results_file).open("w") as f:
                 json.dump(results, f, indent=2, default=str)
 
             console.print(f"📄 Results saved to: {results_file}")

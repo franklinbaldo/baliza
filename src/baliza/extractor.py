@@ -6,30 +6,30 @@ extraction process (Plan -> Discover -> Fetch -> Reconcile).
 """
 
 import asyncio
+import calendar
 import json
 import math
-import uuid
-from datetime import datetime, date
-import calendar
-from pathlib import Path
-from typing import Dict, Any, List, Tuple
+import secrets
 import time
-import random
+import uuid
+from datetime import date, datetime
+from pathlib import Path
+from typing import Any
 
 import duckdb
 import httpx
-import typer
 import orjson
 import structlog
+import typer
 from rich.console import Console
 from rich.progress import (
+    BarColumn,
+    MofNCompleteColumn,
     Progress,
     SpinnerColumn,
-    TextColumn,
-    BarColumn,
     TaskProgressColumn,
+    TextColumn,
     TimeElapsedColumn,
-    MofNCompleteColumn,
 )
 
 # --- Basic Setup ---
@@ -63,8 +63,11 @@ def parse_json_robust(content: str) -> Any:
         try:
             return json.loads(content)
         except json.JSONDecodeError as e:
-            logger.error(
-                "JSON_PARSE_ERROR", error=str(e), content_preview=content[:200]
+            logger.exception(
+                "JSON_PARSE_ERROR",
+                error=str(e),
+                content_preview=content[:200],
+                exc_info=True
             )
             raise
 
@@ -80,7 +83,7 @@ class TaskOrientedPNCPExtractor:
         self.semaphore = asyncio.Semaphore(concurrency)
         self.run_id = str(uuid.uuid4())
         self.client = None
-        self.page_queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue(
+        self.page_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(
             maxsize=concurrency * 10
         )
         self.writer_running = False
@@ -247,7 +250,7 @@ class TaskOrientedPNCPExtractor:
         )
 
     async def _discover_single_task(
-        self, task: Tuple, progress: Progress, phase_task_id: int
+        self, task: tuple, progress: Progress, phase_task_id: int
     ):
         """Fetches page 1 for a single task and updates its state."""
         task_id, endpoint_name, data_date = task
@@ -341,7 +344,7 @@ class TaskOrientedPNCPExtractor:
         )
 
     async def _fetch_single_page(
-        self, page_data: Tuple, progress: Progress, phase_task_id: int
+        self, page_data: tuple, progress: Progress, phase_task_id: int
     ):
         """Fetches a single page and puts it on the write queue."""
         task_id, endpoint_name, data_date, page_number = page_data
@@ -458,14 +461,17 @@ class TaskOrientedPNCPExtractor:
                 )
                 self.conn.commit()
             except Exception as e:
-                logger.error(
-                    "DB_WRITE_ERROR", error=str(e), page_data=page_data.get("task_id")
+                logger.exception(
+                    "DB_WRITE_ERROR",
+                    error=str(e),
+                    page_data=page_data.get("task_id"),
+                    exc_info=True
                 )
 
             self.page_queue.task_done()
         self.writer_running = False
 
-    async def _fetch_page(self, url: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _fetch_page(self, url: str, params: dict[str, Any]) -> dict[str, Any]:
         """Fetch a single page with backpressure and simple retry."""
         async with self.semaphore:
             for attempt in range(3):
@@ -498,7 +504,9 @@ class TaskOrientedPNCPExtractor:
 
                     # It's a 5xx or other transient error, retry
                     if attempt < 2:
-                        delay = (2**attempt) * random.uniform(0.5, 1.5)
+                        # Use SystemRandom for cryptographically secure random numbers
+                        secure_random = secrets.SystemRandom()
+                        delay = (2**attempt) * secure_random.uniform(0.5, 1.5)
                         await asyncio.sleep(delay)
                         continue
 
@@ -510,18 +518,20 @@ class TaskOrientedPNCPExtractor:
 
                 except Exception as e:
                     if attempt < 2:
-                        delay = (2**attempt) * random.uniform(0.5, 1.5)
+                        # Use SystemRandom for cryptographically secure random numbers
+                        secure_random = secrets.SystemRandom()
+                        delay = (2**attempt) * secure_random.uniform(0.5, 1.5)
                         await asyncio.sleep(delay)
                         continue
                     return {
                         "success": False,
                         "status_code": 0,
-                        "error": f"Request failed: {str(e)}",
+                        "error": f"Request failed: {e!s}",
                     }
 
     def _get_monthly_chunks(
         self, start_date: date, end_date: date
-    ) -> List[Tuple[date, date]]:
+    ) -> list[tuple[date, date]]:
         """Generate monthly date chunks."""
         chunks = []
         current = start_date.replace(day=1)
