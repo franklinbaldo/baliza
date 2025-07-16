@@ -64,7 +64,7 @@ def parse_json_robust(content: str) -> Any:
 
 # Configuration
 PNCP_BASE_URL = "https://pncp.gov.br/api/consulta"
-CONCURRENCY = 2  # Concurrent requests limit
+CONCURRENCY = 8  # Concurrent requests limit
 PAGE_SIZE = 500  # Maximum page size
 REQUEST_TIMEOUT = 30
 USER_AGENT = "BALIZA/3.0 (Backup Aberto de Licitacoes)"
@@ -884,24 +884,27 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
                 endpoint_pages[endpoint_name] = []
             endpoint_pages[endpoint_name].append((task_id, data_date, page_number))
 
-        # Create progress bars for each endpoint
+        # Create progress bars for each endpoint with beautiful colors
         progress_bars = {}
-        endpoint_icons = {
-            "contratos_publicacao": "[C]",
-            "contratos_atualizacao": "[U]", 
-            "dispensas": "[D]",
-            "atas": "[A]",
-            "resultados": "[R]"
+        endpoint_colors = {
+            "contratos_publicacao": "green",
+            "contratos_atualizacao": "blue", 
+            "dispensas": "yellow",
+            "atas": "cyan",
+            "resultados": "magenta",
+            "atas_periodo": "cyan",
+            "atas_atualizacao": "bright_cyan"
         }
 
-        console.print("\n=== PNCP Data Extraction Progress ===\n")
+        console.print("\n🚀 [bold blue]PNCP Data Extraction Progress[/bold blue]\n")
         
         for endpoint_name, pages in endpoint_pages.items():
-            # Get endpoint description
+            # Get endpoint description and color
             endpoint_desc = next((ep["description"] for ep in PNCP_ENDPOINTS if ep["name"] == endpoint_name), endpoint_name)
-            icon = endpoint_icons.get(endpoint_name, "[X]")
+            color = endpoint_colors.get(endpoint_name, "white")
             
-            task_description = f"{icon} {endpoint_desc}"
+            # Create beautiful, colorful progress description
+            task_description = f"[{color}]{endpoint_desc}[/{color}] - [dim]{len(pages):,} pages[/dim]"
             progress_bars[endpoint_name] = progress.add_task(
                 task_description, total=len(pages)
             )
@@ -918,9 +921,9 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
         # Wait for all tasks to complete
         await asyncio.gather(*fetch_tasks)
         
-        # Print overall summary
+        # Print beautiful overall summary
         total_pages = sum(len(pages) for pages in endpoint_pages.values())
-        console.print(f"\n=== Overall: {total_pages:,} pages completed ===")
+        console.print(f"\n✅ [bold green]Overall: {total_pages:,} pages completed successfully![/bold green]")
         console.print("")
 
     async def _fetch_page_with_progress(self, endpoint_name: str, data_date: date, page_number: int, 
