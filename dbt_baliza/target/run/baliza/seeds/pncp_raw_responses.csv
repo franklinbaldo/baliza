@@ -1,7 +1,9 @@
 
 
 
-    truncate table "baliza"."main_psa"."pncp_raw_responses";
+
+    create table "baliza"."main_psa"."pncp_raw_responses" ("id" integer,"extracted_at" timestamp without time zone,"endpoint_name" text,"endpoint_url" text,"data_date" date,"run_id" text,"modalidade" integer,"total_records" integer,"total_pages" integer,"current_page" integer,"response_code" integer,"response_content" text,"http_method" text,"endpoint_type" text)
+  ;
     -- dbt seed --
 
           COPY "baliza"."main_psa"."pncp_raw_responses" FROM '/app/dbt_baliza/seeds/pncp_raw_responses.csv' (FORMAT CSV, HEADER TRUE, DELIMITER ',')

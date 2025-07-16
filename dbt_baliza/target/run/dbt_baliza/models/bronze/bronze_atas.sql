@@ -1,0 +1,17 @@
+
+
+            delete from "baliza"."main_bronze"."bronze_atas"
+            where (
+                id) in (
+                select (id)
+                from "bronze_atas__dbt_tmp20250716220348422810"
+            );
+
+
+
+
+    insert into "baliza"."main_bronze"."bronze_atas" ("id", "extracted_at", "endpoint_name", "endpoint_url", "data_date", "run_id", "total_records", "total_pages", "current_page", "response_json")
+    (
+        select "id", "extracted_at", "endpoint_name", "endpoint_url", "data_date", "run_id", "total_records", "total_pages", "current_page", "response_json"
+        from "bronze_atas__dbt_tmp20250716220348422810"
+    )

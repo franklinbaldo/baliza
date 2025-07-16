@@ -72,7 +72,7 @@ USER_AGENT = "BALIZA/3.0 (Backup Aberto de Licitacoes)"
 
 # Data directory
 DATA_DIR = Path.cwd() / "data"
-BALIZA_DB_PATH = DATA_DIR / "pncp_beautiful.db"
+BALIZA_DB_PATH = DATA_DIR / "baliza.duckdb"
 
 # 2. DuckDB: mensagens de erro - função para conectar com UTF-8
 def connect_utf8(path: str) -> duckdb.DuckDBPyConnection:

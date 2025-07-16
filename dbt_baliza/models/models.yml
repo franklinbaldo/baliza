@@ -1,7 +1,7 @@
 version: 2
 
 models:
-  - name: dim_organizacoes
+  - name: silver_dim_organizacoes
     description: "A dimension table for organizations"
     columns:
       - name: org_key
@@ -29,8 +29,8 @@ models:
       - name: updated_at
         description: "The timestamp when the record was last updated"
 
-  - name: stg_contratacoes_raw
-    description: "Staging table for raw contract data"
+  - name: silver_contratacoes
+    description: "Silver table for raw contract data"
     columns:
       - name: response_id
         description: "The ID of the API response"
@@ -44,8 +44,6 @@ models:
         description: "The date of the data"
       - name: run_id
         description: "The ID of the run"
-      - name: modalidade
-        description: "The modality of the procurement"
       - name: total_records
         description: "The total number of records"
       - name: total_pages

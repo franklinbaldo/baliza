@@ -9,7 +9,7 @@ WITH units_from_contracts AS (
   SELECT DISTINCT
     {{ extract_organization_data('orgao_entidade_json', 'org') }},
     {{ extract_unit_data('unidade_orgao_json', 'unit') }}
-  FROM {{ ref('stg_contratos_raw') }}
+  FROM {{ ref('silver_contratos') }}
   WHERE orgao_entidade_json IS NOT NULL
     AND unidade_orgao_json IS NOT NULL
 ),
@@ -18,7 +18,7 @@ units_from_procurements AS (
   SELECT DISTINCT
     {{ extract_organization_data('orgao_entidade_json', 'org') }},
     {{ extract_unit_data('unidade_orgao_json', 'unit') }}
-  FROM {{ ref('stg_contratacoes_raw') }}
+  FROM {{ ref('silver_contratacoes') }}
   WHERE orgao_entidade_json IS NOT NULL
     AND unidade_orgao_json IS NOT NULL
 ),
@@ -27,7 +27,7 @@ subrog_units_from_contracts AS (
   SELECT DISTINCT
     {{ extract_organization_data('orgao_subrogado_json', 'org') }},
     {{ extract_unit_data('unidade_subrogada_json', 'unit') }}
-  FROM {{ ref('stg_contratos_raw') }}
+  FROM {{ ref('silver_contratos') }}
   WHERE orgao_subrogado_json IS NOT NULL
     AND unidade_subrogada_json IS NOT NULL
 ),
@@ -36,7 +36,7 @@ subrog_units_from_procurements AS (
   SELECT DISTINCT
     {{ extract_organization_data('orgao_subrogado_json', 'org') }},
     {{ extract_unit_data('unidade_subrogada_json', 'unit') }}
-  FROM {{ ref('stg_contratacoes_raw') }}
+  FROM {{ ref('silver_contratacoes') }}
   WHERE orgao_subrogado_json IS NOT NULL
     AND unidade_subrogada_json IS NOT NULL
 ),

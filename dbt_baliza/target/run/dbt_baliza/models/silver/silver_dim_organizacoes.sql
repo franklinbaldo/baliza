@@ -1,35 +1,59 @@
-{{
-  config(
-    materialized='table',
-    description='Dimension table for organizations (órgãos and entidades)'
-  )
-}}
+
+
+
+
+
+    create  table
+      "baliza"."main_silver"."silver_dim_organizacoes__dbt_tmp"
+
+    as (
+
 
 WITH org_from_contracts AS (
   SELECT DISTINCT
-    {{ extract_organization_data('orgao_entidade_json', 'org') }}
-  FROM {{ ref('stg_contratos_raw') }}
+
+  orgao_entidade_json ->> 'cnpj' AS org_cnpj,
+  orgao_entidade_json ->> 'razaoSocial' AS org_razao_social,
+  orgao_entidade_json ->> 'poderId' AS org_poder_id,
+  orgao_entidade_json ->> 'esferaId' AS org_esfera_id
+
+  FROM "baliza"."main_silver"."silver_contratos"
   WHERE orgao_entidade_json IS NOT NULL
 ),
 
 org_from_procurements AS (
   SELECT DISTINCT
-    {{ extract_organization_data('orgao_entidade_json', 'org') }}
-  FROM {{ ref('stg_contratacoes_raw') }}
+
+  orgao_entidade_json ->> 'cnpj' AS org_cnpj,
+  orgao_entidade_json ->> 'razaoSocial' AS org_razao_social,
+  orgao_entidade_json ->> 'poderId' AS org_poder_id,
+  orgao_entidade_json ->> 'esferaId' AS org_esfera_id
+
+  FROM "baliza"."main_silver"."silver_contratacoes"
   WHERE orgao_entidade_json IS NOT NULL
 ),
 
 subrog_from_contracts AS (
   SELECT DISTINCT
-    {{ extract_organization_data('orgao_subrogado_json', 'org') }}
-  FROM {{ ref('stg_contratos_raw') }}
+
+  orgao_subrogado_json ->> 'cnpj' AS org_cnpj,
+  orgao_subrogado_json ->> 'razaoSocial' AS org_razao_social,
+  orgao_subrogado_json ->> 'poderId' AS org_poder_id,
+  orgao_subrogado_json ->> 'esferaId' AS org_esfera_id
+
+  FROM "baliza"."main_silver"."silver_contratos"
   WHERE orgao_subrogado_json IS NOT NULL
 ),
 
 subrog_from_procurements AS (
   SELECT DISTINCT
-    {{ extract_organization_data('orgao_subrogado_json', 'org') }}
-  FROM {{ ref('stg_contratacoes_raw') }}
+
+  orgao_subrogado_json ->> 'cnpj' AS org_cnpj,
+  orgao_subrogado_json ->> 'razaoSocial' AS org_razao_social,
+  orgao_subrogado_json ->> 'poderId' AS org_poder_id,
+  orgao_subrogado_json ->> 'esferaId' AS org_esfera_id
+
+  FROM "baliza"."main_silver"."silver_contratacoes"
   WHERE orgao_subrogado_json IS NOT NULL
 ),
 
@@ -56,34 +80,36 @@ deduplicated_organizations AS (
 SELECT
   -- Surrogate key
   MD5(org_cnpj) AS org_key,
-  
+
   -- Natural key
   org_cnpj AS cnpj,
-  
+
   -- Organization details
   org_razao_social AS razao_social,
   org_poder_id AS poder_id,
   org_esfera_id AS esfera_id,
-  
+
   -- Derived attributes
-  CASE 
+  CASE
     WHEN org_poder_id = 'E' THEN 'Executivo'
     WHEN org_poder_id = 'L' THEN 'Legislativo'
     WHEN org_poder_id = 'J' THEN 'Judiciário'
     WHEN org_poder_id = 'M' THEN 'Ministério Público'
     ELSE 'Outros'
   END AS poder_nome,
-  
-  CASE 
+
+  CASE
     WHEN org_esfera_id = 'F' THEN 'Federal'
     WHEN org_esfera_id = 'E' THEN 'Estadual'
     WHEN org_esfera_id = 'M' THEN 'Municipal'
     ELSE 'Outros'
   END AS esfera_nome,
-  
+
   -- Metadata
   CURRENT_TIMESTAMP AS created_at,
   CURRENT_TIMESTAMP AS updated_at
 
 FROM deduplicated_organizations
 ORDER BY org_cnpj
+    );
+

@@ -1,4 +1,4 @@
-name: 'baliza'
+name: 'dbt_baliza'
 version: '1.0.0'
 config-version: 2
 
@@ -19,31 +19,25 @@ clean-targets:
 
 # Configuring models
 models:
-  baliza:
-    # Raw/staging models
-    staging:
+  dbt_baliza:
+    # Bronze layer
+    bronze:
       +materialized: view
-      +schema: staging
+      +schema: bronze
     
-    # Dimension models
-    dimensions:
+    # Silver layer
+    silver:
       +materialized: table
-      +schema: dimensions
+      +schema: silver
     
-    # Fact models
-    facts:
+    # Gold layer
+    gold:
       +materialized: table
-      +schema: facts
-    
-    # Marts/analytics models
-    marts:
-      +materialized: table
-      +schema: marts
+      +schema: gold
 
 # Variables
 vars:
-  # Database configuration
-  database_name: 'baliza'
+  # Schema for raw data
   psa_schema: 'psa'
   
   # Date range for processing (can be overridden at runtime)
