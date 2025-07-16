@@ -9,6 +9,7 @@ import contextlib
 import json
 import logging
 import random
+import re
 import time
 import uuid
 from datetime import date, datetime
@@ -750,8 +751,16 @@ class AsyncPNCPExtractor:
                 )
 
                 # Enqueue page 1 response
-                endpoint_name_part, data_date_str = task_id.split("_", 1)
-                data_date = datetime.fromisoformat(data_date_str).date()
+                # Task ID format: {endpoint_name}_{YYYY-MM-DD}
+                # Since endpoint names can contain underscores, we need to extract the date part from the end
+                match = re.match(r'^(.+)_(\d{4}-\d{2}-\d{2})$', task_id)
+                if match:
+                    endpoint_name_part = match.group(1)
+                    data_date_str = match.group(2)
+                    data_date = datetime.fromisoformat(data_date_str).date()
+                else:
+                    logger.error(f"Invalid task ID format: {task_id}")
+                    continue
 
                 page_1_response = {
                     "endpoint_url": f"{PNCP_BASE_URL}{response['url']}",
