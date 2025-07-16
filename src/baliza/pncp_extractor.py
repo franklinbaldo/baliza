@@ -65,7 +65,7 @@ USER_AGENT = "BALIZA/3.0 (Backup Aberto de Licitacoes)"
 
 # Data directory
 DATA_DIR = Path.cwd() / "data"
-BALIZA_DB_PATH = DATA_DIR / "pncp_archive.db"
+BALIZA_DB_PATH = DATA_DIR / "pncp_new.db"
 
 # Working endpoints (only the reliable ones)
 PNCP_ENDPOINTS = [
@@ -243,7 +243,7 @@ class AsyncPNCPExtractor:
                 except (duckdb.Error, AttributeError) as db_err:
                     logger.warning(f"Error during database cleanup: {db_err}")
 
-            console.print("🔄 Graceful shutdown completed")
+            console.print("[U] Graceful shutdown completed")
 
         except Exception as e:
             console.print(f"⚠️ Shutdown error: {e}")
@@ -855,19 +855,19 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
         # Create progress bars for each endpoint
         progress_bars = {}
         endpoint_icons = {
-            "contratos_publicacao": "📋",
-            "contratos_atualizacao": "🔄", 
-            "dispensas": "💰",
-            "atas": "🔍",
-            "resultados": "📈"
+            "contratos_publicacao": "[C]",
+            "contratos_atualizacao": "[U]", 
+            "dispensas": "[D]",
+            "atas": "[A]",
+            "resultados": "[R]"
         }
 
-        console.print("\n📊 PNCP Data Extraction Progress\n")
+        console.print("\n=== PNCP Data Extraction Progress ===\n")
         
         for endpoint_name, pages in endpoint_pages.items():
             # Get endpoint description
             endpoint_desc = next((ep["description"] for ep in PNCP_ENDPOINTS if ep["name"] == endpoint_name), endpoint_name)
-            icon = endpoint_icons.get(endpoint_name, "📄")
+            icon = endpoint_icons.get(endpoint_name, "[X]")
             
             task_description = f"{icon} {endpoint_desc}"
             progress_bars[endpoint_name] = progress.add_task(
@@ -888,7 +888,7 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
         
         # Print overall summary
         total_pages = sum(len(pages) for pages in endpoint_pages.values())
-        console.print(f"\n📊 Overall: {total_pages:,} pages completed")
+        console.print(f"\n=== Overall: {total_pages:,} pages completed ===")
         console.print("")
 
     async def _fetch_page_with_progress(self, endpoint_name: str, data_date: date, page_number: int, 
@@ -1116,13 +1116,13 @@ def stats():
         "SELECT COUNT(*) FROM psa.pncp_raw_responses WHERE response_code = 200"
     ).fetchone()[0]
 
-    console.print(f"📊 Total Responses: {total_responses:,}")
+    console.print(f"=== Total Responses: {total_responses:,} ===")
     console.print(f"Successful: {success_responses:,}")
     console.print(f"❌ Failed: {total_responses - success_responses:,}")
 
     if total_responses > 0:
         console.print(
-            f"📈 Success Rate: {success_responses / total_responses * 100:.1f}%"
+            f"Success Rate: {success_responses / total_responses * 100:.1f}%"
         )
 
     # Endpoint breakdown
@@ -1136,7 +1136,7 @@ def stats():
     """
     ).fetchall()
 
-    console.print("\n📋 Endpoint Statistics:")
+    console.print("\n=== Endpoint Statistics ===")
     for name, responses, records in endpoint_stats:
         console.print(f"  {name}: {responses:,} responses, {records:,} records")
 
