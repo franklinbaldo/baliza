@@ -12,6 +12,7 @@ dependencies = [
     "pandas>=2.3.1",
     "orjson", # Fast JSON parsing with fallback
     "aiolimiter>=1.2.1",
+    "filelock", # File locking to prevent database conflicts
 ]
 
 [project.scripts]

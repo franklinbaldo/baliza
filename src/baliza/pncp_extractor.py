@@ -10,6 +10,7 @@ import json
 import logging
 import random
 import re
+import sys
 import time
 import uuid
 from datetime import date, datetime
@@ -20,6 +21,7 @@ import duckdb
 import httpx
 import orjson
 import typer
+from filelock import FileLock, Timeout
 from rich.console import Console
 from rich.progress import (
     BarColumn,
@@ -29,12 +31,16 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 
-# Configure standard logging
+# 1. Trave o runtime em UTF-8 - reconfigure streams logo no início
+for std in (sys.stdin, sys.stdout, sys.stderr):
+    std.reconfigure(encoding="utf-8", errors="surrogateescape")
+
+# Configure standard logging com UTF-8
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.StreamHandler()
+        logging.StreamHandler(sys.stdout)
     ]
 )
 
@@ -65,7 +71,18 @@ USER_AGENT = "BALIZA/3.0 (Backup Aberto de Licitacoes)"
 
 # Data directory
 DATA_DIR = Path.cwd() / "data"
-BALIZA_DB_PATH = DATA_DIR / "pncp_new.db"
+BALIZA_DB_PATH = DATA_DIR / "pncp_utf8.db"
+
+# 2. DuckDB: mensagens de erro - função para conectar com UTF-8
+def connect_utf8(path: str) -> duckdb.DuckDBPyConnection:
+    """Connect to DuckDB with UTF-8 error handling."""
+    try:
+        return duckdb.connect(path)
+    except Exception as exc:
+        # redecodifica string problema (CP‑1252 → UTF‑8)
+        msg = str(exc).encode("latin1", errors="ignore").decode("utf-8", errors="replace")
+        # Para DuckDB, usamos RuntimeError com a mensagem corrigida
+        raise RuntimeError(msg) from exc
 
 # Working endpoints (only the reliable ones)
 PNCP_ENDPOINTS = [
@@ -131,7 +148,15 @@ class AsyncPNCPExtractor:
     def _init_database(self):
         """Initialize DuckDB with PSA schema."""
         DATA_DIR.mkdir(parents=True, exist_ok=True)
-        self.conn = duckdb.connect(str(BALIZA_DB_PATH))
+        
+        # 3. Evite locks fantasmas
+        self.db_lock = FileLock(str(BALIZA_DB_PATH) + ".lock")
+        try:
+            self.db_lock.acquire(timeout=0.5)
+        except Timeout:
+            raise RuntimeError("Outra instância está usando pncp_new.db")
+        
+        self.conn = connect_utf8(str(BALIZA_DB_PATH))
 
         # Create PSA schema
         self.conn.execute("CREATE SCHEMA IF NOT EXISTS psa")
@@ -242,6 +267,13 @@ class AsyncPNCPExtractor:
                     self.conn.close()
                 except (duckdb.Error, AttributeError) as db_err:
                     logger.warning(f"Error during database cleanup: {db_err}")
+            
+            # Release database lock
+            if hasattr(self, "db_lock") and self.db_lock:
+                try:
+                    self.db_lock.release()
+                except Exception as lock_err:
+                    logger.warning(f"Error releasing database lock: {lock_err}")
 
             console.print("[U] Graceful shutdown completed")
 
@@ -1095,7 +1127,7 @@ def extract(
             results_file = (
                 DATA_DIR / f"async_extraction_results_{results['run_id']}.json"
             )
-            with Path(results_file).open("w") as f:
+            with Path(results_file).open("w", encoding="utf-8") as f:
                 json.dump(results, f, indent=2, default=str)
 
             console.print(f"Results saved to: {results_file}")
@@ -1106,7 +1138,7 @@ def extract(
 @app.command()
 def stats():
     """Show extraction statistics."""
-    conn = duckdb.connect(str(BALIZA_DB_PATH))
+    conn = connect_utf8(str(BALIZA_DB_PATH))
 
     # Overall stats
     total_responses = conn.execute(
