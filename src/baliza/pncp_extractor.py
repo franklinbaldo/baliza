@@ -12,11 +12,13 @@ import calendar
 from pathlib import Path
 from typing import Dict, Any, List, Tuple
 import time
+import random
 
 import duckdb
 import httpx
 import typer
 import orjson
+import structlog
 from rich.console import Console
 from rich.progress import (
     Progress,
@@ -27,6 +29,7 @@ from rich.progress import (
 )
 
 console = Console()
+logger = structlog.get_logger()
 
 # JSON parsing with orjson fallback
 def parse_json_robust(content: str) -> Any:
@@ -106,7 +109,8 @@ class AsyncPNCPExtractor:
         self.total_records = 0
 
         # Queue-based processing (replaces batch buffer)
-        self.page_queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue(maxsize=32)
+        queue_size = max(32, concurrency * 10)
+        self.page_queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue(maxsize=queue_size)
         self.writer_running = False
 
         # Retry queue for failed 5xx responses
@@ -143,16 +147,43 @@ class AsyncPNCPExtractor:
             ) WITH (compression = "zstd")
         """)
 
-        # Create indexes
-        self.conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_endpoint_date_page ON psa.pncp_raw_responses(endpoint_name, data_date, current_page)"
-        )
-        self.conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_response_code ON psa.pncp_raw_responses(response_code)"
-        )
+        # Create indexes if they don't exist
+        self._create_indexes_if_not_exist()
         
         # Migrate existing table to use ZSTD compression
         self._migrate_to_zstd_compression()
+
+    def _index_exists(self, index_name: str) -> bool:
+        """Check if a given index exists in the database."""
+        try:
+            result = self.conn.execute(
+                "SELECT 1 FROM pg_indexes WHERE indexname = ?", [index_name]
+            ).fetchone()
+            return result is not None
+        except Exception:
+            # Fallback for non-PostgreSQL DuckDB versions
+            try:
+                # This is a more generic way but might be slower
+                self.conn.execute(f"SELECT * FROM psa.pncp_raw_responses WHERE 1=0")
+                indexes = self.conn.execute("PRAGMA index_list('psa.pncp_raw_responses')").fetchall()
+                return any(idx[1] == index_name for idx in indexes)
+            except Exception:
+                return False # Assume it doesn't exist if we can't check
+
+    def _create_indexes_if_not_exist(self):
+        """Create indexes only if they do not already exist."""
+        indexes_to_create = {
+            "idx_endpoint_date_page": "CREATE INDEX idx_endpoint_date_page ON psa.pncp_raw_responses(endpoint_name, data_date, current_page)",
+            "idx_response_code": "CREATE INDEX idx_response_code ON psa.pncp_raw_responses(response_code)",
+        }
+
+        for idx_name, create_sql in indexes_to_create.items():
+            if not self._index_exists(idx_name):
+                try:
+                    self.conn.execute(create_sql)
+                    logger.info(f"Index '{idx_name}' created.")
+                except Exception as e:
+                    logger.error(f"Failed to create index '{idx_name}'", error=e)
 
     async def __aenter__(self):
         """Async context manager entry."""
@@ -309,7 +340,7 @@ class AsyncPNCPExtractor:
                     max_keepalive_connections=self.concurrency,
                 ),
             )
-            console.print("✅ HTTP/2 enabled")
+            logger.info("HTTP/2 client initialized")
             
             # Verify HTTP/2 is actually working
             await self._verify_http2_status()
@@ -329,7 +360,7 @@ class AsyncPNCPExtractor:
                     max_keepalive_connections=self.concurrency,
                 ),
             )
-            console.print("⚠️ HTTP/2 not available, using HTTP/1.1")
+            logger.warn("HTTP/2 not available, using HTTP/1.1")
 
     async def _verify_http2_status(self):
         """Verify that HTTP/2 is actually being used."""
@@ -339,13 +370,13 @@ class AsyncPNCPExtractor:
             
             # Check if HTTP/2 was actually used
             if hasattr(response, 'http_version') and response.http_version == "HTTP/2":
-                console.print("🔗 HTTP/2 protocol confirmed")
+                logger.info("HTTP/2 protocol confirmed")
             else:
                 protocol = getattr(response, 'http_version', 'HTTP/1.1')
-                console.print(f"⚠️ Using protocol: {protocol} (fallback from HTTP/2)")
+                logger.warn("Using protocol: {protocol} (fallback from HTTP/2)", protocol=protocol)
                 
         except Exception as e:
-            console.print(f"⚠️ HTTP/2 verification failed: {e}")
+            logger.error("HTTP/2 verification failed", error=e)
 
     async def _complete_task_and_print(self, progress: Progress, task_id: int, final_message: str):
         """Complete task and print final message, letting it scroll up."""
@@ -388,6 +419,17 @@ class AsyncPNCPExtractor:
                             "total_pages": data.get("totalPaginas", 1),
                             "content": content_text,
                         }
+                    elif response.status_code == 204:
+                        self.successful_requests += 1
+                        return {
+                            "success": True,
+                            "status_code": response.status_code,
+                            "data": {},
+                            "headers": dict(response.headers),
+                            "total_records": 0,
+                            "total_pages": 1,  # Treat as a single, empty page
+                            "content": "",
+                        }
                     else:
                         # Log error but don't retry 4xx errors
                         if response.status_code >= 400 and response.status_code < 500:
@@ -402,7 +444,8 @@ class AsyncPNCPExtractor:
 
                         # Retry on 5xx errors
                         if attempt < 2:
-                            await asyncio.sleep(2**attempt)  # Exponential backoff
+                            delay = (2 ** attempt) * random.uniform(0.5, 1.5)
+                            await asyncio.sleep(delay)  # Exponential backoff with jitter
                             continue
 
                         # Add to retry queue for later processing
@@ -431,7 +474,8 @@ class AsyncPNCPExtractor:
 
                 except Exception as e:
                     if attempt < 2:
-                        await asyncio.sleep(2**attempt)
+                        delay = (2 ** attempt) * random.uniform(0.5, 1.5)
+                        await asyncio.sleep(delay)
                         continue
 
                     self.failed_requests += 1
@@ -822,8 +866,9 @@ class AsyncPNCPExtractor:
         """Retry a single failed request without adding to retry queue."""
         retry_item["attempts"] += 1
 
-        # Exponential backoff based on attempts
-        await asyncio.sleep(2 ** retry_item["attempts"])
+        # Exponential backoff with jitter
+        delay = (2 ** retry_item["attempts"]) * random.uniform(0.5, 1.5)
+        await asyncio.sleep(delay)
 
         # Direct HTTP request without retry queue
         async with self.semaphore:
@@ -980,6 +1025,7 @@ class AsyncPNCPExtractor:
                     progress.update(
                         task_id,
                         total=total_pages,
+                        completed=total_pages - len(missing_pages),
                         description=f"[yellow]{endpoint['name']}[/yellow] {start_date} to {end_date} - Partial ({len(missing_pages)} missing)",
                     )
 
@@ -1165,10 +1211,14 @@ class AsyncPNCPExtractor:
         self, start_date: date, end_date: date, force: bool = False
     ) -> Dict[str, Any]:
         """Main extraction method with true async architecture."""
-        console.print("🚀 Starting Async PNCP Extraction")
-        console.print(f"📅 Date Range: {start_date} to {end_date}")
-        console.print(f"🔧 Concurrency: {self.concurrency}")
-        console.print(f"🆔 Run ID: {self.run_id}")
+        logger.info(
+            "extraction_started",
+            start_date=start_date.isoformat(),
+            end_date=end_date.isoformat(),
+            concurrency=self.concurrency,
+            run_id=self.run_id,
+            force=force,
+        )
 
         if force:
             console.print(
@@ -1241,7 +1291,19 @@ class AsyncPNCPExtractor:
             "endpoints": results,
         }
 
-        # Print summary
+        # Log summary
+        logger.info(
+            "extraction_complete",
+            total_requests=total_results['total_requests'],
+            successful_requests=total_results['successful_requests'],
+            failed_requests=total_results['failed_requests'],
+            retry_successes=total_results['retry_successes'],
+            total_records=total_results['total_records'],
+            duration_seconds=total_results['duration'],
+            avg_rps=total_results['total_requests'] / total_results['duration'] if total_results['duration'] > 0 else 0,
+        )
+
+        # Print summary for interactive mode
         console.print("\n🎉 Extraction Complete!")
         console.print(f"📊 Total Requests: {total_results['total_requests']:,}")
         console.print(f"✅ Successful: {total_results['successful_requests']:,}")
