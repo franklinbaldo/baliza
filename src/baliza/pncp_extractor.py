@@ -37,7 +37,7 @@ logging.basicConfig(
     ]
 )
 
-console = Console(force_terminal=True, legacy_windows=True, stderr=False)
+console = Console(force_terminal=True, legacy_windows=False, stderr=False)
 logger = logging.getLogger(__name__)
 
 
@@ -64,7 +64,7 @@ USER_AGENT = "BALIZA/3.0 (Backup Aberto de Licitacoes)"
 
 # Data directory
 DATA_DIR = Path.cwd() / "data"
-BALIZA_DB_PATH = DATA_DIR / "baliza.duckdb"
+BALIZA_DB_PATH = DATA_DIR / "pncp_archive.db"
 
 # Working endpoints (only the reliable ones)
 PNCP_ENDPOINTS = [
@@ -343,14 +343,14 @@ class AsyncPNCPExtractor:
                     )
 
                     self.conn.commit()
-                    console.print("✅ Successfully migrated to ZSTD compression")
+                    console.print("Successfully migrated to ZSTD compression")
                 else:
                     # No data to migrate, just replace table
                     self.conn.execute("DROP TABLE psa.pncp_raw_responses")
                     self.conn.execute(
                         "ALTER TABLE psa.pncp_raw_responses_zstd RENAME TO pncp_raw_responses"
                     )
-                    console.print("✅ Empty table replaced with ZSTD compression")
+                    console.print("Empty table replaced with ZSTD compression")
 
             except Exception as create_error:
                 # If table already exists with ZSTD, clean up
@@ -439,7 +439,7 @@ class AsyncPNCPExtractor:
         await asyncio.sleep(0.5)
 
         # Print final message to console (will scroll up)
-        console.print(f"✅ {final_message}")
+        console.print(f"{final_message}")
 
         # Remove from progress after printing
         with contextlib.suppress(Exception):
@@ -836,17 +836,69 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
             console.print("Phase 3: Execution - No pages to fetch.")
             return
 
-        execution_progress = progress.add_task(
-            "[magenta]Phase 3: Execution", total=len(pages_to_fetch)
-        )
+        # Group pages by endpoint and month
+        endpoint_month_pages = {}
+        for task_id, endpoint_name, data_date, page_number in pages_to_fetch:
+            month_key = data_date.strftime("%Y-%m")
+            if endpoint_name not in endpoint_month_pages:
+                endpoint_month_pages[endpoint_name] = {}
+            if month_key not in endpoint_month_pages[endpoint_name]:
+                endpoint_month_pages[endpoint_name][month_key] = []
+            endpoint_month_pages[endpoint_name][month_key].append((task_id, data_date, page_number))
 
+        # Create progress bars for each endpoint and month
+        progress_bars = {}
+        endpoint_icons = {
+            "contratos_publicacao": "📋",
+            "contratos_atualizacao": "🔄", 
+            "dispensas": "💰",
+            "atas": "🔍",
+            "resultados": "📈"
+        }
+
+        console.print("\n📊 PNCP Data Extraction Progress\n")
+        
+        for endpoint_name, months in endpoint_month_pages.items():
+            # Get endpoint description
+            endpoint_desc = next((ep["description"] for ep in PNCP_ENDPOINTS if ep["name"] == endpoint_name), endpoint_name)
+            icon = endpoint_icons.get(endpoint_name, "📄")
+            
+            console.print(f"{icon} {endpoint_desc}")
+            
+            progress_bars[endpoint_name] = {}
+            for month_key, pages in months.items():
+                task_description = f"  ├─ {month_key}"
+                progress_bars[endpoint_name][month_key] = progress.add_task(
+                    task_description, total=len(pages)
+                )
+
+        # Execute all fetches
         fetch_tasks = []
-        for _task_id, endpoint_name, data_date, page_number in pages_to_fetch:
-            fetch_tasks.append(self._fetch_page(endpoint_name, data_date, page_number))
+        for endpoint_name, months in endpoint_month_pages.items():
+            for month_key, pages in months.items():
+                for task_id, data_date, page_number in pages:
+                    fetch_tasks.append(self._fetch_page_with_progress(
+                        endpoint_name, data_date, page_number, 
+                        progress, progress_bars[endpoint_name][month_key]
+                    ))
 
-        for future in asyncio.as_completed(fetch_tasks):
-            await future  # we just wait for it to complete
-            progress.update(execution_progress, advance=1)
+        # Wait for all tasks to complete
+        await asyncio.gather(*fetch_tasks)
+        
+        # Print overall summary
+        total_pages = sum(len(pages) for months in endpoint_month_pages.values() for pages in months.values())
+        console.print(f"\n📊 Overall: {total_pages:,} pages completed")
+        console.print("")
+
+    async def _fetch_page_with_progress(self, endpoint_name: str, data_date: date, page_number: int, 
+                                       progress: Progress, progress_bar_id: int):
+        """Fetch a page and update the progress bar."""
+        try:
+            await self._fetch_page(endpoint_name, data_date, page_number)
+            progress.update(progress_bar_id, advance=1)
+        except Exception as e:
+            logger.error(f"Failed to fetch page {page_number} for {endpoint_name} {data_date}: {e}")
+            progress.update(progress_bar_id, advance=1)  # Still advance to show completion
 
     async def _reconcile_tasks(self):
         """Phase 4: Update task status based on downloaded data."""
@@ -981,7 +1033,7 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
             "duration": duration,
         }
 
-        console.print("\nExtraction Complete!")
+        console.print("\n🎉 Extraction Complete!")
         console.print(
             f"Total Tasks: {total_tasks:,} ({complete_tasks:,} complete, {failed_tasks:,} failed)"
         )
@@ -1064,7 +1116,7 @@ def stats():
     ).fetchone()[0]
 
     console.print(f"📊 Total Responses: {total_responses:,}")
-    console.print(f"✅ Successful: {success_responses:,}")
+    console.print(f"Successful: {success_responses:,}")
     console.print(f"❌ Failed: {total_responses - success_responses:,}")
 
     if total_responses > 0:
