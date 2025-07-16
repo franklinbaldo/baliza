@@ -10,6 +10,7 @@ import json
 import logging
 import random
 import re
+import signal
 import sys
 import time
 import uuid
@@ -71,7 +72,7 @@ USER_AGENT = "BALIZA/3.0 (Backup Aberto de Licitacoes)"
 
 # Data directory
 DATA_DIR = Path.cwd() / "data"
-BALIZA_DB_PATH = DATA_DIR / "pncp_utf8.db"
+BALIZA_DB_PATH = DATA_DIR / "pncp_beautiful.db"
 
 # 2. DuckDB: mensagens de erro - função para conectar com UTF-8
 def connect_utf8(path: str) -> duckdb.DuckDBPyConnection:
@@ -143,7 +144,30 @@ class AsyncPNCPExtractor:
         )
         self.writer_running = False
 
+        # Graceful shutdown handling
+        self.shutdown_event = asyncio.Event()
+        self.running_tasks = set()
+
         self._init_database()
+
+    def setup_signal_handlers(self):
+        """Setup signal handlers for graceful shutdown - Windows compatible."""
+        def signal_handler(signum, frame):
+            console.print(f"\n⚠️ [yellow]Received Ctrl+C, initiating graceful shutdown...[/yellow]")
+            self.shutdown_event.set()
+            # Cancel all running tasks
+            for task in self.running_tasks:
+                if not task.done():
+                    task.cancel()
+        
+        # Windows-compatible signal handlers
+        try:
+            if hasattr(signal, 'SIGINT'):
+                signal.signal(signal.SIGINT, signal_handler)
+            if hasattr(signal, 'SIGTERM'):
+                signal.signal(signal.SIGTERM, signal_handler)
+        except Exception as e:
+            logger.warning(f"Could not setup signal handlers: {e}")
 
     def _init_database(self):
         """Initialize DuckDB with PSA schema."""
@@ -275,7 +299,7 @@ class AsyncPNCPExtractor:
                 except Exception as lock_err:
                     logger.warning(f"Error releasing database lock: {lock_err}")
 
-            console.print("[U] Graceful shutdown completed")
+            console.print("✅ [bold green]Graceful shutdown completed successfully![/bold green]")
 
         except Exception as e:
             console.print(f"⚠️ Shutdown error: {e}")
@@ -913,13 +937,28 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
         fetch_tasks = []
         for endpoint_name, pages in endpoint_pages.items():
             for task_id, data_date, page_number in pages:
-                fetch_tasks.append(self._fetch_page_with_progress(
+                # Check for shutdown before creating new tasks
+                if self.shutdown_event.is_set():
+                    console.print("⚠️ [yellow]Shutdown requested, stopping task creation...[/yellow]")
+                    break
+                    
+                task = asyncio.create_task(self._fetch_page_with_progress(
                     endpoint_name, data_date, page_number, 
                     progress, progress_bars[endpoint_name]
                 ))
+                fetch_tasks.append(task)
+                self.running_tasks.add(task)
 
-        # Wait for all tasks to complete
-        await asyncio.gather(*fetch_tasks)
+        # Wait for all tasks to complete with graceful shutdown support
+        try:
+            await asyncio.gather(*fetch_tasks, return_exceptions=True)
+        except asyncio.CancelledError:
+            console.print("⚠️ [yellow]Tasks cancelled during shutdown, cleaning up...[/yellow]")
+            raise
+        finally:
+            # Clean up completed tasks
+            for task in fetch_tasks:
+                self.running_tasks.discard(task)
         
         # Print beautiful overall summary
         total_pages = sum(len(pages) for pages in endpoint_pages.values())
@@ -928,10 +967,18 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
 
     async def _fetch_page_with_progress(self, endpoint_name: str, data_date: date, page_number: int, 
                                        progress: Progress, progress_bar_id: int):
-        """Fetch a page and update the progress bar."""
+        """Fetch a page and update the progress bar with graceful shutdown support."""
         try:
+            # Check for shutdown signal
+            if self.shutdown_event.is_set():
+                console.print("⚠️ [yellow]Shutdown requested, skipping page fetch...[/yellow]")
+                return
+                
             await self._fetch_page(endpoint_name, data_date, page_number)
             progress.update(progress_bar_id, advance=1)
+        except asyncio.CancelledError:
+            console.print("⚠️ [yellow]Page fetch cancelled during shutdown[/yellow]")
+            raise
         except Exception as e:
             logger.error(f"Failed to fetch page {page_number} for {endpoint_name} {data_date}: {e}")
             progress.update(progress_bar_id, advance=1)  # Still advance to show completion
@@ -997,6 +1044,9 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
             self.conn.execute("DELETE FROM psa.pncp_raw_responses")
             self.conn.commit()
 
+        # Setup signal handlers now that we're in async context
+        self.setup_signal_handlers()
+
         # Client initialized in __aenter__
         if not hasattr(self, "client") or self.client is None:
             await self._init_client()
@@ -1004,6 +1054,7 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
         # Start writer worker
         self.writer_running = True
         writer_task = asyncio.create_task(self.writer_worker(commit_every=100))
+        self.running_tasks.add(writer_task)
 
         # --- Main Execution Flow ---
 
@@ -1026,9 +1077,21 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
             await self._execute_tasks(progress)
 
         # Wait for writer to process all enqueued pages
-        await self.page_queue.join()
-        await self.page_queue.put(None)  # Send sentinel
-        await writer_task
+        try:
+            await self.page_queue.join()
+            await self.page_queue.put(None)  # Send sentinel
+            await writer_task
+        except asyncio.CancelledError:
+            console.print("⚠️ [yellow]Writer task cancelled during shutdown[/yellow]")
+            # Ensure writer task is cancelled
+            if not writer_task.done():
+                writer_task.cancel()
+                try:
+                    await writer_task
+                except asyncio.CancelledError:
+                    pass
+        finally:
+            self.running_tasks.discard(writer_task)
 
         # Phase 4: Reconciliation
         await self._reconcile_tasks()
