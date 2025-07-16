@@ -1039,13 +1039,9 @@ class AsyncPNCPExtractor:
         self.writer_running = True
         writer_task = asyncio.create_task(self.writer_worker(commit_every=75))
 
-        # Create all endpoint-range combinations using monthly chunks
-        all_tasks = []
-        for endpoint in PNCP_ENDPOINTS:
-            date_chunks = self._monthly_chunks(start_date, end_date)
-            for chunk_start, chunk_end in date_chunks:
-                all_tasks.append((endpoint, chunk_start, chunk_end))
-
+        # Process one endpoint at a time to avoid overwhelming the API
+        all_results = []
+        
         # Create progress bars
         with Progress(
             SpinnerColumn(),
@@ -1057,21 +1053,40 @@ class AsyncPNCPExtractor:
             TimeElapsedColumn(),
             console=console,
         ) as progress:
-            # Create tasks with progress bars
-            extraction_tasks = []
-            for endpoint, chunk_start, chunk_end in all_tasks:
-                task_id = progress.add_task(
-                    f"[blue]{endpoint['name']}[/blue] {chunk_start} to {chunk_end}",
-                    total=1,
-                )
+            # Process each endpoint sequentially
+            for endpoint in PNCP_ENDPOINTS:
+                console.print(f"\n🔄 Processing endpoint: {endpoint['name']}")
+                
+                # Get monthly chunks for this endpoint
+                date_chunks = self._monthly_chunks(start_date, end_date)
+                
+                # Process date ranges in smaller batches to avoid overwhelming API
+                batch_size = 6  # Process 6 months at a time
+                for i in range(0, len(date_chunks), batch_size):
+                    batch_chunks = date_chunks[i:i + batch_size]
+                    
+                    # Create tasks for this batch of date ranges
+                    batch_tasks = []
+                    for chunk_start, chunk_end in batch_chunks:
+                        task_id = progress.add_task(
+                            f"[blue]{endpoint['name']}[/blue] {chunk_start} to {chunk_end}",
+                            total=1,
+                        )
 
-                task = self._crawl_endpoint_range(
-                    endpoint, chunk_start, chunk_end, progress, task_id, force
-                )
-                extraction_tasks.append(task)
+                        task = self._crawl_endpoint_range(
+                            endpoint, chunk_start, chunk_end, progress, task_id, force
+                        )
+                        batch_tasks.append(task)
 
-            # Run all tasks concurrently
-            results = await asyncio.gather(*extraction_tasks)
+                    # Run this batch of date ranges concurrently
+                    batch_results = await asyncio.gather(*batch_tasks)
+                    all_results.extend(batch_results)
+                    
+                    # Small delay between batches to be nice to the API
+                    if i + batch_size < len(date_chunks):
+                        await asyncio.sleep(1)
+            
+            results = all_results
 
         # Wait for all pages to be processed by writer
         await self.page_queue.join()
