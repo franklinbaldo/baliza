@@ -21,7 +21,7 @@ WITH procurements_with_keys AS (
   -- Main unit
   LEFT JOIN "baliza"."main_dimensions"."dim_unidades_orgao" unit
     ON p.orgao_entidade_json ->> 'cnpj' = unit.cnpj_orgao
-    AND p.unidade_orgao_json ->> 'codigoUnidade' = unit.codigo_unidade
+    AND CAST(p.unidade_orgao_json ->> 'codigoUnidade' AS VARCHAR) = unit.codigo_unidade
   
   -- Subrogated organization
   LEFT JOIN "baliza"."main_dimensions"."dim_organizacoes" subrog_org
@@ -30,7 +30,10 @@ WITH procurements_with_keys AS (
   -- Subrogated unit
   LEFT JOIN "baliza"."main_dimensions"."dim_unidades_orgao" subrog_unit
     ON p.orgao_subrogado_json ->> 'cnpj' = subrog_unit.cnpj_orgao
-    AND p.unidade_subrogada_json ->> 'codigoUnidade' = subrog_unit.codigo_unidade
+    AND CAST(p.unidade_subrogada_json ->> 'codigoUnidade' AS VARCHAR) = subrog_unit.codigo_unidade
+
+  WHERE p.orgao_entidade_json IS NOT NULL
+    AND p.unidade_orgao_json IS NOT NULL
 )
 
 SELECT

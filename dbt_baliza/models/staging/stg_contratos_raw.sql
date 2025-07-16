@@ -7,7 +7,7 @@
 
 WITH raw_responses AS (
   SELECT *
-  FROM {{ source('psa', 'pncp_raw_responses') }}
+  FROM main_psa.pncp_raw_responses
   WHERE endpoint_name IN ('contratos_publicacao', 'contratos_atualizacao')
     AND response_code = 200
     AND response_content IS NOT NULL

@@ -5,7 +5,7 @@
 
 WITH raw_responses AS (
   SELECT *
-  FROM "baliza"."psa"."pncp_raw_responses"
+  FROM main_psa.pncp_raw_responses
   WHERE endpoint_name IN ('atas_periodo', 'atas_atualizacao')
     AND response_code = 200
     AND response_content IS NOT NULL

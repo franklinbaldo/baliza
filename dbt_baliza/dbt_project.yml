@@ -72,4 +72,4 @@ snapshots:
 
 # Seeds
 seeds:
-  +schema: seeds
+  +schema: psa

@@ -1,0 +1,128 @@
+version: 2
+
+models:
+  - name: dim_organizacoes
+    description: "A dimension table for organizations"
+    columns:
+      - name: org_key
+        description: "The surrogate key for the organization"
+        tests:
+          - unique
+          - not_null
+      - name: cnpj
+        description: "The natural key for the organization (CNPJ)"
+        tests:
+          - unique
+          - not_null
+      - name: razao_social
+        description: "The name of the organization"
+      - name: poder_id
+        description: "The ID of the power of the organization (e.g., E, L, J, M)"
+      - name: esfera_id
+        description: "The ID of the sphere of the organization (e.g., F, E, M)"
+      - name: poder_nome
+        description: "The name of the power of the organization"
+      - name: esfera_nome
+        description: "The name of the sphere of the organization"
+      - name: created_at
+        description: "The timestamp when the record was created"
+      - name: updated_at
+        description: "The timestamp when the record was last updated"
+
+  - name: stg_contratacoes_raw
+    description: "Staging table for raw contract data"
+    columns:
+      - name: response_id
+        description: "The ID of the API response"
+      - name: extracted_at
+        description: "The timestamp when the data was extracted"
+      - name: endpoint_name
+        description: "The name of the API endpoint"
+      - name: endpoint_url
+        description: "The URL of the API endpoint"
+      - name: data_date
+        description: "The date of the data"
+      - name: run_id
+        description: "The ID of the run"
+      - name: modalidade
+        description: "The modality of the procurement"
+      - name: total_records
+        description: "The total number of records"
+      - name: total_pages
+        description: "The total number of pages"
+      - name: current_page
+        description: "The current page number"
+      - name: record_index
+        description: "The index of the record within the response"
+      - name: numero_controle_pncp
+        description: "The PNCP control number"
+      - name: numero_compra
+        description: "The procurement number"
+      - name: ano_compra
+        description: "The procurement year"
+      - name: sequencial_compra
+        description: "The procurement sequential number"
+      - name: data_publicacao_pncp
+        description: "The publication date on PNCP"
+      - name: data_abertura_proposta
+        description: "The proposal opening date"
+      - name: data_encerramento_proposta
+        description: "The proposal closing date"
+      - name: data_inclusao
+        description: "The inclusion date"
+      - name: data_atualizacao
+        description: "The update date"
+      - name: data_atualizacao_global
+        description: "The global update date"
+      - name: valor_total_estimado
+        description: "The estimated total value"
+      - name: valor_total_homologado
+        description: "The homologated total value"
+      - name: objeto_compra
+        description: "The object of the procurement"
+      - name: informacao_complementar
+        description: "Complementary information"
+      - name: processo
+        description: "The process number"
+      - name: link_sistema_origem
+        description: "Link to the source system"
+      - name: link_processo_eletronico
+        description: "Link to the electronic process"
+      - name: justificativa_presencial
+        description: "Justification for in-person procurement"
+      - name: modalidade_id
+        description: "The modality ID"
+      - name: modalidade_nome
+        description: "The modality name"
+      - name: modo_disputa_id
+        description: "The dispute mode ID"
+      - name: modo_disputa_nome
+        description: "The dispute mode name"
+      - name: tipo_instrumento_convocatorio_codigo
+        description: "The code of the convocatory instrument type"
+      - name: tipo_instrumento_convocatorio_nome
+        description: "The name of the convocatory instrument type"
+      - name: situacao_compra_id
+        description: "The procurement situation ID"
+      - name: situacao_compra_nome
+        description: "The procurement situation name"
+      - name: srp
+        description: "Indicates if it is a price registration system"
+      - name: existe_resultado
+        description: "Indicates if a result exists"
+      - name: orgao_entidade_json
+        description: "JSON data for the organization/entity"
+      - name: unidade_orgao_json
+        description: "JSON data for the organization unit"
+      - name: orgao_subrogado_json
+        description: "JSON data for the subrogated organization"
+      - name: unidade_subrogada_json
+        description: "JSON data for the subrogated unit"
+      - name: amparo_legal_json
+        description: "JSON data for the legal support"
+      - name: fontes_orcamentarias_json
+        description: "JSON data for the budgetary sources"
+      - name: usuario_nome
+        description: "The name of the user"
+      - name: procurement_json
+        description: "The full procurement JSON data"
