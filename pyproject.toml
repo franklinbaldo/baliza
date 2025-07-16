@@ -10,6 +10,7 @@ dependencies = [
     "httpx", # HTTP client for API requests
     "h2", # HTTP/2 support for httpx
     "pandas>=2.3.1",
+    "zstandard>=0.23.0",
 ]
 
 [project.scripts]
@@ -150,6 +151,7 @@ known-third-party = [
     "typer",
     "pytest",
     "rich",
+    "zstandard",
 ]
 section-order = [
     "future",
@@ -204,7 +206,8 @@ module = [
     "duckdb.*",
     "httpx.*",
     "typer.*",
-    "rich.*"
+    "rich.*",
+    "zstandard.*"
 ]
 ignore_missing_imports = true
 
