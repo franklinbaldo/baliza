@@ -7,6 +7,7 @@ import asyncio
 import calendar
 import contextlib
 import json
+import logging
 import random
 import time
 import uuid
@@ -17,7 +18,6 @@ from typing import Any
 import duckdb
 import httpx
 import orjson
-import structlog
 import typer
 from rich.console import Console
 from rich.progress import (
@@ -28,8 +28,17 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 
-console = Console()
-logger = structlog.get_logger()
+# Configure standard logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler()
+    ]
+)
+
+console = Console(force_terminal=True, legacy_windows=True, stderr=False)
+logger = logging.getLogger(__name__)
 
 
 # JSON parsing with orjson fallback
@@ -176,28 +185,34 @@ class AsyncPNCPExtractor:
     def _index_exists(self, index_name: str) -> bool:
         """Check if a given index exists in the database."""
         try:
-            # This is a more generic way for DuckDB
-            indexes = self.conn.execute(
-                "PRAGMA index_list('psa.pncp_raw_responses')"
-            ).fetchall()
-            return any(idx[1] == index_name for idx in indexes)
+            # Query information_schema to check if index exists
+            result = self.conn.execute(
+                "SELECT 1 FROM information_schema.indexes WHERE index_name = ?",
+                [index_name]
+            ).fetchone()
+            return result is not None
         except Exception:
-            return False  # Assume it doesn't exist if we can't check
+            # Fallback: try to create the index and catch the error
+            try:
+                self.conn.execute(f"CREATE INDEX IF NOT EXISTS {index_name}_test ON psa.pncp_raw_responses(endpoint_name)")
+                self.conn.execute(f"DROP INDEX IF EXISTS {index_name}_test")
+                return False  # If we can create a test index, the target doesn't exist
+            except Exception:
+                return True  # If we can't create test index, assume target exists
 
     def _create_indexes_if_not_exist(self):
         """Create indexes only if they do not already exist."""
         indexes_to_create = {
-            "idx_endpoint_date_page": "CREATE INDEX idx_endpoint_date_page ON psa.pncp_raw_responses(endpoint_name, data_date, current_page)",
-            "idx_response_code": "CREATE INDEX idx_response_code ON psa.pncp_raw_responses(response_code)",
+            "idx_endpoint_date_page": "CREATE INDEX IF NOT EXISTS idx_endpoint_date_page ON psa.pncp_raw_responses(endpoint_name, data_date, current_page)",
+            "idx_response_code": "CREATE INDEX IF NOT EXISTS idx_response_code ON psa.pncp_raw_responses(response_code)",
         }
 
         for idx_name, create_sql in indexes_to_create.items():
-            if not self._index_exists(idx_name):
-                try:
-                    self.conn.execute(create_sql)
-                    logger.info(f"Index '{idx_name}' created.")
-                except Exception as e:
-                    logger.exception(f"Failed to create index '{idx_name}'", error=e)
+            try:
+                self.conn.execute(create_sql)
+                logger.info(f"Index '{idx_name}' ensured.")
+            except Exception as e:
+                logger.exception(f"Failed to create index '{idx_name}'")
 
     async def __aenter__(self):
         """Async context manager entry."""
@@ -225,9 +240,7 @@ class AsyncPNCPExtractor:
                     self.conn.commit()  # Commit any pending changes
                     self.conn.close()
                 except (duckdb.Error, AttributeError) as db_err:
-                    logger.warning(
-                        "Error during database cleanup", error=str(db_err)
-                    )  # Log the specific error
+                    logger.warning(f"Error during database cleanup: {db_err}")
 
             console.print("🔄 Graceful shutdown completed")
 
@@ -413,7 +426,7 @@ class AsyncPNCPExtractor:
                 )
 
         except Exception as e:
-            logger.exception("HTTP/2 verification failed", error=e)
+            logger.exception("HTTP/2 verification failed")
 
     async def _complete_task_and_print(
         self, progress: Progress, task_id: int, final_message: str
@@ -814,7 +827,7 @@ class AsyncPNCPExtractor:
         pages_to_fetch_query = """
 SELECT t.task_id, t.endpoint_name, t.data_date, CAST(p.page_number AS INTEGER) as page_number
 FROM psa.pncp_extraction_tasks t,
-     unnest(json_extract_array(t.missing_pages)) AS p(page_number)
+     unnest(json_extract(t.missing_pages, '$')::INTEGER[]) AS p(page_number)
 WHERE t.status IN ('FETCHING', 'PARTIAL');
         """
         pages_to_fetch = self.conn.execute(pages_to_fetch_query).fetchall()
@@ -883,12 +896,8 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
     ) -> dict[str, Any]:
         """Main extraction method using a task-based, phased architecture."""
         logger.info(
-            "extraction_started",
-            start_date=start_date.isoformat(),
-            end_date=end_date.isoformat(),
-            concurrency=self.concurrency,
-            run_id=self.run_id,
-            force=force,
+            f"Extraction started: {start_date.isoformat()} to {end_date.isoformat()}, "
+            f"concurrency={self.concurrency}, run_id={self.run_id}, force={force}"
         )
         start_time = time.time()
 
@@ -914,7 +923,6 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
         await self._plan_tasks(start_date, end_date)
 
         with Progress(
-            SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
             BarColumn(),
             TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
@@ -973,12 +981,12 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
             "duration": duration,
         }
 
-        console.print("\n🎉 Extraction Complete!")
+        console.print("\nExtraction Complete!")
         console.print(
-            f"📊 Total Tasks: {total_tasks:,} ({complete_tasks:,} complete, {failed_tasks:,} failed)"
+            f"Total Tasks: {total_tasks:,} ({complete_tasks:,} complete, {failed_tasks:,} failed)"
         )
-        console.print(f"📈 Total Records: {total_records_sum:,}")
-        console.print(f"⏱️ Duration: {duration:.1f}s")
+        console.print(f"Total Records: {total_records_sum:,}")
+        console.print(f"Duration: {duration:.1f}s")
 
         await self.client.aclose()
         self.conn.execute("VACUUM")
@@ -1037,7 +1045,7 @@ def extract(
             with Path(results_file).open("w") as f:
                 json.dump(results, f, indent=2, default=str)
 
-            console.print(f"📄 Results saved to: {results_file}")
+            console.print(f"Results saved to: {results_file}")
 
     asyncio.run(main())
 
