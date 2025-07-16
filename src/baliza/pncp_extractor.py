@@ -8,6 +8,7 @@ import asyncio
 import json
 import uuid
 from datetime import datetime, timedelta, date
+import calendar
 from pathlib import Path
 from typing import Dict, Any, List, Tuple
 import time
@@ -45,7 +46,7 @@ PNCP_ENDPOINTS = [
         "path": "/v1/contratos",
         "description": "Contratos por Data de Publicação",
         "date_params": ["dataInicial", "dataFinal"],
-        "max_days": 365,
+        "max_days": 365,  # API limit, but we use monthly chunks
         "supports_date_range": True,
     },
     {
@@ -53,7 +54,7 @@ PNCP_ENDPOINTS = [
         "path": "/v1/contratos/atualizacao",
         "description": "Contratos por Data de Atualização Global",
         "date_params": ["dataInicial", "dataFinal"],
-        "max_days": 365,
+        "max_days": 365,  # API limit, but we use monthly chunks
         "supports_date_range": True,
     },
     {
@@ -61,7 +62,7 @@ PNCP_ENDPOINTS = [
         "path": "/v1/atas",
         "description": "Atas de Registro de Preço por Período de Vigência",
         "date_params": ["dataInicial", "dataFinal"],
-        "max_days": 365,
+        "max_days": 365,  # API limit, but we use monthly chunks
         "supports_date_range": True,
     },
     {
@@ -69,7 +70,7 @@ PNCP_ENDPOINTS = [
         "path": "/v1/atas/atualizacao",
         "description": "Atas por Data de Atualização Global",
         "date_params": ["dataInicial", "dataFinal"],
-        "max_days": 365,
+        "max_days": 365,  # API limit, but we use monthly chunks
         "supports_date_range": True,
     },
 ]
@@ -243,17 +244,32 @@ class AsyncPNCPExtractor:
         """Format date for PNCP API (YYYYMMDD)."""
         return date_obj.strftime("%Y%m%d")
 
-    def _year_chunks(
-        self, start_date: date, end_date: date, max_days: int = 365
+    def _monthly_chunks(
+        self, start_date: date, end_date: date
     ) -> List[Tuple[date, date]]:
-        """Generate date chunks of max_days."""
+        """Generate monthly date chunks (start to end of each month)."""
         chunks = []
         current = start_date
 
         while current <= end_date:
-            chunk_end = min(current + timedelta(days=max_days - 1), end_date)
-            chunks.append((current, chunk_end))
-            current = chunk_end + timedelta(days=1)
+            # Get the first day of the current month
+            month_start = current.replace(day=1)
+            
+            # Get the last day of the current month
+            _, last_day = calendar.monthrange(current.year, current.month)
+            month_end = current.replace(day=last_day)
+            
+            # Adjust for actual start/end boundaries
+            chunk_start = max(month_start, start_date)
+            chunk_end = min(month_end, end_date)
+            
+            chunks.append((chunk_start, chunk_end))
+            
+            # Move to first day of next month
+            if current.month == 12:
+                current = current.replace(year=current.year + 1, month=1, day=1)
+            else:
+                current = current.replace(month=current.month + 1, day=1)
 
         return chunks
 
@@ -759,10 +775,10 @@ class AsyncPNCPExtractor:
 
         start_time = time.time()
 
-        # Create all endpoint-range combinations
+        # Create all endpoint-range combinations using monthly chunks
         all_tasks = []
         for endpoint in PNCP_ENDPOINTS:
-            date_chunks = self._year_chunks(start_date, end_date, endpoint["max_days"])
+            date_chunks = self._monthly_chunks(start_date, end_date)
             for chunk_start, chunk_end in date_chunks:
                 all_tasks.append((endpoint, chunk_start, chunk_end))
 
@@ -838,6 +854,13 @@ class AsyncPNCPExtractor:
             self.conn.close()
 
 
+def _get_current_month_end() -> str:
+    """Get the last day of the current month as YYYY-MM-DD."""
+    now = datetime.now()
+    _, last_day = calendar.monthrange(now.year, now.month)
+    return now.replace(day=last_day).strftime("%Y-%m-%d")
+
+
 # CLI interface
 app = typer.Typer()
 
@@ -846,7 +869,7 @@ app = typer.Typer()
 def extract(
     start_date: str = typer.Option("2021-01-01", help="Start date (YYYY-MM-DD)"),
     end_date: str = typer.Option(
-        datetime.now().strftime("%Y-%m-%d"), help="End date (YYYY-MM-DD)"
+        _get_current_month_end(), help="End date (YYYY-MM-DD)"
     ),
     concurrency: int = typer.Option(CONCURRENCY, help="Number of concurrent requests"),
     force: bool = typer.Option(
