@@ -18,6 +18,8 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+__pycache__/
+*.pyc
 .Python
 build/
 develop-eggs/

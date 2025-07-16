@@ -1,113 +1,42 @@
 version: 2
 
 sources:
+  - name: pncp_api
+    description: "Direct access to PNCP API endpoints"
+    loader: httpfs
+    tables:
+      - name: contratos_publicacao
+        description: "Contratos por Data de Publicação"
+        config:
+          external_location: "{{ get_pncp_api_url('contratos_publicacao') }}"
+      - name: contratos_atualizacao
+        description: "Contratos por Data de Atualização Global"
+        config:
+          external_location: "{{ get_pncp_api_url('contratos_atualizacao') }}"
+      - name: atas_periodo
+        description: "Atas de Registro de Preço por Período de Vigência"
+        config:
+          external_location: "{{ get_pncp_api_url('atas_periodo') }}"
+      - name: atas_atualizacao
+        description: "Atas por Data de Atualização Global"
+        config:
+          external_location: "{{ get_pncp_api_url('atas_atualizacao') }}"
+      - name: contratacoes_publicacao
+        description: "Contratações por Data de Publicação"
+        config:
+          external_location: "{{ get_pncp_api_url('contratacoes_publicacao') }}"
+      - name: contratacoes_atualizacao
+        description: "Contratações por Data de Atualização"
+        config:
+          external_location: "{{ get_pncp_api_url('contratacoes_atualizacao') }}"
+      - name: contratacoes_proposta
+        description: "Contratações com Recebimento de Propostas Aberto"
+        config:
+          external_location: "{{ get_pncp_api_url('contratacoes_proposta') }}"
+
   - name: psa
-    description: "Persistent Staging Area - Raw PNCP API responses"
+    description: "Persistent Staging Area - Raw PNCP API responses (Legacy)"
     schema: psa
     tables:
       - name: pncp_raw_responses
         description: "All raw PNCP API responses with complete metadata"
-        columns:
-          - name: id
-            description: "Unique identifier for each response"
-            data_type: UUID
-            tests:
-              - not_null
-              - unique
-          
-          - name: extracted_at
-            description: "Timestamp when the response was extracted"
-            data_type: TIMESTAMP
-            tests:
-              - not_null
-          
-          - name: endpoint_url
-            description: "Full URL that was called"
-            data_type: VARCHAR
-            tests:
-              - not_null
-          
-          - name: endpoint_name
-            description: "Name of the endpoint (e.g., contratos_publicacao)"
-            data_type: VARCHAR
-            tests:
-              - not_null
-              - accepted_values:
-                  values: ['contratos_publicacao', 'contratos_atualizacao', 'contratacoes_publicacao', 'contratacoes_atualizacao', 'contratacoes_proposta', 'atas_periodo', 'atas_atualizacao', 'instrumentos_cobranca', 'pca_atualizacao']
-          
-          - name: http_method
-            description: "HTTP method used (typically GET)"
-            data_type: VARCHAR
-            tests:
-              - not_null
-              - accepted_values:
-                  values: ['GET', 'POST', 'PUT', 'DELETE']
-          
-          - name: request_parameters
-            description: "JSON object containing request parameters"
-            data_type: JSON
-          
-          - name: response_code
-            description: "HTTP response status code"
-            data_type: INTEGER
-            tests:
-              - not_null
-              - accepted_values:
-                  values: [200, 204, 400, 401, 422, 429, 500, 502, 503, 504]
-          
-          - name: response_content
-            description: "Raw response content as text"
-            data_type: VARCHAR
-            tests:
-              - not_null
-          
-          - name: response_headers
-            description: "HTTP response headers as JSON"
-            data_type: JSON
-          
-          - name: data_date
-            description: "Date for which the data was extracted"
-            data_type: DATE
-            tests:
-              - not_null
-          
-          - name: run_id
-            description: "Unique identifier for extraction run"
-            data_type: VARCHAR
-            tests:
-              - not_null
-          
-          - name: endpoint_type
-            description: "Type of endpoint (contratos, contratacoes, atas, etc.)"
-            data_type: VARCHAR
-            tests:
-              - not_null
-          
-          - name: modalidade
-            description: "Modalidade code for contratacoes endpoints"
-            data_type: INTEGER
-          
-          - name: total_records
-            description: "Total number of records in the response"
-            data_type: INTEGER
-          
-          - name: total_pages
-            description: "Total number of pages for the query"
-            data_type: INTEGER
-          
-          - name: current_page
-            description: "Current page number"
-            data_type: INTEGER
-          
-          - name: page_size
-            description: "Number of records per page"
-            data_type: INTEGER
-
-        # Freshness tests
-        freshness:
-          warn_after: {count: 24, period: hour}
-          error_after: {count: 48, period: hour}
-          filter: response_code = 200
-
-        # Loaded at tests
-        loaded_at_field: extracted_at

@@ -7,6 +7,8 @@ baliza:
       threads: 4
       keepalives_idle: 0
       search_path: psa
+      extensions:
+        - httpfs
     
     prod:
       type: duckdb
@@ -14,3 +16,5 @@ baliza:
       threads: 8
       keepalives_idle: 0
       search_path: psa
+      extensions:
+        - httpfs
