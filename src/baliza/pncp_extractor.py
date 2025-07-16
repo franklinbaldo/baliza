@@ -7,7 +7,7 @@ Based on steel-man pseudocode: endpoint → 365-day ranges → async pagination
 import asyncio
 import json
 import uuid
-from datetime import datetime, timedelta, date
+from datetime import datetime, date
 import calendar
 from pathlib import Path
 from typing import Dict, Any, List, Tuple
@@ -254,17 +254,17 @@ class AsyncPNCPExtractor:
         while current <= end_date:
             # Get the first day of the current month
             month_start = current.replace(day=1)
-            
+
             # Get the last day of the current month
             _, last_day = calendar.monthrange(current.year, current.month)
             month_end = current.replace(day=last_day)
-            
+
             # Adjust for actual start/end boundaries
             chunk_start = max(month_start, start_date)
             chunk_end = min(month_end, end_date)
-            
+
             chunks.append((chunk_start, chunk_end))
-            
+
             # Move to first day of next month
             if current.month == 12:
                 current = current.replace(year=current.year + 1, month=1, day=1)
@@ -286,6 +286,42 @@ class AsyncPNCPExtractor:
         ).fetchone()
 
         return (result[0] if result else 0) > 0
+
+    def _check_any_page_exists(self, endpoint_name: str, data_date: date) -> bool:
+        """Check if ANY page exists for this endpoint/date combination."""
+        result = self.conn.execute(
+            """
+            SELECT COUNT(*) FROM psa.pncp_raw_responses 
+            WHERE endpoint_name = ? AND data_date = ? AND response_code = 200
+        """,
+            [endpoint_name, data_date],
+        ).fetchone()
+
+        return (result[0] if result else 0) > 0
+
+    def _get_existing_pages_info(
+        self, endpoint_name: str, data_date: date
+    ) -> Dict[str, Any] | None:
+        """Get info about existing pages, inferring total_pages from any successful page."""
+        result = self.conn.execute(
+            """
+            SELECT total_pages, total_records, current_page, response_content 
+            FROM psa.pncp_raw_responses 
+            WHERE endpoint_name = ? AND data_date = ? AND response_code = 200
+            ORDER BY current_page
+            LIMIT 1
+        """,
+            [endpoint_name, data_date],
+        ).fetchone()
+
+        if result:
+            return {
+                "total_pages": result[0],
+                "total_records": result[1],
+                "current_page": result[2],
+                "content": result[3],
+            }
+        return None
 
     def _get_existing_page_info(
         self, endpoint_name: str, data_date: date, page: int
@@ -581,15 +617,15 @@ class AsyncPNCPExtractor:
         first_page_params = base_params.copy()
         first_page_params["pagina"] = 1
 
-        # Check if we should skip this range completely
-        # Only skip if we have page 1 AND we know the total pages from previous runs
-        if not force and self._check_page_exists(endpoint["name"], start_date, 1):
-            # Get total pages from existing first page
-            existing_first_page = self._get_existing_page_info(
-                endpoint["name"], start_date, 1
+        # Check if we should skip this range completely or handle partial data
+        # Check if ANY page exists for this endpoint/date combination
+        if not force and self._check_any_page_exists(endpoint["name"], start_date):
+            # Get metadata from any existing page (can infer total_pages from any page)
+            existing_pages_info = self._get_existing_pages_info(
+                endpoint["name"], start_date
             )
-            if existing_first_page:
-                total_pages = existing_first_page.get("total_pages", 1)
+            if existing_pages_info:
+                total_pages = existing_pages_info.get("total_pages", 1)
 
                 # Check if we have all pages for this range
                 missing_pages = []
@@ -606,14 +642,19 @@ class AsyncPNCPExtractor:
                     results["pages_skipped"] += total_pages
                     return results
                 else:
-                    # We have partial data, fetch missing pages
+                    # We have partial data, fetch missing pages (including page 1 if needed)
                     progress.update(
                         task_id,
                         total=total_pages,
                         description=f"[yellow]{endpoint['name']}[/yellow] {start_date} to {end_date} - Partial ({len(missing_pages)} missing)",
                     )
 
-                    # Fetch missing pages
+                    # Set total records from existing data
+                    results["total_records"] = existing_pages_info.get(
+                        "total_records", 0
+                    )
+
+                    # Fetch missing pages (could include page 1)
                     return await self._fetch_missing_pages(
                         endpoint,
                         start_date,
@@ -625,10 +666,10 @@ class AsyncPNCPExtractor:
                         results,
                     )
             else:
-                # Page 1 exists but we can't get info, skip
+                # Some pages exist but we can't get metadata info, skip with warning
                 progress.update(
                     task_id,
-                    description=f"[blue]{endpoint['name']}[/blue] {start_date} to {end_date} - Skipping (exists)",
+                    description=f"[blue]{endpoint['name']}[/blue] {start_date} to {end_date} - Skipping (partial data, no metadata)",
                 )
                 results["pages_skipped"] += 1
                 return results
@@ -642,7 +683,8 @@ class AsyncPNCPExtractor:
         if not first_response["success"]:
             results["failed_requests"] += 1
             progress.update(
-                task_id, description=f"[red]{endpoint['name']}[/red] {start_date} to {end_date} - Failed"
+                task_id,
+                description=f"[red]{endpoint['name']}[/red] {start_date} to {end_date} - Failed",
             )
             return results
 
