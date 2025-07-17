@@ -1,0 +1,3 @@
+- [Home](index.md)
+- [Project Design](task-table-design.md)
+- [API Reference](reference/baliza/index.md)
