@@ -1,244 +1,168 @@
 # BALIZA
 
-**Acrônimo oficial**
-**B**ackup **A**berto de **LI**citações **Z**elando pelo **A**cesso
+<div align="center">
+  <img src="https://raw.githubusercontent.com/okfn-brasil/assets/main/logos/baliza/logo-completa-fundo-escuro.png" alt="Logo do BALIZA: Um farol de dados sobre um mar de informações, com o nome BALIZA abaixo" width="400">
+  <br>
+  <h3>Backup Aberto de Licitações Zelando pelo Acesso</h3>
+  <p><strong>Guardando a memória das compras públicas no Brasil.</strong></p>
+  <p>
+    <a href="https://github.com/okfn-brasil/baliza/blob/main/LICENSE"><img src="https://img.shields.io/github/license/okfn-brasil/baliza?style=for-the-badge" alt="Licença"></a>
+    <a href="https://github.com/okfn-brasil/baliza/actions/workflows/baliza_daily_run.yml"><img src="https://img.shields.io/github/actions/workflow/status/okfn-brasil/baliza/baliza_daily_run.yml?branch=main&label=Build%20Di%C3%A1rio&style=for-the-badge" alt="Status do Build"></a>
+    <a href="https://pypi.org/project/baliza/"><img src="https://img.shields.io/pypi/v/baliza?style=for-the-badge" alt="Versão no PyPI"></a>
+  </p>
+</div>
+
+> **BALIZA** é uma ferramenta de código aberto que extrai, armazena e estrutura dados do Portal Nacional de Contratações Públicas (PNCP), criando um backup histórico confiável para análises e auditoria da maior plataforma de compras públicas do país.
 
 ---
 
-### Pitch de uma linha
+## 🎯 O Problema: A Memória Volátil da Transparência
 
-> “BALIZA espelha diariamente o PNCP no Internet Archive para garantir histórico completo e análises retroativas de compras públicas.”
+O Portal Nacional de Contratações Públicas (PNCP) é um avanço para a transparência, mas possui uma limitação crítica: **os dados são voláteis**.
 
-### README.md — estrutura mínima (Atualizado)
+-   ❌ **Sem Histórico Permanente:** A API do PNCP não garante o acesso a dados antigos e não possui um sistema de versionamento. Dados podem ser alterados ou simplesmente desaparecer.
+-   ❌ **Análise Histórica Comprometida:** Sem uma série temporal confiável, é impossível realizar análises de longo prazo, identificar tendências ou investigar padrões de contratações passadas.
+-   ❌ **Auditoria Reativa, não Proativa:** A detecção de fraudes e o controle social dependem de dados estáveis. A volatilidade impede uma auditoria séria e sistemática.
 
-````markdown
-# BALIZA
+## ✨ A Solução: Um Backup para o Controle Social
 
-**Backup Aberto de Licitações Zelando pelo Acesso** — um bot que baixa o delta diário do PNCP e envia para o Internet Archive em JSONL compactado.
+O BALIZA atua como uma **âncora de dados para o PNCP**. Ele sistematicamente coleta e armazena os dados, garantindo que a memória das contratações públicas brasileiras seja preservada e acessível a todos.
 
-## Por quê
-- O PNCP só mantém dados acessíveis via API e sem versionamento.
-- Sem séries históricas não há auditoria séria nem detecção de fraude por padrão.
+-   🛡️ **Resiliência:** Cria um backup local (ou federado) imune a mudanças na API ou indisponibilidades do portal.
+-   🕰️ **Séries Históricas:** Constrói um acervo completo e cronológico, permitindo análises que hoje são inviáveis.
+-   🔍 **Dados Estruturados para Análise:** Transforma respostas JSON complexas em tabelas limpas e prontas para serem consultadas com SQL.
+-   🌍 **Aberto por Natureza:** Utiliza formatos e ferramentas abertas (DuckDB, Parquet), garantindo que os dados sejam seus, para sempre.
 
-## Como funciona
+## ⚙️ Como Funciona
 
-O BALIZA utiliza uma arquitetura de extração de dados em fases, garantindo resiliência e idempotência. O processo é orquestrado por uma tabela de controle de tarefas (`pncp_extraction_tasks`) em um banco de dados DuckDB local.
+O BALIZA opera com uma arquitetura de extração em fases, garantindo que o processo seja robusto e possa ser retomado em caso de falhas.
 
-1.  **Fase 1: Planejamento (Planning)**
-    *   O script primeiro identifica todos os períodos mensais para cada endpoint da API do PNCP que precisam ser processados.
-    *   Para cada combinação de endpoint e mês, uma tarefa é criada na tabela de controle com o status `PENDING`.
-    *   Esta fase garante que nenhuma tarefa seja duplicada se o processo for executado novamente.
+```mermaid
+flowchart TD
+    A[API do PNCP] -->|1. Requisições| B(BALIZA);
+    subgraph B [BALIZA: Processo de Extração]
+        direction LR
+        B1(Planejamento) --> B2(Descoberta) --> B3(Execução) --> B4(Reconciliação);
+    end
+    B -->|2. Armazenamento| C{DuckDB Local};
+    C -->|3. Transformação (dbt)| D[Tabelas Limpas e Analíticas];
+    D -->|4. Análise| E(Jornalistas, Pesquisadores, Cidadãos);
+```
+_**Legenda:** O BALIZA orquestra a coleta da API do PNCP, armazena os dados brutos em um banco DuckDB e, com dbt, os transforma em insumos para análise._
 
-2.  **Fase 2: Descoberta (Discovery)**
-    *   Para cada tarefa `PENDING`, o script faz uma requisição para a primeira página da API para obter metadados, como o número total de páginas e registros.
-    *   A tarefa é então atualizada com esses metadados e seu status muda para `FETCHING`.
-
-3.  **Fase 3: Execução (Execution)**
-    *   O script busca todas as páginas de dados para as tarefas com status `FETCHING` ou `PARTIAL` (tarefas que foram interrompidas anteriormente).
-    *   As requisições são feitas de forma assíncrona e concorrente para maximizar a velocidade de download.
-    *   As respostas da API são salvas na tabela `pncp_raw_responses` do DuckDB.
-
-4.  **Fase 4: Reconciliação (Reconciliation)**
-    *   Após a fase de execução, o script verifica quais páginas foram baixadas com sucesso para cada tarefa.
-    *   O status da tarefa é atualizado para `COMPLETE` se todas as páginas foram baixadas, ou `PARTIAL` se ainda faltam páginas.
-    *   Isso garante que, se o processo for interrompido, ele possa ser retomado exatamente de onde parou.
-
-5.  **Transformação e Análise (dbt)**
-    *   Com os dados brutos no DuckDB, os modelos dbt são executados para transformar os dados em tabelas limpas e estruturadas.
-    *   As transformações incluem a extração de campos do JSON, a limpeza de dados e a criação de tabelas de fatos e dimensões para análise.
+1.  **Planejamento:** Identifica os períodos (mês/ano) que precisam ser baixados.
+2.  **Descoberta:** Consulta a API para saber o volume de dados (total de páginas) de cada período.
+3.  **Execução:** Baixa todas as páginas de forma assíncrona e paralela para máxima eficiência.
+4.  **Reconciliação:** Verifica se todos os dados foram baixados corretamente e marca as tarefas como concluídas.
+5.  **Transformação:** Após a coleta, modelos **dbt** podem ser executados para limpar, estruturar e enriquecer os dados, criando tabelas prontas para análise.
 
 ## 🚀 Como Usar
 
-### 📊 **Para Análise de Dados (Recomendado)**
+Existem duas maneiras principais de interagir com o BALIZA, dependendo do seu objetivo.
 
-**🎯 Análise Instantânea no Google Colab:**
+<!-- Início dos Tabs -->
+<details>
+<summary><strong>📊 Para Analistas de Dados e Jornalistas</strong></summary>
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/franklinbaldo/baliza/blob/main/notebooks/analise_pncp_colab.ipynb)
+Seu objetivo é analisar os dados já coletados. Você pode acessar diretamente o banco de dados gerado pelo projeto.
 
-- ✅ **Um clique** e você está analisando milhões de contratos públicos
-- ✅ **Sem configuração** - funciona 100% no navegador  
-- ✅ **Dados atualizados** diretamente do Internet Archive
-- ✅ **Análises pré-configuradas** com visualizações interativas
-- ✅ **Detecção de fraudes** e padrões suspeitos automatizada
+**Pré-requisitos:**
+- Python e DuckDB (`pip install duckdb pandas`)
 
-### 🔧 **Para Coleta de Dados**
+**Exemplo de Análise Rápida:**
+```python
+import duckdb
 
-#### Pré-requisitos
+# Conecte-se ao banco de dados (baixe-o de uma execução do projeto)
+con = duckdb.connect('data/baliza.duckdb')
+
+# Exemplo: Contar o número de compras por UF
+resultado = con.sql("""
+    SELECT
+        json_extract_string(data, '$.municipio.uf.sigla') AS uf,
+        COUNT(1) AS total_compras
+    FROM psa.pncp_raw_responses
+    WHERE
+        endpoint = 'compras' AND uf IS NOT NULL
+    GROUP BY uf
+    ORDER BY total_compras DESC;
+""").to_df()
+
+print(resultado)
+```
+- ✅ **SQL direto nos dados:** Use a sintaxe SQL que você já conhece.
+- ✅ **Integração total:** Funciona perfeitamente com Pandas, Jupyter Notebooks, e outras ferramentas do ecossistema PyData.
+- ✅ **Dados brutos e transformados:** Acesse tanto a resposta original da API quanto as tabelas já limpas.
+
+</details>
+
+<details>
+<summary><strong>🔧 Para Desenvolvedores e Coletores de Dados</strong></summary>
+
+Seu objetivo é executar o processo de extração para criar ou atualizar o banco de dados.
+
+**Pré-requisitos:**
 - Python 3.11+
-- `uv` (gerenciador de pacotes Python rápido). Se não tiver: `curl -LsSf https://astral.sh/uv/install.sh | sh`
-- Credenciais do Internet Archive (`IA_KEY` e `IA_SECRET`).
+- [uv](https://github.com/astral-sh/uv) (um instalador de pacotes Python extremamente rápido)
 
-#### 🚀 **Instalação e Uso (Simples)**
-
-1. **Clone e configure o projeto:**
-   ```bash
-   git clone https://github.com/franklinbaldo/baliza.git
-   cd baliza
-   
-   # Instalar dependências
-   uv sync
-   
-   # Instalar BALIZA como CLI tool
-   uv pip install -e .
-   ```
-
-2. **Configure credenciais do Internet Archive:**
-   ```bash
-   export IA_KEY="SUA_CHAVE_IA"
-   export IA_SECRET="SEU_SEGREDO_IA"
-   ```
-
-3. **Execute a coleta:**
-
-   **🏛️ MODO AUTOMÁTICO (Recomendado) - Baixa TODO o histórico:**
-   ```bash
-   uv run baliza --auto
-   ```
-   
-   **📅 MODO DATA ESPECÍFICA:**
-   ```bash
-   uv run baliza --date 2024-07-10
-   ```
-   
-   **⚡ MODO ÚLTIMOS N DIAS:**
-   ```bash
-   uv run baliza --auto --days-back 30
-   ```
-
-#### 📁 **Estrutura de Dados**
-
-BALIZA usa estrutura de diretórios XDG-compliant:
-
-**🏠 Desenvolvimento (padrão):**
-```
-baliza/
-├── data/           # Bancos de dados principais
-├── .cache/         # Cache de downloads do IA
-└── .config/        # Configurações
-```
-
-**🌐 Produção (BALIZA_PRODUCTION=1):**
-```
-~/.local/share/baliza/  # Dados do usuário
-~/.cache/baliza/        # Cache do usuário  
-~/.config/baliza/       # Config do usuário
-```
-
-#### 🔗 **Federação com Internet Archive**
+**Instalação e Execução:**
 ```bash
-# Atualizar federação (incluído automaticamente no --auto)
+# 1. Clone o repositório
+git clone https://github.com/okfn-brasil/baliza.git
+cd baliza
+
+# 2. Instale as dependências com uv
+uv sync
+
+# 3. Execute a extração (isso pode levar horas!)
+# Por padrão, extrai de 2021 até o mês atual
+uv run baliza extract
+```
+
+**Principais Comandos:**
+| Comando | Descrição |
+|---|---|
+| `uv run baliza extract` | Inicia a extração de dados do PNCP. |
+| `uv run baliza extract --concurrency 4` | Limita o número de requisições paralelas. |
+| `uv run baliza extract --force` | Força a re-extração de dados já existentes. |
+| `uv run baliza stats` | Mostra estatísticas sobre os dados já baixados. |
+
+**Federação com Internet Archive:**
+Para garantir a longevidade dos dados, o BALIZA pode fazer upload dos arquivos para o Internet Archive. Configure as variáveis de ambiente `IA_KEY` e `IA_SECRET` (como segredos no seu repositório GitHub) para habilitar esta funcionalidade.
+```bash
+# Este comando faz o upload dos dados para o IA
 uv run python src/baliza/ia_federation.py federate
-
-# Executar análises com DBT
-cd dbt_baliza
-dbt run --select coverage_temporal coverage_entidades
 ```
+</details>
+<!-- Fim dos Tabs -->
 
-## Automação com GitHub Actions
-- O projeto inclui um workflow em `.github/workflows/baliza_daily_run.yml`.
-- Este workflow executa o script diariamente às 02:15 BRT (05:15 UTC) em modo automático completo.
-- O workflow captura um sumário da execução em formato JSON e o armazena como um artefato do GitHub Actions para referência e depuração.
-- **Importante**: Para que o upload automático funcione, você **DEVE** configurar `IA_KEY` e `IA_SECRET` como "Secrets" nas configurações do seu repositório GitHub (Settings > Secrets and variables > Actions).
 
-## Roadmap
+## 🏗️ Arquitetura e Tecnologias
 
-### Fase 1: Implementação Central (Concluída)
-* [x] Script de coleta para `/v1/contratacoes/publicacao` com CLI (`Typer`).
-* [x] Compressão dos dados para `.jsonl.zst`.
-* [x] Upload dos arquivos para o Internet Archive.
-* [x] Agendamento da execução diária via GitHub Actions.
-* [x] Captura de sumário estruturado da execução (JSON) como artefato no GitHub Actions.
+| Camada | Tecnologias | Propósito |
+|---|---|---|
+| **Coleta** | Python, asyncio, httpx, tenacity | Extração eficiente, assíncrona e resiliente. |
+| **Armazenamento** | DuckDB | Banco de dados analítico local, rápido e sem servidor. |
+| **Transformação** | dbt (Data Build Tool) | Transforma dados brutos em modelos de dados limpos e confiáveis. |
+| **Interface** | Typer, Rich | CLI amigável, informativa e com ótima usabilidade. |
+| **Dependências**| uv (da Astral) | Gerenciamento de pacotes e ambientes virtuais de alta performance. |
 
-### Fase 2: Página de Estatísticas e Compartilhamento de Torrents (Planejado)
-* [ ] **Coleta de Estatísticas**: Desenvolver script para agregar dados das execuções diárias (e.g., itens coletados, status, links IA).
-* [ ] **Manifesto de Torrents**: Gerar e manter uma lista atualizada dos links `.torrent` para os itens arquivados no Internet Archive.
-* [ ] **Página Web de Estatísticas**:
-    * [ ] Criar template HTML para a página de status.
-    * [ ] Desenvolver script para gerar a página HTML estática a partir dos dados de estatísticas e torrents.
-    * [ ] Configurar GitHub Pages para hospedar a página.
-* [ ] **Atualização do Workflow**: Incrementar o GitHub Actions para executar os scripts de coleta de estatísticas, geração de manifesto de torrents e da página web, e fazer commit dos artefatos atualizados.
+## 🗺️ Roadmap do Projeto
 
-### Fase 3: Expansão de Endpoints (Implementado)
-* [x] **Implementar coleta para novos endpoints**:
-    * [x] `/v1/pca/usuario` - Consultar Itens de PCA por Ano do PCA, IdUsuario e Código de Classificação Superior.
-    * [x] `/v1/pca/` - Consultar Itens de PCA por Ano do PCA e Código de Classificação Superior (endpoint geral).
-    * [x] `/v1/contratacoes/proposta` - Consultar Contratações com Recebimento de Propostas Aberto.
+-   [✅] **Fase 1: Fundação** - Extração resiliente para múltiplos endpoints, armazenamento em DuckDB, CLI funcional.
+-   [⏳] **Fase 2: Expansão e Análise** - Implementação de modelos `dbt` para análise, melhoria das estatísticas, documentação aprofundada.
+-   [🗺️] **Fase 3: Ecossistema e Acessibilidade** - Exportação para formatos abertos (Parquet), criação de dashboards de exemplo, sistema de plugins para novas fontes.
+-   [💡] **Futuro:** Painel de monitoramento, notificações sobre falhas, tutoriais em vídeo.
 
-### Funcionalidades Adicionais (Consideradas para o Futuro - Pós Fase 3)
-* [ ] Implementar persistência robusta de checksums e estado de processamento (e.g., `state/processed.csv`) para evitar reprocessamento e duplicatas de forma mais granular.
-* [ ] Avaliar a criação de um dump automático para ClickHouse a partir dos dados no Internet Archive.
-* [ ] Desenvolver um painel analítico (Superset/Metabase) com KPIs (e.g., sobrepreço) utilizando os dados coletados.
-* [ ] Configurar alertas de anomalia (e.g., via Webhook) para falhas na coleta ou problemas nos dados.
-* [ ] Implementar configuração dinâmica de parâmetros para os novos endpoints PCA.
+## 🙌 Como Contribuir
 
-## Próximos Passos (Comunidade e Testes)
-1. **Teste Manual Extensivo**: Execute o script com `--date` para diferentes dias passados para garantir a robustez do hash, da coleta e do upload.
-2. **Feedback e Contribuições**: Abra issues para bugs, sugestões ou melhorias. Contribuições via Pull Requests são bem-vindas!
-3. **Anunciar e Engajar**: Após estabilização, considere anunciar no fórum Dados Abertos BR e convidar a comunidade para auditar os dados e o processo.
+**Sua ajuda é fundamental para fortalecer o controle social no Brasil!**
 
-```
+1.  **Reporte um Bug:** Encontrou um problema? [Abra uma issue](https://github.com/okfn-brasil/baliza/issues) descrevendo-o com o máximo de detalhes.
+2.  **Sugira uma Melhoria:** Tem uma ideia para uma nova funcionalidade ou melhoria? Adoraríamos ouvi-la nas issues.
+3.  **Desenvolva:** Faça um fork do projeto, crie uma branch e envie um Pull Request com suas contribuições.
+4.  **Dissemine:** Use os dados, crie análises, publique reportagens e compartilhe o projeto!
 
-### Projeto em 5 min — visão geral
+## 📜 Licença
 
-1. **Use os próprios endpoints de consulta do PNCP** (`/v1/contratacoes/publicacao`, `/v1/contratos/publicacao`, `/v1/pca`, etc.), que já aceitam filtros por intervalo de datas, paginação (`pagina`, `tamanhoPagina ≤ 500`) e devolvem JSON padronizado.&#x20;
-2. **Rode um *crawler* diário** (cron ou GitHub Actions) que baixa só o delta do dia anterior. Não invente “varredura completa” — é lento, caro e sujeito a time-out.
-3. **Empacote cada lote em `JSONL` comprimido** (`.jsonl.zst` é ótimo) e gere um manifesto SHA-256 para deduplicar depois.
-4. **Suba o arquivo para o Internet Archive** usando a API S3-like (`ias3`) com nome estável, ex.:
-   `pncp-contratacoes-2025-07-03.jsonl.zst`
-   Metadados mínimos: `title`, `creator=“PNCP Mirror Bot”`, `subject=“public procurement Brazil”`. ([archive.org][1], [archive.org][2])
-5. **Repita.** Em poucos meses você terá um *data lake* público, versionado e historicamente completo para qualquer análise contábil, *benchmarking* de preços, *red-flag analytics*, etc.
-
----
-
-### Arquitetura Adotada
-
-| Camada                 | Tech-stack                                     | Por quê                                                      |
-| ---------------------- | ---------------------------------------------- | ------------------------------------------------------------ |
-| **Coleta**             | `python` + `requests` + `tenacity` (retry)     | Leve, controlado, fácil de debugar                           |
-| **Gerenciamento de Dep.** | `uv` (Astral)                                  | Rápido, moderno, compatível com `pyproject.toml`             |
-| **Agendamento**        | GitHub Actions (cron)                          | Integrado ao repositório, gratuito para projetos open source   |
-| **Processamento**      | Python `json` (para JSONL)                     | Simples e direto para conversão em JSONL                     |
-| **Compressão**         | `zstandard` (via lib Python)                   | Excelente taxa de compressão e velocidade                    |
-| **Upload**             | `internetarchive` CLI/lib Python               | Biblioteca oficial para interagir com o Internet Archive     |
-| **Catálogo (Planejado)** | Manifest (`manifest.yml`) + checksums em CSV   | Garante integridade, evita duplicatas (ainda não implementado) |
-
----
-
-### Fluxo Incremental (Detalhado)
-
-1. **Cálculo da Data**: O script (ou o workflow do GitHub Actions) determina a data "ontem" (fuso horário de Brasília, UTC-3).
-2. **Iteração por Endpoints**: Para cada endpoint configurado (inicialmente, apenas `contratacoes`):
-   ```text
-   GET https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?dataInicial=YYYY-MM-DD&dataFinal=YYYY-MM-DD&pagina=1&tamanhoPagina=500
-   ```
-3. **Paginação**: O script itera sobre as páginas de resultados até que `paginaAtual` seja maior ou igual a `totalPaginas` retornado pela API. Cada página pode conter até 500 registros.
-4. **Armazenamento Temporário**: Cada registro JSON é anexado a um arquivo `.jsonl` local.
-5. **Compressão**: Após coletar todos os dados do dia para um endpoint, o arquivo `.jsonl` é comprimido usando Zstandard, resultando em um arquivo `.jsonl.zst`.
-6. **Cálculo de Checksum**: Um hash SHA256 é calculado para o arquivo `.jsonl.zst`.
-7. **Upload para Internet Archive**: O arquivo comprimido é enviado para o Internet Archive, e o checksum SHA256 é incluído nos metadados.
-8. **Limpeza (Local)**: O arquivo `.jsonl` original é removido após a compressão e tentativa de upload. O arquivo `.jsonl.zst` permanece localmente no diretório `baliza_data/`.
-9. **Registro de Estado (Planejado)**: Futuramente, o hash do arquivo e o status do upload serão gravados para evitar reprocessamento e permitir o rastreamento.
-
----
-
-### Pontos críticos (opinião sem rodeios)
-
-* **Rate-limit e disponibilidade**: Se o *crawler* falhar, não re-tente infinito — o PNCP derruba conexões longas.
-* **Token de acesso**: Hoje a consulta é pública, mas o SERPRO pode exigir API-key amanhã; prepare var env.
-* **Qualidade dos dados**: Campos financeiros vêm como texto, vírgula decimal e zeros mágicos (0 = sigilo). Não confie neles sem *post-processing*.&#x20;
-* **Internet Archive não é banco OLTP**: ele armazena blob; para consultas SQL use BigQuery, ClickHouse ou DuckDB apontando para seus `JSONL`.
-* **Legalidade**: dados já são públicos; o espelho é mera redundância. Mas inclua aviso de responsabilidade (“*dados brutos, sem garantias*”).
-
----
-
-### Próximos passos (Pós-Implementação Inicial)
-
-1. **Repositório e Licença**: O repositório no GitHub está configurado com Licença MIT e este README atualizado. (Feito!)
-2. **Automação**: GitHub Actions está habilitado com `cron: '15 5 * * *'` (02:15 BRT / 05:15 UTC) para execução diária. (Feito!)
-3. **Dashboard (Futuro)**: Criar um *dashboard* (ex: Superset, Metabase) que consuma os dados dos arquivos `.jsonl.zst` diretamente do Internet Archive (possivelmente via HTTPFS ou similar).
-4. **Engajamento Comunitário (Futuro)**: Quando o sistema estiver estável e com um volume razoável de dados arquivados, anunciar no fórum **Dados Abertos BR** para atrair colaboradores, auditores e usuários.
-
-Com a base implementada, o projeto Baliza está pronto para começar a arquivar os dados e evoluir com as funcionalidades planejadas no Roadmap.
-
-[1]: https://archive.org/developers/ias3.html?utm_source=chatgpt.com "ias3 Internet archive S3-like API"
-[2]: https://archive.org/developers/index-apis.html?utm_source=chatgpt.com "Tools and APIs — Internet Archive Developer Portal"
+Este projeto é licenciado sob a **Licença MIT**. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
