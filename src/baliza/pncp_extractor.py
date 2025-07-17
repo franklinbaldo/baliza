@@ -1164,26 +1164,14 @@ app = typer.Typer()
 
 @app.command()
 def extract(
-    start_date: str = typer.Option("2021-09-01", help="Start date (YYYY-MM-DD)"),
-    end_date: str = typer.Option(
-        _get_current_month_end(), help="End date (YYYY-MM-DD)"
-    ),
     concurrency: int = typer.Option(CONCURRENCY, help="Number of concurrent requests"),
     force: bool = typer.Option(
         False, "--force", help="Force re-extraction even if data exists"
     ),
 ):
     """Extract data using true async architecture."""
-    try:
-        start_dt = datetime.strptime(start_date, "%Y-%m-%d").date()
-        end_dt = datetime.strptime(end_date, "%Y-%m-%d").date()
-    except ValueError:
-        console.print("❌ Invalid date format. Use YYYY-MM-DD", style="bold red")
-        raise typer.Exit(1) from None
-
-    if start_dt > end_dt:
-        console.print("❌ Start date must be before end date", style="bold red")
-        raise typer.Exit(1)
+    start_dt = date(2021, 1, 1)
+    end_dt = date.today()
 
     async def main():
         async with AsyncPNCPExtractor(concurrency=concurrency) as extractor:
