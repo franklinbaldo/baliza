@@ -1,7 +1,7 @@
 # BALIZA
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/franklinbaldo//baliza/blob/main/logo.png" alt="Logo do BALIZA: Um farol de dados sobre um mar de informações, com o nome BALIZA abaixo" width="400">
+  <img src="https://raw.githubusercontent.com/franklinbaldo/baliza/blob/main/logo.png" alt="Logo do BALIZA: Um farol de dados sobre um mar de informações, com o nome BALIZA abaixo" width="400">
   <br>
   <h3>Backup Aberto de Licitações Zelando pelo Acesso</h3>
   <p><strong>Guardando a memória das compras públicas no Brasil.</strong></p>
