@@ -1,5 +1,3 @@
-# BALIZA
-
 <div align="center">
   <img src="assets/logo.png" alt="Logo do BALIZA: Um farol de dados sobre um mar de informações, com o nome BALIZA abaixo" width="400">
   <br>
