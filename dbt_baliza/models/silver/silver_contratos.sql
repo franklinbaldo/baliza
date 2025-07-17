@@ -6,7 +6,8 @@
 
 WITH source AS (
     SELECT *
-    FROM {{ ref('bronze_contratos') }}
+    FROM {{ ref('bronze_pncp_raw') }}
+    WHERE endpoint_category = 'contratos'
 ),
 
 parsed_responses AS (

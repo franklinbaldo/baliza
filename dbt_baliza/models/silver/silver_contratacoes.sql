@@ -18,9 +18,10 @@ WITH source AS (
         total_pages,
         current_page,
         response_json
-    FROM {{ ref('bronze_contratacoes') }}
+    FROM {{ ref('bronze_pncp_raw') }}
+    WHERE endpoint_category = 'contratacoes'
     {% if is_incremental() %}
-    WHERE extracted_at > (SELECT MAX(extracted_at) FROM {{ this }})
+    AND extracted_at > (SELECT MAX(extracted_at) FROM {{ this }})
     {% endif %}
 ),
 
