@@ -39,35 +39,39 @@ jobs:
           uv sync --frozen-lockfile
         shell: bash
 
-      - name: Calculate Yesterday's Date
-        id: get_date
+      - name: Install Internet Archive CLI
         run: |
-          # Using Python to ensure correct date calculation, especially across month/year boundaries
-          # GitHub Actions runners usually have Python pre-installed.
-          yesterday=$(python -c "from datetime import date, timedelta; print(date.today() - timedelta(days=1))")
-          echo "YESTERDAY_DATE=$yesterday" >> $GITHUB_OUTPUT
+          pip install internetarchive
+        shell: bash
+
+      - name: Download previous database
+        env:
+          IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
+          IA_SECRET_KEY: ${{ secrets.IA_SECRET_KEY }}
+        run: |
+          # Configure IA CLI
+          ia configure --access ${{ secrets.IA_ACCESS_KEY }} --secret ${{ secrets.IA_SECRET_KEY }}
+          # Download the database and ignore if it does not exist
+          ia download baliza-moderna --glob="baliza.duckdb" || echo "No previous database found."
         shell: bash
 
       - name: Run Baliza script and capture output
         id: baliza_run
+        timeout-minutes: 10
         env:
           IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
           IA_SECRET_KEY: ${{ secrets.IA_SECRET_KEY }}
-          BALIZA_DATE: ${{ steps.get_date.outputs.YESTERDAY_DATE }} # Using env var for date
           PYTHONIOENCODING: "utf-8" # Ensure UTF-8 for script output
         run: |
           source $VIRTUAL_ENV/bin/activate
-          echo "Fetching data for date: $BALIZA_DATE"
+
+          echo "Fetching all data..."
 
           # Create a directory for logs if it doesn't exist
           mkdir -p baliza_run_logs
 
-          # Execute the script and save its output.
-          # The script outputs informational logs to stderr (via typer.echo(err=True))
-          # and the final JSON summary to stdout.
-          # We'll save stdout to a file for the summary.
-          # The script's exit code will determine step success/failure.
-          python baliza/src/baliza/main.py > baliza_run_logs/run_summary_${{ steps.get_date.outputs.YESTERDAY_DATE }}.json
+          # Execute the script
+          python src/baliza/pncp_extractor.py extract > baliza_run_logs/run_summary.json
 
           # Check if the script failed (non-zero exit code)
           if [ $? -ne 0 ]; then
@@ -75,6 +79,14 @@ jobs:
             exit 1
           fi
           echo "Baliza script completed."
+        shell: bash
+
+      - name: Upload database to Internet Archive
+        env:
+          IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
+          IA_SECRET_KEY: ${{ secrets.IA_SECRET_KEY }}
+        run: |
+          ia upload baliza-moderna data/baliza.duckdb --metadata="title:Baliza Database" --metadata="collection:opensource"
         shell: bash
 
       - name: Upload run summary artifact
