@@ -1,13 +1,13 @@
 # BALIZA
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/okfn-brasil/assets/main/logos/baliza/logo-completa-fundo-escuro.png" alt="Logo do BALIZA: Um farol de dados sobre um mar de informações, com o nome BALIZA abaixo" width="400">
+  <img src="https://raw.githubusercontent.com/franklinbaldo/assets/main/logos/baliza/logo-completa-fundo-escuro.png" alt="Logo do BALIZA: Um farol de dados sobre um mar de informações, com o nome BALIZA abaixo" width="400">
   <br>
   <h3>Backup Aberto de Licitações Zelando pelo Acesso</h3>
   <p><strong>Guardando a memória das compras públicas no Brasil.</strong></p>
   <p>
-    <a href="https://github.com/okfn-brasil/baliza/blob/main/LICENSE"><img src="https://img.shields.io/github/license/okfn-brasil/baliza?style=for-the-badge" alt="Licença"></a>
-    <a href="https://github.com/okfn-brasil/baliza/actions/workflows/baliza_daily_run.yml"><img src="https://img.shields.io/github/actions/workflow/status/okfn-brasil/baliza/baliza_daily_run.yml?branch=main&label=Build%20Di%C3%A1rio&style=for-the-badge" alt="Status do Build"></a>
+    <a href="https://github.com/franklinbaldo/baliza/blob/main/LICENSE"><img src="https://img.shields.io/github/license/franklinbaldo/baliza?style=for-the-badge" alt="Licença"></a>
+    <a href="https://github.com/franklinbaldo/baliza/actions/workflows/baliza_daily_run.yml"><img src="https://img.shields.io/github/actions/workflow/status/franklinbaldo/baliza/baliza_daily_run.yml?branch=main&label=Build%20Di%C3%A1rio&style=for-the-badge" alt="Status do Build"></a>
     <a href="https://pypi.org/project/baliza/"><img src="https://img.shields.io/pypi/v/baliza?style=for-the-badge" alt="Versão no PyPI"></a>
   </p>
 </div>
@@ -108,7 +108,7 @@ Seu objetivo é executar o processo de extração para criar ou atualizar o banc
 **Instalação e Execução:**
 ```bash
 # 1. Clone o repositório
-git clone https://github.com/okfn-brasil/baliza.git
+git clone https://github.com/franklinbaldo/baliza.git
 cd baliza
 
 # 2. Instale as dependências com uv
@@ -158,7 +158,7 @@ uv run python src/baliza/ia_federation.py federate
 
 **Sua ajuda é fundamental para fortalecer o controle social no Brasil!**
 
-1.  **Reporte um Bug:** Encontrou um problema? [Abra uma issue](https://github.com/okfn-brasil/baliza/issues) descrevendo-o com o máximo de detalhes.
+1.  **Reporte um Bug:** Encontrou um problema? [Abra uma issue](https://github.com/franklinbaldo/baliza/issues) descrevendo-o com o máximo de detalhes.
 2.  **Sugira uma Melhoria:** Tem uma ideia para uma nova funcionalidade ou melhoria? Adoraríamos ouvi-la nas issues.
 3.  **Desenvolva:** Faça um fork do projeto, crie uma branch e envie um Pull Request com suas contribuições.
 4.  **Dissemine:** Use os dados, crie análises, publique reportagens e compartilhe o projeto!
