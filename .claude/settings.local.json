@@ -7,7 +7,12 @@
       "Bash(git commit:*)",
       "Bash(taskkill:*)",
       "Bash(wmic:*)",
-      "Bash(rm:*)"
+      "Bash(*)",
+      "Bash(ls:*)",
+      "Bash(dbt:*)",
+      "Bash(git checkout:*)",
+      "Bash(git merge:*)",
+      "Bash(git push:*)"
     ],
     "deny": []
   }
