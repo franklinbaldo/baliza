@@ -50,24 +50,24 @@ jobs:
 
       - name: Run Baliza script and capture output
         id: baliza_run
+        timeout-minutes: 10
         env:
           IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
           IA_SECRET_KEY: ${{ secrets.IA_SECRET_KEY }}
-          BALIZA_DATE: ${{ steps.get_date.outputs.YESTERDAY_DATE }} # Using env var for date
           PYTHONIOENCODING: "utf-8" # Ensure UTF-8 for script output
         run: |
           source $VIRTUAL_ENV/bin/activate
-          echo "Fetching data for date: $BALIZA_DATE"
+
+          START_DATE="${{ steps.get_date.outputs.YESTERDAY_DATE }}"
+          END_DATE="${{ steps.get_date.outputs.YESTERDAY_DATE }}"
+
+          echo "Fetching data for date range: $START_DATE to $END_DATE"
 
           # Create a directory for logs if it doesn't exist
           mkdir -p baliza_run_logs
 
-          # Execute the script and save its output.
-          # The script outputs informational logs to stderr (via typer.echo(err=True))
-          # and the final JSON summary to stdout.
-          # We'll save stdout to a file for the summary.
-          # The script's exit code will determine step success/failure.
-          python baliza/src/baliza/main.py > baliza_run_logs/run_summary_${{ steps.get_date.outputs.YESTERDAY_DATE }}.json
+          # Execute the script with start and end dates
+          python src/baliza/pncp_extractor.py extract --start-date "$START_DATE" --end-date "$END_DATE" > baliza_run_logs/run_summary_${{ steps.get_date.outputs.YESTERDAY_DATE }}.json
 
           # Check if the script failed (non-zero exit code)
           if [ $? -ne 0 ]; then
