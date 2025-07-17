@@ -13,10 +13,13 @@ dependencies = [
     "orjson", # Fast JSON parsing with fallback
     "aiolimiter>=1.2.1",
     "filelock", # File locking to prevent database conflicts
+    "anthropic", # Client for Claude LLM
+    "fastmcp",   # MCP Server library
+    "pyarrow",   # Parquet engine for pandas and duckdb
 ]
 
 [project.scripts]
-baliza = "baliza.pncp_extractor:app"
+baliza = "baliza.cli:app"
 
 [project.optional-dependencies]
 dev = [
