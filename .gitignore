@@ -71,3 +71,4 @@ logs/
 
 # Package files
 uv.lock
+/site

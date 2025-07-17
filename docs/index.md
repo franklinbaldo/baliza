@@ -56,7 +56,7 @@ O BALIZA utiliza uma arquitetura de extração de dados em fases, garantindo res
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/franklinbaldo/baliza/blob/main/notebooks/analise_pncp_colab.ipynb)
 
 - ✅ **Um clique** e você está analisando milhões de contratos públicos
-- ✅ **Sem configuração** - funciona 100% no navegador  
+- ✅ **Sem configuração** - funciona 100% no navegador
 - ✅ **Dados atualizados** diretamente do Internet Archive
 - ✅ **Análises pré-configuradas** com visualizações interativas
 - ✅ **Detecção de fraudes** e padrões suspeitos automatizada
@@ -74,10 +74,10 @@ O BALIZA utiliza uma arquitetura de extração de dados em fases, garantindo res
    ```bash
    git clone https://github.com/franklinbaldo/baliza.git
    cd baliza
-   
+
    # Instalar dependências
    uv sync
-   
+
    # Instalar BALIZA como CLI tool
    uv pip install -e .
    ```
@@ -94,12 +94,12 @@ O BALIZA utiliza uma arquitetura de extração de dados em fases, garantindo res
    ```bash
    uv run baliza --auto
    ```
-   
+
    **📅 MODO DATA ESPECÍFICA:**
    ```bash
    uv run baliza --date 2024-07-10
    ```
-   
+
    **⚡ MODO ÚLTIMOS N DIAS:**
    ```bash
    uv run baliza --auto --days-back 30
@@ -120,7 +120,7 @@ baliza/
 **🌐 Produção (BALIZA_PRODUCTION=1):**
 ```
 ~/.local/share/baliza/  # Dados do usuário
-~/.cache/baliza/        # Cache do usuário  
+~/.cache/baliza/        # Cache do usuário
 ~/.config/baliza/       # Config do usuário
 ```
 
