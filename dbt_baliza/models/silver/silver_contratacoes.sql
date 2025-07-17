@@ -7,47 +7,42 @@
 }}
 
 WITH source AS (
-    SELECT *
+    SELECT
+        id,
+        extracted_at,
+        endpoint_name,
+        endpoint_url,
+        data_date,
+        run_id,
+        total_records,
+        total_pages,
+        current_page,
+        response_json
     FROM {{ ref('bronze_contratacoes') }}
     {% if is_incremental() %}
     WHERE extracted_at > (SELECT MAX(extracted_at) FROM {{ this }})
     {% endif %}
 ),
 
-parsed_responses AS (
-  SELECT
-    id,
-    extracted_at,
-    endpoint_name,
-    endpoint_url,
-    data_date,
-    run_id,
-    total_records,
-    total_pages,
-    current_page,
-    response_json
-  FROM source
-),
-
 -- Extract individual procurement records from the data array
 procurement_records AS (
   SELECT
-    parsed_responses.id AS response_id,
-    parsed_responses.extracted_at,
-    parsed_responses.endpoint_name,
-    parsed_responses.endpoint_url,
-    parsed_responses.data_date,
-    parsed_responses.run_id,
-    parsed_responses.total_records,
-    parsed_responses.total_pages,
-    parsed_responses.current_page,
+    source.id AS response_id,
+    source.extracted_at,
+    source.endpoint_name,
+    source.endpoint_url,
+    source.data_date,
+    source.run_id,
+    source.total_records,
+    source.total_pages,
+    source.current_page,
     -- Generate a unique key for each procurement record
-    ROW_NUMBER() OVER (PARTITION BY parsed_responses.id ORDER BY procurement_data_table.value) AS record_index,
+    ROW_NUMBER() OVER (PARTITION BY source.id ORDER BY procurement_data_table.value) AS record_index,
     -- Extract individual procurement data
     procurement_data_table.value AS procurement_data
-  FROM parsed_responses
-  CROSS JOIN json_each(json_extract(parsed_responses.response_json, '$.data')) AS procurement_data_table
-  WHERE json_extract(parsed_responses.response_json, '$.data') IS NOT NULL
+  FROM source
+  CROSS JOIN json_each(json_extract(source.response_json, '$.data')) AS procurement_data_table
+  WHERE json_extract(source.response_json, '$.data') IS NOT NULL
 )
 
 SELECT

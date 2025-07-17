@@ -1,17 +1,12 @@
 {{
   config(
-    materialized='incremental',
-    unique_key='numero_controle_pncp',
-    incremental_strategy='delete+insert'
+    materialized='table'
   )
 }}
 
 WITH source AS (
     SELECT *
     FROM {{ ref('bronze_atas') }}
-    {% if is_incremental() %}
-    WHERE extracted_at > (SELECT MAX(extracted_at) FROM {{ this }})
-    {% endif %}
 ),
 
 parsed_responses AS (
@@ -91,3 +86,4 @@ SELECT
   ata_data AS ata_json
 
 FROM ata_records
+WHERE ata_data ->> 'numeroControlePNCP' IS NOT NULL

@@ -3,14 +3,20 @@ baliza:
   outputs:
     dev:
       type: duckdb
-      path: '../data/baliza.duckdb'
+      path: "{{ env_var('DBT_DUCKDB_PATH', '../data/baliza.duckdb') }}"
       threads: 4
       keepalives_idle: 0
       search_path: psa
+      extensions:
+        - httpfs
+        - spatial
     
     prod:
       type: duckdb
-      path: '../data/baliza.duckdb'
+      path: "{{ env_var('DBT_DUCKDB_PATH', '../data/baliza.duckdb') }}"
       threads: 8
       keepalives_idle: 0
       search_path: psa
+      extensions:
+        - httpfs
+        - spatial

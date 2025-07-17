@@ -12,9 +12,11 @@ src/state/
 # Database files
 *.duckdb
 *.duckdb.wal
+*.db
 
 # Python
 __pycache__/
+target/
 *.pyc
 *.pyo
 *.pyd
@@ -45,6 +47,7 @@ env/
 # IDE
 .vscode/
 .idea/
+.user.yml
 *.swp
 *.swo
 *~

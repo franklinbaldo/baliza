@@ -124,3 +124,76 @@ models:
         description: "The name of the user"
       - name: procurement_json
         description: "The full procurement JSON data"
+      - name: numero_controle_pncp
+        tests:
+          - unique
+          - not_null
+
+  - name: silver_atas
+    description: "Silver table for raw ata data"
+    columns:
+      - name: numero_controle_pncp
+        tests:
+          - unique
+          - not_null
+
+  - name: silver_contratos
+    description: "Silver table for raw contract data"
+    columns:
+      - name: numero_controle_pncp
+        tests:
+          - unique
+          - not_null
+
+  - name: silver_dim_unidades_orgao
+    description: "Dimension table for organizational units (unidades do órgão)"
+    columns:
+      - name: unit_key
+        tests:
+          - unique
+          - not_null
+
+  - name: silver_fact_contratacoes
+    description: "Fact table for procurements (contratações)"
+    columns:
+      - name: procurement_key
+        tests:
+          - unique
+          - not_null
+      - name: org_key
+        tests:
+          - relationships:
+              to: ref('silver_dim_organizacoes')
+              field: org_key
+      - name: unit_key
+        tests:
+          - relationships:
+              to: ref('silver_dim_unidades_orgao')
+              field: unit_key
+
+  - name: silver_fact_contratos
+    description: "Fact table for contracts (contratos/empenhos)"
+    columns:
+      - name: contract_key
+        tests:
+          - unique
+          - not_null
+      - name: org_key
+        tests:
+          - relationships:
+              to: ref('silver_dim_organizacoes')
+              field: org_key
+      - name: unit_key
+        tests:
+          - relationships:
+              to: ref('silver_dim_unidades_orgao')
+              field: unit_key
+      - name: numero_controle_pncp_compra
+
+  - name: mart_procurement_analytics
+    description: "Analytics mart combining procurement and contract data for business intelligence"
+    columns:
+      - name: numero_controle_pncp
+        tests:
+          - unique
+          - not_null

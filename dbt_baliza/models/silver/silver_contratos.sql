@@ -1,17 +1,12 @@
 {{
   config(
-    materialized='incremental',
-    unique_key='numero_controle_pncp',
-    incremental_strategy='delete+insert'
+    materialized='table'
   )
 }}
 
 WITH source AS (
     SELECT *
     FROM {{ ref('bronze_contratos') }}
-    {% if is_incremental() %}
-    WHERE extracted_at > (SELECT MAX(extracted_at) FROM {{ this }})
-    {% endif %}
 ),
 
 parsed_responses AS (
@@ -48,6 +43,17 @@ contract_records AS (
   FROM parsed_responses
   CROSS JOIN json_each(json_extract(parsed_responses.response_json, '$.data')) AS contract_data_table
   WHERE json_extract(parsed_responses.response_json, '$.data') IS NOT NULL
+),
+
+deduplicated_contracts AS (
+    SELECT
+        *,
+        ROW_NUMBER() OVER (
+            PARTITION BY contract_data ->> 'numeroControlePNCP'
+            ORDER BY
+                TRY_CAST(contract_data ->> 'dataAtualizacao' AS TIMESTAMP) DESC
+        ) AS rn
+    FROM contract_records
 )
 
 SELECT
@@ -116,4 +122,5 @@ SELECT
   -- Full contract data as JSON for fallback
   contract_data AS contract_json
 
-FROM contract_records
+FROM deduplicated_contracts
+WHERE rn = 1

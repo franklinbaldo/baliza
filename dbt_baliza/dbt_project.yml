@@ -22,7 +22,7 @@ models:
   dbt_baliza:
     # Bronze layer
     bronze:
-      +materialized: view
+      +materialized: table
       +schema: bronze
     
     # Silver layer
