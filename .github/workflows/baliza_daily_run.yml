@@ -17,38 +17,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install uv
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Baliza package
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          pip install .
         shell: bash
 
-      - name: Verify uv installation
-        run: uv --version
-
-      - name: Set up Python using uv
-        run: |
-          uv venv --python $(cat .python-version || echo "3.11") .venv # Create venv using .python-version or default
-          echo "VIRTUAL_ENV=.venv" >> $GITHUB_ENV
-          echo ".venv/bin" >> $GITHUB_PATH
-        shell: bash
-
-      - name: Install dependencies using uv
-        run: |
-          source $VIRTUAL_ENV/bin/activate
-          uv sync --frozen-lockfile
-        shell: bash
-
-      - name: Calculate Yesterday's Date
-        id: get_date
-        run: |
-          # Using Python to ensure correct date calculation, especially across month/year boundaries
-          # GitHub Actions runners usually have Python pre-installed.
-          yesterday=$(python -c "from datetime import date, timedelta; print(date.today() - timedelta(days=1))")
-          echo "YESTERDAY_DATE=$yesterday" >> $GITHUB_OUTPUT
-        shell: bash
-
-      - name: Run Baliza script and capture output
+      - name: Run Baliza extract
         id: baliza_run
         timeout-minutes: 10
         env:
@@ -56,33 +36,28 @@ jobs:
           IA_SECRET_KEY: ${{ secrets.IA_SECRET_KEY }}
           PYTHONIOENCODING: "utf-8" # Ensure UTF-8 for script output
         run: |
-          source $VIRTUAL_ENV/bin/activate
-
-          START_DATE="${{ steps.get_date.outputs.YESTERDAY_DATE }}"
-          END_DATE="${{ steps.get_date.outputs.YESTERDAY_DATE }}"
-
-          echo "Fetching data for date range: $START_DATE to $END_DATE"
+          echo "Running baliza extract..."
 
           # Create a directory for logs if it doesn't exist
           mkdir -p baliza_run_logs
 
-          # Execute the script with start and end dates
-          python src/baliza/pncp_extractor.py extract --start-date "$START_DATE" --end-date "$END_DATE" > baliza_run_logs/run_summary_${{ steps.get_date.outputs.YESTERDAY_DATE }}.json
+          # Execute baliza extract command (script controls what to extract)
+          baliza extract > baliza_run_logs/run_summary_$(date +%Y-%m-%d).json
 
           # Check if the script failed (non-zero exit code)
           if [ $? -ne 0 ]; then
-            echo "Baliza script failed. See logs for details."
+            echo "Baliza extract failed. See logs for details."
             exit 1
           fi
-          echo "Baliza script completed."
+          echo "Baliza extract completed successfully."
         shell: bash
 
       - name: Upload run summary artifact
         if: always() # Run this step even if the previous one failed, to upload partial logs if any
         uses: actions/upload-artifact@v4
         with:
-          name: baliza-run-summary-${{ steps.get_date.outputs.YESTERDAY_DATE }}
-          path: baliza_run_logs/run_summary_${{ steps.get_date.outputs.YESTERDAY_DATE }}.json
+          name: baliza-run-summary-$(date +%Y-%m-%d)
+          path: baliza_run_logs/run_summary_$(date +%Y-%m-%d).json
           retention-days: 90 # Keep artifacts for 90 days
 
   build_coverage_data:
@@ -95,31 +70,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python using uv
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-          uv venv --python $(cat .python-version || echo "3.11") .venv
-          echo "VIRTUAL_ENV=.venv" >> $GITHUB_ENV
-          echo ".venv/bin" >> $GITHUB_PATH
-        shell: bash
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
 
       - name: Install dependencies
         run: |
-          source $VIRTUAL_ENV/bin/activate
-          uv sync --frozen-lockfile
-          uv add dbt-duckdb dbt-core
+          pip install .[analytics]
         shell: bash
 
       - name: Generate CNPJ entities reference data
         run: |
-          source $VIRTUAL_ENV/bin/activate
           python scripts/ingest_cnpj_entities.py
         shell: bash
 
       - name: Run DBT coverage analysis
         run: |
-          source $VIRTUAL_ENV/bin/activate
           cd dbt_baliza
           dbt deps
           dbt seed --select ref_entidades_publicas
@@ -128,7 +96,6 @@ jobs:
 
       - name: Export coverage data for dashboard
         run: |
-          source $VIRTUAL_ENV/bin/activate
           mkdir -p site/data
           
           # Export to JSON for web dashboard
@@ -165,7 +132,6 @@ jobs:
 
       - name: Calculate coverage quality gate
         run: |
-          source $VIRTUAL_ENV/bin/activate
           python -c "
           import duckdb
           
@@ -227,25 +193,19 @@ jobs:
           name: coverage-data
           path: site/data/
 
-      - name: Set up Python using uv
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-          uv venv --python $(cat .python-version || echo "3.11") .venv
-          echo "VIRTUAL_ENV=.venv" >> $GITHUB_ENV
-          echo ".venv/bin" >> $GITHUB_PATH
-        shell: bash
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
 
       - name: Install dependencies for stats generation
         run: |
-          source $VIRTUAL_ENV/bin/activate
-          uv sync --frozen-lockfile
+          pip install .
         shell: bash
 
       - name: Collect statistics and generate HTML pages
         run: |
-          source $VIRTUAL_ENV/bin/activate
-          
           # Create docs directory structure
           mkdir -p docs
           
