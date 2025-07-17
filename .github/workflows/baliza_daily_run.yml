@@ -28,6 +28,33 @@ jobs:
           pip install .
         shell: bash
 
+      - name: Download previous database
+        env:
+          IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
+          IA_SECRET_KEY: ${{ secrets.IA_SECRET_KEY }}
+        run: |
+          # Install Internet Archive CLI
+          pip install internetarchive
+          
+          # Configure IA CLI
+          ia configure --access ${{ secrets.IA_ACCESS_KEY }} --secret ${{ secrets.IA_SECRET_KEY }}
+          
+          # Create data directory
+          mkdir -p data
+          
+          # Download the database from Internet Archive (ignore if it doesn't exist)
+          ia download baliza-database --glob="baliza.duckdb" --destdir=data/ || echo "No previous database found, starting fresh."
+          
+          # If downloaded, move to expected location
+          if [ -f "data/baliza-database/baliza.duckdb" ]; then
+            mv data/baliza-database/baliza.duckdb data/baliza.duckdb
+            rmdir data/baliza-database
+            echo "Previous database recovered successfully."
+          else
+            echo "Starting with fresh database."
+          fi
+        shell: bash
+
       - name: Run Baliza extract
         id: baliza_run
         timeout-minutes: 10
@@ -50,6 +77,26 @@ jobs:
             exit 1
           fi
           echo "Baliza extract completed successfully."
+        shell: bash
+
+      - name: Upload updated database
+        env:
+          IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
+          IA_SECRET_KEY: ${{ secrets.IA_SECRET_KEY }}
+        run: |
+          # Upload the updated database to Internet Archive
+          if [ -f "data/baliza.duckdb" ]; then
+            ia upload baliza-database data/baliza.duckdb \
+              --metadata="title:Baliza Database - $(date +%Y-%m-%d)" \
+              --metadata="description:PNCP data extraction database - incremental backup" \
+              --metadata="collection:opensource" \
+              --metadata="date:$(date +%Y-%m-%d)" \
+              --metadata="creator:BALIZA" \
+              --retries=3
+            echo "Database uploaded successfully to Internet Archive."
+          else
+            echo "Warning: Database file not found, skipping upload."
+          fi
         shell: bash
 
       - name: Upload run summary artifact
