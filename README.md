@@ -37,13 +37,13 @@ O BALIZA opera com uma arquitetura de extração em fases, garantindo que o proc
 
 ```mermaid
 flowchart TD
-    A[API do PNCP] -->|1. Requisições| B(BALIZA);
-    subgraph B [BALIZA: Processo de Extração]
+    A[API do PNCP] -->|1. Requisições| B{BALIZA};
+    subgraph BALIZA [Processo de Extração]
         direction LR
         B1(Planejamento) --> B2(Descoberta) --> B3(Execução) --> B4(Reconciliação);
     end
     B -->|2. Armazenamento| C{DuckDB Local};
-    C -->|3. Transformação (dbt)| D[Tabelas Limpas e Analíticas];
+    C -- "3. Transformação (dbt)" --> D[Tabelas Limpas e Analíticas];
     D -->|4. Análise| E(Jornalistas, Pesquisadores, Cidadãos);
 ```
 _**Legenda:** O BALIZA orquestra a coleta da API do PNCP, armazena os dados brutos em um banco DuckDB e, com dbt, os transforma em insumos para análise._
