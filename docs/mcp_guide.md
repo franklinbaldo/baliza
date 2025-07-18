@@ -1,5 +1,7 @@
 # Guia Teórico: Model Context Protocol com DuckDB e Internet Archive
 
+> **Nota**: Este guia descreve a implementação do MCP Server conforme definido em **[ADR-007: MCP Server for AI-Powered Analysis](adr/007-mcp-server.md)**. 
+
 ## O que é o Model Context Protocol (MCP)?
 
 O Model Context Protocol é um padrão aberto desenvolvido pela Anthropic que permite que modelos de linguagem (LLMs) se conectem de forma segura a fontes de dados e ferramentas externas. O MCP atua como uma ponte padronizada entre LLMs e sistemas externos.
@@ -43,7 +45,7 @@ O Model Context Protocol é um padrão aberto desenvolvido pela Anthropic que pe
 
 ### DuckDB: O Motor Analítico Ideal
 
-**Características que fazem do DuckDB uma escolha excelente:**
+**Características que fazem do DuckDB uma escolha excelente** (conforme [ADR-001: Adopt DuckDB](adr/001-adopt-duckdb.md)):
 
 - **Performance**: Processamento vetorizado otimizado para análises
 - **Simplicidade**: Sem necessidade de servidor separado
@@ -109,6 +111,8 @@ Internet Archive URL → DuckDB → SQL Query → Results → MCP Response → L
       ↓                 ↓           ↓          ↓           ↓         ↓
   data.parquet    Carregamento   Análise   Formatação  Protocolo  Resposta
 ```
+
+> **Segurança**: Conforme [ADR-007](adr/007-mcp-server.md), apenas consultas SELECT são permitidas, garantindo acesso somente-leitura aos dados.
 
 ### 3. Tipos de Resources que você forneceria
 

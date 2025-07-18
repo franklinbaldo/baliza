@@ -1,18 +1,18 @@
 # 🧪 Baliza E2E Test Suite
 
-**ADR**: This project uses **E2E tests only** - no unit tests, no mocks for validation.
+**ADR**: This project follows **[ADR-004: E2E Testing Strategy](../docs/adr/004-e2e-testing.md)** - E2E tests only, no unit tests, no mocks for validation.
 
 ---
 
 ## 🎯 Testing Philosophy
 
-**E2E tests are the single source of truth**. We test the complete system behavior:
+**E2E tests are the single source of truth** (as defined in [ADR-004](../docs/adr/004-e2e-testing.md)). We test the complete system behavior:
 - Real API calls to PNCP
 - Real database operations with DuckDB
 - Real file system operations
 - Real CLI interface testing
 
-**No unit tests, no mocks** - we trust the system works as a whole.
+**No unit tests, no mocks** - we trust the system works as a whole, validating actual integration with external systems.
 
 ---
 
@@ -107,6 +107,8 @@ async def test_extract_real_data():
 ---
 
 ## 🎯 Benefits of E2E-First Approach
+
+As outlined in [ADR-004](../docs/adr/004-e2e-testing.md), the E2E-first approach provides:
 
 1. **Real Confidence**: Tests prove the system actually works
 2. **No False Positives**: Mocks can't lie about real API behavior

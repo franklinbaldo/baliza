@@ -1,3 +1,10 @@
+"""PNCP API Client - Modern HTTP Client Implementation
+
+Implements resilient HTTP communication as specified in ADR-002 and ADR-005.
+Uses httpx with HTTP/2 support and tenacity for retry logic.
+Provides async/concurrent API access with proper back-pressure handling.
+"""
+
 import asyncio
 import logging
 from typing import Any

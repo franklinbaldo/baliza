@@ -1,3 +1,10 @@
+"""PNCP Writer - DuckDB Single-Writer Architecture
+
+Implements centralized write operations to DuckDB as specified in ADR-001.
+Ensures single-writer constraint through file locking and centralized write operations.
+Manages raw data storage and task state tracking for the extraction pipeline.
+"""
+
 import asyncio
 import json
 import logging

@@ -5,18 +5,18 @@ description = "BALIZA: Backup Aberto de Licitações Zelando pelo Acesso - Histo
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "typer",
-    "duckdb", # Native Parquet support with built-in compression
-    "httpx", # HTTP client for API requests
-    "h2", # HTTP/2 support for httpx
+    "typer", # Modern CLI framework - ADR-005
+    "duckdb", # Primary database for analytics - ADR-001
+    "httpx", # HTTP/2 client for API requests - ADR-005
+    "h2", # HTTP/2 support for httpx - ADR-005
     "pandas>=2.3.1",
     "orjson", # Fast JSON parsing with fallback
     "aiolimiter>=1.2.1",
-    "filelock", # File locking to prevent database conflicts
-    "anthropic", # Client for Claude LLM
-    "fastmcp", # MCP Server library
-    "pyarrow", # Parquet engine for pandas and duckdb
-    "tenacity>=9.1.2",
+    "filelock", # File locking to prevent database conflicts - ADR-001
+    "anthropic", # Client for Claude LLM - ADR-007
+    "fastmcp", # MCP Server library - ADR-007
+    "pyarrow", # Parquet engine for pandas and duckdb - ADR-001
+    "tenacity>=9.1.2", # Resilient extraction with retries - ADR-002
 ]
 
 [project.scripts]
@@ -27,22 +27,22 @@ dev = [
     "pytest",
 ]
 analytics = [
-    "dbt-core>=1.7.0",
-    "dbt-duckdb>=1.7.0",
+    "dbt-core>=1.7.0", # Medallion architecture transformation - ADR-003
+    "dbt-duckdb>=1.7.0", # DuckDB adapter for dbt - ADR-001, ADR-003
 ]
 
 [dependency-groups]
 dev = [
     "mypy>=1.16.1",
     "pre-commit>=4.2.0",
-    "pytest>=8.4.1",
-    "ruff>=0.12.3",
+    "pytest>=8.4.1", # E2E testing framework - ADR-004
+    "ruff>=0.12.3", # Fast linting and formatting - ADR-005
     "mkdocs-material>=9.1.21",
     "mkdocs-gen-files>=0.5.0",
     "mkdocs-literate-nav>=0.6.0",
 ]
 
-# Ruff configuration for linting and formatting
+# Ruff configuration for linting and formatting - ADR-005
 [tool.ruff]
 target-version = "py311"
 line-length = 88
@@ -216,7 +216,7 @@ module = [
 ]
 ignore_missing_imports = true
 
-# Pytest configuration for E2E tests only
+# Pytest configuration for E2E tests only - ADR-004
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
@@ -226,7 +226,7 @@ markers = [
     "e2e: marks tests as end-to-end integration tests",
     "slow: marks tests as slow (may take several minutes)",
 ]
-# Default to running only E2E tests
+# Default to running only E2E tests - ADR-004
 filterwarnings = [
     "ignore::DeprecationWarning",
     "ignore::PendingDeprecationWarning",

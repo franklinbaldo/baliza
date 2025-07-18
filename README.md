@@ -151,13 +151,15 @@ Para saber mais sobre a arquitetura, leia nosso [**Guia Teórico do MCP**](./doc
 
 ## 🏗️ Arquitetura e Tecnologias
 
-| Camada | Tecnologias | Propósito |
-|---|---|---|
-| **Coleta** | Python, asyncio, httpx, tenacity | Extração eficiente, assíncrona e resiliente. |
-| **Armazenamento** | DuckDB | Banco de dados analítico local, rápido e sem servidor. |
-| **Transformação** | dbt (Data Build Tool) | Transforma dados brutos em modelos de dados limpos e confiáveis. |
-| **Interface** | Typer, Rich | CLI amigável, informativa e com ótima usabilidade. |
-| **Dependências**| uv (da Astral) | Gerenciamento de pacotes e ambientes virtuais de alta performance. |
+| Camada | Tecnologias | Propósito | ADR |
+|---|---|---|---|
+| **Coleta** | Python, asyncio, httpx, tenacity | Extração eficiente, assíncrona e resiliente. | [ADR-002](docs/adr/002-resilient-extraction.md), [ADR-005](docs/adr/005-modern-python-toolchain.md) |
+| **Armazenamento** | DuckDB | Banco de dados analítico local, rápido e sem servidor. | [ADR-001](docs/adr/001-adopt-duckdb.md) |
+| **Transformação** | dbt (Data Build Tool) | Transforma dados brutos em modelos de dados limpos e confiáveis. | [ADR-003](docs/adr/003-medallion-architecture.md) |
+| **Interface** | Typer, Rich | CLI amigável, informativa e com ótima usabilidade. | [ADR-005](docs/adr/005-modern-python-toolchain.md) |
+| **Dependências**| uv (da Astral) | Gerenciamento de pacotes e ambientes virtuais de alta performance. | [ADR-005](docs/adr/005-modern-python-toolchain.md) |
+| **Publicação** | Internet Archive | Hospedagem pública e permanente dos dados. | [ADR-006](docs/adr/006-internet-archive.md) |
+| **Análise IA** | MCP Server | Análise de dados com LLMs de forma segura. | [ADR-007](docs/adr/007-mcp-server.md) |
 
 ## 🗺️ Roadmap do Projeto
 
@@ -165,6 +167,20 @@ Para saber mais sobre a arquitetura, leia nosso [**Guia Teórico do MCP**](./doc
 -   [⏳] **Fase 2: Expansão e Acessibilidade** - Modelos dbt analíticos, exportação para Parquet, documentação aprimorada.
 -   [🗺️] **Fase 3: Ecossistema e Análise** - Dashboards de cobertura, sistema de plugins, tutoriais.
 -   [💡] **Futuro:** Painel de monitoramento de dados, detecção de anomalias, integração com mais fontes.
+
+## 📋 Decisões Arquiteturais
+
+O BALIZA segue um conjunto de **Architectural Decision Records (ADRs)** que documentam as principais decisões técnicas do projeto:
+
+- **[ADR-001: Adopt DuckDB as Primary Database](docs/adr/001-adopt-duckdb.md)** - Por que escolhemos DuckDB para armazenamento analítico
+- **[ADR-002: Resilient Extraction Architecture](docs/adr/002-resilient-extraction.md)** - Arquitetura de extração tolerante a falhas
+- **[ADR-003: Medallion Architecture with dbt](docs/adr/003-medallion-architecture.md)** - Estrutura Bronze/Silver/Gold para transformação de dados
+- **[ADR-004: E2E Testing Strategy](docs/adr/004-e2e-testing.md)** - Estratégia de testes focada em E2E
+- **[ADR-005: Modern Python Toolchain](docs/adr/005-modern-python-toolchain.md)** - Toolchain Python moderna (uv, ruff, httpx)
+- **[ADR-006: Internet Archive Publishing](docs/adr/006-internet-archive.md)** - Publicação de dados abertos no Internet Archive
+- **[ADR-007: MCP Server for AI Analysis](docs/adr/007-mcp-server.md)** - Servidor MCP para análise com IA
+
+📖 **[Veja todos os ADRs](docs/adr/README.md)**
 
 ## 🙌 Como Contribuir
 

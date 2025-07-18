@@ -1,7 +1,13 @@
 """PNCP Data Extractor V2 - True Async Architecture
-Based on steel-man pseudocode: endpoint 
-365-day ranges 
-async pagination
+
+Implements the resilient task-driven extraction architecture defined in ADR-002.
+Uses DuckDB for persistence as specified in ADR-001.
+Built with modern Python toolchain (httpx, tenacity) per ADR-005.
+
+Architecture:
+- Task-driven extraction with 4 phases (Planning, Discovery, Execution, Reconciliation)
+- Fault-tolerant with persistent state in DuckDB control table
+- Async/concurrent execution for performance
 """
 
 import asyncio

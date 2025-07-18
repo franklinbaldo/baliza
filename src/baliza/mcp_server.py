@@ -1,3 +1,10 @@
+"""BALIZA MCP Server - AI-Powered Data Analysis
+
+Implements the MCP server architecture defined in ADR-007.
+Provides secure, read-only access to BALIZA data for AI analysis.
+Uses DuckDB for data access as specified in ADR-001.
+"""
+
 import asyncio
 import json
 import logging
