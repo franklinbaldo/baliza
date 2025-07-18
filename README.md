@@ -14,90 +14,65 @@
 
 ---
 
+## 🚀 Para Análise de Dados (Comece Aqui)
+
+Seu objetivo é **analisar os dados** de contratações públicas, sem a necessidade de executar o processo de extração. Com o BALIZA, você pode fazer isso em segundos, diretamente no seu navegador ou ambiente de análise preferido.
+
+<a href="https://colab.research.google.com/github/colab-examples/colab-badge-example/blob/main/colab-badge-example.ipynb" target="_parent"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a>
+
+O banco de dados completo e atualizado diariamente está hospedado no [Internet Archive](https://archive.org/details/baliza-pncp) em formato DuckDB, e pode ser consultado remotamente.
+
+**Exemplo de Análise Rápida com Python:**
+Não é preciso baixar nada! Apenas instale as bibliotecas e execute o código.
+
+```python
+# Instale as bibliotecas necessárias
+# !pip install duckdb pandas
+
+import duckdb
+
+# Conecte-se remotamente ao banco de dados no Internet Archive
+# NOTA: Substitua 'baliza-latest.duckdb' pelo nome do arquivo mais recente disponível no IA
+DB_URL = "https://archive.org/download/baliza-pncp/baliza-latest.duckdb"
+
+con = duckdb.connect(database=DB_URL, read_only=True)
+
+# Exemplo: Top 10 órgãos por valor total de contratos (camada GOLD)
+top_orgaos = con.sql("""
+    SELECT
+        nome_orgao,
+        SUM(valor_total_contrato) AS valor_total
+    FROM mart_procurement_analytics
+    GROUP BY nome_orgao
+    ORDER BY valor_total DESC
+    LIMIT 10;
+""").to_df()
+
+print(top_orgaos)
+```
+
+- ✅ **Zero Setup:** Comece a analisar em menos de um minuto.
+- ✅ **Sempre Atualizado:** Acesse os dados mais recentes coletados pelo workflow diário.
+- ✅ **Integração Total:** Funciona perfeitamente com Pandas, Polars, Jupyter Notebooks e outras ferramentas do ecossistema PyData.
+
+
 ## 🎯 O Problema: A Memória Volátil da Transparência
 
-O Portal Nacional de Contratações Públicas (PNCP) é um avanço para a transparência, mas possui uma limitação crítica: **os dados são voláteis**.
-
--   ❌ **Sem Histórico Permanente:** A API do PNCP não garante o acesso a dados antigos e não possui um sistema de versionamento. Dados podem ser alterados ou simplesmente desaparecer.
--   ❌ **Análise Histórica Comprometida:** Sem uma série temporal confiável, é impossível realizar análises de longo prazo, identificar tendências ou investigar padrões de contratações passadas.
--   ❌ **Auditoria Reativa, não Proativa:** A detecção de fraudes e o controle social dependem de dados estáveis. A volatilidade impede uma auditoria séria e sistemática.
+O Portal Nacional de Contratações Públicas (PNCP) é um avanço, mas sua API **não garante um histórico permanente dos dados**. Informações podem ser alteradas ou desaparecer, comprometendo análises de longo prazo, auditorias e o controle social.
 
 ## ✨ A Solução: Um Backup para o Controle Social
 
-O BALIZA atua como uma **âncora de dados para o PNCP**. Ele sistematicamente coleta e armazena os dados, garantindo que a memória das contratações públicas brasileiras seja preservada e acessível a todos.
+O BALIZA atua como uma **âncora de dados para o PNCP**. Ele sistematicamente coleta, armazena e estrutura os dados, garantindo que a memória das contratações públicas brasileiras seja preservada e acessível a todos.
 
--   🛡️ **Resiliência:** Cria um backup local (ou federado) imune a mudanças na API ou indisponibilidades do portal.
--   🕰️ **Séries Históricas:** Constrói um acervo completo e cronológico, permitindo análises que hoje são inviáveis.
--   🔍 **Dados Estruturados para Análise:** Transforma respostas JSON complexas em tabelas limpas e prontas para serem consultadas com SQL.
--   🌍 **Aberto por Natureza:** Utiliza formatos e ferramentas abertas (DuckDB, Parquet), garantindo que os dados sejam seus, para sempre.
+-   🛡️ **Resiliência:** Cria um backup imune a mudanças na API ou indisponibilidades do portal.
+-   🕰️ **Séries Históricas:** Constrói um acervo completo e cronológico.
+-   🔍 **Dados Estruturados para Análise:** Transforma respostas JSON em tabelas limpas e prontas para SQL.
+-   🌍 **Aberto por Natureza:** Utiliza formatos abertos (DuckDB, Parquet), garantindo que os dados sejam seus, para sempre.
 
-## ⚙️ Como Funciona
 
-O BALIZA opera com uma arquitetura de extração em fases, garantindo que o processo seja robusto e possa ser retomado em caso de falhas.
+## 🔧 Para Desenvolvedores e Coletores de Dados
 
-```mermaid
-flowchart TD
-    A[API do PNCP] -->|1. Requisições| B{BALIZA};
-    subgraph BALIZA [Processo de Extração]
-        direction LR
-        B1(Planejamento) --> B2(Descoberta) --> B3(Execução) --> B4(Reconciliação);
-    end
-    B -->|2. Armazenamento| C{DuckDB Local};
-    C -- "3. Transformação (dbt)" --> D[Tabelas Limpas e Analíticas];
-    D -->|4. Análise| E(Jornalistas, Pesquisadores, Cidadãos);
-```
-_**Legenda:** O BALIZA orquestra a coleta da API do PNCP, armazena os dados brutos em um banco DuckDB e, com dbt, os transforma em insumos para análise._
-
-1.  **Planejamento:** Identifica os períodos (mês/ano) que precisam ser baixados.
-2.  **Descoberta:** Consulta a API para saber o volume de dados (total de páginas) de cada período.
-3.  **Execução:** Baixa todas as páginas de forma assíncrona e paralela para máxima eficiência.
-4.  **Reconciliação:** Verifica se todos os dados foram baixados corretamente e marca as tarefas como concluídas.
-5.  **Transformação:** Após a coleta, modelos **dbt** podem ser executados para limpar, estruturar e enriquecer os dados, criando tabelas prontas para análise.
-
-## 🚀 Como Usar
-
-Existem duas maneiras principais de interagir com o BALIZA, dependendo do seu objetivo.
-
-<!-- Início dos Tabs -->
-<details>
-<summary><strong>📊 Para Analistas de Dados e Jornalistas</strong></summary>
-
-Seu objetivo é analisar os dados já coletados. Você pode acessar diretamente o banco de dados gerado pelo projeto.
-
-**Pré-requisitos:**
-- Python e DuckDB (`pip install duckdb pandas`)
-
-**Exemplo de Análise Rápida:**
-```python
-import duckdb
-
-# Conecte-se ao banco de dados (baixe-o de uma execução do projeto)
-con = duckdb.connect('data/baliza.duckdb')
-
-# Exemplo: Contar o número de compras por UF
-resultado = con.sql("""
-    SELECT
-        json_extract_string(data, '$.municipio.uf.sigla') AS uf,
-        COUNT(1) AS total_compras
-    FROM psa.pncp_raw_responses
-    WHERE
-        endpoint = 'compras' AND uf IS NOT NULL
-    GROUP BY uf
-    ORDER BY total_compras DESC;
-""").to_df()
-
-print(resultado)
-```
-- ✅ **SQL direto nos dados:** Use a sintaxe SQL que você já conhece.
-- ✅ **Integração total:** Funciona perfeitamente com Pandas, Jupyter Notebooks, e outras ferramentas do ecossistema PyData.
-- ✅ **Dados brutos e transformados:** Acesse tanto a resposta original da API quanto as tabelas já limpas.
-
-</details>
-
-<details>
-<summary><strong>🔧 Para Desenvolvedores e Coletores de Dados</strong></summary>
-
-Seu objetivo é executar o processo de extração para criar ou atualizar o banco de dados.
+Seu objetivo é **executar o processo de extração** para criar ou atualizar o banco de dados localmente.
 
 **Pré-requisitos:**
 - Python 3.11+
@@ -122,17 +97,26 @@ uv run baliza extract
 |---|---|
 | `uv run baliza extract` | Inicia a extração de dados do PNCP. |
 | `uv run baliza extract --concurrency 4` | Limita o número de requisições paralelas. |
-| `uv run baliza extract --force` | Força a re-extração de dados já existentes. |
+| `uv run dbt run --profiles-dir dbt_baliza` | Executa os modelos de transformação do dbt. |
 | `uv run baliza stats` | Mostra estatísticas sobre os dados já baixados. |
 
-**Federação com Internet Archive:**
-Para garantir a longevidade dos dados, o BALIZA pode fazer upload dos arquivos para o Internet Archive. Configure as variáveis de ambiente `IA_KEY` e `IA_SECRET` (como segredos no seu repositório GitHub) para habilitar esta funcionalidade.
-```bash
-# Este comando faz o upload dos dados para o IA
-uv run python src/baliza/ia_federation.py federate
+
+## ⚙️ Como Funciona
+
+O BALIZA opera com uma arquitetura de extração em fases, garantindo que o processo seja robusto e possa ser retomado em caso de falhas.
+
+```mermaid
+flowchart TD
+    A[API do PNCP] -->|1. Requisições| B{BALIZA};
+    subgraph BALIZA [Processo de Extração]
+        direction LR
+        B1(Planejamento) --> B2(Descoberta) --> B3(Execução) --> B4(Reconciliação);
+    end
+    B -->|2. Armazenamento| C{DuckDB Local};
+    C -- "3. Transformação (dbt)" --> D[Tabelas Limpas e Analíticas];
+    D -->|4. Análise| E(Jornalistas, Pesquisadores, Cidadãos);
 ```
-</details>
-<!-- Fim dos Tabs -->
+_**Legenda:** O BALIZA orquestra a coleta da API do PNCP, armazena os dados brutos em um banco DuckDB e, com dbt, os transforma em insumos para análise._
 
 
 ## 🏗️ Arquitetura e Tecnologias
@@ -147,18 +131,18 @@ uv run python src/baliza/ia_federation.py federate
 
 ## 🗺️ Roadmap do Projeto
 
--   [✅] **Fase 1: Fundação** - Extração resiliente para múltiplos endpoints, armazenamento em DuckDB, CLI funcional.
--   [⏳] **Fase 2: Expansão e Análise** - Implementação de modelos `dbt` para análise, melhoria das estatísticas, documentação aprofundada.
--   [🗺️] **Fase 3: Ecossistema e Acessibilidade** - Exportação para formatos abertos (Parquet), criação de dashboards de exemplo, sistema de plugins para novas fontes.
--   [💡] **Futuro:** Painel de monitoramento, notificações sobre falhas, tutoriais em vídeo.
+-   [✅] **Fase 1: Fundação** - Extração resiliente, armazenamento em DuckDB, CLI funcional.
+-   [⏳] **Fase 2: Expansão e Acessibilidade** - Modelos dbt analíticos, exportação para Parquet, documentação aprimorada.
+-   [🗺️] **Fase 3: Ecossistema e Análise** - Dashboards de cobertura, sistema de plugins, tutoriais.
+-   [💡] **Futuro:** Painel de monitoramento de dados, detecção de anomalias, integração com mais fontes.
 
 ## 🙌 Como Contribuir
 
 **Sua ajuda é fundamental para fortalecer o controle social no Brasil!**
 
-1.  **Reporte um Bug:** Encontrou um problema? [Abra uma issue](https://github.com/franklinbaldo/baliza/issues) descrevendo-o com o máximo de detalhes.
-2.  **Sugira uma Melhoria:** Tem uma ideia para uma nova funcionalidade ou melhoria? Adoraríamos ouvi-la nas issues.
-3.  **Desenvolva:** Faça um fork do projeto, crie uma branch e envie um Pull Request com suas contribuições.
+1.  **Reporte um Bug:** Encontrou um problema? [Abra uma issue](https://github.com/franklinbaldo/baliza/issues).
+2.  **Sugira uma Melhoria:** Tem uma ideia? Adoraríamos ouvi-la nas issues.
+3.  **Desenvolva:** Faça um fork, crie uma branch e envie um Pull Request.
 4.  **Dissemine:** Use os dados, crie análises, publique reportagens e compartilhe o projeto!
 
 ## 📜 Licença
