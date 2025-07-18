@@ -38,8 +38,7 @@ jobs:
       - name: Install dependencies
         run: |
           source $VIRTUAL_ENV/bin/activate
-          uv sync --frozen-lockfile
-          uv pip install --system .[dbt]
+          uv sync --frozen-lockfile --all-extras
           
       - name: Cache pre-commit hooks
         uses: actions/cache@v3
@@ -95,7 +94,7 @@ jobs:
         run: |
           source $VIRTUAL_ENV/bin/activate
           echo "🧪 Running tests with coverage..."
-          pytest tests/ \
+          uv run pytest tests/ \
             --cov=src \
             --cov-report=term-missing \
             --cov-report=xml \
@@ -108,7 +107,7 @@ jobs:
         run: |
           source $VIRTUAL_ENV/bin/activate
           echo "💧 Running dbt tests..."
-          dbt test --project-dir dbt_baliza
+          uv run dbt test --project-dir dbt_baliza
         continue-on-error: false
 
       - name: Upload coverage reports
