@@ -230,9 +230,7 @@ def get_enum_by_value(enum_class: type[Enum], value: int | str) -> Enum | None:
         return None
 
 
-def get_enum_name_by_value(
-    enum_class: type[Enum], value: int | str
-) -> str | None:
+def get_enum_name_by_value(enum_class: type[Enum], value: int | str) -> str | None:
     """Get enum member name by value, returning None if not found."""
     enum_member = get_enum_by_value(enum_class, value)
     return enum_member.name if enum_member else None
@@ -290,9 +288,7 @@ def get_enum_by_name(enum_name: str) -> type[Enum] | None:
     return ENUM_REGISTRY.get(enum_name)
 
 
-def get_all_enum_metadata() -> dict[
-    str, dict[str, str | list[dict[str, int | str]]]
-]:
+def get_all_enum_metadata() -> dict[str, dict[str, str | list[dict[str, int | str]]]]:
     """Get metadata for all enums in the registry."""
     metadata = {}
 
