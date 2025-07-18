@@ -1,0 +1,55 @@
+version: 2
+
+models:
+  - name: mart_procurement_analytics
+    description: "Comprehensive procurement analytics mart with aggregated metrics"
+    columns:
+      - name: org_key
+        description: "Organization identifier"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('silver_dim_organizacoes')
+              field: org_key
+      - name: total_contracts
+        description: "Total number of contracts"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      - name: total_value
+        description: "Total contract value"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      - name: avg_contract_value
+        description: "Average contract value"
+        tests:
+          - not_null
+
+  - name: mart_compras_beneficios
+    description: "Benefits and procurement impact analysis mart"
+    columns:
+      - name: org_key
+        description: "Organization identifier"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('silver_dim_organizacoes')
+              field: org_key
+      - name: economia_estimada
+        description: "Estimated savings from procurement processes"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+sources:
+  - name: transparency_monitoring
+    description: "Views for data quality monitoring and transparency reporting"
+    tables:
+      - name: silver_contratos_transparency_report
+        description: "Transparency report for contract data quality"
+      - name: silver_contratos_quality_monitor
+        description: "Quality monitoring for contract anomalies"

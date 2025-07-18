@@ -1,0 +1,104 @@
+version: 2
+
+models:
+  - name: silver_contratos
+    description: "Clean, deduplicated contract data with business logic applied"
+    columns:
+      - name: numero_controle_pncp
+        description: "PNCP control number - unique identifier for each contract"
+        tests:
+          - unique
+          - not_null
+      - name: data_atualizacao
+        description: "Last update timestamp for the contract"
+        tests:
+          - not_null
+      - name: valor_inicial
+        description: "Initial contract value in BRL"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+              # Note: We preserve zero values for transparency as per data philosophy
+              # This test just ensures no negative values due to data corruption
+      - name: tipo_pessoa
+        description: "Type of legal entity (fisica/juridica)"
+        tests:
+          - accepted_values:
+              values: ['FÍSICA', 'JURIDICA', 'JURÍDICA']
+      - name: ni_fornecedor
+        description: "Supplier identification number (CPF/CNPJ)"
+        tests:
+          - not_null
+      - name: nome_razao_social_fornecedor
+        description: "Supplier name or company name"
+        tests:
+          - not_null
+      - name: data_assinatura
+        description: "Contract signature date"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= '2000-01-01'"
+              # Basic sanity check for reasonable dates
+      - name: data_vigencia_inicio
+        description: "Contract validity start date"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= '2000-01-01'"
+      - name: data_vigencia_fim
+        description: "Contract validity end date"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= data_vigencia_inicio"
+              # End date should be after start date
+
+  - name: silver_dim_organizacoes
+    description: "Organization dimension table"
+    columns:
+      - name: org_key
+        description: "Surrogate key for organization"
+        tests:
+          - unique
+          - not_null
+      - name: cnpj
+        description: "Organization CNPJ"
+        tests:
+          - not_null
+
+  - name: silver_dim_unidades_orgao
+    description: "Organizational unit dimension table"
+    columns:
+      - name: unit_key
+        description: "Surrogate key for organizational unit"
+        tests:
+          - unique
+          - not_null
+
+  - name: silver_fact_contratos
+    description: "Contract fact table with foreign keys to dimensions"
+    columns:
+      - name: numero_controle_pncp
+        description: "PNCP control number"
+        tests:
+          - unique
+          - not_null
+      - name: org_key
+        description: "Foreign key to organization dimension"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('silver_dim_organizacoes')
+              field: org_key
+      - name: unit_key
+        description: "Foreign key to organizational unit dimension"
+        tests:
+          - relationships:
+              to: ref('silver_dim_unidades_orgao')
+              field: unit_key
+      - name: valor_inicial
+        description: "Initial contract value in BRL"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+              # Preserve zero values for transparency, but check for negatives
