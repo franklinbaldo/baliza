@@ -12,7 +12,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential_jitter
 
 from baliza.extractor import AsyncPNCPExtractor
 from baliza.pncp_writer import connect_utf8, BALIZA_DB_PATH
-from tests.schemas import ContratosResponse
+from .schemas import ContratosResponse
 import orjson
 
 @pytest.mark.e2e

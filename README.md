@@ -96,8 +96,8 @@ uv run baliza extract
 | Comando | Descrição |
 |---|---|
 | `uv run baliza extract` | Inicia a extração de dados do PNCP. |
-| `uv run baliza extract --concurrency 4` | Limita o número de requisições paralelas. |
-| `uv run dbt run --profiles-dir dbt_baliza` | Executa os modelos de transformação do dbt. |
+| `uv run baliza transform` | Executa os modelos de transformação do dbt. |
+| `uv run baliza load` | Exporta os dados para Parquet e os carrega no Internet Archive. |
 | `uv run baliza stats` | Mostra estatísticas sobre os dados já baixados. |
 
 

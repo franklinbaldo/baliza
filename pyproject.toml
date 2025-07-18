@@ -19,6 +19,7 @@ dependencies = [
     "tenacity>=9.1.2", # Resilient extraction with retries - ADR-002
     "pydantic>=2.0",             # Runtime data validation
     "pydantic-settings>=2.0",   # Environment-aware configuration
+    "internetarchive",          # For uploading data to Internet Archive
 ]
 
 [project.scripts]
