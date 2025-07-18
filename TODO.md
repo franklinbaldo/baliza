@@ -100,22 +100,87 @@ def test_e2e_with_validation():
 
 ## 📚 DOCUMENTATION
 
-### 3. README Update - ⚠️ NECESSARY
-**Problem**: README doesn't reflect new architecture.
+### 3. Documentation and License Updates - ⚠️ NECESSARY
+**Problem**: Documentation gaps and licensing issues.
 
 **Missing**:
-- New module structure (config.py, utils.py, etc.)
-- Updated installation instructions
-- Usage examples with new CLI
-- Architecture diagram
+- LICENSE file has placeholder "[Your Name or Organization Here]"
+- dbt models lack column descriptions for documentation
+- CI/CD doesn't validate dbt transformations
 
 **Action Items**:
-- [ ] Update README with new architecture
-- [ ] Add usage examples for `baliza extract`
-- [ ] Document new module structure
-- [ ] Add architecture diagram
+- [ ] Update LICENSE file with proper author/organization info
+- [ ] Add column descriptions to all dbt model .yml files
+- [ ] Document dbt layer architecture (staging → silver → gold)
+- [ ] Add dbt test execution to CI/CD pipeline
 
-**Priority**: 🟡 **MEDIUM** - Important for new users
+**Priority**: 🟡 **MEDIUM** - Important for legal compliance and usability
+
+---
+
+## 🏗️ DATA ARCHITECTURE IMPROVEMENTS
+
+### 4. dbt Model Enhancements - ⚠️ HIGH IMPACT
+**Problem**: dbt models can be more robust and performant.
+
+**Specific Issues**:
+- Missing staging layer between Bronze and Silver
+- `silver_contratos` rebuilds entire table (not incremental)
+- Limited data integrity tests (only basic unique/not_null)
+- No relationship validation between fact and dimension tables
+- Need transparency monitoring (not data rejection) for anomalies
+
+**Solutions**:
+```sql
+-- Add staging layer for cleaner transformations
+{{ config(materialized='view') }}
+SELECT
+    numeroControlePNCP as numero_controle_pncp,
+    CAST(valorTotal AS DECIMAL(15,2)) as valor_total,
+    -- Other standardizations
+FROM {{ ref('bronze_contratos') }}
+```
+
+**Action Items**:
+- [ ] Add staging layer (stg_*) between Bronze and Silver
+- [ ] Convert `silver_contratos` to incremental materialization
+- [ ] Add relationship tests between fact and dimension tables
+- [ ] Add data quality monitoring (e.g., track valor_total = 0 for transparency)
+- [ ] Add accepted_values tests for categorical columns
+
+**⚠️ Data Preservation Philosophy**:
+- **NEVER reject data** due to "anomalies" (e.g., valor_total = 0)
+- **ALWAYS preserve original data** - inconsistencies are valuable for transparency
+- **MONITOR anomalies** for citizen oversight, not data filtering
+- **TRANSPARENCY over "clean" data** - citizens need raw truth to demand changes
+
+**Priority**: 🔥 **HIGH** - Critical for data quality and performance
+
+### 5. Configuration Management - ⚠️ MEDIUM
+**Problem**: Hard-coded configurations limit flexibility.
+
+**Current**: Constants in `config.py`
+**Suggested**: Pydantic BaseSettings for environment-aware config
+
+```python
+from pydantic import BaseSettings
+
+class Settings(BaseSettings):
+    pncp_base_url: str = "https://pncp.gov.br/api/consulta/v1"
+    concurrency: int = 2
+    request_timeout: int = 30
+    
+    class Config:
+        env_file = ".env"
+        env_prefix = "BALIZA_"
+```
+
+**Action Items**:
+- [ ] Implement Pydantic BaseSettings for configuration
+- [ ] Add environment variable support
+- [ ] Add staging/production config profiles
+
+**Priority**: 🟡 **MEDIUM** - Enhances flexibility and deployment
 
 ---
 
@@ -123,8 +188,10 @@ def test_e2e_with_validation():
 
 ### What's Actually Needed (E2E Context):
 1. **E2E Test Stability** 🔥 - Make E2E tests resilient com `tenacity`
-2. **Runtime Data Validation** 🟡 - `pydantic` para catch API changes durante E2E
-3. **Documentation** 🟡 - Important for adoption
+2. **dbt Model Enhancements** 🔥 - Critical for data quality and performance
+3. **Runtime Data Validation** 🟡 - `pydantic` para catch API changes durante E2E
+4. **Documentation & License** 🟡 - Important for legal compliance and adoption
+5. **Configuration Management** 🟡 - Enhances deployment flexibility
 
 ### What Can Be Skipped:
 1. **Unit Tests** 🟢 - ADR explicitly forbids
@@ -140,10 +207,15 @@ def test_e2e_with_validation():
 
 ## 📝 REALISTIC NEXT STEPS (E2E-Aligned)
 
-### Sprint 1 (1-2 days)
+### Sprint 1 (High Priority - 2-3 days)
 1. **Stabilize E2E Tests** - Add `tenacity` retry logic
-2. **Add Runtime Validation** - `pydantic` models for schema validation
-3. **Update README** - Document E2E testing strategy
+2. **dbt Model Enhancements** - Add staging layer, incremental models, relationship tests
+3. **Update LICENSE** - Remove placeholder, add proper author/organization
+
+### Sprint 2 (Medium Priority - 3-4 days)
+1. **Add Runtime Validation** - `pydantic` models for schema validation
+2. **Configuration Management** - Implement Pydantic BaseSettings
+3. **dbt Documentation** - Add column descriptions, CI/CD integration
 
 ### Done ✅
 - Core functionality works and is E2E tested
@@ -157,12 +229,20 @@ def test_e2e_with_validation():
 
 ## 🏆 CONCLUSION
 
-The codebase is in excellent shape and aligns with **E2E-first ADR**. The only **real** remaining work is:
+The codebase is in excellent shape and aligns with **E2E-first ADR**. Analysis confirms the project is **production-ready** with solid architecture.
 
-1. **E2E Test Stability** - Make tests resilient to network issues
-2. **Runtime Data Validation** - Catch API changes during E2E execution
-3. **Documentation** - README update
+**Priority Order** (based on expert analysis):
+1. **🔥 dbt Model Enhancements** - Critical for data quality and performance
+2. **🔥 E2E Test Stability** - Essential for CI/CD reliability
+3. **🟡 Documentation & License** - Important for legal compliance and adoption
+4. **🟡 Configuration Management** - Enhances deployment flexibility
 
-**Key Insight**: Tools like `respx` and `pydantic` **support** E2E testing, they don't replace it. `tenacity` makes E2E tests more stable. `pydantic` catches API changes during E2E execution.
+**Key Insight**: 
+- Project architecture is exemplary (ADRs, modular design, modern toolchain)
+- Suggested improvements are refinements, not critical fixes
+- dbt layer enhancements have highest impact on data quality
+- E2E testing strategy is sound and well-implemented
 
-**Ship it!** 🚀 — The system works E2E, the architecture is solid, and the remaining work is tactical.
+**Expert Validation**: The project demonstrates "altíssimo nível" of engineering quality. Suggestions focus on elevating from "ótimo" to "excepcional".
+
+**Ship it!** 🚀 — The system works E2E, the architecture is solid, and the remaining work enhances an already excellent foundation.
