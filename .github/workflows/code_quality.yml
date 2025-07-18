@@ -39,6 +39,7 @@ jobs:
         run: |
           source $VIRTUAL_ENV/bin/activate
           uv sync --frozen-lockfile
+          uv pip install --system .[dbt]
           
       - name: Cache pre-commit hooks
         uses: actions/cache@v3
@@ -101,6 +102,13 @@ jobs:
             --cov-report=html \
             --junitxml=pytest-report.xml \
             -v
+        continue-on-error: false
+
+      - name: Run dbt tests
+        run: |
+          source $VIRTUAL_ENV/bin/activate
+          echo "💧 Running dbt tests..."
+          dbt test --project-dir dbt_baliza
         continue-on-error: false
 
       - name: Upload coverage reports

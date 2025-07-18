@@ -2,7 +2,7 @@ import calendar
 from datetime import date, timedelta
 from typing import Any, List, Tuple
 
-from baliza.config import PNCP_ENDPOINTS
+from baliza.config import settings
 
 
 class PNCPTaskPlanner:
@@ -49,7 +49,7 @@ class PNCPTaskPlanner:
         date_chunks = self._monthly_chunks(start_date, end_date)
         tasks_to_create = []
 
-        for endpoint in PNCP_ENDPOINTS:
+        for endpoint in settings.pncp_endpoints:
             modalidades = endpoint.get(
                 "iterate_modalidades", [None]
             )  # None means no modalidade iteration
