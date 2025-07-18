@@ -119,6 +119,36 @@ flowchart TD
 _**Legenda:** O BALIZA orquestra a coleta da API do PNCP, armazena os dados brutos em um banco DuckDB e, com dbt, os transforma em insumos para análise._
 
 
+## 🤖 Servidor de Análise com IA (MCP)
+
+O BALIZA inclui um servidor compatível com o **Model Context Protocol (MCP)** da Anthropic. Isso permite que modelos de linguagem, como o Claude, se conectem diretamente aos seus dados de licitações para realizar análises complexas, consultas e visualizações de forma segura.
+
+**Como Funciona:**
+Em vez de você fazer uma pergunta diretamente, você inicia um servidor local. Um LLM compatível com MCP pode então se conectar a este servidor para usar as "ferramentas" que ele oferece, como a capacidade de executar consultas SQL no seu banco de dados.
+
+**Exemplo de Uso:**
+```bash
+# 1. Inicie o servidor MCP
+# O servidor ficará em execução, aguardando conexões de um LLM
+uv run baliza mcp
+
+# 2. Conecte seu LLM ao servidor
+# Use uma ferramenta como o MCP Workbench da Anthropic ou configure um
+# cliente LLM para se conectar a http://127.0.0.1:8000.
+```
+
+O servidor expõe as seguintes capacidades ao LLM:
+- **`baliza/available_datasets`**: Lista os conjuntos de dados disponíveis.
+- **`baliza/dataset_schema`**: Descreve as colunas e tipos de dados de um dataset.
+- **`baliza/execute_sql_query`**: Executa uma consulta SQL de leitura (`SELECT`) nos dados.
+
+- 🧠 **Análise Profunda:** Permite que o LLM explore os dados de forma autônoma para responder a perguntas complexas.
+- 🔒 **Segurança em Primeiro Lugar:** O servidor só permite consultas de leitura (`SELECT`), impedindo qualquer modificação nos dados.
+- ⚙️ **Padrão Aberto:** Baseado no Model Context Protocol, garantindo interoperabilidade.
+
+Para saber mais sobre a arquitetura, leia nosso [**Guia Teórico do MCP**](./docs/mcp_guide.md).
+
+
 ## 🏗️ Arquitetura e Tecnologias
 
 | Camada | Tecnologias | Propósito |
