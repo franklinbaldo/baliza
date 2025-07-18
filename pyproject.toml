@@ -13,12 +13,18 @@ dependencies = [
     "orjson", # Fast JSON parsing with fallback
     "aiolimiter>=1.2.1",
     "filelock", # File locking to prevent database conflicts
+    "pybloom-live",
 ]
 
 [project.scripts]
 baliza = "baliza.pncp_extractor:app"
 
 [project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-asyncio",
+    "duckdb",
+]
 dev = [
     "pytest",
     "pytest-mock",

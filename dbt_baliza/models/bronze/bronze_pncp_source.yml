@@ -1,41 +1,15 @@
 version: 2
 
 sources:
-  - name: pncp
-    schema: psa
-    description: "Raw data from the PNCP API"
+  - name: pncp_parquet
+    description: "Parquet files exported from the raw DuckDB database"
+    loader: httpfs
     tables:
-      - name: pncp_raw_responses
-        description: "Stores raw JSON responses from the PNCP API."
-        columns:
-          - name: id
-            description: "Unique identifier for the raw response."
-            tests:
-              - unique
-              - not_null
-          - name: extracted_at
-            description: "Timestamp when the data was extracted."
-          - name: endpoint_url
-            description: "The URL of the API endpoint."
-          - name: endpoint_name
-            description: "The name of the API endpoint."
-          - name: request_parameters
-            description: "JSON object with the request parameters."
-          - name: response_code
-            description: "The HTTP response code."
-          - name: response_content
-            description: "The raw response content."
-          - name: response_headers
-            description: "JSON object with the response headers."
-          - name: data_date
-            description: "The date of the data being extracted."
-          - name: run_id
-            description: "The unique identifier for the extraction run."
-          - name: total_records
-            description: "The total number of records for the request."
-          - name: total_pages
-            description: "The total number of pages for the request."
-          - name: current_page
-            description: "The current page number."
-          - name: page_size
-            description: "The page size of the request."
+      - name: request_log
+        description: "Parquet file containing the log of all requests made to the PNCP API."
+        external:
+          location: "file://./data/request_log.parquet"
+      - name: response_content
+        description: "Partitioned Parquet files containing the response content from the PNCP API."
+        external:
+          location: "file://./data/parquet_data"
