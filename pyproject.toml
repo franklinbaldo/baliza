@@ -25,7 +25,6 @@ baliza = "baliza.cli:app"
 [project.optional-dependencies]
 dev = [
     "pytest",
-    "pytest-mock",
 ]
 analytics = [
     "dbt-core>=1.7.0",
@@ -37,7 +36,6 @@ dev = [
     "mypy>=1.16.1",
     "pre-commit>=4.2.0",
     "pytest>=8.4.1",
-    "pytest-mock>=3.14.1",
     "ruff>=0.12.3",
     "mkdocs-material>=9.1.21",
     "mkdocs-gen-files>=0.5.0",
@@ -217,6 +215,22 @@ module = [
     "rich.*"
 ]
 ignore_missing_imports = true
+
+# Pytest configuration for E2E tests only
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_functions = "test_*"
+addopts = "-v --tb=short --strict-markers"
+markers = [
+    "e2e: marks tests as end-to-end integration tests",
+    "slow: marks tests as slow (may take several minutes)",
+]
+# Default to running only E2E tests
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
 
 # Coverage configuration for pytest-cov
 [tool.coverage.run]

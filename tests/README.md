@@ -1,83 +1,150 @@
-# 🧪 Baliza Test Suite
+# 🧪 Baliza E2E Test Suite
 
-This directory contains tests for the BALIZA project.
-
-## 📋 Current Structure
-
-The project uses a modular architecture with the main extractor functionality in `src/baliza/extractor.py` and CLI interface in `src/baliza/cli.py`. The project also includes MCP server functionality for AI integration.
-
-### ✅ **Remaining Files**
-- `conftest.py` - Test configuration and fixtures
-- `README.md` - This file
-
-## 🚀 Testing the BALIZA System
-
-The project uses a modular architecture with CLI interface and MCP server. Testing is primarily done through manual verification:
-
-### **Manual Testing**
-```bash
-# Test basic functionality
-uv run baliza stats
-
-# Test data extraction
-uv run baliza extract --start-date 2024-07-10 --end-date 2024-07-10
-
-# Test MCP server (requires fastmcp dependency)
-uv run baliza mcp
-
-# Test extractor module directly
-uv run python src/baliza/extractor.py stats
-```
-
-### **What is Tested**
-- ✅ **CLI Interface**: Command-line interface functionality
-- ✅ **Database Operations**: PSA schema creation and data storage
-- ✅ **API Connectivity**: PNCP endpoint access
-- ✅ **Data Processing**: Response parsing and storage
-- ✅ **Error Handling**: HTTP errors and rate limiting
-- ✅ **MCP Server**: Model Context Protocol server functionality
-- ✅ **Async Operations**: Multi-threaded data extraction
-
-## 🔧 Future Test Improvements
-
-Potential areas for adding tests back:
-1. **Unit Tests**: Test individual functions in `extractor.py`
-2. **Integration Tests**: Test database operations
-3. **API Tests**: Mock PNCP API responses
-4. **Performance Tests**: Test with large datasets
-5. **MCP Server Tests**: Test Model Context Protocol functionality
-6. **E2E Tests**: Test complete extraction workflows
-
-## 📊 Quality Assurance
-
-The modular architecture relies on:
-- **Modular design**: Separate CLI, extractor, and MCP server components
-- **Raw data storage**: Preserves all API responses for future analysis
-- **Unified schema**: Consistent data structure across all endpoints
-- **Built-in error handling**: Graceful handling of API failures
-- **Async operations**: Efficient multi-threaded data extraction
-- **MCP integration**: AI-ready data analysis capabilities
-
-## 🎯 Key Benefits of Current Architecture
-
-1. **Modular Design**: Separate concerns for better maintainability
-2. **Extensibility**: Easy to add new features (MCP server, new extractors)
-3. **Performance**: Async operations for efficient data extraction
-4. **AI Integration**: MCP server enables advanced AI analysis
-5. **Robust Error Handling**: Graceful handling of various failure scenarios
+**ADR**: This project uses **E2E tests only** - no unit tests, no mocks for validation.
 
 ---
 
-## 🔍 Manual Verification Checklist
+## 🎯 Testing Philosophy
 
-To verify the system works correctly:
+**E2E tests are the single source of truth**. We test the complete system behavior:
+- Real API calls to PNCP
+- Real database operations with DuckDB
+- Real file system operations
+- Real CLI interface testing
 
-- [ ] `baliza stats` shows existing data
-- [ ] `baliza extract` can extract new data  
-- [ ] Database file is created at `data/baliza.duckdb`
-- [ ] Raw responses are stored in `psa.pncp_raw_responses` table
-- [ ] API rate limiting works (1 second delay between requests)
-- [ ] All HTTP status codes are handled gracefully
-- [ ] Progress bars and console output work correctly
+**No unit tests, no mocks** - we trust the system works as a whole.
 
-For issues or suggestions, please open a GitHub issue.
+---
+
+## 📋 Current Structure
+
+```
+tests/
+├── conftest.py          # E2E test configuration
+├── README.md           # This file
+└── (future E2E tests)  # Coming soon
+```
+
+---
+
+## 🚀 Running E2E Tests
+
+### **Current E2E Testing** (Manual)
+```bash
+# Test extraction with real API
+uv run baliza extract --start-date 2024-01-01 --end-date 2024-01-01
+
+# Test statistics
+uv run baliza stats
+
+# Test MCP server
+uv run baliza mcp
+```
+
+### **Future Automated E2E Tests**
+```bash
+# Run all E2E tests (when implemented)
+uv run pytest tests/ -m e2e
+
+# Run slow E2E tests
+uv run pytest tests/ -m "e2e and slow"
+
+# Run specific E2E test
+uv run pytest tests/test_e2e_extraction.py::test_extract_real_data
+```
+
+---
+
+## 🔧 E2E Test Implementation Plan
+
+### **Planned E2E Tests**
+1. **`test_e2e_extraction.py`** - Test complete extraction workflow
+2. **`test_e2e_cli.py`** - Test CLI commands end-to-end
+3. **`test_e2e_database.py`** - Test database operations with real data
+4. **`test_e2e_mcp.py`** - Test MCP server functionality
+
+### **E2E Test Structure**
+```python
+import pytest
+from datetime import date
+
+@pytest.mark.e2e
+@pytest.mark.slow
+async def test_extract_real_data():
+    """E2E test: Extract real data from PNCP API"""
+    # Test with 1 day only to keep it fast
+    start_date = date(2024, 1, 1)
+    end_date = date(2024, 1, 1)
+    
+    # This hits the real API, real database, everything
+    result = await extractor.extract_data(start_date, end_date)
+    
+    # Validate E2E behavior
+    assert result["total_records_extracted"] >= 0
+    assert result["successful_requests"] > 0
+    assert result["failed_requests"] == 0
+```
+
+---
+
+## ✅ E2E Test Validation
+
+### **What E2E Tests Validate**
+- ✅ **Real API Integration**: PNCP endpoints work correctly
+- ✅ **Database Operations**: DuckDB schema and data storage
+- ✅ **Error Handling**: Network failures, API errors, rate limits
+- ✅ **CLI Interface**: Command-line functionality
+- ✅ **Data Processing**: JSON parsing, data transformation
+- ✅ **File Operations**: Database files, logs, results
+- ✅ **Performance**: Extraction speed, memory usage
+- ✅ **Async Operations**: Concurrent request handling
+
+### **What E2E Tests Don't Test**
+- ❌ **Unit-level functions** - We trust the implementation
+- ❌ **Mocked scenarios** - Only real interactions matter
+- ❌ **Isolated components** - Only full system behavior counts
+
+---
+
+## 🎯 Benefits of E2E-First Approach
+
+1. **Real Confidence**: Tests prove the system actually works
+2. **No False Positives**: Mocks can't lie about real API behavior
+3. **Simple Maintenance**: No complex mock setup and maintenance
+4. **User-Centric**: Tests validate what users actually experience
+5. **Integration Validation**: Catches integration issues immediately
+
+---
+
+## 🔧 E2E Test Guidelines
+
+### **Test Data Strategy**
+- Use **real PNCP API** for all tests
+- Test with **short date ranges** (1 day) for speed
+- Use **known good dates** that have data
+- Accept **network dependencies** as part of E2E reality
+
+### **Test Stability**
+- Use `tenacity` for retry logic on network failures
+- Set appropriate timeouts for API calls
+- Handle rate limiting gracefully
+- Test in CI with real API (accept occasional failures)
+
+### **Test Organization**
+- Mark all tests with `@pytest.mark.e2e`
+- Mark slow tests with `@pytest.mark.slow`
+- Use descriptive test names: `test_extract_contracts_for_single_day`
+- Focus on **user workflows**, not technical implementation
+
+---
+
+## 🚀 Next Steps
+
+1. **Implement E2E Test Suite** - Create automated E2E tests
+2. **Add Tenacity Retry Logic** - Make tests resilient to network issues
+3. **Setup CI/CD Pipeline** - Run E2E tests on every merge
+4. **Monitor Test Stability** - Track and improve test reliability
+
+---
+
+**Philosophy**: *"E2E tests are the source of truth. Everything else is just implementation detail."*
