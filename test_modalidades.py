@@ -6,7 +6,7 @@ Test script for modalidade iteration functionality
 import asyncio
 import httpx
 from datetime import date, timedelta
-from src.baliza.pncp_extractor import PNCP_ENDPOINTS, PNCP_BASE_URL
+from baliza.extractor import PNCP_ENDPOINTS, PNCP_BASE_URL
 
 
 async def test_contratacoes_with_modalidades():
