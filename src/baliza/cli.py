@@ -5,12 +5,11 @@ from pathlib import Path
 
 import typer
 from rich.console import Console
-from rich.panel import Panel
 
 from .extractor import (
+    BALIZA_DB_PATH,
     CONCURRENCY,
     DATA_DIR,
-    BALIZA_DB_PATH,
     AsyncPNCPExtractor,
     connect_utf8,
 )
@@ -84,9 +83,7 @@ def stats():
     console.print(f"❌ Failed: {total_responses - success_responses:,}")
 
     if total_responses > 0:
-        console.print(
-            f"Success Rate: {success_responses / total_responses * 100:.1f}%"
-        )
+        console.print(f"Success Rate: {success_responses / total_responses * 100:.1f}%")
 
     # Endpoint breakdown
     endpoint_stats = conn.execute(

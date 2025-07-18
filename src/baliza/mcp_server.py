@@ -3,13 +3,13 @@ import json
 from pathlib import Path
 
 from fastmcp import FastMCP
-from mcp import Resource, Tool
 
 # Initialize the FastMCP server
 app = FastMCP()
 
 
 # --- Resources ---
+
 
 async def _available_datasets_logic() -> str:
     """Returns a list of available datasets for querying."""
@@ -18,6 +18,7 @@ async def _available_datasets_logic() -> str:
         {"name": "atas", "description": "Dados sobre atas de registro de preço."},
     ]
     return json.dumps(datasets)
+
 
 @app.resource("mcp://baliza/available_datasets")
 async def available_datasets() -> str:
@@ -39,11 +40,12 @@ async def _dataset_schema_logic(dataset_name: str, base_dir: str | None = None) 
         return json.dumps({"error": f"Dataset '{dataset_name}' not found."})
 
     try:
-        con = duckdb.connect(database=':memory:')
-        schema = con.execute(f"DESCRIBE SELECT * FROM '{str(parquet_path)}'").fetchdf()
+        con = duckdb.connect(database=":memory:")
+        schema = con.execute(f"DESCRIBE SELECT * FROM '{parquet_path!s}'").fetchdf()
         return schema.to_json(orient="records")
     except Exception as e:
         return json.dumps({"error": str(e)})
+
 
 @app.resource("mcp://baliza/dataset_schema/{dataset_name}")
 async def dataset_schema(dataset_name: str) -> str:
@@ -51,6 +53,7 @@ async def dataset_schema(dataset_name: str) -> str:
 
 
 # --- Tools ---
+
 
 async def _execute_sql_query_logic(query: str, base_dir: str | None = None) -> str:
     """Executes a read-only SQL query against the procurement dataset."""
@@ -61,19 +64,22 @@ async def _execute_sql_query_logic(query: str, base_dir: str | None = None) -> s
         return json.dumps({"error": "Only SELECT queries are allowed."})
 
     try:
-        con = duckdb.connect(database=':memory:')
+        con = duckdb.connect(database=":memory:")
 
         parquet_dir = Path(base_dir) if base_dir else Path("data/parquet")
         if parquet_dir.exists():
             for parquet_file in parquet_dir.glob("*.parquet"):
                 table_name = parquet_file.stem
-                con.execute(f"CREATE OR REPLACE VIEW {table_name} AS SELECT * FROM '{str(parquet_file)}'")
+                con.execute(
+                    f"CREATE OR REPLACE VIEW {table_name} AS SELECT * FROM '{parquet_file!s}'"
+                )
 
         result = con.execute(query).fetchdf()
         return result.to_json(orient="records")
 
     except Exception as e:
-        return json.dumps({"error": f"Query failed: {str(e)}"})
+        return json.dumps({"error": f"Query failed: {e!s}"})
+
 
 @app.tool("mcp://baliza/execute_sql_query")
 async def execute_sql_query(query: str) -> str:
@@ -89,9 +95,10 @@ def run_server():
 
 async def _run_tests():
     """A simple test runner to validate functionality."""
-    import pandas as pd
-    import tempfile
     import shutil
+    import tempfile
+
+    import pandas as pd
 
     print("--- Running MCP Server Tests ---")
     test_dir = tempfile.mkdtemp()
@@ -103,9 +110,13 @@ async def _run_tests():
 
     try:
         # Create dummy data
-        contracts_df = pd.DataFrame({
-            "id": [1, 2], "valor": [100.0, 200.0], "fornecedor": ["Empresa A", "Empresa B"],
-        })
+        contracts_df = pd.DataFrame(
+            {
+                "id": [1, 2],
+                "valor": [100.0, 200.0],
+                "fornecedor": ["Empresa A", "Empresa B"],
+            }
+        )
         contracts_df.to_parquet(parquet_dir / "contratos.parquet")
         print("✅ [1/5] Dummy data created.")
 
@@ -122,13 +133,17 @@ async def _run_tests():
         print("✅ [3/5] `dataset_schema` logic passed.")
 
         # 4. Test _execute_sql_query_logic (security)
-        error_str = await _execute_sql_query_logic("DROP TABLE a;", base_dir=str(parquet_dir))
+        error_str = await _execute_sql_query_logic(
+            "DROP TABLE a;", base_dir=str(parquet_dir)
+        )
         error = json.loads(error_str)
         assert "error" in error
         print("✅ [4/5] `execute_sql_query` security passed.")
 
         # 5. Test _execute_sql_query_logic (success)
-        result_str = await _execute_sql_query_logic("SELECT * FROM contratos", base_dir=str(parquet_dir))
+        result_str = await _execute_sql_query_logic(
+            "SELECT * FROM contratos", base_dir=str(parquet_dir)
+        )
         result = json.loads(result_str)
         assert len(result) == 2
         assert result[0]["fornecedor"] == "Empresa A"
@@ -141,6 +156,7 @@ async def _run_tests():
 
 if __name__ == "__main__":
     import sys
+
     if len(sys.argv) > 1 and sys.argv[1] == "test":
         asyncio.run(_run_tests())
     else:
