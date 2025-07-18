@@ -39,8 +39,6 @@ async def test_e2e_extract_real_data():
 ```
 
 **Action Items**:
-- [ ] Add `tenacity` retry logic to E2E tests
-- [ ] Create focused E2E test for short date ranges
 - [ ] Add timeout protection to E2E tests
 - [ ] Validate real data extraction end-to-end
 
@@ -90,8 +88,6 @@ def test_e2e_with_validation():
 ```
 
 **Action Items**:
-- [ ] Add `pydantic` models for runtime validation in E2E tests
-- [ ] (Optional) Add `respx` for quick development feedback
 - [ ] Keep E2E tests as the **only** validation authority
 
 **Priority**: 🟡 **MEDIUM** - Supports development, doesn't replace E2E
@@ -208,20 +204,13 @@ class Settings(BaseSettings):
 ## 📝 REALISTIC NEXT STEPS (E2E-Aligned)
 
 ### Sprint 1 (High Priority - 2-3 days)
-1. **Stabilize E2E Tests** - Add `tenacity` retry logic
-2. **dbt Model Enhancements** - Add staging layer, incremental models, relationship tests
-3. **Update LICENSE** - Remove placeholder, add proper author/organization
+1. **dbt Model Enhancements** - Add staging layer, incremental models, relationship tests
+2. **Update LICENSE** - Remove placeholder, add proper author/organization
 
 ### Sprint 2 (Medium Priority - 3-4 days)
-1. **Add Runtime Validation** - `pydantic` models for schema validation
-2. **Configuration Management** - Implement Pydantic BaseSettings
-3. **dbt Documentation** - Add column descriptions, CI/CD integration
+1. **Configuration Management** - Implement Pydantic BaseSettings
+2. **dbt Documentation** - Add column descriptions, CI/CD integration
 
-### Done ✅
-- Core functionality works and is E2E tested
-- Architecture is clean and modular
-- `tenacity` already implemented in production code
-- Performance is adequate for real usage
 
 **Philosophy**: *"E2E tests are the source of truth"* — All tools must support, not replace, E2E validation.
 
