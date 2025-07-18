@@ -1,6 +1,8 @@
-import duckdb
 import os
 from datetime import date, timedelta
+
+import duckdb
+
 
 def export_new_data_to_parquet(db_path="data/baliza.duckdb", output_dir="data/parquet"):
     """
@@ -37,7 +39,7 @@ def export_new_data_to_parquet(db_path="data/baliza.duckdb", output_dir="data/pa
             CAST(strftime(CAST(json_extract_string(data, '$.dataPublicacao') AS DATE), '%Y') AS INTEGER) as ano_publicacao,
             CAST(strftime(CAST(json_extract_string(data, '$.dataPublicacao') AS DATE), '%m') AS INTEGER) as mes_publicacao
         FROM {table_name}
-        WHERE CAST(json_extract_string(data, '$.dataPublicacao') AS DATE) = '{target_date.strftime('%Y-%m-%d')}'
+        WHERE CAST(json_extract_string(data, '$.dataPublicacao') AS DATE) = '{target_date.strftime("%Y-%m-%d")}'
     ) TO '{output_dir}' (
         FORMAT PARQUET,
         PARTITION_BY (endpoint, ano_publicacao, mes_publicacao),
@@ -53,6 +55,7 @@ def export_new_data_to_parquet(db_path="data/baliza.duckdb", output_dir="data/pa
         print(f"Failed to export data to Parquet. Error: {e}")
     finally:
         con.close()
+
 
 if __name__ == "__main__":
     # Make sure the script is executable and has the correct path context

@@ -14,9 +14,13 @@ def parse_json_robust(content: str) -> Any:
     try:
         return orjson.loads(content)
     except orjson.JSONDecodeError as e:
-        logger.warning(f"orjson failed to parse JSON, falling back to standard json: {e}")
+        logger.warning(
+            f"orjson failed to parse JSON, falling back to standard json: {e}"
+        )
         try:
             return json.loads(content)
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse JSON with both orjson and standard json: {e}")
+            logger.error(
+                f"Failed to parse JSON with both orjson and standard json: {e}"
+            )
             raise

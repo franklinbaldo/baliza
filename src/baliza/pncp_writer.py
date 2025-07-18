@@ -10,7 +10,7 @@ import json
 import logging
 from datetime import date
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import duckdb
 from filelock import FileLock, Timeout
@@ -286,7 +286,7 @@ class PNCPWriter:
             with contextlib.suppress(duckdb.Error):
                 self.conn.rollback()
 
-    def _batch_store_responses(self, responses: List[Dict[str, Any]]):
+    def _batch_store_responses(self, responses: list[dict[str, Any]]):
         """Store multiple responses in a single batch operation with transaction."""
         if not responses:
             return
@@ -331,7 +331,9 @@ class PNCPWriter:
             logger.error(f"Batch store failed: {e}")
             raise
 
-    async def writer_worker(self, page_queue: asyncio.Queue, commit_every: int = 75) -> None:
+    async def writer_worker(
+        self, page_queue: asyncio.Queue, commit_every: int = 75
+    ) -> None:
         """Dedicated writer coroutine for single-threaded DB writes.
 
         Optimized for:

@@ -48,7 +48,7 @@ async def available_datasets() -> str:
 async def _dataset_schema_logic(dataset_name: str, base_dir: str | None = None) -> str:
     """Returns the schema for a given dataset."""
     data_dir = Path(base_dir) if base_dir else Path("data/parquet")
-    
+
     # Use the mapping to get the correct glob pattern
     parquet_glob_pattern = PARQUET_TABLE_MAPPING.get(dataset_name)
     if not parquet_glob_pattern:
@@ -71,7 +71,9 @@ async def _dataset_schema_logic(dataset_name: str, base_dir: str | None = None) 
     try:
         con = duckdb.connect(database=":memory:")
         # Use read_parquet directly with the glob pattern
-        schema = con.execute(f"DESCRIBE SELECT * FROM read_parquet('{resolved_path!s}')").fetchdf()
+        schema = con.execute(
+            f"DESCRIBE SELECT * FROM read_parquet('{resolved_path!s}')"
+        ).fetchdf()
         return schema.to_json(orient="records")
     except duckdb.Error as e:
         logger.error(f"Failed to get schema for {dataset_name}: {e}")
@@ -115,13 +117,13 @@ async def _execute_sql_query_logic(query: str, base_dir: str | None = None) -> s
                     resolved_path = full_parquet_path.resolve(strict=True)
                     if not resolved_path.is_relative_to(parquet_dir.resolve()):
                         logger.error(f"Attempted path traversal: {full_parquet_path}")
-                        continue # Skip this view if path is invalid
+                        continue  # Skip this view if path is invalid
                 except FileNotFoundError:
                     logger.warning(f"Parquet path not found: {full_parquet_path}")
-                    continue # Skip if file does not exist
+                    continue  # Skip if file does not exist
                 except Exception as e:
                     logger.error(f"Path resolution error for {full_parquet_path}: {e}")
-                    continue # Skip on other path errors
+                    continue  # Skip on other path errors
 
                 # Create a view for each logical table using read_parquet with glob
                 con.execute(
@@ -208,7 +210,9 @@ async def _run_tests():
         print("✅ [5/7] `enum_metadata` logic passed.")
 
         # 6. Test _dataset_schema_logic with path traversal attempt
-        invalid_schema_str = await _dataset_schema_logic("../invalid", base_dir=str(parquet_dir))
+        invalid_schema_str = await _dataset_schema_logic(
+            "../invalid", base_dir=str(parquet_dir)
+        )
         invalid_schema = json.loads(invalid_schema_str)
         assert "error" in invalid_schema
         assert "Invalid dataset path." in invalid_schema["error"]

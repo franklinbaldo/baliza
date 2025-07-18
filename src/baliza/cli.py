@@ -1,12 +1,16 @@
 import asyncio
 import json
+import sys
 from datetime import date
 from pathlib import Path
 
 import typer
 from rich.console import Console
 
+# Late imports for optional dependencies
+from . import loader, mcp_server, transformer
 from .config import settings
+from .enums import ENUM_REGISTRY, get_enum_choices
 from .extractor import (
     BALIZA_DB_PATH,
     DATA_DIR,
@@ -45,13 +49,6 @@ def extract(
             console.print(f"Results saved to: {results_file}")
 
     asyncio.run(main())
-
-
-from . import mcp_server
-from . import transformer
-
-
-from . import loader
 
 
 @app.command()
@@ -125,7 +122,33 @@ def stats():
     conn.close()
 
 
-import sys
+@app.command()
+def enums(
+    enum_name: str = typer.Argument(None, help="Specific enum to display (optional)"),
+):
+    """Show available enum values for PNCP data types."""
+    if enum_name:
+        if enum_name not in ENUM_REGISTRY:
+            console.print(f"❌ [red]Enum '{enum_name}' not found.[/red]")
+            console.print("Available enums:", list(ENUM_REGISTRY.keys()))
+            return
+
+        enum_class = ENUM_REGISTRY[enum_name]
+        choices = get_enum_choices(enum_class)
+
+        console.print(f"\n📋 [bold blue]{enum_name}[/bold blue] values:")
+        for value, name in choices.items():
+            console.print(f"  {value}: {name.replace('_', ' ').title()}")
+    else:
+        console.print("📋 [bold blue]Available PNCP Enums[/bold blue]\n")
+        for name, enum_class in ENUM_REGISTRY.items():
+            choices = get_enum_choices(enum_class)
+            console.print(f"• [cyan]{name}[/cyan] ({len(choices)} values)")
+
+        console.print(
+            "\n💡 Use [green]baliza enums <enum_name>[/green] to see specific values"
+        )
+
 
 if __name__ == "__main__":
     # Configure streams for UTF-8

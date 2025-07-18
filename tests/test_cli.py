@@ -1,5 +1,7 @@
+from unittest.mock import MagicMock, patch
+
 from typer.testing import CliRunner
-from unittest.mock import patch, MagicMock
+
 from baliza.cli import app
 
 runner = CliRunner()

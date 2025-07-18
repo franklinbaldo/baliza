@@ -1,10 +1,12 @@
 """
 Handles the 'load' command by exporting data to Parquet and uploading to the Internet Archive.
 """
+
+from pathlib import Path
+
 import duckdb
 import typer
 from internetarchive import get_item, upload
-from pathlib import Path
 
 from .config import settings
 
@@ -18,7 +20,9 @@ def export_to_parquet():
     """
     PARQUET_DIR.mkdir(exist_ok=True)
     conn = duckdb.connect(database=str(DATA_DIR / "baliza.duckdb"), read_only=True)
-    tables = conn.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'gold'").fetchall()
+    tables = conn.execute(
+        "SELECT table_name FROM information_schema.tables WHERE table_schema = 'gold'"
+    ).fetchall()
     for table in tables:
         table_name = table[0]
         typer.echo(f"Exporting table: {table_name}")

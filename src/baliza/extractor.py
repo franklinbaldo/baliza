@@ -12,28 +12,19 @@ Architecture:
 
 import asyncio
 import calendar
-import contextlib
 import json
 import logging
-import random
 import re
 import signal
 import sys
 import time
 import uuid
 from datetime import date, datetime
-from enum import Enum
-
-# Import configuration from the config module
-from baliza.config import settings
 from pathlib import Path
 from typing import Any
 
 import duckdb
-import httpx
-import orjson
 import typer
-from filelock import FileLock, Timeout
 from rich.console import Console
 from rich.progress import (
     BarColumn,
@@ -41,11 +32,12 @@ from rich.progress import (
     TextColumn,
     TimeElapsedColumn,
 )
-from tenacity import retry, stop_after_attempt, wait_exponential_jitter
 
+# Import configuration from the config module
+from baliza.config import settings
 from baliza.pncp_client import PNCPClient
 from baliza.pncp_task_planner import PNCPTaskPlanner
-from baliza.pncp_writer import PNCPWriter, connect_utf8, BALIZA_DB_PATH, DATA_DIR
+from baliza.pncp_writer import BALIZA_DB_PATH, DATA_DIR, PNCPWriter, connect_utf8
 
 # Configure standard logging com UTF-8
 logging.basicConfig(
@@ -59,9 +51,6 @@ logger = logging.getLogger(__name__)
 
 
 # JSON parsing moved to utils.py to avoid circular imports
-from baliza.utils import parse_json_robust
-
-
 
 
 class AsyncPNCPExtractor:
@@ -70,8 +59,8 @@ class AsyncPNCPExtractor:
     def __init__(self, concurrency: int = settings.concurrency):
         self.concurrency = concurrency
         self.client = PNCPClient(concurrency=concurrency)
-        self.task_planner = PNCPTaskPlanner() # Instantiate the task planner
-        self.writer = PNCPWriter() # Instantiate the writer
+        self.task_planner = PNCPTaskPlanner()  # Instantiate the task planner
+        self.writer = PNCPWriter()  # Instantiate the writer
         self.run_id = str(uuid.uuid4())
 
         # Statistics
@@ -226,7 +215,8 @@ class AsyncPNCPExtractor:
             )
 
             endpoint = next(
-                (ep for ep in settings.pncp_endpoints if ep["name"] == endpoint_name), None
+                (ep for ep in settings.pncp_endpoints if ep["name"] == endpoint_name),
+                None,
             )
             if not endpoint:
                 continue
@@ -241,14 +231,18 @@ class AsyncPNCPExtractor:
                 "pagina": 1,
             }
             if endpoint["supports_date_range"]:
-                params[endpoint["date_params"][0]] = self.task_planner._format_date(data_date)
+                params[endpoint["date_params"][0]] = self.task_planner._format_date(
+                    data_date
+                )
                 params[endpoint["date_params"][1]] = self.task_planner._format_date(
                     self.task_planner._monthly_chunks(data_date, data_date)[0][1]
                 )
             elif endpoint.get("requires_single_date", False):
                 # For single-date endpoints, use the data_date directly (should be end_date)
                 # The data_date should already be correct (future date if needed) from task planning
-                params[endpoint["date_params"][0]] = self.task_planner._format_date(data_date)
+                params[endpoint["date_params"][0]] = self.task_planner._format_date(
+                    data_date
+                )
             else:
                 # For endpoints that don't support date ranges, use end of month chunk
                 params[endpoint["date_params"][0]] = self.task_planner._format_date(
@@ -356,14 +350,18 @@ class AsyncPNCPExtractor:
         }
 
         if endpoint["supports_date_range"]:
-            params[endpoint["date_params"][0]] = self.task_planner._format_date(data_date)
+            params[endpoint["date_params"][0]] = self.task_planner._format_date(
+                data_date
+            )
             params[endpoint["date_params"][1]] = self.task_planner._format_date(
                 self.task_planner._monthly_chunks(data_date, data_date)[0][1]
             )
         elif endpoint.get("requires_single_date", False):
             # For single-date endpoints, use the data_date directly (should be end_date)
             # The data_date should already be correct (future date if needed) from task planning
-            params[endpoint["date_params"][0]] = self.task_planner._format_date(data_date)
+            params[endpoint["date_params"][0]] = self.task_planner._format_date(
+                data_date
+            )
         else:
             # For endpoints that don't support date ranges, use end of month chunk
             params[endpoint["date_params"][0]] = self.task_planner._format_date(
@@ -625,7 +623,9 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
 
         # Start writer worker
         self.writer_running = True
-        writer_task = asyncio.create_task(self.writer.writer_worker(self.page_queue, commit_every=100))
+        writer_task = asyncio.create_task(
+            self.writer.writer_worker(self.page_queue, commit_every=100)
+        )
         self.running_tasks.add(writer_task)
 
         # --- Main Execution Flow ---

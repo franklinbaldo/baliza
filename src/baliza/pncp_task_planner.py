@@ -1,6 +1,6 @@
 import calendar
 from datetime import date, timedelta
-from typing import Any, List, Tuple
+from typing import Any
 
 from baliza.config import settings
 
@@ -17,7 +17,7 @@ class PNCPTaskPlanner:
 
     def _monthly_chunks(
         self, start_date: date, end_date: date
-    ) -> List[Tuple[date, date]]:
+    ) -> list[tuple[date, date]]:
         """Generate monthly date chunks (start to end of each month)."""
         chunks = []
         current = start_date
@@ -44,7 +44,9 @@ class PNCPTaskPlanner:
 
         return chunks
 
-    async def plan_tasks(self, start_date: date, end_date: date) -> List[Tuple[str, str, date, Any]]:
+    async def plan_tasks(
+        self, start_date: date, end_date: date
+    ) -> list[tuple[str, str, date, Any]]:
         """Populate the control table with all necessary tasks."""
         date_chunks = self._monthly_chunks(start_date, end_date)
         tasks_to_create = []

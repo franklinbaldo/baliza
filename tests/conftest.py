@@ -3,9 +3,9 @@ Test configuration for E2E tests only.
 Aligned with ADR: E2E tests are the only source of truth.
 """
 
-import sys
-import os
 import asyncio
+import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -22,9 +22,7 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "slow: marks tests as slow (may take several minutes)"
     )
-    config.addinivalue_line(
-        "markers", "asyncio: marks tests as asyncio-based tests"
-    )
+    config.addinivalue_line("markers", "asyncio: marks tests as asyncio-based tests")
 
 
 @pytest.fixture(scope="session")
@@ -60,7 +58,7 @@ def clean_test_environment():
 def skip_if_no_database():
     """Skip tests if database doesn't exist."""
     from baliza.pncp_writer import BALIZA_DB_PATH
-    
+
     if not BALIZA_DB_PATH.exists():
         pytest.skip("Database file not found - run extraction first")
 
@@ -86,12 +84,12 @@ def configure_test_environment():
     """Configure environment for E2E testing."""
     # Set test-specific environment variables
     os.environ["BALIZA_TEST_MODE"] = "true"
-    
+
     # Ensure we're using the test data directory
     test_data_dir = Path.cwd() / "data"
     test_data_dir.mkdir(exist_ok=True)
-    
+
     yield
-    
+
     # Cleanup environment
     os.environ.pop("BALIZA_TEST_MODE", None)

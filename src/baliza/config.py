@@ -1,5 +1,7 @@
 """Configuration constants for the baliza package."""
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
 from baliza.enums import ModalidadeContratacao
 
 
@@ -87,7 +89,10 @@ class Settings(BaseSettings):
             "name": "pca_atualizacao",
             "path": "/v1/pca/atualizacao",
             "description": "PCA por Data de Atualização Global",
-            "date_params": ["dataInicio", "dataFim"],  # PCA uses different parameter names
+            "date_params": [
+                "dataInicio",
+                "dataFim",
+            ],  # PCA uses different parameter names
             "max_days": 365,
             "supports_date_range": True,
             "page_size": 500,  # OpenAPI spec: max 500 for this endpoint

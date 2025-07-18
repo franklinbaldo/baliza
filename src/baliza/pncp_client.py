@@ -12,8 +12,8 @@ from typing import Any
 import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential_jitter
 
-from baliza.utils import parse_json_robust
 from baliza.config import settings
+from baliza.utils import parse_json_robust
 
 logger = logging.getLogger(__name__)
 
