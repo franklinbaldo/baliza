@@ -86,17 +86,51 @@ SELECT
   
   -- Procurement method and mode
   CAST(procurement_data ->> 'modalidadeId' AS INTEGER) AS modalidade_id,
-  procurement_data ->> 'modalidadeNome' AS modalidade_nome,
+  CASE CAST(procurement_data ->> 'modalidadeId' AS INTEGER)
+    WHEN 1 THEN 'Leilão - Eletrônico'
+    WHEN 2 THEN 'Diálogo Competitivo'
+    WHEN 3 THEN 'Concurso'
+    WHEN 4 THEN 'Concorrência - Eletrônica'
+    WHEN 5 THEN 'Concorrência - Presencial'
+    WHEN 6 THEN 'Pregão - Eletrônico'
+    WHEN 7 THEN 'Pregão - Presencial'
+    WHEN 8 THEN 'Dispensa de Licitação'
+    WHEN 9 THEN 'Inexigibilidade'
+    WHEN 10 THEN 'Manifestação de Interesse'
+    WHEN 11 THEN 'Pré-qualificação'
+    WHEN 12 THEN 'Credenciamento'
+    WHEN 13 THEN 'Leilão - Presencial'
+    ELSE procurement_data ->> 'modalidadeNome'
+  END AS modalidade_nome,
   CAST(procurement_data ->> 'modoDisputaId' AS INTEGER) AS modo_disputa_id,
-  procurement_data ->> 'modoDisputaNome' AS modo_disputa_nome,
+  CASE CAST(procurement_data ->> 'modoDisputaId' AS INTEGER)
+    WHEN 1 THEN 'Aberto'
+    WHEN 2 THEN 'Fechado'
+    WHEN 3 THEN 'Aberto-Fechado'
+    WHEN 4 THEN 'Dispensa Com Disputa'
+    WHEN 5 THEN 'Não se aplica'
+    WHEN 6 THEN 'Fechado-Aberto'
+    ELSE procurement_data ->> 'modoDisputaNome'
+  END AS modo_disputa_nome,
   
   -- Instrument and framework
   CAST(procurement_data ->> 'tipoInstrumentoConvocatorioCodigo' AS INTEGER) AS tipo_instrumento_convocatorio_codigo,
-  procurement_data ->> 'tipoInstrumentoConvocatorioNome' AS tipo_instrumento_convocatorio_nome,
+  CASE CAST(procurement_data ->> 'tipoInstrumentoConvocatorioCodigo' AS INTEGER)
+    WHEN 1 THEN 'Edital'
+    WHEN 2 THEN 'Aviso de Contratação Direta'
+    WHEN 3 THEN 'Ato que autoriza a Contratação Direta'
+    ELSE procurement_data ->> 'tipoInstrumentoConvocatorioNome'
+  END AS tipo_instrumento_convocatorio_nome,
   
   -- Status and flags
   procurement_data ->> 'situacaoCompraId' AS situacao_compra_id,
-  procurement_data ->> 'situacaoCompraNome' AS situacao_compra_nome,
+  CASE CAST(procurement_data ->> 'situacaoCompraId' AS INTEGER)
+    WHEN 1 THEN 'Divulgada no PNCP'
+    WHEN 2 THEN 'Revogada'
+    WHEN 3 THEN 'Anulada'
+    WHEN 4 THEN 'Suspensa'
+    ELSE procurement_data ->> 'situacaoCompraNome'
+  END AS situacao_compra_nome,
   CAST(procurement_data ->> 'srp' AS BOOLEAN) AS srp,
   CAST(procurement_data ->> 'existeResultado' AS BOOLEAN) AS existe_resultado,
   
