@@ -4,6 +4,8 @@ from pathlib import Path
 
 from fastmcp import FastMCP
 
+from baliza.enums import get_all_enum_metadata
+
 # Initialize the FastMCP server
 app = FastMCP()
 
@@ -50,6 +52,17 @@ async def _dataset_schema_logic(dataset_name: str, base_dir: str | None = None) 
 @app.resource("mcp://baliza/dataset_schema/{dataset_name}")
 async def dataset_schema(dataset_name: str) -> str:
     return await _dataset_schema_logic(dataset_name)
+
+
+async def _enum_metadata_logic() -> str:
+    """Returns metadata for all enums."""
+    metadata = get_all_enum_metadata()
+    return json.dumps(metadata)
+
+
+@app.resource("mcp://baliza/enum_metadata")
+async def enum_metadata() -> str:
+    return await _enum_metadata_logic()
 
 
 # --- Tools ---
@@ -118,36 +131,43 @@ async def _run_tests():
             }
         )
         contracts_df.to_parquet(parquet_dir / "contratos.parquet")
-        print("✅ [1/5] Dummy data created.")
+        print("✅ [1/6] Dummy data created.")
 
         # 2. Test available_datasets_logic
         datasets_str = await _available_datasets_logic()
         datasets = json.loads(datasets_str)
         assert len(datasets) > 0
-        print("✅ [2/5] `available_datasets` logic passed.")
+        print("✅ [2/6] `available_datasets` logic passed.")
 
         # 3. Test _dataset_schema_logic
         schema_str = await _dataset_schema_logic("contratos", base_dir=str(parquet_dir))
         schema = json.loads(schema_str)
         assert "id" in [c["column_name"] for c in schema]
-        print("✅ [3/5] `dataset_schema` logic passed.")
+        print("✅ [3/6] `dataset_schema` logic passed.")
 
-        # 4. Test _execute_sql_query_logic (security)
+        # 4. Test _enum_metadata_logic
+        metadata_str = await _enum_metadata_logic()
+        metadata = json.loads(metadata_str)
+        assert "ModalidadeContratacao" in metadata
+        assert "values" in metadata["ModalidadeContratacao"]
+        print("✅ [4/6] `enum_metadata` logic passed.")
+
+        # 5. Test _execute_sql_query_logic (security)
         error_str = await _execute_sql_query_logic(
             "DROP TABLE a;", base_dir=str(parquet_dir)
         )
         error = json.loads(error_str)
         assert "error" in error
-        print("✅ [4/5] `execute_sql_query` security passed.")
+        print("✅ [5/6] `execute_sql_query` security passed.")
 
-        # 5. Test _execute_sql_query_logic (success)
+        # 6. Test _execute_sql_query_logic (success)
         result_str = await _execute_sql_query_logic(
             "SELECT * FROM contratos", base_dir=str(parquet_dir)
         )
         result = json.loads(result_str)
         assert len(result) == 2
         assert result[0]["fornecedor"] == "Empresa A"
-        print("✅ [5/5] `execute_sql_query` logic passed.")
+        print("✅ [6/6] `execute_sql_query` logic passed.")
 
     finally:
         shutil.rmtree(test_dir)
