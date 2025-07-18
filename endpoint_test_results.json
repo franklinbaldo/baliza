@@ -3,104 +3,98 @@
     "endpoint": "contratos_publicacao",
     "status_code": 200,
     "success": true,
-    "url": "https://pncp.gov.br/api/consulta/v1/contratos?tamanhoPagina=10&pagina=1&dataInicial=20250617&dataFinal=20250617",
+    "url": "https://pncp.gov.br/api/consulta/v1/contratos?tamanhoPagina=10&pagina=1&dataInicial=20250618&dataFinal=20250618",
     "params": {
       "tamanhoPagina": 10,
       "pagina": 1,
-      "dataInicial": "20250617",
-      "dataFinal": "20250617"
+      "dataInicial": "20250618",
+      "dataFinal": "20250618"
     },
-    "total_records": 8803,
-    "total_pages": 881,
+    "total_records": 8571,
+    "total_pages": 858,
     "has_data": true
   },
   {
     "endpoint": "contratos_atualizacao",
     "status_code": 200,
     "success": true,
-    "url": "https://pncp.gov.br/api/consulta/v1/contratos/atualizacao?tamanhoPagina=10&pagina=1&dataInicial=20250617&dataFinal=20250617",
+    "url": "https://pncp.gov.br/api/consulta/v1/contratos/atualizacao?tamanhoPagina=10&pagina=1&dataInicial=20250618&dataFinal=20250618",
     "params": {
       "tamanhoPagina": 10,
       "pagina": 1,
-      "dataInicial": "20250617",
-      "dataFinal": "20250617"
+      "dataInicial": "20250618",
+      "dataFinal": "20250618"
     },
-    "total_records": 9673,
-    "total_pages": 968,
+    "total_records": 9388,
+    "total_pages": 939,
     "has_data": true
   },
   {
     "endpoint": "atas_periodo",
     "status_code": 200,
     "success": true,
-    "url": "https://pncp.gov.br/api/consulta/v1/atas?tamanhoPagina=10&pagina=1&dataInicial=20250617&dataFinal=20250617",
+    "url": "https://pncp.gov.br/api/consulta/v1/atas?tamanhoPagina=10&pagina=1&dataInicial=20250618&dataFinal=20250618",
     "params": {
       "tamanhoPagina": 10,
       "pagina": 1,
-      "dataInicial": "20250617",
-      "dataFinal": "20250617"
+      "dataInicial": "20250618",
+      "dataFinal": "20250618"
     },
-    "total_records": 408141,
-    "total_pages": 40815,
+    "total_records": 408729,
+    "total_pages": 40873,
     "has_data": true
   },
   {
     "endpoint": "atas_atualizacao",
     "status_code": 200,
     "success": true,
-    "url": "https://pncp.gov.br/api/consulta/v1/atas/atualizacao?tamanhoPagina=10&pagina=1&dataInicial=20250617&dataFinal=20250617",
+    "url": "https://pncp.gov.br/api/consulta/v1/atas/atualizacao?tamanhoPagina=10&pagina=1&dataInicial=20250618&dataFinal=20250618",
     "params": {
       "tamanhoPagina": 10,
       "pagina": 1,
-      "dataInicial": "20250617",
-      "dataFinal": "20250617"
+      "dataInicial": "20250618",
+      "dataFinal": "20250618"
     },
-    "total_records": 2476,
-    "total_pages": 248,
+    "total_records": 2399,
+    "total_pages": 240,
     "has_data": true
   },
   {
     "endpoint": "contratacoes_publicacao",
-    "status_code": 200,
-    "success": true,
-    "url": "https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?tamanhoPagina=10&pagina=1&dataInicial=20250617&dataFinal=20250617&codigoModalidadeContratacao=5",
+    "status_code": 400,
+    "success": false,
+    "url": "https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?tamanhoPagina=10&pagina=1&dataInicial=20250618&dataFinal=20250618",
     "params": {
       "tamanhoPagina": 10,
       "pagina": 1,
-      "dataInicial": "20250617",
-      "dataFinal": "20250617",
-      "codigoModalidadeContratacao": 5
+      "dataInicial": "20250618",
+      "dataFinal": "20250618"
     },
-    "total_records": 13,
-    "total_pages": 2,
-    "has_data": true
+    "error": "{\"timestamp\":\"2025-07-18T09:56:26.826+00:00\",\"status\":400,\"error\":\"Bad Request\",\"message\":\"Required request parameter 'codigoModalidadeContratacao' for method parameter type Long is not present\",\"path\":\"/pncp-consulta/v1/contratacoes/publicacao\"}"
   },
   {
     "endpoint": "contratacoes_atualizacao",
-    "status_code": 200,
-    "success": true,
-    "url": "https://pncp.gov.br/api/consulta/v1/contratacoes/atualizacao?tamanhoPagina=10&pagina=1&dataInicial=20250617&dataFinal=20250617&codigoModalidadeContratacao=5",
+    "status_code": 400,
+    "success": false,
+    "url": "https://pncp.gov.br/api/consulta/v1/contratacoes/atualizacao?tamanhoPagina=10&pagina=1&dataInicial=20250618&dataFinal=20250618",
     "params": {
       "tamanhoPagina": 10,
       "pagina": 1,
-      "dataInicial": "20250617",
-      "dataFinal": "20250617",
-      "codigoModalidadeContratacao": 5
+      "dataInicial": "20250618",
+      "dataFinal": "20250618"
     },
-    "total_records": 19,
-    "total_pages": 2,
-    "has_data": true
+    "error": "{\"timestamp\":\"2025-07-18T09:56:28.297+00:00\",\"status\":400,\"error\":\"Bad Request\",\"message\":\"Required request parameter 'codigoModalidadeContratacao' for method parameter type Long is not present\",\"path\":\"/pncp-consulta/v1/contratacoes/atualizacao\"}"
   },
   {
     "endpoint": "pca_atualizacao",
     "status_code": 200,
     "success": true,
-    "url": "https://pncp.gov.br/api/consulta/v1/pca/atualizacao?tamanhoPagina=10&pagina=1&dataInicio=20250617&dataFim=20250617",
+    "url": "https://pncp.gov.br/api/consulta/v1/pca/atualizacao?tamanhoPagina=10&pagina=1&dataInicio=20250618&dataFim=20250618",
     "params": {
       "tamanhoPagina": 10,
       "pagina": 1,
-      "dataInicio": "20250617",
-      "dataFim": "20250617"
+      "dataInicio": "20250618",
+      "dataFim": "20250618"
     },
     "json_error": "Expecting value: line 1 column 1 (char 0)",
     "response_text": ""
@@ -109,26 +103,25 @@
     "endpoint": "instrumentoscobranca_inclusao",
     "status_code": 404,
     "success": false,
-    "url": "https://pncp.gov.br/api/consulta/v1/instrumentoscobranca/inclusao?tamanhoPagina=10&pagina=1&dataInicial=20250617&dataFinal=20250617",
+    "url": "https://pncp.gov.br/api/consulta/v1/instrumentoscobranca/inclusao?tamanhoPagina=10&pagina=1&dataInicial=20250618&dataFinal=20250618",
     "params": {
       "tamanhoPagina": 10,
       "pagina": 1,
-      "dataInicial": "20250617",
-      "dataFinal": "20250617"
+      "dataInicial": "20250618",
+      "dataFinal": "20250618"
     },
-    "error": "{\"timestamp\":\"2025-07-18T02:09:24.420+00:00\",\"status\":404,\"error\":\"Not Found\",\"message\":\"Nenhum instrumento de Cobran\u00e7a encontrado.\",\"path\":\"/pncp-consulta/v1/instrumentoscobranca/inclusao\"}"
+    "error": "{\"timestamp\":\"2025-07-18T09:56:31.388+00:00\",\"status\":404,\"error\":\"Not Found\",\"message\":\"Nenhum instrumento de Cobran\u00e7a encontrado.\",\"path\":\"/pncp-consulta/v1/instrumentoscobranca/inclusao\"}"
   },
   {
     "endpoint": "contratacoes_proposta",
     "status_code": 422,
     "success": false,
-    "url": "https://pncp.gov.br/api/consulta/v1/contratacoes/proposta?tamanhoPagina=10&pagina=1&dataFinal=20250617&codigoModalidadeContratacao=5",
+    "url": "https://pncp.gov.br/api/consulta/v1/contratacoes/proposta?tamanhoPagina=10&pagina=1&dataFinal=20250618",
     "params": {
       "tamanhoPagina": 10,
       "pagina": 1,
-      "dataFinal": "20250617",
-      "codigoModalidadeContratacao": 5
+      "dataFinal": "20250618"
     },
-    "error": "{\"path\":\"/pncp-consulta/v1/contratacoes/proposta\",\"message\":\"Data Final inv\u00e1lida. Data Final deve ser maior ou igual a data atual\",\"error\":\"422 UNPROCESSABLE_ENTITY\",\"timestamp\":\"2025-07-17T23:09:25.765-03:00\",\"status\":\"422\"}"
+    "error": "{\"path\":\"/pncp-consulta/v1/contratacoes/proposta\",\"message\":\"Data Final inv\u00e1lida. Data Final deve ser maior ou igual a data atual\",\"error\":\"422 UNPROCESSABLE_ENTITY\",\"timestamp\":\"2025-07-18T06:56:32.688-03:00\",\"status\":\"422\"}"
   }
 ]
