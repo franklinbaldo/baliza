@@ -1,18 +1,18 @@
 # 🧪 Baliza Test Suite
 
-This directory contains tests for the simplified Baliza project.
+This directory contains tests for the BALIZA project.
 
 ## 📋 Current Structure
 
-The project has been refactored to use a simplified architecture with a single script. Most tests have been removed as they were for the old complex architecture.
+The project uses a modular architecture with the main extractor functionality in `src/baliza/extractor.py` and CLI interface in `src/baliza/cli.py`. The project also includes MCP server functionality for AI integration.
 
 ### ✅ **Remaining Files**
 - `conftest.py` - Test configuration and fixtures
 - `README.md` - This file
 
-## 🚀 Testing the Simplified Script
+## 🚀 Testing the BALIZA System
 
-Since the project now uses a single self-contained script, testing is primarily done through manual verification:
+The project uses a modular architecture with CLI interface and MCP server. Testing is primarily done through manual verification:
 
 ### **Manual Testing**
 ```bash
@@ -22,39 +22,49 @@ uv run baliza stats
 # Test data extraction
 uv run baliza extract --start-date 2024-07-10 --end-date 2024-07-10
 
-# Test script directly
-uv run python src/baliza/pncp_extractor.py stats
+# Test MCP server (requires fastmcp dependency)
+uv run baliza mcp
+
+# Test extractor module directly
+uv run python src/baliza/extractor.py stats
 ```
 
 ### **What is Tested**
-- ✅ **Script Execution**: Basic command-line interface
+- ✅ **CLI Interface**: Command-line interface functionality
 - ✅ **Database Operations**: PSA schema creation and data storage
 - ✅ **API Connectivity**: PNCP endpoint access
 - ✅ **Data Processing**: Response parsing and storage
 - ✅ **Error Handling**: HTTP errors and rate limiting
+- ✅ **MCP Server**: Model Context Protocol server functionality
+- ✅ **Async Operations**: Multi-threaded data extraction
 
 ## 🔧 Future Test Improvements
 
 Potential areas for adding tests back:
-1. **Unit Tests**: Test individual functions in `pncp_extractor.py`
+1. **Unit Tests**: Test individual functions in `extractor.py`
 2. **Integration Tests**: Test database operations
 3. **API Tests**: Mock PNCP API responses
 4. **Performance Tests**: Test with large datasets
+5. **MCP Server Tests**: Test Model Context Protocol functionality
+6. **E2E Tests**: Test complete extraction workflows
 
 ## 📊 Quality Assurance
 
-The simplified architecture relies on:
-- **Self-contained script**: Reduces complexity and potential failure points
+The modular architecture relies on:
+- **Modular design**: Separate CLI, extractor, and MCP server components
 - **Raw data storage**: Preserves all API responses for future analysis
 - **Unified schema**: Consistent data structure across all endpoints
 - **Built-in error handling**: Graceful handling of API failures
+- **Async operations**: Efficient multi-threaded data extraction
+- **MCP integration**: AI-ready data analysis capabilities
 
-## 🎯 Key Benefits of Simplified Architecture
+## 🎯 Key Benefits of Current Architecture
 
-1. **Reduced Test Complexity**: Single script is easier to test
-2. **Better Maintainability**: Less code means fewer bugs
-3. **Increased Reliability**: Fewer dependencies and moving parts
-4. **Simplified Deployment**: Single script deployment
+1. **Modular Design**: Separate concerns for better maintainability
+2. **Extensibility**: Easy to add new features (MCP server, new extractors)
+3. **Performance**: Async operations for efficient data extraction
+4. **AI Integration**: MCP server enables advanced AI analysis
+5. **Robust Error Handling**: Graceful handling of various failure scenarios
 
 ---
 
