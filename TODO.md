@@ -10,7 +10,7 @@
 
 ---
 
-## 2 · `asyncio.sleep()` sem necessidade
+## 2 · `asyncio.sleep()` sem necessidade - DONE
 
 | Trecho                                                          | Problema                                       | Impacto                   | Alternativa                                                                                                                       |
 | --------------------------------------------------------------- | ---------------------------------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
@@ -18,7 +18,7 @@
 
 ---
 
-## 3 · Reconfigurar *stdin/stdout* globalmente
+## 3 · Reconfigurar *stdin/stdout* globalmente - DONE
 
 ```python
 for std in (sys.stdin, sys.stdout, sys.stderr):
@@ -30,7 +30,7 @@ for std in (sys.stdin, sys.stdout, sys.stderr):
 
 ---
 
-## 4 · Retry “na unha” + aleatoriedade
+## 4 · Retry “na unha” + aleatoriedade - DONE
 
 ```python
 delay = (2**attempt) * random.uniform(0.5, 1.5)  # noqa: S311
@@ -59,7 +59,7 @@ Todos os arquivos `test_*` batem na API PNCP real.
 
 ---
 
-## 6 · JSON parsing verboso
+## 6 · JSON parsing verboso - DONE
 
 `parse_json_robust` imprime no console em vez de logar e relança a mesma exceção.
 **Simplifique**:
@@ -75,7 +75,7 @@ def parse_json(content: str) -> Any:
 
 ---
 
-## 7 · Carregar *todos* Parquets em memória a cada query
+## 7 · Carregar *todos* Parquets em memória a cada query - DONE
 
 ```python
 for parquet_file in parquet_dir.glob("*.parquet"):
@@ -96,7 +96,7 @@ e mantenha cache.
 
 ---
 
-## 8 · Sanitização frágil de paths
+## 8 · Sanitização frágil de paths - DONE
 
 ```python
 if ".." in dataset_name or "/" in dataset_name:
@@ -107,7 +107,7 @@ Ainda permite `%2e%2e`. **Saída**: `pathlib.Path.resolve()` + checagem de *pare
 
 ---
 
-## 9 · Complexidade do extractor
+## 9 · Complexidade do extractor - DONE
 
 * **Sinal handlers** dentro de classe async complicam portabilidade Windows/Unix.
 * **Queue size** arbitrário `max(32, concurrency*10)` — ajuste dinâmico via métrica de lag.
@@ -158,7 +158,3 @@ Assim o projeto evita dependência redundante no caminho *hot‑path* de consult
 ---
 
 **Fortes fortuna adiuvat**: use DuckDB onde ele brilha; traga `fsspec` só para o que falta.
-
-[1]: https://duckdb.org/docs/stable/core_extensions/httpfs/s3api.html?utm_source=chatgpt.com "S3 API Support - DuckDB"
-[2]: https://duckdb.org/docs/stable/guides/network_cloud_storage/s3_import.html?utm_source=chatgpt.com "S3 Parquet Import - DuckDB"
-[3]: https://github.com/duckdb/duckdb/discussions/8893?utm_source=chatgpt.com "Is it possible to connect duckdb file from amazon s3 directly ... - GitHub"
