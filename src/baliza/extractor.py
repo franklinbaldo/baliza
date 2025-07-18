@@ -25,7 +25,7 @@ from datetime import date, datetime
 from enum import Enum
 
 # Import configuration from the config module
-from baliza.config import PNCP_ENDPOINTS, PNCP_BASE_URL, CONCURRENCY, PAGE_SIZE, REQUEST_TIMEOUT, USER_AGENT
+from baliza.config import settings
 from pathlib import Path
 from typing import Any
 
@@ -67,7 +67,7 @@ from baliza.utils import parse_json_robust
 class AsyncPNCPExtractor:
     """True async PNCP extractor with semaphore back-pressure."""
 
-    def __init__(self, concurrency: int = CONCURRENCY):
+    def __init__(self, concurrency: int = settings.concurrency):
         self.concurrency = concurrency
         self.client = PNCPClient(concurrency=concurrency)
         self.task_planner = PNCPTaskPlanner() # Instantiate the task planner
@@ -226,13 +226,13 @@ class AsyncPNCPExtractor:
             )
 
             endpoint = next(
-                (ep for ep in PNCP_ENDPOINTS if ep["name"] == endpoint_name), None
+                (ep for ep in settings.pncp_endpoints if ep["name"] == endpoint_name), None
             )
             if not endpoint:
                 continue
 
             # Respect minimum page size requirements
-            page_size = endpoint.get("page_size", PAGE_SIZE)
+            page_size = endpoint.get("page_size", settings.page_size)
             min_page_size = endpoint.get("min_page_size", 1)
             actual_page_size = max(page_size, min_page_size)
 
@@ -306,7 +306,7 @@ class AsyncPNCPExtractor:
                     data_date = datetime.fromisoformat(data_date_str).date()
 
                 page_1_response = {
-                    "endpoint_url": f"{PNCP_BASE_URL}{response['url']}",
+                    "endpoint_url": f"{settings.pncp_base_url}{response['url']}",
                     "endpoint_name": endpoint_name_part,
                     "request_parameters": response["params"],
                     "response_code": response["status_code"],
@@ -317,7 +317,7 @@ class AsyncPNCPExtractor:
                     "total_records": total_records,  # This might not be accurate for pages > 1
                     "total_pages": total_pages,  # This might not be accurate for pages > 1
                     "current_page": 1,
-                    "page_size": endpoint.get("page_size", PAGE_SIZE),
+                    "page_size": endpoint.get("page_size", settings.page_size),
                 }
                 await self.page_queue.put(page_1_response)
 
@@ -340,13 +340,13 @@ class AsyncPNCPExtractor:
     ):
         """Helper to fetch a single page and enqueue it."""
         endpoint = next(
-            (ep for ep in PNCP_ENDPOINTS if ep["name"] == endpoint_name), None
+            (ep for ep in settings.pncp_endpoints if ep["name"] == endpoint_name), None
         )
         if not endpoint:
             return
 
         # Respect minimum page size requirements
-        page_size = endpoint.get("page_size", PAGE_SIZE)
+        page_size = endpoint.get("page_size", settings.page_size)
         min_page_size = endpoint.get("min_page_size", 1)
         actual_page_size = max(page_size, min_page_size)
 
@@ -378,7 +378,7 @@ class AsyncPNCPExtractor:
 
         # Enqueue the response for the writer worker
         page_response = {
-            "endpoint_url": f"{PNCP_BASE_URL}{endpoint['path']}",
+            "endpoint_url": f"{settings.pncp_base_url}{endpoint['path']}",
             "endpoint_name": endpoint_name,
             "request_parameters": params,
             "response_code": response["status_code"],
@@ -393,7 +393,7 @@ class AsyncPNCPExtractor:
                 "total_pages", 0
             ),  # This might not be accurate for pages > 1
             "current_page": page_number,
-            "page_size": endpoint.get("page_size", PAGE_SIZE),
+            "page_size": endpoint.get("page_size", settings.page_size),
         }
         await self.page_queue.put(page_response)
         return response
@@ -450,7 +450,7 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
             endpoint_desc = next(
                 (
                     ep["description"]
-                    for ep in PNCP_ENDPOINTS
+                    for ep in settings.pncp_endpoints
                     if ep["name"] == endpoint_name
                 ),
                 endpoint_name,
@@ -732,7 +732,7 @@ app = typer.Typer()
 def extract(
     start_date: str = "2021-01-01",
     end_date: str = None,
-    concurrency: int = CONCURRENCY,
+    concurrency: int = settings.concurrency,
     force: bool = False,
 ):
     """Extract data using true async architecture."""
