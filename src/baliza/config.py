@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     page_size: int = 500
     request_timeout: int = 30
     user_agent: str = "BALIZA/3.0 (Backup Aberto de Licitacoes)"
+    internet_archive_identifier: str = "baliza-pncp"
+    ia_access_key: str = ""
+    ia_secret_key: str = ""
     # Working endpoints (only the reliable ones) - OpenAPI compliant
     pncp_endpoints: list = [
         {

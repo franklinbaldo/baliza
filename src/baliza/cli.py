@@ -6,9 +6,9 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
+from .config import settings
 from .extractor import (
     BALIZA_DB_PATH,
-    CONCURRENCY,
     DATA_DIR,
     AsyncPNCPExtractor,
     connect_utf8,
@@ -20,7 +20,9 @@ console = Console(force_terminal=True, legacy_windows=False, stderr=False)
 
 @app.command()
 def extract(
-    concurrency: int = typer.Option(CONCURRENCY, help="Number of concurrent requests"),
+    concurrency: int = typer.Option(
+        settings.concurrency, help="Number of concurrent requests"
+    ),
     force: bool = typer.Option(
         False, "--force", help="Force re-extraction even if data exists"
     ),
@@ -46,6 +48,26 @@ def extract(
 
 
 from . import mcp_server
+from . import transformer
+
+
+from . import loader
+
+
+@app.command()
+def transform():
+    """
+    Run dbt transformations.
+    """
+    transformer.transform()
+
+
+@app.command()
+def load():
+    """
+    Load data to Internet Archive.
+    """
+    loader.load()
 
 
 @app.command()
