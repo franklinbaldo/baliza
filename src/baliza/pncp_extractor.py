@@ -130,7 +130,7 @@ PNCP_ENDPOINTS = [
         "date_params": ["dataInicial", "dataFinal"],
         "max_days": 365,
         "supports_date_range": True,
-        "extra_params": {"codigoModalidadeContratacao": 5},  # Required parameter
+        "iterate_modalidades": [1, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],  # All valid modalidades
         "page_size": 50,  # OpenAPI spec: max 50 for contratacoes endpoints
     },
     {
@@ -140,7 +140,7 @@ PNCP_ENDPOINTS = [
         "date_params": ["dataInicial", "dataFinal"],
         "max_days": 365,
         "supports_date_range": True,
-        "extra_params": {"codigoModalidadeContratacao": 5},  # Required parameter
+        "iterate_modalidades": [1, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],  # All valid modalidades
         "page_size": 50,  # OpenAPI spec: max 50 for contratacoes endpoints
     },
     {
@@ -159,7 +159,8 @@ PNCP_ENDPOINTS = [
         "date_params": ["dataInicial", "dataFinal"],  # Uses date range
         "max_days": 365,
         "supports_date_range": True,  # Date range endpoint
-        "page_size": 100,  # OpenAPI spec: max 100 for this endpoint
+        "page_size": 100,  # OpenAPI spec: max 100, min 10 for this endpoint
+        "min_page_size": 10,  # Minimum page size required
     },
     {
         "name": "contratacoes_proposta",
@@ -169,7 +170,7 @@ PNCP_ENDPOINTS = [
         "max_days": 365,
         "supports_date_range": False,
         "requires_single_date": True,  # This endpoint doesn't use date chunking
-        "extra_params": {"codigoModalidadeContratacao": 5},  # Required parameter
+        "iterate_modalidades": [1, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],  # All valid modalidades (optional for this endpoint)
         "page_size": 50,  # OpenAPI spec: max 50 for contratacoes endpoints
     },
     # Note: PCA usuario endpoint requires anoPca and idUsuario parameters
@@ -782,23 +783,37 @@ class AsyncPNCPExtractor:
         console.print("Phase 1: Planning tasks...")
         date_chunks = self._monthly_chunks(start_date, end_date)
         tasks_to_create = []
+        
         for endpoint in PNCP_ENDPOINTS:
-            if endpoint.get("requires_single_date", False):
-                # For single-date endpoints, create only one task with the end_date
-                task_id = f"{endpoint['name']}_{end_date.isoformat()}"
-                tasks_to_create.append((task_id, endpoint["name"], end_date))
-            else:
-                # For range endpoints, use monthly chunking
-                for chunk_start, _ in date_chunks:
-                    task_id = f"{endpoint['name']}_{chunk_start.isoformat()}"
-                    tasks_to_create.append((task_id, endpoint["name"], chunk_start))
+            modalidades = endpoint.get("iterate_modalidades", [None])  # None means no modalidade iteration
+            
+            for modalidade in modalidades:
+                if endpoint.get("requires_single_date", False):
+                    # For single-date endpoints, create only one task with the end_date
+                    task_suffix = f"_modalidade_{modalidade}" if modalidade is not None else ""
+                    task_id = f"{endpoint['name']}_{end_date.isoformat()}{task_suffix}"
+                    tasks_to_create.append((task_id, endpoint["name"], end_date, modalidade))
+                else:
+                    # For range endpoints, use monthly chunking
+                    for chunk_start, _ in date_chunks:
+                        task_suffix = f"_modalidade_{modalidade}" if modalidade is not None else ""
+                        task_id = f"{endpoint['name']}_{chunk_start.isoformat()}{task_suffix}"
+                        tasks_to_create.append((task_id, endpoint["name"], chunk_start, modalidade))
 
         if tasks_to_create:
+            # Update table schema to include modalidade
+            try:
+                self.conn.execute("ALTER TABLE psa.pncp_extraction_tasks ADD COLUMN modalidade INTEGER")
+                self.conn.commit()
+            except Exception:
+                # Column already exists
+                pass
+            
             self.conn.executemany(
                 """
-                INSERT INTO psa.pncp_extraction_tasks (task_id, endpoint_name, data_date)
-                VALUES (?, ?, ?)
-                ON CONFLICT (endpoint_name, data_date) DO NOTHING
+                INSERT INTO psa.pncp_extraction_tasks (task_id, endpoint_name, data_date, modalidade)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT (task_id) DO NOTHING
                 """,
                 tasks_to_create,
             )
@@ -810,7 +825,7 @@ class AsyncPNCPExtractor:
     async def _discover_tasks(self, progress: Progress):
         """Phase 2: Get metadata for all PENDING tasks."""
         pending_tasks = self.conn.execute(
-            "SELECT task_id, endpoint_name, data_date FROM psa.pncp_extraction_tasks WHERE status = 'PENDING'"
+            "SELECT task_id, endpoint_name, data_date, modalidade FROM psa.pncp_extraction_tasks WHERE status = 'PENDING'"
         ).fetchall()
 
         if not pending_tasks:
@@ -822,7 +837,7 @@ class AsyncPNCPExtractor:
         )
 
         discovery_jobs = []
-        for task_id, endpoint_name, data_date in pending_tasks:
+        for task_id, endpoint_name, data_date, modalidade in pending_tasks:
             # Mark as DISCOVERING
             self.conn.execute(
                 "UPDATE psa.pncp_extraction_tasks SET status = 'DISCOVERING', updated_at = now() WHERE task_id = ?",
@@ -835,8 +850,13 @@ class AsyncPNCPExtractor:
             if not endpoint:
                 continue
 
+            # Respect minimum page size requirements
+            page_size = endpoint.get("page_size", PAGE_SIZE)
+            min_page_size = endpoint.get("min_page_size", 1)
+            actual_page_size = max(page_size, min_page_size)
+            
             params = {
-                "tamanhoPagina": endpoint.get("page_size", PAGE_SIZE),
+                "tamanhoPagina": actual_page_size,
                 "pagina": 1,
             }
             if endpoint["supports_date_range"]:
@@ -853,8 +873,10 @@ class AsyncPNCPExtractor:
                     self._monthly_chunks(data_date, data_date)[0][1]
                 )
 
-            if "extra_params" in endpoint:
-                params.update(endpoint["extra_params"])
+            # Add modalidade if this task has one
+            if modalidade is not None:
+                params["codigoModalidadeContratacao"] = modalidade
+            
             discovery_jobs.append(
                 self._fetch_with_backpressure(endpoint["path"], params, task_id=task_id)
             )
@@ -928,7 +950,7 @@ class AsyncPNCPExtractor:
             self.conn.commit()
             progress.update(discovery_progress, advance=1)
 
-    async def _fetch_page(self, endpoint_name: str, data_date: date, page_number: int):
+    async def _fetch_page(self, endpoint_name: str, data_date: date, modalidade: int | None, page_number: int):
         """Helper to fetch a single page and enqueue it."""
         endpoint = next(
             (ep for ep in PNCP_ENDPOINTS if ep["name"] == endpoint_name), None
@@ -936,8 +958,13 @@ class AsyncPNCPExtractor:
         if not endpoint:
             return
 
+        # Respect minimum page size requirements
+        page_size = endpoint.get("page_size", PAGE_SIZE)
+        min_page_size = endpoint.get("min_page_size", 1)
+        actual_page_size = max(page_size, min_page_size)
+        
         params = {
-            "tamanhoPagina": endpoint.get("page_size", PAGE_SIZE),
+            "tamanhoPagina": actual_page_size,
             "pagina": page_number,
         }
 
@@ -955,8 +982,9 @@ class AsyncPNCPExtractor:
                 self._monthly_chunks(data_date, data_date)[0][1]
             )
 
-        if "extra_params" in endpoint:
-            params.update(endpoint["extra_params"])
+        # Add modalidade if this endpoint uses it
+        if modalidade is not None:
+            params["codigoModalidadeContratacao"] = modalidade
 
         response = await self._fetch_with_backpressure(endpoint["path"], params)
 
@@ -987,7 +1015,7 @@ class AsyncPNCPExtractor:
 
         # Use unnest to get a list of all pages to fetch
         pages_to_fetch_query = """
-SELECT t.task_id, t.endpoint_name, t.data_date, CAST(p.page_number AS INTEGER) as page_number
+SELECT t.task_id, t.endpoint_name, t.data_date, t.modalidade, CAST(p.page_number AS INTEGER) as page_number
 FROM psa.pncp_extraction_tasks t,
      unnest(json_extract(t.missing_pages, '$')::INTEGER[]) AS p(page_number)
 WHERE t.status IN ('FETCHING', 'PARTIAL');
@@ -1000,10 +1028,10 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
 
         # Group pages by endpoint only
         endpoint_pages = {}
-        for task_id, endpoint_name, data_date, page_number in pages_to_fetch:
+        for task_id, endpoint_name, data_date, modalidade, page_number in pages_to_fetch:
             if endpoint_name not in endpoint_pages:
                 endpoint_pages[endpoint_name] = []
-            endpoint_pages[endpoint_name].append((task_id, data_date, page_number))
+            endpoint_pages[endpoint_name].append((task_id, data_date, modalidade, page_number))
 
         # Create progress bars for each endpoint with beautiful colors
         progress_bars = {}
@@ -1035,14 +1063,14 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
         # Execute all fetches
         fetch_tasks = []
         for endpoint_name, pages in endpoint_pages.items():
-            for task_id, data_date, page_number in pages:
+            for task_id, data_date, modalidade, page_number in pages:
                 # Check for shutdown before creating new tasks
                 if self.shutdown_event.is_set():
                     console.print("⚠️ [yellow]Shutdown requested, stopping task creation...[/yellow]")
                     break
                     
                 task = asyncio.create_task(self._fetch_page_with_progress(
-                    endpoint_name, data_date, page_number, 
+                    endpoint_name, data_date, modalidade, page_number, 
                     progress, progress_bars[endpoint_name]
                 ))
                 fetch_tasks.append(task)
@@ -1064,7 +1092,7 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
         console.print(f"\n✅ [bold green]Overall: {total_pages:,} pages completed successfully![/bold green]")
         console.print("")
 
-    async def _fetch_page_with_progress(self, endpoint_name: str, data_date: date, page_number: int, 
+    async def _fetch_page_with_progress(self, endpoint_name: str, data_date: date, modalidade: int | None, page_number: int, 
                                        progress: Progress, progress_bar_id: int):
         """Fetch a page and update the progress bar with graceful shutdown support."""
         try:
@@ -1073,13 +1101,13 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
                 console.print("⚠️ [yellow]Shutdown requested, skipping page fetch...[/yellow]")
                 return
                 
-            await self._fetch_page(endpoint_name, data_date, page_number)
+            await self._fetch_page(endpoint_name, data_date, modalidade, page_number)
             progress.update(progress_bar_id, advance=1)
         except asyncio.CancelledError:
             console.print("⚠️ [yellow]Page fetch cancelled during shutdown[/yellow]")
             raise
         except Exception as e:
-            logger.error(f"Failed to fetch page {page_number} for {endpoint_name} {data_date}: {e}")
+            logger.error(f"Failed to fetch page {page_number} for {endpoint_name} {data_date} modalidade {modalidade}: {e}")
             progress.update(progress_bar_id, advance=1)  # Still advance to show completion
 
     async def _reconcile_tasks(self):
@@ -1087,10 +1115,10 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
         console.print("Phase 4: Reconciling tasks...")
 
         tasks_to_reconcile = self.conn.execute(
-            "SELECT task_id, endpoint_name, data_date, total_pages FROM psa.pncp_extraction_tasks WHERE status IN ('FETCHING', 'PARTIAL')"
+            "SELECT task_id, endpoint_name, data_date, modalidade, total_pages FROM psa.pncp_extraction_tasks WHERE status IN ('FETCHING', 'PARTIAL')"
         ).fetchall()
 
-        for task_id, endpoint_name, data_date, total_pages in tasks_to_reconcile:
+        for task_id, endpoint_name, data_date, modalidade, total_pages in tasks_to_reconcile:
             # Find out which pages were successfully downloaded for this task
             downloaded_pages_result = self.conn.execute(
                 """
