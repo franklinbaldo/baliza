@@ -85,7 +85,7 @@ def connect_utf8(path: str) -> duckdb.DuckDBPyConnection:
         # Para DuckDB, usamos RuntimeError com a mensagem corrigida
         raise RuntimeError(msg) from exc
 
-# Working endpoints (only the reliable ones)
+# Working endpoints (only the reliable ones) - OpenAPI compliant
 PNCP_ENDPOINTS = [
     {
         "name": "contratos_publicacao",
@@ -94,6 +94,7 @@ PNCP_ENDPOINTS = [
         "date_params": ["dataInicial", "dataFinal"],
         "max_days": 365,  # API limit, but we use monthly chunks
         "supports_date_range": True,
+        "page_size": 500,  # OpenAPI spec: max 500 for this endpoint
     },
     {
         "name": "contratos_atualizacao",
@@ -102,6 +103,7 @@ PNCP_ENDPOINTS = [
         "date_params": ["dataInicial", "dataFinal"],
         "max_days": 365,  # API limit, but we use monthly chunks
         "supports_date_range": True,
+        "page_size": 500,  # OpenAPI spec: max 500 for this endpoint
     },
     {
         "name": "atas_periodo",
@@ -110,6 +112,7 @@ PNCP_ENDPOINTS = [
         "date_params": ["dataInicial", "dataFinal"],
         "max_days": 365,  # API limit, but we use monthly chunks
         "supports_date_range": True,
+        "page_size": 500,  # OpenAPI spec: max 500 for this endpoint
     },
     {
         "name": "atas_atualizacao",
@@ -118,6 +121,7 @@ PNCP_ENDPOINTS = [
         "date_params": ["dataInicial", "dataFinal"],
         "max_days": 365,  # API limit, but we use monthly chunks
         "supports_date_range": True,
+        "page_size": 500,  # OpenAPI spec: max 500 for this endpoint
     },
     {
         "name": "contratacoes_publicacao",
@@ -126,7 +130,8 @@ PNCP_ENDPOINTS = [
         "date_params": ["dataInicial", "dataFinal"],
         "max_days": 365,
         "supports_date_range": True,
-        "extra_params": {"codigoModalidadeContratacao": 5},
+        "extra_params": {"codigoModalidadeContratacao": 5},  # Required parameter
+        "page_size": 50,  # OpenAPI spec: max 50 for contratacoes endpoints
     },
     {
         "name": "contratacoes_atualizacao",
@@ -135,23 +140,26 @@ PNCP_ENDPOINTS = [
         "date_params": ["dataInicial", "dataFinal"],
         "max_days": 365,
         "supports_date_range": True,
-        "extra_params": {"codigoModalidadeContratacao": 5},
+        "extra_params": {"codigoModalidadeContratacao": 5},  # Required parameter
+        "page_size": 50,  # OpenAPI spec: max 50 for contratacoes endpoints
     },
     {
         "name": "pca_atualizacao",
         "path": "/v1/pca/atualizacao",
         "description": "PCA por Data de Atualização Global",
-        "date_params": ["dataInicio", "dataFim"],
+        "date_params": ["dataInicio", "dataFim"],  # PCA uses different parameter names
         "max_days": 365,
         "supports_date_range": True,
+        "page_size": 500,  # OpenAPI spec: max 500 for this endpoint
     },
     {
         "name": "instrumentoscobranca_inclusao",
-        "path": "/v1/instrumentoscobranca/inclusao",
+        "path": "/v1/instrumentoscobranca/inclusao",  # Correct path from OpenAPI spec
         "description": "Instrumentos de Cobrança por Data de Inclusão",
-        "date_params": ["dataInicial", "dataFinal"],
+        "date_params": ["dataInicial", "dataFinal"],  # Uses date range
         "max_days": 365,
-        "supports_date_range": True,
+        "supports_date_range": True,  # Date range endpoint
+        "page_size": 100,  # OpenAPI spec: max 100 for this endpoint
     },
     {
         "name": "contratacoes_proposta",
@@ -160,7 +168,23 @@ PNCP_ENDPOINTS = [
         "date_params": ["dataFinal"],
         "max_days": 365,
         "supports_date_range": False,
+        "requires_single_date": True,  # This endpoint doesn't use date chunking
+        "extra_params": {"codigoModalidadeContratacao": 5},  # Required parameter
+        "page_size": 50,  # OpenAPI spec: max 50 for contratacoes endpoints
     },
+    # Note: PCA usuario endpoint requires anoPca and idUsuario parameters
+    # This is commented out as it requires specific user/org data to be useful
+    # {
+    #     "name": "pca_usuario",
+    #     "path": "/v1/pca/usuario",
+    #     "description": "PCA por Usuário e Ano",
+    #     "date_params": [],  # Uses anoPca instead of date ranges
+    #     "max_days": 0,
+    #     "supports_date_range": False,
+    #     "requires_specific_params": True,  # Requires anoPca, idUsuario
+    #     "extra_params": {"anoPca": 2024, "idUsuario": "example"},
+    #     "page_size": 500,
+    # },
 ]
 
 
@@ -759,9 +783,15 @@ class AsyncPNCPExtractor:
         date_chunks = self._monthly_chunks(start_date, end_date)
         tasks_to_create = []
         for endpoint in PNCP_ENDPOINTS:
-            for chunk_start, _ in date_chunks:
-                task_id = f"{endpoint['name']}_{chunk_start.isoformat()}"
-                tasks_to_create.append((task_id, endpoint["name"], chunk_start))
+            if endpoint.get("requires_single_date", False):
+                # For single-date endpoints, create only one task with the end_date
+                task_id = f"{endpoint['name']}_{end_date.isoformat()}"
+                tasks_to_create.append((task_id, endpoint["name"], end_date))
+            else:
+                # For range endpoints, use monthly chunking
+                for chunk_start, _ in date_chunks:
+                    task_id = f"{endpoint['name']}_{chunk_start.isoformat()}"
+                    tasks_to_create.append((task_id, endpoint["name"], chunk_start))
 
         if tasks_to_create:
             self.conn.executemany(
@@ -806,16 +836,19 @@ class AsyncPNCPExtractor:
                 continue
 
             params = {
-                "tamanhoPagina": PAGE_SIZE,
+                "tamanhoPagina": endpoint.get("page_size", PAGE_SIZE),
                 "pagina": 1,
             }
             if endpoint["supports_date_range"]:
-                params["dataInicial"] = self._format_date(data_date)
-                params["dataFinal"] = self._format_date(
+                params[endpoint["date_params"][0]] = self._format_date(data_date)
+                params[endpoint["date_params"][1]] = self._format_date(
                     self._monthly_chunks(data_date, data_date)[0][1]
                 )
+            elif endpoint.get("requires_single_date", False):
+                # For single-date endpoints, use the data_date directly (should be end_date)
+                params[endpoint["date_params"][0]] = self._format_date(data_date)
             else:
-                # For endpoints that don't support date ranges, we can just use the end date
+                # For endpoints that don't support date ranges, use end of month chunk
                 params[endpoint["date_params"][0]] = self._format_date(
                     self._monthly_chunks(data_date, data_date)[0][1]
                 )
@@ -881,7 +914,7 @@ class AsyncPNCPExtractor:
                     "total_records": total_records,  # This might not be accurate for pages > 1
                     "total_pages": total_pages,  # This might not be accurate for pages > 1
                     "current_page": 1,
-                    "page_size": PAGE_SIZE,
+                    "page_size": endpoint.get("page_size", PAGE_SIZE),
                 }
                 await self.page_queue.put(page_1_response)
 
@@ -904,17 +937,20 @@ class AsyncPNCPExtractor:
             return
 
         params = {
-            "tamanhoPagina": PAGE_SIZE,
+            "tamanhoPagina": endpoint.get("page_size", PAGE_SIZE),
             "pagina": page_number,
         }
 
         if endpoint["supports_date_range"]:
-            params["dataInicial"] = self._format_date(data_date)
-            params["dataFinal"] = self._format_date(
+            params[endpoint["date_params"][0]] = self._format_date(data_date)
+            params[endpoint["date_params"][1]] = self._format_date(
                 self._monthly_chunks(data_date, data_date)[0][1]
             )
+        elif endpoint.get("requires_single_date", False):
+            # For single-date endpoints, use the data_date directly (should be end_date)
+            params[endpoint["date_params"][0]] = self._format_date(data_date)
         else:
-            # For endpoints that don't support date ranges, we can just use the end date
+            # For endpoints that don't support date ranges, use end of month chunk
             params[endpoint["date_params"][0]] = self._format_date(
                 self._monthly_chunks(data_date, data_date)[0][1]
             )
@@ -941,7 +977,7 @@ class AsyncPNCPExtractor:
                 "total_pages", 0
             ),  # This might not be accurate for pages > 1
             "current_page": page_number,
-            "page_size": PAGE_SIZE,
+            "page_size": endpoint.get("page_size", PAGE_SIZE),
         }
         await self.page_queue.put(page_response)
         return response
