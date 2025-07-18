@@ -389,7 +389,7 @@ PNCP_ENDPOINTS = [
         "supports_date_range": False,
         "requires_single_date": True,  # This endpoint doesn't use date chunking
         "requires_future_date": True,  # This endpoint needs current/future dates
-        "future_days_offset": 365,  # Use 1 year in the future to capture most active contracts
+        "future_days_offset": 1825,  # Use 5 years in the future to capture most active contracts
         # No iterate_modalidades - captures more data without it
         "page_size": 50,  # OpenAPI spec: max 50 for contratacoes endpoints
     },
@@ -1026,7 +1026,7 @@ class AsyncPNCPExtractor:
                         # Use a future date for endpoints that need current/future dates
                         from datetime import date, timedelta
 
-                        future_days = endpoint.get("future_days_offset", 365)
+                        future_days = endpoint.get("future_days_offset", 1825)
                         future_date = date.today() + timedelta(days=future_days)
                         task_suffix = (
                             f"_modalidade_{modalidade}"
