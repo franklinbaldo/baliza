@@ -1,3 +1,5 @@
+> Este manualf oi convertido para markdown por LLM a partir do original em: https://www.gov.br/pncp/pt-br/central-de-conteudo/manuais/versoes-anteriores/ManualPNCPAPIConsultasVerso1.0.pdf
+
 
 # Manual das APIs de Consultas PNCP
 
@@ -954,5 +956,3 @@ O seguinte glossário fornece definições e explicações de termos e siglas es
 *   **TIC (Tecnologia da Informação e Comunicação):** Refere-se a qualquer tecnologia que ajuda a produzir, manipular, armazenar, comunicar ou disseminar informação.
 *   **URL (Uniform Resource Locator):** Localizador Padrão de Recursos. É um endereço de um recurso na web.
 *   **USUÁRIO:** Em contextos de sistemas e aplicações, refere-se à pessoa ou entidade que utiliza o software ou sistema em questão.
-
----
