@@ -13,7 +13,7 @@ import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential_jitter
 
 from baliza.utils import parse_json_robust
-from baliza.config import PNCP_BASE_URL, REQUEST_TIMEOUT, USER_AGENT
+from baliza.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -41,10 +41,10 @@ class PNCPClient:
         try:
             # Try with HTTP/2 first
             self.client = httpx.AsyncClient(
-                base_url=PNCP_BASE_URL,
-                timeout=REQUEST_TIMEOUT,
+                base_url=settings.pncp_base_url,
+                timeout=settings.request_timeout,
                 headers={
-                    "User-Agent": USER_AGENT,
+                    "User-Agent": settings.user_agent,
                     "Accept-Encoding": "gzip, br",
                     "Accept": "application/json",
                 },
@@ -62,10 +62,10 @@ class PNCPClient:
         except ImportError:
             # Fallback to HTTP/1.1 if h2 not available
             self.client = httpx.AsyncClient(
-                base_url=PNCP_BASE_URL,
-                timeout=REQUEST_TIMEOUT,
+                base_url=settings.pncp_base_url,
+                timeout=settings.request_timeout,
                 headers={
-                    "User-Agent": USER_AGENT,
+                    "User-Agent": settings.user_agent,
                     "Accept-Encoding": "gzip, br",
                     "Accept": "application/json",
                 },

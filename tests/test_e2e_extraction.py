@@ -12,7 +12,8 @@ from tenacity import retry, stop_after_attempt, wait_exponential_jitter
 
 from baliza.extractor import AsyncPNCPExtractor
 from baliza.pncp_writer import connect_utf8, BALIZA_DB_PATH
-
+from tests.schemas import ContratosResponse
+import orjson
 
 @pytest.mark.e2e
 @pytest.mark.asyncio
@@ -254,6 +255,42 @@ async def test_e2e_database_schema():
         for col in required_response_columns:
             assert col in response_column_names, f"Required column {col} missing from responses table"
         
+        con.close()
+    else:
+        pytest.skip("Database file not found - run extraction first")
+
+
+@pytest.mark.e2e
+@pytest.mark.asyncio
+async def test_e2e_validate_response_schema():
+    """E2E test: Validate the schema of the raw responses from the PNCP API."""
+    test_date = date(2024, 1, 15)  # A date with known data
+
+    # Run extraction
+    async with AsyncPNCPExtractor(concurrency=1) as extractor:
+        await extractor.extract_data(
+            start_date=test_date,
+            end_date=test_date,
+            force=True
+        )
+
+    # Verify data was extracted and validate schema
+    if BALIZA_DB_PATH.exists():
+        con = connect_utf8(str(BALIZA_DB_PATH))
+
+        # Get all responses for the test date
+        responses = con.execute("""
+            SELECT response_content
+            FROM psa.pncp_raw_responses
+            WHERE DATE(created_at) = ?
+        """, [test_date]).fetchall()
+
+        assert len(responses) > 0, "No responses found to validate"
+
+        for response in responses:
+            response_json = orjson.loads(response[0])
+            ContratosResponse.model_validate(response_json)
+
         con.close()
     else:
         pytest.skip("Database file not found - run extraction first")
