@@ -37,6 +37,7 @@ models:
 
 # Variables
 vars:
+  data_dir: ../data
   # Schema for raw data
   psa_schema: 'psa'
   

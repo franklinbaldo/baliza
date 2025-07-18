@@ -3,7 +3,7 @@ baliza:
   outputs:
     dev:
       type: duckdb
-      path: "{{ env_var('DBT_DUCKDB_PATH', '../data/baliza.duckdb') }}"
+      path: "{{ env_var('DATA_DIR', '../data') }}/baliza.duckdb"
       threads: 4
       keepalives_idle: 0
       search_path: psa
@@ -13,7 +13,7 @@ baliza:
     
     prod:
       type: duckdb
-      path: "{{ env_var('DBT_DUCKDB_PATH', '../data/baliza.duckdb') }}"
+      path: "{{ env_var('DATA_DIR', '../data') }}/baliza.duckdb"
       threads: 8
       keepalives_idle: 0
       search_path: psa
