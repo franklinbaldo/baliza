@@ -119,6 +119,48 @@ PNCP_ENDPOINTS = [
         "max_days": 365,  # API limit, but we use monthly chunks
         "supports_date_range": True,
     },
+    {
+        "name": "contratacoes_publicacao",
+        "path": "/v1/contratacoes/publicacao",
+        "description": "Contratações por Data de Publicação",
+        "date_params": ["dataInicial", "dataFinal"],
+        "max_days": 365,
+        "supports_date_range": True,
+        "extra_params": {"codigoModalidadeContratacao": 5},
+    },
+    {
+        "name": "contratacoes_atualizacao",
+        "path": "/v1/contratacoes/atualizacao",
+        "description": "Contratações por Data de Atualização Global",
+        "date_params": ["dataInicial", "dataFinal"],
+        "max_days": 365,
+        "supports_date_range": True,
+        "extra_params": {"codigoModalidadeContratacao": 5},
+    },
+    {
+        "name": "pca_atualizacao",
+        "path": "/v1/pca/atualizacao",
+        "description": "PCA por Data de Atualização Global",
+        "date_params": ["dataInicio", "dataFim"],
+        "max_days": 365,
+        "supports_date_range": True,
+    },
+    {
+        "name": "instrumentoscobranca_inclusao",
+        "path": "/v1/instrumentoscobranca/inclusao",
+        "description": "Instrumentos de Cobrança por Data de Inclusão",
+        "date_params": ["dataInicial", "dataFinal"],
+        "max_days": 365,
+        "supports_date_range": True,
+    },
+    {
+        "name": "contratacoes_proposta",
+        "path": "/v1/contratacoes/proposta",
+        "description": "Contratações com Recebimento de Propostas Aberto",
+        "date_params": ["dataFinal"],
+        "max_days": 365,
+        "supports_date_range": False,
+    },
 ]
 
 
@@ -765,12 +807,21 @@ class AsyncPNCPExtractor:
 
             params = {
                 "tamanhoPagina": PAGE_SIZE,
-                "dataInicial": self._format_date(data_date),
-                "dataFinal": self._format_date(
-                    self._monthly_chunks(data_date, data_date)[0][1]
-                ),  # end of month
                 "pagina": 1,
             }
+            if endpoint["supports_date_range"]:
+                params["dataInicial"] = self._format_date(data_date)
+                params["dataFinal"] = self._format_date(
+                    self._monthly_chunks(data_date, data_date)[0][1]
+                )
+            else:
+                # For endpoints that don't support date ranges, we can just use the end date
+                params[endpoint["date_params"][0]] = self._format_date(
+                    self._monthly_chunks(data_date, data_date)[0][1]
+                )
+
+            if "extra_params" in endpoint:
+                params.update(endpoint["extra_params"])
             discovery_jobs.append(
                 self._fetch_with_backpressure(endpoint["path"], params, task_id=task_id)
             )
@@ -854,12 +905,22 @@ class AsyncPNCPExtractor:
 
         params = {
             "tamanhoPagina": PAGE_SIZE,
-            "dataInicial": self._format_date(data_date),
-            "dataFinal": self._format_date(
-                self._monthly_chunks(data_date, data_date)[0][1]
-            ),
             "pagina": page_number,
         }
+
+        if endpoint["supports_date_range"]:
+            params["dataInicial"] = self._format_date(data_date)
+            params["dataFinal"] = self._format_date(
+                self._monthly_chunks(data_date, data_date)[0][1]
+            )
+        else:
+            # For endpoints that don't support date ranges, we can just use the end date
+            params[endpoint["date_params"][0]] = self._format_date(
+                self._monthly_chunks(data_date, data_date)[0][1]
+            )
+
+        if "extra_params" in endpoint:
+            params.update(endpoint["extra_params"])
 
         response = await self._fetch_with_backpressure(endpoint["path"], params)
 
@@ -912,12 +973,14 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
         progress_bars = {}
         endpoint_colors = {
             "contratos_publicacao": "green",
-            "contratos_atualizacao": "blue", 
-            "dispensas": "yellow",
-            "atas": "cyan",
-            "resultados": "magenta",
+            "contratos_atualizacao": "blue",
             "atas_periodo": "cyan",
-            "atas_atualizacao": "bright_cyan"
+            "atas_atualizacao": "bright_cyan",
+            "contratacoes_publicacao": "yellow",
+            "contratacoes_atualizacao": "magenta",
+            "pca_atualizacao": "bright_blue",
+            "instrumentoscobranca_inclusao": "bright_green",
+            "contratacoes_proposta": "bright_yellow",
         }
 
         console.print("\n🚀 [bold blue]PNCP Data Extraction Progress[/bold blue]\n")
@@ -1164,14 +1227,18 @@ app = typer.Typer()
 
 @app.command()
 def extract(
+    start_date: str = typer.Option("2021-01-01", help="Start date in YYYY-MM-DD format"),
+    end_date: str = typer.Option(
+        _get_current_month_end(), help="End date in YYYY-MM-DD format"
+    ),
     concurrency: int = typer.Option(CONCURRENCY, help="Number of concurrent requests"),
     force: bool = typer.Option(
         False, "--force", help="Force re-extraction even if data exists"
     ),
 ):
     """Extract data using true async architecture."""
-    start_dt = date(2021, 1, 1)
-    end_dt = date.today()
+    start_dt = datetime.strptime(start_date, "%Y-%m-%d").date()
+    end_dt = datetime.strptime(end_date, "%Y-%m-%d").date()
 
     async def main():
         async with AsyncPNCPExtractor(concurrency=concurrency) as extractor:
