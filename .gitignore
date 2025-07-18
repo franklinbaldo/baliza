@@ -2,7 +2,7 @@
 data/
 .cache/
 .config/
-
+*/MANUAL-PNCP-CONSULSTAS-VERSAO-1.md
 # Database files
 *.duckdb
 *.duckdb.wal
