@@ -109,7 +109,7 @@ default_language_version:
 fail_fast: false
 
 # Default stages to run hooks on
-default_stages: [commit, push]
+default_stages: [pre-commit, pre-push]
 
 # Specific configurations for different stages
 repos:
@@ -120,7 +120,7 @@ repos:
         name: pytest-check
         entry: uv run pytest tests/ --maxfail=1 -q
         language: system
-        stages: [push]
+        stages: [pre-push]
         pass_filenames: false
         always_run: true
       
