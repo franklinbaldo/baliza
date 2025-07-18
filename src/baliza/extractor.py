@@ -2,7 +2,6 @@
 PNCP Data Extractor V2 - True Async Architecture
 Based on steel-man pseudocode: endpoint → 365-day ranges → async pagination
 """
-
 import asyncio
 import calendar
 import contextlib
@@ -57,7 +56,7 @@ def parse_json_robust(content: str) -> Any:
         try:
             return json.loads(content)
         except json.JSONDecodeError as e:
-            console.print(f"⚠️ JSON parse error: {e}")
+            logger.warning(f"JSON parse error: {e}")
             raise
 
 
@@ -78,7 +77,7 @@ def connect_utf8(path: str) -> duckdb.DuckDBPyConnection:
     """Connect to DuckDB with UTF-8 error handling."""
     try:
         return duckdb.connect(path)
-    except Exception as exc:
+    except duckdb.Error as exc:
         # redecodifica string problema (CP‑1252 → UTF‑8)
         msg = (
             str(exc).encode("latin1", errors="ignore").decode("utf-8", errors="replace")
@@ -456,7 +455,7 @@ class AsyncPNCPExtractor:
                 signal.signal(signal.SIGINT, signal_handler)
             if hasattr(signal, "SIGTERM"):
                 signal.signal(signal.SIGTERM, signal_handler)
-        except Exception as e:
+        except (ValueError, AttributeError) as e:
             logger.warning(f"Could not setup signal handlers: {e}")
 
     def _init_database(self):
@@ -533,7 +532,7 @@ class AsyncPNCPExtractor:
                 [index_name],
             ).fetchone()
             return result is not None
-        except Exception:
+        except duckdb.Error:
             # Fallback: try to create the index and catch the error
             try:
                 self.conn.execute(
@@ -541,7 +540,7 @@ class AsyncPNCPExtractor:
                 )
                 self.conn.execute(f"DROP INDEX IF EXISTS {index_name}_test")
                 return False  # If we can create a test index, the target doesn't exist
-            except Exception:
+            except duckdb.Error:
                 return True  # If we can't create test index, assume target exists
 
     def _create_indexes_if_not_exist(self):
@@ -555,8 +554,8 @@ class AsyncPNCPExtractor:
             try:
                 self.conn.execute(create_sql)
                 logger.info(f"Index '{idx_name}' ensured.")
-            except Exception:
-                logger.exception(f"Failed to create index '{idx_name}'")
+            except duckdb.Error as e:
+                logger.exception(f"Failed to create index '{idx_name}': {e}")
 
     async def __aenter__(self):
         """Async context manager entry."""
@@ -590,7 +589,7 @@ class AsyncPNCPExtractor:
             if hasattr(self, "db_lock") and self.db_lock:
                 try:
                     self.db_lock.release()
-                except Exception as lock_err:
+                except (Timeout, RuntimeError) as lock_err:
                     logger.warning(f"Error releasing database lock: {lock_err}")
 
             console.print(
@@ -705,9 +704,9 @@ class AsyncPNCPExtractor:
                     )
                     console.print("Empty table replaced with ZSTD compression")
 
-            except Exception as create_error:
+            except duckdb.Error as create_error:
                 # If table already exists with ZSTD, clean up
-                with contextlib.suppress(Exception):
+                with contextlib.suppress(duckdb.Error):
                     self.conn.execute("DROP TABLE psa.pncp_raw_responses_zstd")
 
                 # This likely means the table already has ZSTD or migration already happened
@@ -716,10 +715,10 @@ class AsyncPNCPExtractor:
                 else:
                     raise
 
-        except Exception as e:
+        except duckdb.Error as e:
             console.print(f"⚠️ ZSTD migration error: {e}")
             # Rollback on error
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(duckdb.Error):
                 self.conn.rollback()
 
     async def _init_client(self):
@@ -778,8 +777,8 @@ class AsyncPNCPExtractor:
                     protocol=protocol,
                 )
 
-        except Exception:
-            logger.exception("HTTP/2 verification failed")
+        except httpx.RequestError as e:
+            logger.exception(f"HTTP/2 verification failed: {e}")
 
     async def _complete_task_and_print(
         self, progress: Progress, task_id: int, final_message: str
@@ -787,9 +786,6 @@ class AsyncPNCPExtractor:
         """Complete task and print final message, letting it scroll up."""
         # Update to final state
         progress.update(task_id, description=final_message)
-
-        # Small delay to show final state
-        await asyncio.sleep(0.5)
 
         # Print final message to console (will scroll up)
         console.print(f"{final_message}")
@@ -855,13 +851,14 @@ class AsyncPNCPExtractor:
                         "task_id": task_id,
                     }
 
-                except Exception as e:
+                except (httpx.RequestError, httpx.Timeout) as e:
                     if attempt < 2:
                         delay = (2**attempt) * random.uniform(0.5, 1.5)  # noqa: S311
                         await asyncio.sleep(delay)
                         continue
 
                     self.failed_requests += 1
+                    logger.error(f"Request failed for {url} with params {params}: {e}")
                     return {
                         "success": False,
                         "status_code": 0,
@@ -944,8 +941,9 @@ class AsyncPNCPExtractor:
                 batch_data,
             )
             self.conn.execute("COMMIT")
-        except Exception:
+        except duckdb.Error as e:
             self.conn.execute("ROLLBACK")
+            logger.error(f"Batch store failed: {e}")
             raise
 
     async def writer_worker(self, commit_every: int = 75) -> None:
@@ -979,7 +977,7 @@ class AsyncPNCPExtractor:
                 # Mark task as done
                 self.page_queue.task_done()
 
-            except Exception as e:
+            except duckdb.Error as e:
                 console.print(f"❌ Writer error: {e}")
                 self.page_queue.task_done()
                 break
@@ -1095,7 +1093,7 @@ class AsyncPNCPExtractor:
                             self.conn.commit()
                             break
 
-            except Exception:
+            except duckdb.Error:
                 # If migration fails, continue - the new schema will handle it
                 pass
 
@@ -1554,6 +1552,7 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
             TextColumn("{task.completed}/{task.total}"),
             TimeElapsedColumn(),
             console=console,
+            refresh_per_second=10,
         ) as progress:
             # Phase 2: Discovery
             await self._discover_tasks(progress)

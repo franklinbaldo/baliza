@@ -1,13 +1,16 @@
 import asyncio
 import json
+import logging
 from pathlib import Path
 
+import duckdb
 from fastmcp import FastMCP
 
 from baliza.enums import get_all_enum_metadata
 
 # Initialize the FastMCP server
 app = FastMCP()
+logger = logging.getLogger(__name__)
 
 
 # --- Resources ---
@@ -29,8 +32,6 @@ async def available_datasets() -> str:
 
 async def _dataset_schema_logic(dataset_name: str, base_dir: str | None = None) -> str:
     """Returns the schema for a given dataset."""
-    import duckdb
-
     # Basic security to prevent path traversal
     if ".." in dataset_name or "/" in dataset_name:
         return json.dumps({"error": "Invalid dataset name."})
@@ -45,7 +46,8 @@ async def _dataset_schema_logic(dataset_name: str, base_dir: str | None = None) 
         con = duckdb.connect(database=":memory:")
         schema = con.execute(f"DESCRIBE SELECT * FROM '{parquet_path!s}'").fetchdf()
         return schema.to_json(orient="records")
-    except Exception as e:
+    except duckdb.Error as e:
+        logger.error(f"Failed to get schema for {dataset_name}: {e}")
         return json.dumps({"error": str(e)})
 
 
@@ -70,8 +72,6 @@ async def enum_metadata() -> str:
 
 async def _execute_sql_query_logic(query: str, base_dir: str | None = None) -> str:
     """Executes a read-only SQL query against the procurement dataset."""
-    import duckdb
-
     # Security Validation: Only allow SELECT statements
     if not query.strip().upper().startswith("SELECT"):
         return json.dumps({"error": "Only SELECT queries are allowed."})
@@ -90,7 +90,8 @@ async def _execute_sql_query_logic(query: str, base_dir: str | None = None) -> s
         result = con.execute(query).fetchdf()
         return result.to_json(orient="records")
 
-    except Exception as e:
+    except duckdb.Error as e:
+        logger.error(f"Query failed: {query} - {e}")
         return json.dumps({"error": f"Query failed: {e!s}"})
 
 
