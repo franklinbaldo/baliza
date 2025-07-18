@@ -170,7 +170,9 @@ PNCP_ENDPOINTS = [
         "max_days": 365,
         "supports_date_range": False,
         "requires_single_date": True,  # This endpoint doesn't use date chunking
-        "iterate_modalidades": [1, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],  # All valid modalidades (optional for this endpoint)
+        "requires_future_date": True,  # This endpoint needs current/future dates
+        "future_days_offset": 90,  # Use 90 days in the future to capture most active contracts
+        # No iterate_modalidades - captures more data without it
         "page_size": 50,  # OpenAPI spec: max 50 for contratacoes endpoints
     },
     # Note: PCA usuario endpoint requires anoPca and idUsuario parameters
@@ -281,6 +283,7 @@ class AsyncPNCPExtractor:
                 task_id VARCHAR PRIMARY KEY,
                 endpoint_name VARCHAR NOT NULL,
                 data_date DATE NOT NULL,
+                modalidade INTEGER,
                 status VARCHAR DEFAULT 'PENDING' NOT NULL,
                 total_pages INTEGER,
                 total_records INTEGER,
@@ -288,7 +291,7 @@ class AsyncPNCPExtractor:
                 last_error TEXT,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
                 updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-                CONSTRAINT unique_task UNIQUE (endpoint_name, data_date)
+                CONSTRAINT unique_task UNIQUE (endpoint_name, data_date, modalidade)
             );
         """
         )
@@ -790,9 +793,19 @@ class AsyncPNCPExtractor:
             for modalidade in modalidades:
                 if endpoint.get("requires_single_date", False):
                     # For single-date endpoints, create only one task with the end_date
-                    task_suffix = f"_modalidade_{modalidade}" if modalidade is not None else ""
-                    task_id = f"{endpoint['name']}_{end_date.isoformat()}{task_suffix}"
-                    tasks_to_create.append((task_id, endpoint["name"], end_date, modalidade))
+                    # Special handling for endpoints that need future dates
+                    if endpoint.get("requires_future_date", False):
+                        # Use a future date for endpoints that need current/future dates
+                        from datetime import date, timedelta
+                        future_days = endpoint.get("future_days_offset", 30)
+                        future_date = date.today() + timedelta(days=future_days)
+                        task_suffix = f"_modalidade_{modalidade}" if modalidade is not None else ""
+                        task_id = f"{endpoint['name']}_{future_date.isoformat()}{task_suffix}"
+                        tasks_to_create.append((task_id, endpoint["name"], future_date, modalidade))
+                    else:
+                        task_suffix = f"_modalidade_{modalidade}" if modalidade is not None else ""
+                        task_id = f"{endpoint['name']}_{end_date.isoformat()}{task_suffix}"
+                        tasks_to_create.append((task_id, endpoint["name"], end_date, modalidade))
                 else:
                     # For range endpoints, use monthly chunking
                     for chunk_start, _ in date_chunks:
@@ -801,12 +814,30 @@ class AsyncPNCPExtractor:
                         tasks_to_create.append((task_id, endpoint["name"], chunk_start, modalidade))
 
         if tasks_to_create:
-            # Update table schema to include modalidade
+            # Schema migration - update constraint to include modalidade
             try:
-                self.conn.execute("ALTER TABLE psa.pncp_extraction_tasks ADD COLUMN modalidade INTEGER")
-                self.conn.commit()
-            except Exception:
-                # Column already exists
+                # Check if we need to migrate the constraint
+                existing_constraints = self.conn.execute(
+                    "SELECT constraint_name FROM information_schema.table_constraints WHERE table_name = 'pncp_extraction_tasks' AND constraint_type = 'UNIQUE'"
+                ).fetchall()
+                
+                # If we have the old constraint, we need to migrate
+                for constraint in existing_constraints:
+                    if constraint[0] == 'unique_task':
+                        # Check if constraint includes modalidade
+                        constraint_cols = self.conn.execute(
+                            "SELECT column_name FROM information_schema.key_column_usage WHERE constraint_name = 'unique_task' AND table_name = 'pncp_extraction_tasks'"
+                        ).fetchall()
+                        
+                        if len(constraint_cols) == 2:  # Old constraint (endpoint_name, data_date)
+                            # Drop old constraint and recreate with modalidade
+                            self.conn.execute("ALTER TABLE psa.pncp_extraction_tasks DROP CONSTRAINT unique_task")
+                            self.conn.execute("ALTER TABLE psa.pncp_extraction_tasks ADD CONSTRAINT unique_task UNIQUE (endpoint_name, data_date, modalidade)")
+                            self.conn.commit()
+                            break
+                        
+            except Exception as e:
+                # If migration fails, continue - the new schema will handle it
                 pass
             
             self.conn.executemany(
@@ -866,6 +897,7 @@ class AsyncPNCPExtractor:
                 )
             elif endpoint.get("requires_single_date", False):
                 # For single-date endpoints, use the data_date directly (should be end_date)
+                # The data_date should already be correct (future date if needed) from task planning
                 params[endpoint["date_params"][0]] = self._format_date(data_date)
             else:
                 # For endpoints that don't support date ranges, use end of month chunk
@@ -913,9 +945,9 @@ class AsyncPNCPExtractor:
                 )
 
                 # Enqueue page 1 response
-                # Task ID format: {endpoint_name}_{YYYY-MM-DD}
+                # Task ID format: {endpoint_name}_{YYYY-MM-DD} or {endpoint_name}_{YYYY-MM-DD}_modalidade_{N}
                 # Since endpoint names can contain underscores, we need to extract the date part from the end
-                match = re.match(r'^(.+)_(\d{4}-\d{2}-\d{2})$', task_id)
+                match = re.match(r'^(.+)_(\d{4}-\d{2}-\d{2})(?:_modalidade_\d+)?$', task_id)
                 if match:
                     endpoint_name_part = match.group(1)
                     data_date_str = match.group(2)
@@ -975,6 +1007,7 @@ class AsyncPNCPExtractor:
             )
         elif endpoint.get("requires_single_date", False):
             # For single-date endpoints, use the data_date directly (should be end_date)
+            # The data_date should already be correct (future date if needed) from task planning
             params[endpoint["date_params"][0]] = self._format_date(data_date)
         else:
             # For endpoints that don't support date ranges, use end of month chunk
@@ -1120,14 +1153,27 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
 
         for task_id, endpoint_name, data_date, modalidade, total_pages in tasks_to_reconcile:
             # Find out which pages were successfully downloaded for this task
-            downloaded_pages_result = self.conn.execute(
-                """
-                SELECT DISTINCT current_page
-                FROM psa.pncp_raw_responses
-                WHERE endpoint_name = ? AND data_date = ? AND response_code = 200
-                """,
-                [endpoint_name, data_date],
-            ).fetchall()
+            # We need to check the request_parameters for modalidade if it exists
+            if modalidade is not None:
+                downloaded_pages_result = self.conn.execute(
+                    """
+                    SELECT DISTINCT current_page
+                    FROM psa.pncp_raw_responses
+                    WHERE endpoint_name = ? AND data_date = ? AND response_code = 200
+                    AND json_extract(request_parameters, '$.codigoModalidadeContratacao') = ?
+                    """,
+                    [endpoint_name, data_date, modalidade],
+                ).fetchall()
+            else:
+                downloaded_pages_result = self.conn.execute(
+                    """
+                    SELECT DISTINCT current_page
+                    FROM psa.pncp_raw_responses
+                    WHERE endpoint_name = ? AND data_date = ? AND response_code = 200
+                    AND json_extract(request_parameters, '$.codigoModalidadeContratacao') IS NULL
+                    """,
+                    [endpoint_name, data_date],
+                ).fetchall()
 
             downloaded_pages = {row[0] for row in downloaded_pages_result}
 
