@@ -14,8 +14,9 @@ dependencies = [
     "aiolimiter>=1.2.1",
     "filelock", # File locking to prevent database conflicts
     "anthropic", # Client for Claude LLM
-    "fastmcp",   # MCP Server library
-    "pyarrow",   # Parquet engine for pandas and duckdb
+    "fastmcp", # MCP Server library
+    "pyarrow", # Parquet engine for pandas and duckdb
+    "tenacity>=9.1.2",
 ]
 
 [project.scripts]

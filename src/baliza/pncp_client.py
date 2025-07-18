@@ -5,13 +5,10 @@ from typing import Any
 import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential_jitter
 
-from baliza.extractor import parse_json_robust
+from baliza.utils import parse_json_robust
+from baliza.config import PNCP_BASE_URL, REQUEST_TIMEOUT, USER_AGENT
 
 logger = logging.getLogger(__name__)
-
-PNCP_BASE_URL = "https://pncp.gov.br/api/consulta"
-REQUEST_TIMEOUT = 30
-USER_AGENT = "BALIZA/3.0 (Backup Aberto de Licitacoes)"
 
 
 class PNCPClient:

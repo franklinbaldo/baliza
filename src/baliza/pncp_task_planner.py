@@ -2,7 +2,7 @@ import calendar
 from datetime import date, timedelta
 from typing import Any, List, Tuple
 
-from baliza.extractor import PNCP_ENDPOINTS
+from baliza.config import PNCP_ENDPOINTS
 
 
 class PNCPTaskPlanner:
