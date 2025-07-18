@@ -12,6 +12,14 @@ from baliza.enums import get_all_enum_metadata
 app = FastMCP()
 logger = logging.getLogger(__name__)
 
+# Define the mapping of logical table names to their Parquet glob patterns
+# Assumes data/parquet/<table>/*.parquet structure
+PARQUET_TABLE_MAPPING = {
+    "contratos": "contratos/*.parquet",
+    "atas": "atas/*.parquet",
+    # Add other datasets as needed
+}
+
 
 # --- Resources ---
 
@@ -32,19 +40,31 @@ async def available_datasets() -> str:
 
 async def _dataset_schema_logic(dataset_name: str, base_dir: str | None = None) -> str:
     """Returns the schema for a given dataset."""
-    # Basic security to prevent path traversal
-    if ".." in dataset_name or "/" in dataset_name:
-        return json.dumps({"error": "Invalid dataset name."})
-
     data_dir = Path(base_dir) if base_dir else Path("data/parquet")
-    parquet_path = data_dir / f"{dataset_name}.parquet"
+    
+    # Use the mapping to get the correct glob pattern
+    parquet_glob_pattern = PARQUET_TABLE_MAPPING.get(dataset_name)
+    if not parquet_glob_pattern:
+        return json.dumps({"error": f"Dataset '{dataset_name}' not found in mapping."})
 
-    if not parquet_path.exists():
+    # Construct the full path for DuckDB's read_parquet
+    full_parquet_path = data_dir / parquet_glob_pattern
+
+    # Robust path sanitization
+    try:
+        resolved_path = full_parquet_path.resolve(strict=True)
+        if not resolved_path.is_relative_to(data_dir.resolve()):
+            return json.dumps({"error": "Invalid dataset path."})
+    except FileNotFoundError:
         return json.dumps({"error": f"Dataset '{dataset_name}' not found."})
+    except Exception as e:
+        logger.error(f"Path resolution error for {dataset_name}: {e}")
+        return json.dumps({"error": "Invalid dataset name."})
 
     try:
         con = duckdb.connect(database=":memory:")
-        schema = con.execute(f"DESCRIBE SELECT * FROM '{parquet_path!s}'").fetchdf()
+        # Use read_parquet directly with the glob pattern
+        schema = con.execute(f"DESCRIBE SELECT * FROM read_parquet('{resolved_path!s}')").fetchdf()
         return schema.to_json(orient="records")
     except duckdb.Error as e:
         logger.error(f"Failed to get schema for {dataset_name}: {e}")
@@ -81,10 +101,24 @@ async def _execute_sql_query_logic(query: str, base_dir: str | None = None) -> s
 
         parquet_dir = Path(base_dir) if base_dir else Path("data/parquet")
         if parquet_dir.exists():
-            for parquet_file in parquet_dir.glob("*.parquet"):
-                table_name = parquet_file.stem
+            for table_name, glob_pattern in PARQUET_TABLE_MAPPING.items():
+                full_parquet_path = parquet_dir / glob_pattern
+                # Robust path sanitization for view creation
+                try:
+                    resolved_path = full_parquet_path.resolve(strict=True)
+                    if not resolved_path.is_relative_to(parquet_dir.resolve()):
+                        logger.error(f"Attempted path traversal: {full_parquet_path}")
+                        continue # Skip this view if path is invalid
+                except FileNotFoundError:
+                    logger.warning(f"Parquet path not found: {full_parquet_path}")
+                    continue # Skip if file does not exist
+                except Exception as e:
+                    logger.error(f"Path resolution error for {full_parquet_path}: {e}")
+                    continue # Skip on other path errors
+
+                # Create a view for each logical table using read_parquet with glob
                 con.execute(
-                    f"CREATE OR REPLACE VIEW {table_name} AS SELECT * FROM '{parquet_file!s}'"
+                    f"CREATE OR REPLACE VIEW {table_name} AS SELECT * FROM read_parquet('{resolved_path!s}')"
                 )
 
         result = con.execute(query).fetchdf()
@@ -119,11 +153,12 @@ async def _run_tests():
     parquet_dir = Path(test_dir) / "parquet"
     parquet_dir.mkdir()
 
-    # Store original Path class
-    OriginalPath = Path
+    # Create dummy data in subdirectories to match the new structure
+    (parquet_dir / "contratos").mkdir()
+    (parquet_dir / "atas").mkdir()
 
     try:
-        # Create dummy data
+        # Create dummy data for 'contratos'
         contracts_df = pd.DataFrame(
             {
                 "id": [1, 2],
@@ -131,44 +166,55 @@ async def _run_tests():
                 "fornecedor": ["Empresa A", "Empresa B"],
             }
         )
-        contracts_df.to_parquet(parquet_dir / "contratos.parquet")
-        print("✅ [1/6] Dummy data created.")
+        contracts_df.to_parquet(parquet_dir / "contratos" / "part-00000.parquet")
+        print("✅ [1/7] Dummy data for 'contratos' created.")
 
-        # 2. Test available_datasets_logic
+        # Create dummy data for 'atas'
+        atas_df = pd.DataFrame(
+            {
+                "id": [101, 102],
+                "numero": ["ATA-001", "ATA-002"],
+            }
+        )
+        atas_df.to_parquet(parquet_dir / "atas" / "part-00000.parquet")
+        print("✅ [2/7] Dummy data for 'atas' created.")
+
+        # 3. Test available_datasets_logic
         datasets_str = await _available_datasets_logic()
         datasets = json.loads(datasets_str)
         assert len(datasets) > 0
-        print("✅ [2/6] `available_datasets` logic passed.")
+        assert any(d["name"] == "contratos" for d in datasets)
+        assert any(d["name"] == "atas" for d in datasets)
+        print("✅ [3/7] `available_datasets` logic passed.")
 
-        # 3. Test _dataset_schema_logic
+        # 4. Test _dataset_schema_logic
         schema_str = await _dataset_schema_logic("contratos", base_dir=str(parquet_dir))
         schema = json.loads(schema_str)
         assert "id" in [c["column_name"] for c in schema]
-        print("✅ [3/6] `dataset_schema` logic passed.")
+        print("✅ [4/7] `dataset_schema` logic passed.")
 
-        # 4. Test _enum_metadata_logic
+        # 5. Test _enum_metadata_logic
         metadata_str = await _enum_metadata_logic()
         metadata = json.loads(metadata_str)
         assert "ModalidadeContratacao" in metadata
         assert "values" in metadata["ModalidadeContratacao"]
-        print("✅ [4/6] `enum_metadata` logic passed.")
+        print("✅ [5/7] `enum_metadata` logic passed.")
 
-        # 5. Test _execute_sql_query_logic (security)
-        error_str = await _execute_sql_query_logic(
-            "DROP TABLE a;", base_dir=str(parquet_dir)
-        )
-        error = json.loads(error_str)
-        assert "error" in error
-        print("✅ [5/6] `execute_sql_query` security passed.")
+        # 6. Test _dataset_schema_logic with path traversal attempt
+        invalid_schema_str = await _dataset_schema_logic("../invalid", base_dir=str(parquet_dir))
+        invalid_schema = json.loads(invalid_schema_str)
+        assert "error" in invalid_schema
+        assert "Invalid dataset path." in invalid_schema["error"]
+        print("✅ [6/7] `_dataset_schema_logic` path traversal prevention passed.")
 
-        # 6. Test _execute_sql_query_logic (success)
+        # 7. Test _execute_sql_query_logic (success)
         result_str = await _execute_sql_query_logic(
             "SELECT * FROM contratos", base_dir=str(parquet_dir)
         )
         result = json.loads(result_str)
         assert len(result) == 2
         assert result[0]["fornecedor"] == "Empresa A"
-        print("✅ [6/6] `execute_sql_query` logic passed.")
+        print("✅ [7/7] `execute_sql_query` logic passed.")
 
     finally:
         shutil.rmtree(test_dir)

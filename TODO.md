@@ -2,7 +2,7 @@
 
 ---
 
-## 1 · Captura genérica de exceções
+## 1 · Captura genérica de exceções - DONE
 
 | Trecho                                             | Problema                                  | Por que é ruim                              | Refatoração rápida                                                                                                 |
 | -------------------------------------------------- | ----------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
@@ -119,3 +119,46 @@ Considere quebrar `AsyncPNCPExtractor` em *Client*, *TaskPlanner*, *Downloader* 
 ### TL;DR
 
 > **Errare humanum est; perseverare diabolicum** — boa parte do código já é robusto, mas esses odores indicam oportunidades fáceis de clareza, performance e confiabilidade. Comece podando os `except Exception`, elimine sleeps e substitua o retry artesanal por **tenacity**; o resto flui.
+**Brevity is the soul of wit**: DuckDB cobre 80 % do que o item 5 pede — mas não 100 %.
+
+---
+
+### O que o DuckDB já faz sozinho
+
+| Recurso                                | Status no DuckDB                                                          |
+| -------------------------------------- | ------------------------------------------------------------------------- |
+| **Ler Parquet/CSV direto de `s3://…`** | Sim, via extensão `httpfs` (`INSTALL httpfs; LOAD httpfs;`) ([DuckDB][1]) |
+| **Ler múltiplos arquivos por *glob***  | Sim (`read_parquet('s3://bucket/prefix/*.parquet')`) ([DuckDB][2])        |
+| **Abrir banco `.duckdb` em S3**        | Sim (modo somente‑leitura) ([GitHub][3])                                  |
+
+Para **consulta analítica remota**, o “motor” já está pronto.
+
+---
+
+### Lacunas que `fsspec[s3]`/`s3fs` ainda fecham
+
+| Use‑case                               | Por que ainda precisa de fsspec                                                                                                  |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **Upload/append** a objetos no S3/IA   | DuckDB só grava localmente; para pôr Parquet de volta no bucket você precisa de um client → `fsspec` faz `to_parquet('s3://…')`. |
+| **Listagem, glob & caching avançados** | DuckDB lista via `glob` simples; `fsspec` traz cache de diretório, evita chamadas HEAD excessivas, acelera CI.                   |
+| **Multi‑storage** (HTTP, GCS, Azure)   | Projeto já cita IA via HTTP *plain*. `fsspec` dá a mesma API para S3 **e** HTTP, mantendo o código DRY.                          |
+| **Mock em testes**                     | `fsspec.implementations.memory` cria um bucket fake em RAM; perfeito p/ unit tests sem rede.                                     |
+| **Credenciais dinâmicas**              | DuckDB exige env vars ou `SET s3_secret_key`; `fsspec` lida com perfis, IAM, STS, presigned URLs sem mexer no engine.            |
+
+---
+
+### Estratégia prática
+
+1. **Leitura analítica** → continue usando só DuckDB (`read_parquet('s3://…')`).
+2. **Pipeline de escrita** → exporte DataFrame com `pyarrow`/`polars` + `df.write_parquet('s3://…', filesystem=fsspec.filesystem('s3'))`.
+3. **Testes** → `with fsspec.filesystem('memory') as fs:` e rode o extractor contra esse bucket fake.
+
+Assim o projeto evita dependência redundante no caminho *hot‑path* de consultas, mas ganha produtividade (upload, testes, portabilidade) onde o DuckDB ainda não chega.
+
+---
+
+**Fortes fortuna adiuvat**: use DuckDB onde ele brilha; traga `fsspec` só para o que falta.
+
+[1]: https://duckdb.org/docs/stable/core_extensions/httpfs/s3api.html?utm_source=chatgpt.com "S3 API Support - DuckDB"
+[2]: https://duckdb.org/docs/stable/guides/network_cloud_storage/s3_import.html?utm_source=chatgpt.com "S3 Parquet Import - DuckDB"
+[3]: https://github.com/duckdb/duckdb/discussions/8893?utm_source=chatgpt.com "Is it possible to connect duckdb file from amazon s3 directly ... - GitHub"

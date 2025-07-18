@@ -1,7 +1,10 @@
 """
 PNCP Data Extractor V2 - True Async Architecture
-Based on steel-man pseudocode: endpoint → 365-day ranges → async pagination
+Based on steel-man pseudocode: endpoint 
+365-day ranges 
+async pagination
 """
+
 import asyncio
 import calendar
 import contextlib
@@ -24,16 +27,13 @@ import orjson
 import typer
 from filelock import FileLock, Timeout
 from rich.console import Console
-from rich.progress import (
+from rich.progress (
     BarColumn,
     Progress,
     TextColumn,
     TimeElapsedColumn,
 )
-
-# 1. Trave o runtime em UTF-8 - reconfigure streams logo no início
-for std in (sys.stdin, sys.stdout, sys.stderr):
-    std.reconfigure(encoding="utf-8", errors="surrogateescape")
+from tenacity import retry, stop_after_attempt, wait_exponential_jitter
 
 # Configure standard logging com UTF-8
 logging.basicConfig(
@@ -51,12 +51,12 @@ def parse_json_robust(content: str) -> Any:
     """Parse JSON with orjson (fast) and fallback to stdlib json for edge cases."""
     try:
         return orjson.loads(content)
-    except orjson.JSONDecodeError:
-        # Fallback for NaN/Infinity or other edge cases
+    except orjson.JSONDecodeError as e:
+        logger.warning(f"orjson failed to parse JSON, falling back to standard json: {e}")
         try:
             return json.loads(content)
         except json.JSONDecodeError as e:
-            logger.warning(f"JSON parse error: {e}")
+            logger.error(f"Failed to parse JSON with both orjson and standard json: {e}")
             raise
 
 
@@ -78,7 +78,9 @@ def connect_utf8(path: str) -> duckdb.DuckDBPyConnection:
     try:
         return duckdb.connect(path)
     except duckdb.Error as exc:
-        # redecodifica string problema (CP‑1252 → UTF‑8)
+        # redecodifica string problema (CP
+1252 
+UTF-8)
         msg = (
             str(exc).encode("latin1", errors="ignore").decode("utf-8", errors="replace")
         )
@@ -794,79 +796,55 @@ class AsyncPNCPExtractor:
         with contextlib.suppress(Exception):
             progress.remove_task(task_id)
 
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential_jitter())
     async def _fetch_with_backpressure(
         self, url: str, params: dict[str, Any], task_id: str | None = None
     ) -> dict[str, Any]:
         """Fetch with semaphore back-pressure and retry logic."""
         async with self.semaphore:
-            for attempt in range(3):
-                try:
-                    self.total_requests += 1
-                    response = await self.client.get(url, params=params)
+            self.total_requests += 1
+            response = await self.client.get(url, params=params)
 
-                    # Common success data
-                    if response.status_code in [200, 204]:
-                        self.successful_requests += 1
-                        content_text = response.text
-                        data = parse_json_robust(content_text) if content_text else {}
-                        return {
-                            "success": True,
-                            "status_code": response.status_code,
-                            "data": data,
-                            "headers": dict(response.headers),
-                            "total_records": data.get("totalRegistros", 0),
-                            "total_pages": data.get("totalPaginas", 1),
-                            "content": content_text,
-                            "task_id": task_id,  # Pass through task_id
-                            "url": url,
-                            "params": params,
-                        }
+            # Common success data
+            if response.status_code in [200, 204]:
+                self.successful_requests += 1
+                content_text = response.text
+                data = parse_json_robust(content_text) if content_text else {}
+                return {
+                    "success": True,
+                    "status_code": response.status_code,
+                    "data": data,
+                    "headers": dict(response.headers),
+                    "total_records": data.get("totalRegistros", 0),
+                    "total_pages": data.get("totalPaginas", 1),
+                    "content": content_text,
+                    "task_id": task_id,  # Pass through task_id
+                    "url": url,
+                    "params": params,
+                }
 
-                    # Handle failures
-                    self.failed_requests += 1
-                    if 400 <= response.status_code < 500:
-                        # Don't retry client errors
-                        return {
-                            "success": False,
-                            "status_code": response.status_code,
-                            "error": f"HTTP {response.status_code}",
-                            "content": response.text,
-                            "headers": dict(response.headers),
-                            "task_id": task_id,
-                        }
+            # Handle failures
+            self.failed_requests += 1
+            if 400 <= response.status_code < 500:
+                # Don't retry client errors
+                return {
+                    "success": False,
+                    "status_code": response.status_code,
+                    "error": f"HTTP {response.status_code}",
+                    "content": response.text,
+                    "headers": dict(response.headers),
+                    "task_id": task_id,
+                }
 
-                    # Retry on 5xx or other transient errors
-                    if attempt < 2:
-                        delay = (2**attempt) * random.uniform(0.5, 1.5)  # noqa: S311
-                        await asyncio.sleep(delay)
-                        continue
-
-                    # Final failure after retries
-                    return {
-                        "success": False,
-                        "status_code": response.status_code,
-                        "error": f"HTTP {response.status_code} after {attempt + 1} attempts",
-                        "content": response.text,
-                        "headers": dict(response.headers),
-                        "task_id": task_id,
-                    }
-
-                except (httpx.RequestError, httpx.Timeout) as e:
-                    if attempt < 2:
-                        delay = (2**attempt) * random.uniform(0.5, 1.5)  # noqa: S311
-                        await asyncio.sleep(delay)
-                        continue
-
-                    self.failed_requests += 1
-                    logger.error(f"Request failed for {url} with params {params}: {e}")
-                    return {
-                        "success": False,
-                        "status_code": 0,
-                        "error": str(e),
-                        "content": "",
-                        "headers": {},
-                        "task_id": task_id,
-                    }
+            # Final failure after retries
+            return {
+                "success": False,
+                "status_code": response.status_code,
+                "error": f"HTTP {response.status_code} after {3} attempts",
+                "content": response.text,
+                "headers": dict(response.headers),
+                "task_id": task_id,
+            }
 
     def _format_date(self, date_obj: date) -> str:
         """Format date for PNCP API (YYYYMMDD)."""
@@ -913,10 +891,10 @@ class AsyncPNCPExtractor:
                 [
                     resp["endpoint_url"],
                     resp["endpoint_name"],
-                    json.dumps(resp["request_parameters"]),
+                    json.dumps(resp["request_parameters"]), 
                     resp["response_code"],
                     resp["response_content"],
-                    json.dumps(resp["response_headers"]),
+                    json.dumps(resp["response_headers"]), 
                     resp["data_date"],
                     resp["run_id"],
                     resp["total_records"],
@@ -950,8 +928,10 @@ class AsyncPNCPExtractor:
         """Dedicated writer coroutine for single-threaded DB writes.
 
         Optimized for:
-        - commit_every=75 pages ≈ 5-8 seconds between commits
-        - Reduces I/O overhead by 7.5x (10→75 pages per commit)
+        - commit_every=75 pages 
+ 5-8 seconds between commits
+        - Reduces I/O overhead by 7.5x (10
+75 pages per commit)
         - Local batch buffer minimizes executemany() calls
         """
         counter = 0
@@ -1718,4 +1698,7 @@ def stats():
 
 
 if __name__ == "__main__":
+    # 1. Trave o runtime em UTF-8 - reconfigure streams logo no início
+    for std in (sys.stdin, sys.stdout, sys.stderr):
+        std.reconfigure(encoding="utf-8", errors="surrogateescape")
     app()

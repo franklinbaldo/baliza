@@ -6,7 +6,7 @@ Test contratacoes_proposta endpoint to understand date requirements and limits
 import asyncio
 import httpx
 from datetime import date, timedelta
-from src.baliza.pncp_extractor import PNCP_BASE_URL
+from src.baliza.extractor import PNCP_BASE_URL
 
 
 async def test_contratacoes_proposta_limits():
