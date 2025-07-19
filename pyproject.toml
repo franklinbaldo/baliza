@@ -20,6 +20,10 @@ dependencies = [
     "pydantic>=2.0",             # Runtime data validation
     "pydantic-settings>=2.0",   # Environment-aware configuration
     "internetarchive",          # For uploading data to Internet Archive
+    "rich>=13.7.0",             # Enhanced terminal UI
+    "textual>=0.41.0",          # Interactive terminal applications
+    "questionary>=2.0.1",       # Beautiful command-line prompts
+    "tabulate>=0.9.0",          # Enhanced table formatting
 ]
 
 [project.scripts]
