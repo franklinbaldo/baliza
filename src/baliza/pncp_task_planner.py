@@ -48,12 +48,12 @@ class PNCPTaskPlanner:
         self, start_date: date, end_date: date, writer_conn=None
     ) -> list[tuple[str, str, date, Any]]:
         """Populate the control table with all necessary tasks.
-        
+
         Optimized for resumable extractions - only creates new tasks that don't already exist.
         """
         from rich.console import Console
         console = Console()
-        
+
         # Get existing tasks to avoid redundant planning
         existing_tasks = set()
         if writer_conn:
@@ -66,7 +66,7 @@ class PNCPTaskPlanner:
             except Exception as e:
                 console.print(f"⚠️ Could not check existing tasks: {e}")
                 existing_tasks = set()
-        
+
         date_chunks = self._monthly_chunks(start_date, end_date)
         tasks_to_create = []
         total_planned = 0
@@ -93,7 +93,7 @@ class PNCPTaskPlanner:
                         task_id = (
                             f"{endpoint['name']}_{future_date.isoformat()}{task_suffix}"
                         )
-                        
+
                         total_planned += 1
                         if task_id in existing_tasks:
                             skipped_existing += 1
@@ -110,7 +110,7 @@ class PNCPTaskPlanner:
                         task_id = (
                             f"{endpoint['name']}_{end_date.isoformat()}{task_suffix}"
                         )
-                        
+
                         total_planned += 1
                         if task_id in existing_tasks:
                             skipped_existing += 1
@@ -129,7 +129,7 @@ class PNCPTaskPlanner:
                         task_id = (
                             f"{endpoint['name']}_{chunk_start.isoformat()}{task_suffix}"
                         )
-                        
+
                         total_planned += 1
                         if task_id in existing_tasks:
                             skipped_existing += 1
@@ -137,11 +137,11 @@ class PNCPTaskPlanner:
                             tasks_to_create.append(
                                 (task_id, endpoint["name"], chunk_start, modalidade)
                             )
-        
+
         # Show resumable planning statistics
-        console.print(f"🎯 Resumable Planning Results:")
+        console.print("🎯 Resumable Planning Results:")
         console.print(f"   Total tasks planned: {total_planned:,}")
         console.print(f"   Already exists: {skipped_existing:,}")
         console.print(f"   New tasks to create: {len(tasks_to_create):,}")
-        
+
         return tasks_to_create

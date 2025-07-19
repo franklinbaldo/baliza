@@ -39,7 +39,7 @@ def connect_utf8(path: str, force: bool = False) -> duckdb.DuckDBPyConnection:
             except duckdb.Error:
                 # If read-only fails, try regular connection
                 pass
-        
+
         return duckdb.connect(path)
     except duckdb.Error as exc:
         if force and "lock" in str(exc).lower():
@@ -104,7 +104,7 @@ class PNCPWriter:
             if lock_file.exists():
                 lock_file.unlink()
                 console.print("🔓 [yellow]Force mode: Removed existing database lock[/yellow]")
-            
+
             # Still create lock for this session but don't fail if can't acquire
             self.db_lock = FileLock(str(BALIZA_DB_PATH) + ".lock")
             try:
@@ -510,17 +510,115 @@ class PNCPWriter:
             raise
 
     def _batch_store_split_tables(self, pages: list[dict]) -> None:
-        """Store pages using split table architecture with content deduplication."""
+        """Store pages using split table architecture with optimized batch content deduplication."""
+        if not pages:
+            return
+
+        # Step 1: Analyze all content in the batch and check for existing hashes
+        content_map = {}  # content_hash -> (content_id, content, content_size)
+        batch_cache = {}  # For within-batch deduplication
+
         for page_data in pages:
             content = page_data.get("response_content", "")
+            if is_empty_response(content):
+                content = ""
 
-            # Step 1: Ensure content exists and get content_id
-            content_id = self._ensure_content_exists(content)
+            # Check if we've already seen this content in this batch
+            if content in batch_cache:
+                page_data["_content_id"] = batch_cache[content]
+                continue
 
-            # Step 2: Store request metadata with content_id reference
-            self._store_request_with_content_id(page_data, content_id)
+            content_id, content_hash, content_size = analyze_content(content)
+            content_map[content_hash] = (content_id, content, content_size)
+            batch_cache[content] = content_id
+            page_data["_content_id"] = content_id
+            page_data["_content_hash"] = content_hash
 
-            # Step 3: Also store in legacy table for backwards compatibility
+        # Step 2: Batch check for existing content hashes
+        if content_map:
+            placeholders = ",".join("?" * len(content_map))
+            existing_content = self.conn.execute(
+                f"SELECT content_sha256, id, reference_count FROM psa.pncp_content WHERE content_sha256 IN ({placeholders})",
+                list(content_map.keys())
+            ).fetchall()
+
+            existing_hashes = {content_hash: (content_id, ref_count) for content_hash, content_id, ref_count in existing_content}
+
+            # Step 3: Batch insert new content and update reference counts
+            new_content_records = []
+            update_ref_counts = []
+
+            for content_hash, (content_id, content, content_size) in content_map.items():
+                if content_hash in existing_hashes:
+                    # Content exists - mark for reference count update
+                    existing_id, ref_count = existing_hashes[content_hash]
+                    update_ref_counts.append((content_hash, ref_count + 1))
+                    # Update our mapping to use existing content_id
+                    for page_data in pages:
+                        if page_data.get("_content_hash") == content_hash:
+                            page_data["_content_id"] = existing_id
+                else:
+                    # New content - mark for insertion
+                    new_content_records.append((content_id, content, content_hash, content_size))
+
+            # Batch insert new content
+            if new_content_records:
+                self.conn.executemany(
+                    """
+                    INSERT INTO psa.pncp_content 
+                    (id, response_content, content_sha256, content_size_bytes, reference_count)
+                    VALUES (?, ?, ?, ?, 1)
+                    """,
+                    new_content_records
+                )
+                logger.debug(f"Batch inserted {len(new_content_records)} new content records")
+
+            # Batch update reference counts
+            if update_ref_counts:
+                self.conn.executemany(
+                    """
+                    UPDATE psa.pncp_content 
+                    SET reference_count = ?, last_seen_at = CURRENT_TIMESTAMP
+                    WHERE content_sha256 = ?
+                    """,
+                    [(new_count, content_hash) for content_hash, new_count in update_ref_counts]
+                )
+                logger.debug(f"Batch updated {len(update_ref_counts)} content reference counts")
+
+        # Step 4: Batch store requests using the resolved content_ids
+        request_records = []
+        for page_data in pages:
+            content_id = page_data["_content_id"]
+            request_records.append([
+                page_data.get("extracted_at"),
+                page_data.get("endpoint_url"),
+                page_data.get("endpoint_name"),
+                json.dumps(page_data.get("request_parameters", {})),
+                page_data.get("response_code"),
+                json.dumps(page_data.get("response_headers", {})),
+                page_data.get("data_date"),
+                page_data.get("run_id"),
+                page_data.get("total_records"),
+                page_data.get("total_pages"),
+                page_data.get("current_page"),
+                page_data.get("page_size"),
+                content_id,
+            ])
+
+        if request_records:
+            self.conn.executemany(
+                """
+                INSERT INTO psa.pncp_requests (
+                    extracted_at, endpoint_url, endpoint_name, request_parameters,
+                    response_code, response_headers, data_date, run_id,
+                    total_records, total_pages, current_page, page_size, content_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                request_records
+            )
+
+        # Step 5: Also store in legacy table for backwards compatibility
+        for page_data in pages:
             self._store_legacy_response(page_data)
 
     def _store_legacy_response(self, page_data: dict) -> None:

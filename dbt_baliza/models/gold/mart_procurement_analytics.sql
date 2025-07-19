@@ -1,6 +1,8 @@
 {{
   config(
-    materialized='table',
+    materialized='incremental',
+    unique_key='numero_controle_pncp',
+    incremental_strategy='delete+insert',
     description='Analytics mart combining procurement and contract data for business intelligence'
   )
 }}
@@ -37,6 +39,9 @@ WITH procurement_summary AS (
     unit.municipio_nome AS unit_municipio
     
   FROM {{ ref('silver_fact_contratacoes') }} p
+  {% if is_incremental() %}
+  WHERE p.data_publicacao_pncp > (SELECT MAX(data_publicacao_pncp) FROM {{ this }})
+  {% endif %}
   LEFT JOIN {{ ref('silver_dim_organizacoes') }} org
     ON p.org_key = org.org_key
   LEFT JOIN {{ ref('silver_dim_unidades_orgao') }} unit
@@ -59,6 +64,9 @@ contract_summary AS (
     
   FROM {{ ref('silver_fact_contratos') }} c
   WHERE c.numero_controle_pncp_compra IS NOT NULL
+  {% if is_incremental() %}
+    AND c.data_publicacao_pncp > (SELECT MAX(data_publicacao_pncp) FROM {{ this }})
+  {% endif %}
   GROUP BY c.numero_controle_pncp_compra
 )
 

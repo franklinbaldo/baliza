@@ -30,8 +30,8 @@ _shutdown_requested = False
 
 def setup_signal_handlers():
     """Setup graceful shutdown signal handlers."""
-    
-    def signal_handler(signum, frame):
+
+    def signal_handler(_signum, _frame):
         """Handle shutdown signals gracefully."""
         global _shutdown_requested
         if not _shutdown_requested:
@@ -41,7 +41,7 @@ def setup_signal_handlers():
         else:
             console.print("\n💥 [red]Force shutdown - may leave locks![/red]")
             sys.exit(1)
-    
+
     # Register signal handlers for graceful shutdown
     signal.signal(signal.SIGINT, signal_handler)   # Ctrl+C
     signal.signal(signal.SIGTERM, signal_handler)  # Termination signal
@@ -116,14 +116,14 @@ def extract(
     async def main():
         # Setup signal handlers for graceful shutdown
         setup_signal_handlers()
-        
+
         try:
             async with AsyncPNCPExtractor(concurrency=concurrency, force_db=force_db) as extractor:
                 # Check for shutdown before starting
                 if _shutdown_requested:
                     console.print("🛑 [yellow]Shutdown requested before extraction started[/yellow]")
                     return {"total_records_extracted": 0, "run_id": "cancelled"}
-                
+
                 results = await extractor.extract_data(start_dt, end_dt, force)
 
                 # Show completion summary
@@ -355,9 +355,9 @@ def run(
     2. Transform data with dbt models
     3. Load data to Internet Archive
     """
-    # Setup signal handlers for graceful shutdown  
+    # Setup signal handlers for graceful shutdown
     setup_signal_handlers()
-    
+
     console.print("🚀 [bold blue]Starting BALIZA ETL Pipeline[/bold blue]")
     console.print("")
 
@@ -371,7 +371,7 @@ def run(
             if _shutdown_requested:
                 console.print("🛑 [yellow]Shutdown requested before extraction[/yellow]")
                 return {"total_records_extracted": 0, "run_id": "cancelled"}
-                
+
             async with AsyncPNCPExtractor(concurrency=concurrency, force_db=force_db) as extractor:
                 results = await extractor.extract_data(start_dt, end_dt, force)
                 console.print(
@@ -391,12 +391,12 @@ def run(
 
     try:
         extraction_results = asyncio.run(extract_data())
-        
+
         # Check for shutdown after extraction
         if _shutdown_requested:
             console.print("🛑 [yellow]Pipeline stopped after extraction[/yellow]")
             return
-            
+
     except KeyboardInterrupt:
         console.print("🛑 [yellow]Pipeline interrupted[/yellow]")
         return
@@ -470,9 +470,8 @@ def mcp(
     console.print(f"🚀 Starting Baliza MCP Server at http://{host}:{port}")
     console.print("Press Ctrl+C to stop the server.")
 
-    # This is a simplified call. We might need to adapt it based on
-    # how fastmcp's `app.run()` is implemented, potentially passing host/port.
-    mcp_server.run_server()
+    # Pass host and port to the MCP server
+    mcp_server.run_server(host=host, port=port)
 
 
 @app.command()
@@ -495,7 +494,7 @@ def stats(
         if lock_file.exists():
             lock_file.unlink()
             console.print("🔓 [yellow]Force mode: Removed database lock[/yellow]")
-    
+
     conn = connect_utf8(str(BALIZA_DB_PATH), force=force_db)
 
     # Overall stats

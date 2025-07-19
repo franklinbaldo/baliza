@@ -20,19 +20,19 @@ clean-targets:
 # Configuring models
 models:
   dbt_baliza:
-    # Bronze layer
+    # Bronze layer - Incremental by default for performance
     bronze:
-      +materialized: table
+      +materialized: incremental
       +schema: bronze
     
-    # Silver layer
+    # Silver layer - Incremental by default for performance
     silver:
-      +materialized: table
+      +materialized: incremental
       +schema: silver
     
-    # Gold layer
+    # Gold layer - Incremental for faster rebuilds on large datasets
     gold:
-      +materialized: table
+      +materialized: incremental
       +schema: gold
 
 # Variables

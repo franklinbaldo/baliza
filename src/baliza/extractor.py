@@ -85,7 +85,7 @@ class AsyncPNCPExtractor:
     def setup_signal_handlers(self):
         """Setup signal handlers for graceful shutdown - Windows compatible."""
 
-        def signal_handler(signum, frame):
+        def signal_handler(_signum, _frame):
             console.print(
                 "\n⚠️ [yellow]Received Ctrl+C, initiating graceful shutdown...[/yellow]"
             )
@@ -204,12 +204,12 @@ class AsyncPNCPExtractor:
             GROUP BY status 
             ORDER BY status
         """).fetchall()
-        
+
         console.print("📊 [bold blue]Phase 2: Resumable Task Discovery[/bold blue]")
         console.print("Task status overview:")
         for status, count in task_status:
             console.print(f"   {status}: {count:,} tasks")
-        
+
         pending_tasks = self.writer.conn.execute(
             "SELECT task_id, endpoint_name, data_date, modalidade FROM psa.pncp_extraction_tasks WHERE status = 'PENDING'"
         ).fetchall()
@@ -391,13 +391,28 @@ class AsyncPNCPExtractor:
 
         response = await self._fetch_with_backpressure(endpoint["path"], params)
 
-        # Enqueue the response for the writer worker
+        # Validate response before processing
+        if not response.get("success", False):
+            logger.warning(f"Failed to fetch page {page_number} for {endpoint_name} {data_date}: {response.get('error', 'Unknown error')}")
+            # Don't enqueue failed responses - they should be handled by reconciliation
+            return response
+
+        # Validate response content
+        content = response.get("content", "")
+        if not content or content.strip() == "":
+            logger.warning(f"Empty response content for page {page_number} of {endpoint_name} {data_date}")
+            # Mark as failed response for reconciliation
+            response["success"] = False
+            response["error"] = "Empty response content"
+            return response
+
+        # Enqueue the successful response for the writer worker
         page_response = {
             "endpoint_url": f"{settings.pncp_base_url}{endpoint['path']}",
             "endpoint_name": endpoint_name,
             "request_parameters": params,
             "response_code": response["status_code"],
-            "response_content": response["content"],
+            "response_content": content,
             "response_headers": response["headers"],
             "data_date": data_date,
             "run_id": self.run_id,
@@ -415,7 +430,7 @@ class AsyncPNCPExtractor:
 
     async def _execute_tasks(self, progress: Progress):
         """Phase 3: Fetch all missing pages for FETCHING and PARTIAL tasks (resumable)."""
-        
+
         # Get execution status overview for resumability info
         execution_status = self.writer.conn.execute("""
             SELECT 
@@ -428,7 +443,7 @@ class AsyncPNCPExtractor:
             GROUP BY status 
             ORDER BY status
         """).fetchall()
-        
+
         console.print("🚀 [bold blue]Phase 3: Resumable Task Execution[/bold blue]")
         console.print("Execution status overview:")
         for status, task_count, total_pages, missing_pages in execution_status:
@@ -449,7 +464,7 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
         if not pages_to_fetch:
             console.print("✅ [green]No pages to fetch - all tasks completed![/green]")
             return
-            
+
         console.print(f"📥 Fetching {len(pages_to_fetch):,} remaining pages...")
 
         # Group pages by endpoint only

@@ -2,7 +2,9 @@
 
 {{
   config(
-    materialized='table',
+    materialized='incremental',
+    unique_key='numero_controle_pncp',
+    incremental_strategy='delete+insert',
     schema='gold'
   )
 }}
@@ -15,6 +17,9 @@ WITH contratacoes AS (
     valor_total_estimado,
     data_publicacao_pncp
   FROM {{ ref('silver_contratacoes') }}
+  {% if is_incremental() %}
+  WHERE data_publicacao_pncp > (SELECT MAX(data_publicacao_pncp) FROM {{ this }})
+  {% endif %}
 ),
 
 itens AS (

@@ -145,11 +145,54 @@ async def execute_sql_query(query: str) -> str:
     return await _execute_sql_query_logic(query)
 
 
-def run_server():
+def run_server(host: str = "127.0.0.1", port: int = 8000):
     """
     Runs the MCP server. This function will be called by the CLI.
+    
+    Args:
+        host: The host to bind the server to
+        port: The port to run the server on
     """
-    app.run()
+    # Proper async lifecycle management for MCP server
+    try:
+        # Try to pass host/port if FastMCP supports it
+        app.run(host=host, port=port)
+    except TypeError:
+        # Fallback if FastMCP doesn't support host/port parameters
+        logger.warning("FastMCP app.run() doesn't support host/port parameters, using defaults")
+        try:
+            app.run()
+        except Exception as e:
+            logger.error(f"Failed to start MCP server: {e}")
+            raise
+    except KeyboardInterrupt:
+        logger.info("MCP server shutdown requested")
+    except Exception as e:
+        logger.error(f"MCP server error: {e}")
+        raise
+
+
+async def run_server_async(host: str = "127.0.0.1", port: int = 8000):
+    """
+    Async version of run_server for proper lifecycle management.
+    
+    Args:
+        host: The host to bind the server to
+        port: The port to run the server on
+    """
+    logger.info(f"Starting MCP server on {host}:{port}")
+    try:
+        # If FastMCP has an async run method, use it
+        if hasattr(app, 'run_async'):
+            await app.run_async(host=host, port=port)
+        else:
+            # Fallback to sync version
+            app.run(host=host, port=port)
+    except KeyboardInterrupt:
+        logger.info("MCP server shutdown requested")
+    except Exception as e:
+        logger.error(f"MCP server error: {e}")
+        raise
 
 
 async def _run_tests():
