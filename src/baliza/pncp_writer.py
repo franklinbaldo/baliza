@@ -7,11 +7,12 @@ Manages raw data storage and task state tracking for the extraction pipeline.
 """
 
 import asyncio
+import contextlib
 import json
 import logging
 from datetime import date
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import duckdb
 from filelock import FileLock, Timeout
@@ -33,12 +34,9 @@ def connect_utf8(path: str) -> duckdb.DuckDBPyConnection:
     try:
         return duckdb.connect(path)
     except duckdb.Error as exc:
-        # redecodifica string problema (CP‑1252 → UTF‑8)
-        msg = (
-            str(exc).encode("latin1", errors="ignore").decode("utf-8", errors="replace")
-        )
-        # Para DuckDB, usamos RuntimeError com a mensagem corrigida
-        raise RuntimeError(msg) from exc
+        # DuckDB error - preserve original exception with clean message
+        error_msg = f"Database connection failed: {exc}"
+        raise RuntimeError(error_msg) from exc
 
 
 class PNCPWriter:
@@ -85,7 +83,7 @@ class PNCPWriter:
         self.conn.execute("CREATE SCHEMA IF NOT EXISTS psa")
 
         # Create the split table architecture (ADR-008)
-        
+
         # Table 1: Content storage with deduplication
         self.conn.execute(
             """
@@ -122,7 +120,7 @@ class PNCPWriter:
             ) WITH (compression = "zstd")
         """
         )
-        
+
         # Legacy table for backwards compatibility during migration
         self.conn.execute(
             """
@@ -382,29 +380,29 @@ class PNCPWriter:
 
     def _ensure_content_exists(self, content: str) -> str:
         """Ensure content exists in psa.pncp_content table and return content_id.
-        
+
         Uses content deduplication logic from ADR-008.
-        
+
         Args:
             content: Response content string
-            
+
         Returns:
             UUID string of the content record
         """
         if is_empty_response(content):
             # For empty responses, create a special empty content record
             content = ""
-        
+
         # Analyze content to get ID and hash
         content_id, content_hash, content_size = analyze_content(content)
-        
+
         try:
             # Try to find existing content by hash
             existing = self.conn.execute(
                 "SELECT id, reference_count FROM psa.pncp_content WHERE content_sha256 = ?",
-                [content_hash]
+                [content_hash],
             ).fetchone()
-            
+
             if existing:
                 # Content exists - increment reference count and update last_seen_at
                 self.conn.execute(
@@ -414,9 +412,11 @@ class PNCPWriter:
                         last_seen_at = CURRENT_TIMESTAMP
                     WHERE content_sha256 = ?
                     """,
-                    [content_hash]
+                    [content_hash],
                 )
-                logger.debug(f"Content deduplicated: {content_id} (new ref count: {existing[1] + 1})")
+                logger.debug(
+                    f"Content deduplicated: {content_id} (new ref count: {existing[1] + 1})"
+                )
                 return existing[0]  # Return existing content_id
             else:
                 # New content - insert new record
@@ -426,11 +426,11 @@ class PNCPWriter:
                     (id, response_content, content_sha256, content_size_bytes, reference_count)
                     VALUES (?, ?, ?, ?, 1)
                     """,
-                    [content_id, content, content_hash, content_size]
+                    [content_id, content, content_hash, content_size],
                 )
                 logger.debug(f"New content stored: {content_id} ({content_size} bytes)")
                 return content_id
-                
+
         except duckdb.Error as e:
             logger.error(f"Content storage failed for hash {content_hash}: {e}")
             raise
@@ -459,8 +459,8 @@ class PNCPWriter:
                     page_data.get("total_pages"),
                     page_data.get("current_page"),
                     page_data.get("page_size"),
-                    content_id
-                ]
+                    content_id,
+                ],
             )
         except duckdb.Error as e:
             logger.error(f"Request storage failed: {e}")
@@ -470,13 +470,13 @@ class PNCPWriter:
         """Store pages using split table architecture with content deduplication."""
         for page_data in pages:
             content = page_data.get("response_content", "")
-            
+
             # Step 1: Ensure content exists and get content_id
             content_id = self._ensure_content_exists(content)
-            
+
             # Step 2: Store request metadata with content_id reference
             self._store_request_with_content_id(page_data, content_id)
-            
+
             # Step 3: Also store in legacy table for backwards compatibility
             self._store_legacy_response(page_data)
 
@@ -504,8 +504,8 @@ class PNCPWriter:
                     page_data.get("total_records"),
                     page_data.get("total_pages"),
                     page_data.get("current_page"),
-                    page_data.get("page_size")
-                ]
+                    page_data.get("page_size"),
+                ],
             )
         except duckdb.Error as e:
             logger.error(f"Legacy response storage failed: {e}")
@@ -537,7 +537,9 @@ class PNCPWriter:
 
                 # Flush buffer every commit_every pages
                 if counter % commit_every == 0 and batch_buffer:
-                    self._batch_store_split_tables(batch_buffer)  # Use new split table logic
+                    self._batch_store_split_tables(
+                        batch_buffer
+                    )  # Use new split table logic
                     self.conn.commit()
                     batch_buffer.clear()
 
