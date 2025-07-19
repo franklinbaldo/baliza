@@ -3,10 +3,76 @@ version: 2
 sources:
   - name: pncp
     schema: psa
-    description: "Raw data from the PNCP API"
+    description: "Raw data from the PNCP API - Split table architecture (ADR-008)"
     tables:
+      - name: pncp_requests
+        description: "Request metadata with foreign keys to deduplicated content (ADR-008)."
+        columns:
+          - name: id
+            description: "Unique identifier for the request."
+            tests:
+              - unique
+              - not_null
+          - name: extracted_at
+            description: "Timestamp when the data was extracted."
+          - name: endpoint_url
+            description: "The URL of the API endpoint."
+          - name: endpoint_name
+            description: "The name of the API endpoint."
+          - name: request_parameters
+            description: "JSON object with the request parameters."
+          - name: response_code
+            description: "The HTTP response code."
+          - name: response_headers
+            description: "JSON object with the response headers."
+          - name: data_date
+            description: "The date of the data being extracted."
+          - name: run_id
+            description: "The unique identifier for the extraction run."
+          - name: total_records
+            description: "The total number of records for the request."
+          - name: total_pages
+            description: "The total number of pages for the request."
+          - name: current_page
+            description: "The current page number."
+          - name: page_size
+            description: "The page size of the request."
+          - name: content_id
+            description: "Foreign key to pncp_content table (UUIDv5-based)."
+            tests:
+              - not_null
+              - relationships:
+                  to: source('pncp', 'pncp_content')
+                  field: id
+      
+      - name: pncp_content
+        description: "Deduplicated response content with UUIDv5-based identification (ADR-008)."
+        columns:
+          - name: id
+            description: "UUIDv5 content identifier based on SHA-256 hash."
+            tests:
+              - unique
+              - not_null
+          - name: response_content
+            description: "The actual response content (deduplicated)."
+          - name: content_sha256
+            description: "SHA-256 hash of the content for integrity verification."
+            tests:
+              - unique
+              - not_null
+          - name: content_size_bytes
+            description: "Size of the content in bytes."
+          - name: first_seen_at
+            description: "Timestamp when this content was first encountered."
+          - name: last_seen_at
+            description: "Timestamp when this content was last encountered."
+          - name: reference_count
+            description: "Number of requests that reference this content."
+            tests:
+              - not_null
+      
       - name: pncp_raw_responses
-        description: "Stores raw JSON responses from the PNCP API."
+        description: "Legacy table for backwards compatibility - will be deprecated after migration."
         columns:
           - name: id
             description: "Unique identifier for the raw response."

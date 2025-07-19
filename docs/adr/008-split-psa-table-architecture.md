@@ -1,4 +1,4 @@
-# ADR-006: Split PSA Table Architecture for Content Deduplication
+# ADR-008: Split PSA Table Architecture for Content Deduplication
 
 **Status**: Approved  
 **Date**: 2025-07-19  

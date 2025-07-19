@@ -1,6 +1,6 @@
 """PNCP Writer - DuckDB Single-Writer Architecture with Split Tables
 
-Implements centralized write operations to DuckDB as specified in ADR-001 and ADR-006.
+Implements centralized write operations to DuckDB as specified in ADR-001 and ADR-008.
 Uses split table architecture for content deduplication and optimized storage.
 Ensures single-writer constraint through file locking and centralized write operations.
 Manages raw data storage and task state tracking for the extraction pipeline.
@@ -84,7 +84,7 @@ class PNCPWriter:
         # Create PSA schema
         self.conn.execute("CREATE SCHEMA IF NOT EXISTS psa")
 
-        # Create the split table architecture (ADR-006)
+        # Create the split table architecture (ADR-008)
         
         # Table 1: Content storage with deduplication
         self.conn.execute(
@@ -383,7 +383,7 @@ class PNCPWriter:
     def _ensure_content_exists(self, content: str) -> str:
         """Ensure content exists in psa.pncp_content table and return content_id.
         
-        Uses content deduplication logic from ADR-006.
+        Uses content deduplication logic from ADR-008.
         
         Args:
             content: Response content string
