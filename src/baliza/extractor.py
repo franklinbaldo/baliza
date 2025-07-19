@@ -145,8 +145,8 @@ class AsyncPNCPExtractor:
 
     async def _plan_tasks(self, start_date: date, end_date: date):
         """Phase 1: Populate the control table with all necessary tasks."""
-        console.print("Phase 1: Planning tasks...")
-        tasks_to_create = await self.task_planner.plan_tasks(start_date, end_date)
+        console.print("🎯 [bold blue]Phase 1: Resumable Task Planning[/bold blue]")
+        tasks_to_create = await self.task_planner.plan_tasks(start_date, end_date, writer_conn=self.writer.conn)
 
         if tasks_to_create:
             # Schema migration - update constraint to include modalidade
@@ -190,20 +190,35 @@ class AsyncPNCPExtractor:
                 tasks_to_create,
             )
             self.writer.conn.commit()
-        console.print(
-            f"Planning complete. {len(tasks_to_create)} potential tasks identified."
-        )
+        if len(tasks_to_create) > 0:
+            console.print(f"✅ [green]Planning complete: {len(tasks_to_create):,} new tasks created[/green]")
+        else:
+            console.print("✅ [green]Planning complete: All tasks already exist - fully resumable![/green]")
 
     async def _discover_tasks(self, progress: Progress):
-        """Phase 2: Get metadata for all PENDING tasks."""
+        """Phase 2: Get metadata for all PENDING tasks (resumable)."""
+        # Get task status overview for resumability info
+        task_status = self.writer.conn.execute("""
+            SELECT status, COUNT(*) as count 
+            FROM psa.pncp_extraction_tasks 
+            GROUP BY status 
+            ORDER BY status
+        """).fetchall()
+        
+        console.print("📊 [bold blue]Phase 2: Resumable Task Discovery[/bold blue]")
+        console.print("Task status overview:")
+        for status, count in task_status:
+            console.print(f"   {status}: {count:,} tasks")
+        
         pending_tasks = self.writer.conn.execute(
             "SELECT task_id, endpoint_name, data_date, modalidade FROM psa.pncp_extraction_tasks WHERE status = 'PENDING'"
         ).fetchall()
 
         if not pending_tasks:
-            console.print("Phase 2: Discovery - No pending tasks to discover.")
+            console.print("✅ [green]No pending tasks to discover - all tasks already processed![/green]")
             return
 
+        console.print(f"🔍 Discovering metadata for {len(pending_tasks):,} pending tasks...")
         discovery_progress = progress.add_task(
             "[cyan]Phase 2: Discovery", total=len(pending_tasks)
         )
@@ -399,7 +414,28 @@ class AsyncPNCPExtractor:
         return response
 
     async def _execute_tasks(self, progress: Progress):
-        """Phase 3: Fetch all missing pages for FETCHING and PARTIAL tasks."""
+        """Phase 3: Fetch all missing pages for FETCHING and PARTIAL tasks (resumable)."""
+        
+        # Get execution status overview for resumability info
+        execution_status = self.writer.conn.execute("""
+            SELECT 
+                status,
+                COUNT(*) as task_count,
+                SUM(total_pages) as total_pages,
+                SUM(array_length(json_extract(missing_pages, '$')::INTEGER[], 1)) as missing_pages
+            FROM psa.pncp_extraction_tasks 
+            WHERE status IN ('FETCHING', 'PARTIAL', 'COMPLETE')
+            GROUP BY status 
+            ORDER BY status
+        """).fetchall()
+        
+        console.print("🚀 [bold blue]Phase 3: Resumable Task Execution[/bold blue]")
+        console.print("Execution status overview:")
+        for status, task_count, total_pages, missing_pages in execution_status:
+            if missing_pages is not None:
+                console.print(f"   {status}: {task_count:,} tasks ({missing_pages:,} pages remaining)")
+            else:
+                console.print(f"   {status}: {task_count:,} tasks")
 
         # Use unnest to get a list of all pages to fetch
         pages_to_fetch_query = """
@@ -411,8 +447,10 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
         pages_to_fetch = self.writer.conn.execute(pages_to_fetch_query).fetchall()
 
         if not pages_to_fetch:
-            console.print("Phase 3: Execution - No pages to fetch.")
+            console.print("✅ [green]No pages to fetch - all tasks completed![/green]")
             return
+            
+        console.print(f"📥 Fetching {len(pages_to_fetch):,} remaining pages...")
 
         # Group pages by endpoint only
         endpoint_pages = {}
