@@ -74,8 +74,8 @@ class Dashboard:
     def _create_welcome_header(self) -> Panel:
         """Create the main welcome header."""
         return create_header(
-            "BALIZA - Brazilian Public Procurement Data Platform",
-            "Analyze contracts, procurements, and spending with ease",
+            "BALIZA - Brazilian Acquisition Ledger Intelligence Zone Archive",
+            "Navigate contracts, procurements, and spending data with ease",
             self.theme.ICONS["government"],
         )
 

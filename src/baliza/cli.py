@@ -1,5 +1,6 @@
 import asyncio
 import json
+import signal
 import sys
 from datetime import date
 from pathlib import Path
@@ -23,12 +24,34 @@ console = get_console()  # Use themed console
 dashboard = Dashboard()
 error_handler = ErrorHandler()
 
+# Global shutdown flag
+_shutdown_requested = False
+
+
+def setup_signal_handlers():
+    """Setup graceful shutdown signal handlers."""
+    
+    def signal_handler(signum, frame):
+        """Handle shutdown signals gracefully."""
+        global _shutdown_requested
+        if not _shutdown_requested:
+            _shutdown_requested = True
+            console.print("\n🛑 [yellow]Shutdown requested... cleaning up[/yellow]")
+            console.print("⏳ Please wait for graceful shutdown (Press Ctrl+C again to force)")
+        else:
+            console.print("\n💥 [red]Force shutdown - may leave locks![/red]")
+            sys.exit(1)
+    
+    # Register signal handlers for graceful shutdown
+    signal.signal(signal.SIGINT, signal_handler)   # Ctrl+C
+    signal.signal(signal.SIGTERM, signal_handler)  # Termination signal
+
 
 @app.callback(invoke_without_command=True)
 def main(ctx: typer.Context):
-    """BALIZA - Brazilian Public Procurement Data Platform
+    """BALIZA - Brazilian Acquisition Ledger Intelligence Zone Archive
 
-    Analyze contracts, procurements, and spending with ease.
+    Navigate contracts, procurements, and spending data with ease.
     """
     if ctx.invoked_subcommand is None:
         # Show the beautiful dashboard when no command is provided
@@ -45,6 +68,9 @@ def extract(
     ),
     force: bool = typer.Option(
         False, "--force", help="Force re-extraction even if data exists"
+    ),
+    force_db: bool = typer.Option(
+        False, "--force-db", help="Force database connection by removing locks"
     ),
 ):
     """Extract data from PNCP API with beautiful progress tracking."""
@@ -88,8 +114,16 @@ def extract(
     console.print(config_panel)
 
     async def main():
+        # Setup signal handlers for graceful shutdown
+        setup_signal_handlers()
+        
         try:
-            async with AsyncPNCPExtractor(concurrency=concurrency) as extractor:
+            async with AsyncPNCPExtractor(concurrency=concurrency, force_db=force_db) as extractor:
+                # Check for shutdown before starting
+                if _shutdown_requested:
+                    console.print("🛑 [yellow]Shutdown requested before extraction started[/yellow]")
+                    return {"total_records_extracted": 0, "run_id": "cancelled"}
+                
                 results = await extractor.extract_data(start_dt, end_dt, force)
 
                 # Show completion summary
@@ -132,11 +166,18 @@ def extract(
                 )
                 console.print(next_steps_panel)
 
+        except KeyboardInterrupt:
+            console.print("\n🛑 [yellow]Graceful shutdown completed[/yellow]")
+            return {"total_records_extracted": 0, "run_id": "interrupted"}
         except Exception as e:
-            error_handler.handle_api_error(
-                e, "PNCP API", {"endpoint": endpoint, "concurrency": concurrency}
-            )
-            raise
+            if _shutdown_requested:
+                console.print("🛑 [yellow]Shutdown during extraction - cleaning up[/yellow]")
+                return {"total_records_extracted": 0, "run_id": "shutdown"}
+            else:
+                error_handler.handle_api_error(
+                    e, "PNCP API", {"endpoint": endpoint, "concurrency": concurrency}
+                )
+                raise
 
     asyncio.run(main())
 
@@ -296,6 +337,9 @@ def run(
     force: bool = typer.Option(
         False, "--force", help="Force re-extraction even if data exists"
     ),
+    force_db: bool = typer.Option(
+        False, "--force-db", help="Force database connection by removing locks"
+    ),
     skip_transform: bool = typer.Option(
         False, "--skip-transform", help="Skip dbt transformation step"
     ),
@@ -311,6 +355,9 @@ def run(
     2. Transform data with dbt models
     3. Load data to Internet Archive
     """
+    # Setup signal handlers for graceful shutdown  
+    setup_signal_handlers()
+    
     console.print("🚀 [bold blue]Starting BALIZA ETL Pipeline[/bold blue]")
     console.print("")
 
@@ -320,17 +367,42 @@ def run(
     end_dt = date.today()
 
     async def extract_data():
-        async with AsyncPNCPExtractor(concurrency=concurrency) as extractor:
-            results = await extractor.extract_data(start_dt, end_dt, force)
-            console.print(
-                f"✅ Extraction completed: {results['total_records_extracted']:,} records"
-            )
-            return results
+        try:
+            if _shutdown_requested:
+                console.print("🛑 [yellow]Shutdown requested before extraction[/yellow]")
+                return {"total_records_extracted": 0, "run_id": "cancelled"}
+                
+            async with AsyncPNCPExtractor(concurrency=concurrency, force_db=force_db) as extractor:
+                results = await extractor.extract_data(start_dt, end_dt, force)
+                console.print(
+                    f"✅ Extraction completed: {results['total_records_extracted']:,} records"
+                )
+                return results
+        except KeyboardInterrupt:
+            console.print("🛑 [yellow]Extraction interrupted gracefully[/yellow]")
+            return {"total_records_extracted": 0, "run_id": "interrupted"}
+        except Exception as e:
+            if _shutdown_requested:
+                console.print("🛑 [yellow]Extraction shutdown during operation[/yellow]")
+                return {"total_records_extracted": 0, "run_id": "shutdown"}
+            else:
+                console.print(f"❌ [red]Extraction failed: {e}[/red]")
+                raise
 
-    extraction_results = asyncio.run(extract_data())
+    try:
+        extraction_results = asyncio.run(extract_data())
+        
+        # Check for shutdown after extraction
+        if _shutdown_requested:
+            console.print("🛑 [yellow]Pipeline stopped after extraction[/yellow]")
+            return
+            
+    except KeyboardInterrupt:
+        console.print("🛑 [yellow]Pipeline interrupted[/yellow]")
+        return
 
     # Step 2: Transform
-    if not skip_transform:
+    if not skip_transform and not _shutdown_requested:
         console.print("")
         console.print(
             "🔄 [bold yellow]Step 2: Transforming data with dbt[/bold yellow]"
@@ -338,14 +410,23 @@ def run(
         try:
             transformer.transform()
             console.print("✅ Transformation completed successfully")
+        except KeyboardInterrupt:
+            console.print("🛑 [yellow]Transform interrupted[/yellow]")
+            return
         except Exception as e:
-            console.print(f"⚠️ [yellow]Transform step failed: {e}[/yellow]")
-            console.print("Continuing to load step...")
+            if _shutdown_requested:
+                console.print("🛑 [yellow]Transform stopped due to shutdown[/yellow]")
+                return
+            else:
+                console.print(f"⚠️ [yellow]Transform step failed: {e}[/yellow]")
+                console.print("Continuing to load step...")
+    elif _shutdown_requested:
+        console.print("🛑 [yellow]Skipping transform due to shutdown[/yellow]")
     else:
         console.print("⏭️ [dim]Skipping transformation step[/dim]")
 
     # Step 3: Load
-    if not skip_load:
+    if not skip_load and not _shutdown_requested:
         console.print("")
         console.print(
             "📤 [bold cyan]Step 3: Loading data to Internet Archive[/bold cyan]"
@@ -353,13 +434,25 @@ def run(
         try:
             loader.load()
             console.print("✅ Load completed successfully")
+        except KeyboardInterrupt:
+            console.print("🛑 [yellow]Load interrupted[/yellow]")
+            return
         except Exception as e:
-            console.print(f"⚠️ [yellow]Load step failed: {e}[/yellow]")
+            if _shutdown_requested:
+                console.print("🛑 [yellow]Load stopped due to shutdown[/yellow]")
+                return
+            else:
+                console.print(f"⚠️ [yellow]Load step failed: {e}[/yellow]")
+    elif _shutdown_requested:
+        console.print("🛑 [yellow]Skipping load due to shutdown[/yellow]")
     else:
         console.print("⏭️ [dim]Skipping load step[/dim]")
 
     console.print("")
-    console.print("🎉 [bold green]ETL Pipeline completed![/bold green]")
+    if _shutdown_requested:
+        console.print("🛑 [yellow]ETL Pipeline stopped gracefully[/yellow]")
+    else:
+        console.print("🎉 [bold green]ETL Pipeline completed![/bold green]")
     console.print(
         f"📊 Total records processed: {extraction_results['total_records_extracted']:,}"
     )
@@ -389,10 +482,21 @@ def status():
 
 
 @app.command()
-def stats():
+def stats(
+    force_db: bool = typer.Option(
+        False, "--force-db", help="Force database connection by removing locks"
+    ),
+):
     """Show extraction statistics (legacy command)."""
     # Keep the original stats command for backward compatibility
-    conn = connect_utf8(str(BALIZA_DB_PATH))
+    if force_db:
+        # Remove lock file if exists
+        lock_file = Path(str(BALIZA_DB_PATH) + ".lock")
+        if lock_file.exists():
+            lock_file.unlink()
+            console.print("🔓 [yellow]Force mode: Removed database lock[/yellow]")
+    
+    conn = connect_utf8(str(BALIZA_DB_PATH), force=force_db)
 
     # Overall stats
     total_responses = conn.execute(

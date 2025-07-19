@@ -29,23 +29,40 @@ DATA_DIR = Path.cwd() / "data"
 BALIZA_DB_PATH = DATA_DIR / "baliza.duckdb"
 
 
-def connect_utf8(path: str) -> duckdb.DuckDBPyConnection:
+def connect_utf8(path: str, force: bool = False) -> duckdb.DuckDBPyConnection:
     """Connect to DuckDB with UTF-8 error handling."""
     try:
+        if force:
+            # Force mode: try read-only connection first
+            try:
+                return duckdb.connect(path, read_only=True)
+            except duckdb.Error:
+                # If read-only fails, try regular connection
+                pass
+        
         return duckdb.connect(path)
     except duckdb.Error as exc:
-        # DuckDB error - preserve original exception with clean message
-        error_msg = f"Database connection failed: {exc}"
-        raise RuntimeError(error_msg) from exc
+        if force and "lock" in str(exc).lower():
+            console.print("⚠️ [yellow]Database locked by another process, trying read-only access[/yellow]")
+            try:
+                return duckdb.connect(path, read_only=True)
+            except duckdb.Error as read_exc:
+                error_msg = f"Database connection failed even in read-only mode: {read_exc}"
+                raise RuntimeError(error_msg) from read_exc
+        else:
+            # DuckDB error - preserve original exception with clean message
+            error_msg = f"Database connection failed: {exc}"
+            raise RuntimeError(error_msg) from exc
 
 
 class PNCPWriter:
     """Handles writing PNCP data to DuckDB."""
 
-    def __init__(self):
+    def __init__(self, force_db: bool = False):
         self.conn: duckdb.DuckDBPyConnection | None = None
         self.db_lock: FileLock | None = None
         self.writer_running = False
+        self.force_db = force_db
 
     async def __aenter__(self):
         """Async context manager entry."""
@@ -54,6 +71,7 @@ class PNCPWriter:
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit with graceful cleanup."""
+        # Note: exc_type, exc_val, exc_tb are part of the context manager protocol
         if self.conn:
             try:
                 self.conn.commit()  # Commit any pending changes
@@ -66,16 +84,41 @@ class PNCPWriter:
                 self.db_lock.release()
             except (Timeout, RuntimeError) as lock_err:
                 logger.warning(f"Error releasing database lock: {lock_err}")
+        elif self.force_db:
+            # In force mode, try to clean up any lock file we might have created
+            try:
+                lock_file = Path(str(BALIZA_DB_PATH) + ".lock")
+                if lock_file.exists():
+                    lock_file.unlink()
+            except Exception as e:
+                logger.warning(f"Could not clean up lock file in force mode: {e}")
 
     def _init_database(self):
         """Initialize DuckDB with PSA schema."""
         DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-        self.db_lock = FileLock(str(BALIZA_DB_PATH) + ".lock")
-        try:
-            self.db_lock.acquire(timeout=0.5)
-        except Timeout:
-            raise RuntimeError("Outra instância está usando pncp_new.db")
+        # Handle file locking based on force_db flag
+        if self.force_db:
+            # Force mode: Remove existing lock file if it exists
+            lock_file = Path(str(BALIZA_DB_PATH) + ".lock")
+            if lock_file.exists():
+                lock_file.unlink()
+                console.print("🔓 [yellow]Force mode: Removed existing database lock[/yellow]")
+            
+            # Still create lock for this session but don't fail if can't acquire
+            self.db_lock = FileLock(str(BALIZA_DB_PATH) + ".lock")
+            try:
+                self.db_lock.acquire(timeout=0.1)
+            except Timeout:
+                console.print("⚠️ [yellow]Warning: Could not acquire lock in force mode, proceeding anyway[/yellow]")
+                self.db_lock = None
+        else:
+            # Normal mode: Respect existing locks
+            self.db_lock = FileLock(str(BALIZA_DB_PATH) + ".lock")
+            try:
+                self.db_lock.acquire(timeout=0.5)
+            except Timeout:
+                raise RuntimeError("Another instance is using the database. Use --force-db to override.")
 
         self.conn = connect_utf8(str(BALIZA_DB_PATH))
 

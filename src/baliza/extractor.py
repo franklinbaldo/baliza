@@ -57,12 +57,13 @@ logger = logging.getLogger(__name__)
 class AsyncPNCPExtractor:
     """True async PNCP extractor with semaphore back-pressure."""
 
-    def __init__(self, concurrency: int = settings.concurrency):
+    def __init__(self, concurrency: int = settings.concurrency, force_db: bool = False):
         self.concurrency = concurrency
         self.client = PNCPClient(concurrency=concurrency)
         self.task_planner = PNCPTaskPlanner()  # Instantiate the task planner
-        self.writer = PNCPWriter()  # Instantiate the writer
+        self.writer = PNCPWriter(force_db=force_db)  # Instantiate the writer
         self.run_id = str(uuid.uuid4())
+        self.force_db = force_db
 
         # Statistics
         self.total_requests = 0
