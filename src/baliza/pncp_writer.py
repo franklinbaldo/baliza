@@ -1,6 +1,7 @@
-"""PNCP Writer - DuckDB Single-Writer Architecture
+"""PNCP Writer - DuckDB Single-Writer Architecture with Split Tables
 
-Implements centralized write operations to DuckDB as specified in ADR-001.
+Implements centralized write operations to DuckDB as specified in ADR-001 and ADR-006.
+Uses split table architecture for content deduplication and optimized storage.
 Ensures single-writer constraint through file locking and centralized write operations.
 Manages raw data storage and task state tracking for the extraction pipeline.
 """
@@ -10,11 +11,13 @@ import json
 import logging
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import duckdb
 from filelock import FileLock, Timeout
 from rich.console import Console
+
+from .content_utils import analyze_content, is_empty_response
 
 logger = logging.getLogger(__name__)
 console = Console(force_terminal=True, legacy_windows=False, stderr=False)
@@ -81,7 +84,46 @@ class PNCPWriter:
         # Create PSA schema
         self.conn.execute("CREATE SCHEMA IF NOT EXISTS psa")
 
-        # Create raw responses table with ZSTD compression for response_content
+        # Create the split table architecture (ADR-006)
+        
+        # Table 1: Content storage with deduplication
+        self.conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS psa.pncp_content (
+                id UUID PRIMARY KEY, -- UUIDv5 based on content hash
+                response_content TEXT NOT NULL,
+                content_sha256 VARCHAR(64) NOT NULL UNIQUE, -- For integrity verification
+                content_size_bytes INTEGER,
+                first_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                reference_count INTEGER DEFAULT 1 -- How many requests reference this content
+            ) WITH (compression = "zstd")
+        """
+        )
+
+        # Table 2: Request metadata with foreign key to content
+        self.conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS psa.pncp_requests (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                extracted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                endpoint_url VARCHAR NOT NULL,
+                endpoint_name VARCHAR NOT NULL,
+                request_parameters JSON,
+                response_code INTEGER NOT NULL,
+                response_headers JSON,
+                data_date DATE,
+                run_id VARCHAR,
+                total_records INTEGER,
+                total_pages INTEGER,
+                current_page INTEGER,
+                page_size INTEGER,
+                content_id UUID REFERENCES psa.pncp_content(id) -- Foreign key to content
+            ) WITH (compression = "zstd")
+        """
+        )
+        
+        # Legacy table for backwards compatibility during migration
         self.conn.execute(
             """
             CREATE TABLE IF NOT EXISTS psa.pncp_raw_responses (
@@ -151,10 +193,17 @@ class PNCPWriter:
                 return True  # If we can't create test index, assume target exists
 
     def _create_indexes_if_not_exist(self):
-        """Create indexes only if they do not already exist."""
+        """Create indexes for split table architecture."""
         indexes_to_create = {
-            "idx_endpoint_date_page": "CREATE INDEX IF NOT EXISTS idx_endpoint_date_page ON psa.pncp_raw_responses(endpoint_name, data_date, current_page)",
-            "idx_response_code": "CREATE INDEX IF NOT EXISTS idx_response_code ON psa.pncp_raw_responses(response_code)",
+            # Indexes for new split tables
+            "idx_requests_endpoint_date_page": "CREATE INDEX IF NOT EXISTS idx_requests_endpoint_date_page ON psa.pncp_requests(endpoint_name, data_date, current_page)",
+            "idx_requests_response_code": "CREATE INDEX IF NOT EXISTS idx_requests_response_code ON psa.pncp_requests(response_code)",
+            "idx_requests_content_id": "CREATE INDEX IF NOT EXISTS idx_requests_content_id ON psa.pncp_requests(content_id)",
+            "idx_content_hash": "CREATE INDEX IF NOT EXISTS idx_content_hash ON psa.pncp_content(content_sha256)",
+            "idx_content_first_seen": "CREATE INDEX IF NOT EXISTS idx_content_first_seen ON psa.pncp_content(first_seen_at)",
+            # Legacy table indexes for backwards compatibility
+            "idx_legacy_endpoint_date_page": "CREATE INDEX IF NOT EXISTS idx_legacy_endpoint_date_page ON psa.pncp_raw_responses(endpoint_name, data_date, current_page)",
+            "idx_legacy_response_code": "CREATE INDEX IF NOT EXISTS idx_legacy_response_code ON psa.pncp_raw_responses(response_code)",
         }
 
         for idx_name, create_sql in indexes_to_create.items():
@@ -331,6 +380,137 @@ class PNCPWriter:
             logger.error(f"Batch store failed: {e}")
             raise
 
+    def _ensure_content_exists(self, content: str) -> str:
+        """Ensure content exists in psa.pncp_content table and return content_id.
+        
+        Uses content deduplication logic from ADR-006.
+        
+        Args:
+            content: Response content string
+            
+        Returns:
+            UUID string of the content record
+        """
+        if is_empty_response(content):
+            # For empty responses, create a special empty content record
+            content = ""
+        
+        # Analyze content to get ID and hash
+        content_id, content_hash, content_size = analyze_content(content)
+        
+        try:
+            # Try to find existing content by hash
+            existing = self.conn.execute(
+                "SELECT id, reference_count FROM psa.pncp_content WHERE content_sha256 = ?",
+                [content_hash]
+            ).fetchone()
+            
+            if existing:
+                # Content exists - increment reference count and update last_seen_at
+                self.conn.execute(
+                    """
+                    UPDATE psa.pncp_content 
+                    SET reference_count = reference_count + 1,
+                        last_seen_at = CURRENT_TIMESTAMP
+                    WHERE content_sha256 = ?
+                    """,
+                    [content_hash]
+                )
+                logger.debug(f"Content deduplicated: {content_id} (new ref count: {existing[1] + 1})")
+                return existing[0]  # Return existing content_id
+            else:
+                # New content - insert new record
+                self.conn.execute(
+                    """
+                    INSERT INTO psa.pncp_content 
+                    (id, response_content, content_sha256, content_size_bytes, reference_count)
+                    VALUES (?, ?, ?, ?, 1)
+                    """,
+                    [content_id, content, content_hash, content_size]
+                )
+                logger.debug(f"New content stored: {content_id} ({content_size} bytes)")
+                return content_id
+                
+        except duckdb.Error as e:
+            logger.error(f"Content storage failed for hash {content_hash}: {e}")
+            raise
+
+    def _store_request_with_content_id(self, page_data: dict, content_id: str) -> None:
+        """Store request metadata with reference to deduplicated content."""
+        try:
+            self.conn.execute(
+                """
+                INSERT INTO psa.pncp_requests (
+                    extracted_at, endpoint_url, endpoint_name, request_parameters,
+                    response_code, response_headers, data_date, run_id,
+                    total_records, total_pages, current_page, page_size, content_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    page_data.get("extracted_at"),
+                    page_data.get("endpoint_url"),
+                    page_data.get("endpoint_name"),
+                    json.dumps(page_data.get("request_parameters", {})),
+                    page_data.get("response_code"),
+                    json.dumps(page_data.get("response_headers", {})),
+                    page_data.get("data_date"),
+                    page_data.get("run_id"),
+                    page_data.get("total_records"),
+                    page_data.get("total_pages"),
+                    page_data.get("current_page"),
+                    page_data.get("page_size"),
+                    content_id
+                ]
+            )
+        except duckdb.Error as e:
+            logger.error(f"Request storage failed: {e}")
+            raise
+
+    def _batch_store_split_tables(self, pages: list[dict]) -> None:
+        """Store pages using split table architecture with content deduplication."""
+        for page_data in pages:
+            content = page_data.get("response_content", "")
+            
+            # Step 1: Ensure content exists and get content_id
+            content_id = self._ensure_content_exists(content)
+            
+            # Step 2: Store request metadata with content_id reference
+            self._store_request_with_content_id(page_data, content_id)
+            
+            # Step 3: Also store in legacy table for backwards compatibility
+            self._store_legacy_response(page_data)
+
+    def _store_legacy_response(self, page_data: dict) -> None:
+        """Store in legacy pncp_raw_responses table for backwards compatibility."""
+        try:
+            self.conn.execute(
+                """
+                INSERT INTO psa.pncp_raw_responses (
+                    extracted_at, endpoint_url, endpoint_name, request_parameters,
+                    response_code, response_content, response_headers, data_date, run_id,
+                    total_records, total_pages, current_page, page_size
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    page_data.get("extracted_at"),
+                    page_data.get("endpoint_url"),
+                    page_data.get("endpoint_name"),
+                    json.dumps(page_data.get("request_parameters", {})),
+                    page_data.get("response_code"),
+                    page_data.get("response_content", ""),
+                    json.dumps(page_data.get("response_headers", {})),
+                    page_data.get("data_date"),
+                    page_data.get("run_id"),
+                    page_data.get("total_records"),
+                    page_data.get("total_pages"),
+                    page_data.get("current_page"),
+                    page_data.get("page_size")
+                ]
+            )
+        except duckdb.Error as e:
+            logger.error(f"Legacy response storage failed: {e}")
+            raise
+
     async def writer_worker(
         self, page_queue: asyncio.Queue, commit_every: int = 75
     ) -> None:
@@ -357,7 +537,7 @@ class PNCPWriter:
 
                 # Flush buffer every commit_every pages
                 if counter % commit_every == 0 and batch_buffer:
-                    self._batch_store_responses(batch_buffer)
+                    self._batch_store_split_tables(batch_buffer)  # Use new split table logic
                     self.conn.commit()
                     batch_buffer.clear()
 
@@ -371,7 +551,7 @@ class PNCPWriter:
 
         # Flush any remaining items
         if batch_buffer:
-            self._batch_store_responses(batch_buffer)
+            self._batch_store_split_tables(batch_buffer)  # Use new split table logic
             self.conn.commit()
 
         self.writer_running = False
