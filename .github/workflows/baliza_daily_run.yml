@@ -1,144 +1,65 @@
-name: Baliza Daily Data Fetch & Upload
+name: BALIZA Daily Pipeline (DEPRECATED)
+
+# NOTE: This workflow is deprecated in favor of etl_pipeline.yml
+# It's kept for reference but should not be used for new runs
 
 on:
-  workflow_dispatch: # Allows manual triggering
-  schedule:
-    # Runs at 02:15 BRT (America/Sao_Paulo time), which is 05:15 UTC.
-    - cron: '15 5 * * *'
+  # Disabled scheduled runs - use etl_pipeline.yml instead
+  # schedule:
+  #   - cron: '15 5 * * *'
+  workflow_dispatch:
+    inputs:
+      migrate_to_new_pipeline:
+        description: 'Use this to migrate to the new ETL pipeline workflow'
+        required: false
+        default: true
+        type: boolean
 
 jobs:
-  fetch_and_upload_pncp_data:
+  migration_notice:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-
+    
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-
-      - name: Install Baliza and dependencies
+      - name: Migration Notice
         run: |
-          pip install .
-          pip install internetarchive duckdb
-        shell: bash
+          echo "⚠️ This workflow is DEPRECATED"
+          echo "Please use the new 'BALIZA ETL Pipeline' workflow instead:"
+          echo "- Go to Actions → BALIZA ETL Pipeline"
+          echo "- Or use: gh workflow run etl_pipeline.yml"
+          echo ""
+          echo "The new workflow provides:"
+          echo "✅ Simpler configuration with 'baliza run' command"
+          echo "✅ Better error handling and recovery"
+          echo "✅ Configurable concurrency and force options"
+          echo "✅ Cleaner artifact management"
+          echo ""
+          if [ "${{ github.event.inputs.migrate_to_new_pipeline }}" = "true" ]; then
+            echo "🔄 Triggering new ETL pipeline workflow..."
+            exit 0
+          else
+            echo "❌ Stopping execution - please use the new workflow"
+            exit 1
+          fi
 
-      - name: Run Baliza extract for recent data
-        id: baliza_run
-        timeout-minutes: 120
-        run: |
-          echo "Running baliza extract for the last 2 days..."
-          baliza extract --start-date $(date -d "yesterday" +%Y-%m-%d) --end-date $(date +%Y-%m-%d)
-        shell: bash
-
-      - name: Export new data to Parquet
-        id: export_parquet
-        run: |
-          mkdir -p data/parquet
-          python scripts/export_to_parquet.py
-        shell: bash
-
-      - name: Configure Internet Archive CLI
-        env:
-          IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
-          IA_SECRET_KEY: ${{ secrets.IA_SECRET_KEY }}
-        run: |
-          ia configure --access ${{ secrets.IA_ACCESS_KEY }} --secret ${{ secrets.IA_SECRET_KEY }}
-        shell: bash
-
-      - name: Upload new Parquet data to Internet Archive
-        env:
-          IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
-          IA_SECRET_KEY: ${{ secrets.IA_SECRET_KEY }}
-        run: |
-          IA_IDENTIFIER="baliza-pncp-parquet"
-          ia upload $IA_IDENTIFIER data/parquet/ \
-            --metadata="title:Dados do PNCP em Formato Parquet (Particionado)" \
-            --metadata="description:Backup diário e particionado dos dados do Portal Nacional de Contratações Públicas (PNCP), extraídos pelo projeto BALIZA." \
-            --metadata="collection:opensource" \
-            --metadata="creator:BALIZA Project" \
-            --retries=3 --verbose
-        shell: bash
-
-      - name: Upload database as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: baliza-database
-          path: data/baliza.duckdb
-          retention-days: 1
-
-  build_coverage_data:
-    needs: fetch_and_upload_pncp_data
+  trigger_new_pipeline:
+    needs: migration_notice
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-
+    if: github.event.inputs.migrate_to_new_pipeline == 'true'
+    
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download database artifact
-        uses: actions/download-artifact@v4
+      - name: Trigger new ETL Pipeline
+        uses: actions/github-script@v7
         with:
-          name: baliza-database
-          path: data/
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-
-      - name: Install dependencies
-        run: |
-          pip install .[analytics]
-        shell: bash
-
-      - name: Run DBT coverage analysis
-        run: |
-          # The dbt project is configured to use the DB at 'data/baliza.duckdb'
-          dbt run --project-dir dbt_baliza --profiles-dir dbt_baliza
-        shell: bash
-
-      - name: Upload coverage data artifacts
-        # This step needs to be adapted to the new dbt project structure
-        # For now, we assume it works as intended
-        run: echo "Skipping coverage artifact upload for now"
-
-
-  deploy_pages:
-    needs: [fetch_and_upload_pncp_data, build_coverage_data]
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download coverage data
-        uses: actions/download-artifact@v4
-        with:
-          name: coverage-data
-          path: site/data/
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: './docs'
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'etl_pipeline.yml',
+              ref: 'main',
+              inputs: {
+                force_extraction: 'false',
+                concurrency: '4'
+              }
+            });
+            
+            console.log('✅ Successfully triggered new ETL Pipeline workflow');

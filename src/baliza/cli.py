@@ -68,6 +68,75 @@ def load():
 
 
 @app.command()
+def run(
+    concurrency: int = typer.Option(
+        settings.concurrency, help="Number of concurrent requests"
+    ),
+    force: bool = typer.Option(
+        False, "--force", help="Force re-extraction even if data exists"
+    ),
+    skip_transform: bool = typer.Option(
+        False, "--skip-transform", help="Skip dbt transformation step"
+    ),
+    skip_load: bool = typer.Option(
+        False, "--skip-load", help="Skip Internet Archive upload step"
+    ),
+):
+    """
+    Run complete ETL pipeline: Extract → Transform → Load.
+    
+    This command executes the full BALIZA pipeline:
+    1. Extract data from PNCP API
+    2. Transform data with dbt models 
+    3. Load data to Internet Archive
+    """
+    console.print("🚀 [bold blue]Starting BALIZA ETL Pipeline[/bold blue]")
+    console.print("")
+    
+    # Step 1: Extract
+    console.print("📥 [bold green]Step 1: Extracting data from PNCP API[/bold green]")
+    start_dt = date(2021, 1, 1)
+    end_dt = date.today()
+
+    async def extract_data():
+        async with AsyncPNCPExtractor(concurrency=concurrency) as extractor:
+            results = await extractor.extract_data(start_dt, end_dt, force)
+            console.print(f"✅ Extraction completed: {results['total_records_extracted']:,} records")
+            return results
+
+    extraction_results = asyncio.run(extract_data())
+    
+    # Step 2: Transform  
+    if not skip_transform:
+        console.print("")
+        console.print("🔄 [bold yellow]Step 2: Transforming data with dbt[/bold yellow]")
+        try:
+            transformer.transform()
+            console.print("✅ Transformation completed successfully")
+        except Exception as e:
+            console.print(f"⚠️ [yellow]Transform step failed: {e}[/yellow]")
+            console.print("Continuing to load step...")
+    else:
+        console.print("⏭️ [dim]Skipping transformation step[/dim]")
+    
+    # Step 3: Load
+    if not skip_load:
+        console.print("")
+        console.print("📤 [bold cyan]Step 3: Loading data to Internet Archive[/bold cyan]")
+        try:
+            loader.load()
+            console.print("✅ Load completed successfully")
+        except Exception as e:
+            console.print(f"⚠️ [yellow]Load step failed: {e}[/yellow]")
+    else:
+        console.print("⏭️ [dim]Skipping load step[/dim]")
+    
+    console.print("")
+    console.print("🎉 [bold green]ETL Pipeline completed![/bold green]")
+    console.print(f"📊 Total records processed: {extraction_results['total_records_extracted']:,}")
+
+
+@app.command()
 def mcp(
     host: str = typer.Option("127.0.0.1", help="The host to bind the MCP server to."),
     port: int = typer.Option(8000, help="The port to run the MCP server on."),

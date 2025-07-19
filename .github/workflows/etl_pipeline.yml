@@ -1,0 +1,129 @@
+name: BALIZA ETL Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      force_extraction:
+        description: 'Force re-extraction even if data exists'
+        required: false
+        default: false
+        type: boolean
+      concurrency:
+        description: 'Number of concurrent requests'
+        required: false
+        default: 4
+        type: number
+  schedule:
+    # Run daily at 02:15 BRT (05:15 UTC)
+    - cron: '15 5 * * *'
+
+jobs:
+  etl_pipeline:
+    name: Extract Transform Load
+    runs-on: ubuntu-latest
+    timeout-minutes: 180  # 3 hours max
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras
+
+      - name: Configure Internet Archive credentials
+        env:
+          IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
+          IA_SECRET_KEY: ${{ secrets.IA_SECRET_KEY }}
+        run: |
+          echo "BALIZA_IA_ACCESS_KEY=$IA_ACCESS_KEY" >> $GITHUB_ENV
+          echo "BALIZA_IA_SECRET_KEY=$IA_SECRET_KEY" >> $GITHUB_ENV
+
+      - name: Run BALIZA ETL Pipeline
+        run: |
+          # Run the complete pipeline with appropriate settings
+          FORCE_FLAG=""
+          if [ "${{ github.event.inputs.force_extraction }}" = "true" ]; then
+            FORCE_FLAG="--force"
+          fi
+          
+          CONCURRENCY="${{ github.event.inputs.concurrency || 4 }}"
+          
+          echo "🚀 Starting BALIZA ETL Pipeline"
+          echo "Settings: concurrency=$CONCURRENCY, force=${{ github.event.inputs.force_extraction }}"
+          
+          uv run baliza run --concurrency $CONCURRENCY $FORCE_FLAG
+
+      - name: Upload database artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: baliza-database-${{ github.run_number }}
+          path: data/baliza.duckdb
+          retention-days: 7
+
+      - name: Upload extraction logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: extraction-logs-${{ github.run_number }}
+          path: data/async_extraction_results_*.json
+          retention-days: 7
+
+      - name: Generate run summary
+        if: always()
+        run: |
+          echo "## BALIZA ETL Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Run Details:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Date: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "- Concurrency: ${{ github.event.inputs.concurrency || 4 }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Force extraction: ${{ github.event.inputs.force_extraction || false }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -f data/baliza.duckdb ]; then
+            echo "✅ **Database created successfully**" >> $GITHUB_STEP_SUMMARY
+            
+            # Get database stats if possible
+            if command -v uv &> /dev/null; then
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "**Database Statistics:**" >> $GITHUB_STEP_SUMMARY
+              uv run baliza stats >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "Could not retrieve stats" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "❌ **Database not found - pipeline may have failed**" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  notify_completion:
+    name: Notify Completion
+    needs: etl_pipeline
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Create completion issue comment
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pipelineResult = '${{ needs.etl_pipeline.result }}';
+            const emoji = pipelineResult === 'success' ? '✅' : '❌';
+            const status = pipelineResult === 'success' ? 'COMPLETED' : 'FAILED';
+            
+            const body = `${emoji} **BALIZA ETL Pipeline ${status}**
+            
+            **Run Details:**
+            - Workflow: ${{ github.workflow }}
+            - Run ID: ${{ github.run_id }}
+            - Concurrency: ${{ github.event.inputs.concurrency || 4 }}
+            - Force extraction: ${{ github.event.inputs.force_extraction || false }}
+            - Result: ${pipelineResult}
+            
+            [View full run details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})`;
+            
+            console.log('ETL Pipeline notification:', body);
