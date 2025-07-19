@@ -125,9 +125,11 @@ class PNCPClient:
             # Handle failures
             if response.status_code == 429:
                 # Rate limit hit - raise exception to trigger retry with backoff
-                logger.warning(f"Rate limit hit (429) for {url}, will retry with backoff")
+                logger.warning(
+                    f"Rate limit hit (429) for {url}, will retry with backoff"
+                )
                 response.raise_for_status()
-                
+
             if 400 <= response.status_code < 500:
                 # Don't retry other client errors (but do retry 429 above)
                 return {

@@ -17,11 +17,15 @@ class Settings(BaseSettings):
         pncp_endpoints (list): A list of dictionaries defining the PNCP API endpoints to query.
     """
 
-    model_config = SettingsConfigDict(env_prefix="BALIZA_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="BALIZA_", env_file=".env", extra="ignore"
+    )
 
     pncp_base_url: str = "https://pncp.gov.br/api/consulta"
     concurrency: int = 8  # Optimal based on stress testing - PNCP handles this well
-    rate_limit_delay: float = 0.0  # No delay needed - PNCP API is more tolerant than expected
+    rate_limit_delay: float = (
+        0.0  # No delay needed - PNCP API is more tolerant than expected
+    )
     page_size: int = 500
     request_timeout: int = 30
     user_agent: str = "BALIZA/3.0 (Backup Aberto de Licitacoes)"
