@@ -183,7 +183,7 @@ async def test_e2e_mcp_complex_query():
 
     # Test complex query with JOINs and aggregations
     query = """
-    SELECT 
+    SELECT
         t.endpoint_name,
         COUNT(*) as task_count,
         SUM(CASE WHEN t.status = 'COMPLETE' THEN 1 ELSE 0 END) as completed_tasks,

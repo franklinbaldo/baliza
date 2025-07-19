@@ -375,7 +375,7 @@ class PNCPWriter:
             self.conn.execute("COMMIT")
         except duckdb.Error as e:
             self.conn.execute("ROLLBACK")
-            logger.error(f"Batch store failed: {e}")
+            logger.exception(f"Batch store failed: {e}")
             raise
 
     def _ensure_content_exists(self, content: str) -> str:
@@ -407,7 +407,7 @@ class PNCPWriter:
                 # Content exists - increment reference count and update last_seen_at
                 self.conn.execute(
                     """
-                    UPDATE psa.pncp_content 
+                    UPDATE psa.pncp_content
                     SET reference_count = reference_count + 1,
                         last_seen_at = CURRENT_TIMESTAMP
                     WHERE content_sha256 = ?
@@ -422,7 +422,7 @@ class PNCPWriter:
                 # New content - insert new record
                 self.conn.execute(
                     """
-                    INSERT INTO psa.pncp_content 
+                    INSERT INTO psa.pncp_content
                     (id, response_content, content_sha256, content_size_bytes, reference_count)
                     VALUES (?, ?, ?, ?, 1)
                     """,
@@ -432,7 +432,7 @@ class PNCPWriter:
                 return content_id
 
         except duckdb.Error as e:
-            logger.error(f"Content storage failed for hash {content_hash}: {e}")
+            logger.exception(f"Content storage failed for hash {content_hash}: {e}")
             raise
 
     def _store_request_with_content_id(self, page_data: dict, content_id: str) -> None:
@@ -463,7 +463,7 @@ class PNCPWriter:
                 ],
             )
         except duckdb.Error as e:
-            logger.error(f"Request storage failed: {e}")
+            logger.exception(f"Request storage failed: {e}")
             raise
 
     def _batch_store_split_tables(self, pages: list[dict]) -> None:
@@ -508,7 +508,7 @@ class PNCPWriter:
                 ],
             )
         except duckdb.Error as e:
-            logger.error(f"Legacy response storage failed: {e}")
+            logger.exception(f"Legacy response storage failed: {e}")
             raise
 
     async def writer_worker(

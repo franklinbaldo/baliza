@@ -123,9 +123,9 @@ class DatabasePruner:
 
             # Get table information
             tables = self.conn.execute("""
-                SELECT table_schema, table_name, 
+                SELECT table_schema, table_name,
                        (SELECT COUNT(*) FROM information_schema.columns WHERE table_name = t.table_name AND table_schema = t.table_schema) as column_count
-                FROM information_schema.tables t 
+                FROM information_schema.tables t
                 WHERE table_schema = 'psa'
                 ORDER BY table_name
             """).fetchall()
@@ -146,7 +146,7 @@ class DatabasePruner:
                     if table_name == "pncp_content":
                         # Analyze content deduplication
                         stats = self.conn.execute("""
-                            SELECT 
+                            SELECT
                                 COUNT(*) as total_content,
                                 SUM(reference_count) as total_references,
                                 COUNT(CASE WHEN reference_count = 1 THEN 1 END) as unique_content,
@@ -171,7 +171,7 @@ class DatabasePruner:
 
                         # Find potentially orphaned content (no references)
                         orphaned = self.conn.execute("""
-                            SELECT COUNT(*) 
+                            SELECT COUNT(*)
                             FROM psa.pncp_content c
                             LEFT JOIN psa.pncp_requests r ON c.id = r.content_id
                             WHERE r.content_id IS NULL
@@ -182,7 +182,7 @@ class DatabasePruner:
                     elif table_name == "pncp_requests":
                         # Analyze request age distribution
                         age_stats = self.conn.execute("""
-                            SELECT 
+                            SELECT
                                 COUNT(CASE WHEN extracted_at > (CURRENT_TIMESTAMP - INTERVAL '7 days') THEN 1 END) as last_week,
                                 COUNT(CASE WHEN extracted_at > (CURRENT_TIMESTAMP - INTERVAL '30 days') THEN 1 END) as last_month,
                                 COUNT(CASE WHEN extracted_at > (CURRENT_TIMESTAMP - INTERVAL '90 days') THEN 1 END) as last_quarter,
@@ -546,8 +546,8 @@ class DatabasePruner:
         console.print()
 
         # Analysis phase
-        file_analysis = self.analyze_current_state()
-        content_analysis = self.analyze_database_content()
+        self.analyze_current_state()
+        self.analyze_database_content()
         console.print()
 
         # Pruning phase

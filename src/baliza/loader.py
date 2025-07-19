@@ -41,12 +41,12 @@ def upload_to_internet_archive():
     upload(
         identifier,
         files=[str(f) for f in PARQUET_DIR.glob("*.parquet")],
-        metadata=dict(
-            title=f"BALIZA - Dados de Contratações Públicas do Brasil - {item.metadata['updatedate']}",
-            description="Backup Aberto de Licitações Zelando pelo Acesso (BALIZA) - Dados extraídos do Portal Nacional de Contratações Públicas (PNCP) e transformados em formato analítico.",
-            creator="BALIZA",
-            subject=["Brazil", "government procurement", "public contracts", "PNCP"],
-        ),
+        metadata={
+            "title": f"BALIZA - Dados de Contratações Públicas do Brasil - {item.metadata['updatedate']}",
+            "description": "Backup Aberto de Licitações Zelando pelo Acesso (BALIZA) - Dados extraídos do Portal Nacional de Contratações Públicas (PNCP) e transformados em formato analítico.",
+            "creator": "BALIZA",
+            "subject": ["Brazil", "government procurement", "public contracts", "PNCP"],
+        },
         access_key=settings.ia_access_key,
         secret_key=settings.ia_secret_key,
     )

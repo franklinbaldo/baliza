@@ -4,6 +4,7 @@ Implements consistent colors, typography, icons, and styling across the CLI.
 """
 
 from dataclasses import dataclass
+from typing import ClassVar
 
 from rich.console import Console
 from rich.theme import Theme
@@ -14,7 +15,7 @@ class BalızaTheme:
     """BALIZA design system with colors, icons, and styling standards."""
 
     # Color Palette
-    COLORS = {
+    COLORS: ClassVar = {
         # Primary Colors
         "primary": "#3B82F6",  # Blue - Information, progress
         "success": "#10B981",  # Green - Success, completion
@@ -34,7 +35,7 @@ class BalızaTheme:
     }
 
     # Icon Mappings
-    ICONS = {
+    ICONS: ClassVar = {
         # Data & Analytics
         "data": "📊",
         "analytics": "📈",

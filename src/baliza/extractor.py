@@ -12,6 +12,7 @@ Architecture:
 
 import asyncio
 import calendar
+import contextlib
 import json
 import logging
 import re
@@ -531,7 +532,7 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
             console.print("⚠️ [yellow]Page fetch cancelled during shutdown[/yellow]")
             raise
         except Exception as e:
-            logger.error(
+            logger.exception(
                 f"Failed to fetch page {page_number} for {endpoint_name} {data_date} modalidade {modalidade}: {e}"
             )
             progress.update(
@@ -659,10 +660,8 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
             # Ensure writer task is cancelled
             if not writer_task.done():
                 writer_task.cancel()
-                try:
+                with contextlib.suppress(asyncio.CancelledError):
                     await writer_task
-                except asyncio.CancelledError:
-                    pass
         finally:
             self.running_tasks.discard(writer_task)
 
@@ -731,7 +730,7 @@ app = typer.Typer()
 @app.command()
 def extract(
     start_date: str = "2021-01-01",
-    end_date: str = None,
+    end_date: str | None = None,
     concurrency: int = settings.concurrency,
     force: bool = False,
 ):

@@ -20,7 +20,7 @@ def parse_json_robust(content: str) -> Any:
         try:
             return json.loads(content)
         except json.JSONDecodeError as e:
-            logger.error(
+            logger.exception(
                 f"Failed to parse JSON with both orjson and standard json: {e}"
             )
             raise

@@ -61,7 +61,6 @@ def test_e2e_cli_extract_help():
 )
 def test_e2e_cli_extract_single_day():
     """E2E test: Verify CLI extract command works for single day"""
-    test_date = "2024-01-18"
 
     result = subprocess.run(
         ["uv", "run", "baliza", "extract", "--concurrency", "1", "--force"],

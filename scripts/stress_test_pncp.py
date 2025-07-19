@@ -123,7 +123,7 @@ class PNCPStressTester:
                             result = await task
                             results.append(result)
                         except Exception as e:
-                            logger.error(f"Task error: {e}")
+                            logger.exception(f"Task error: {e}")
                         tasks.remove(task)
 
             # Wait for remaining tasks with timeout
@@ -210,7 +210,7 @@ class PNCPStressTester:
         requests_per_second = total_requests / duration if duration > 0 else 0.0
 
         # Collect unique errors
-        errors = list(set(r["error"] for r in results if r["error"]))
+        errors = list({r["error"] for r in results if r["error"]})
 
         return TestResult(
             concurrency=config.concurrency,

@@ -65,7 +65,7 @@ async def _dataset_schema_logic(dataset_name: str, base_dir: str | None = None) 
     except FileNotFoundError:
         return json.dumps({"error": f"Dataset '{dataset_name}' not found."})
     except Exception as e:
-        logger.error(f"Path resolution error for {dataset_name}: {e}")
+        logger.exception(f"Path resolution error for {dataset_name}: {e}")
         return json.dumps({"error": "Invalid dataset name."})
 
     try:
@@ -76,7 +76,7 @@ async def _dataset_schema_logic(dataset_name: str, base_dir: str | None = None) 
         ).fetchdf()
         return schema.to_json(orient="records")
     except duckdb.Error as e:
-        logger.error(f"Failed to get schema for {dataset_name}: {e}")
+        logger.exception(f"Failed to get schema for {dataset_name}: {e}")
         return json.dumps({"error": str(e)})
 
 
@@ -122,7 +122,9 @@ async def _execute_sql_query_logic(query: str, base_dir: str | None = None) -> s
                     logger.warning(f"Parquet path not found: {full_parquet_path}")
                     continue  # Skip if file does not exist
                 except Exception as e:
-                    logger.error(f"Path resolution error for {full_parquet_path}: {e}")
+                    logger.exception(
+                        f"Path resolution error for {full_parquet_path}: {e}"
+                    )
                     continue  # Skip on other path errors
 
                 # Create a view for each logical table using read_parquet with glob
@@ -134,7 +136,7 @@ async def _execute_sql_query_logic(query: str, base_dir: str | None = None) -> s
         return result.to_json(orient="records")
 
     except duckdb.Error as e:
-        logger.error(f"Query failed: {query} - {e}")
+        logger.exception(f"Query failed: {query} - {e}")
         return json.dumps({"error": f"Query failed: {e!s}"})
 
 

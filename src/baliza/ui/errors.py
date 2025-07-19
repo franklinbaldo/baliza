@@ -75,7 +75,7 @@ class ErrorHandler:
         ) as progress:
             task = progress.add_task("backoff", total=backoff_time)
 
-            for i in range(backoff_time):
+            for _i in range(backoff_time):
                 time.sleep(1)
                 progress.update(task, advance=1)
 
@@ -86,7 +86,7 @@ class ErrorHandler:
         return True
 
     def handle_api_error(
-        self, error: Exception, endpoint: str, context: dict[str, Any] | None = None
+        self, error: Exception, _endpoint: str, context: dict[str, Any] | None = None
     ) -> None:
         """Handle general API errors with context and suggestions."""
 

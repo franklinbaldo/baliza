@@ -271,7 +271,7 @@ class Dashboard:
 
                 # Deduplication stats
                 dedup_stats = conn.execute("""
-                    SELECT 
+                    SELECT
                         SUM(content_size_bytes) as actual_size,
                         SUM(content_size_bytes * reference_count) as theoretical_size
                     FROM psa.pncp_content
@@ -376,7 +376,7 @@ class Dashboard:
 
                 # Deduplication analysis
                 dedup_stats = conn.execute("""
-                    SELECT 
+                    SELECT
                         COUNT(*) as unique_content,
                         SUM(reference_count) as total_references,
                         COUNT(CASE WHEN reference_count > 1 THEN 1 END) as deduplicated

@@ -93,15 +93,15 @@ class SplitTableMigrator:
 
         # Get content size distribution
         size_stats = self.conn.execute(f"""
-            SELECT 
+            SELECT
                 COUNT(*) as total_records,
                 COUNT(DISTINCT response_content) as unique_content,
                 SUM(LENGTH(response_content)) as total_content_size,
                 AVG(LENGTH(response_content)) as avg_content_size,
                 COUNT(CASE WHEN response_content = '' OR response_content IS NULL THEN 1 END) as empty_responses
             FROM (
-                SELECT response_content 
-                FROM psa.pncp_raw_responses 
+                SELECT response_content
+                FROM psa.pncp_raw_responses
                 LIMIT {sample_size}
             )
         """).fetchone()
@@ -136,8 +136,8 @@ class SplitTableMigrator:
         # The split tables should already exist from the new schema
         # Just verify they exist
         tables_exist = self.conn.execute("""
-            SELECT COUNT(*) FROM information_schema.tables 
-            WHERE table_schema = 'psa' 
+            SELECT COUNT(*) FROM information_schema.tables
+            WHERE table_schema = 'psa'
             AND table_name IN ('pncp_content', 'pncp_requests')
         """).fetchone()[0]
 
@@ -161,7 +161,7 @@ class SplitTableMigrator:
 
         # Get batch of legacy records
         legacy_records = self.conn.execute(f"""
-            SELECT 
+            SELECT
                 id, extracted_at, endpoint_url, endpoint_name, request_parameters,
                 response_code, response_content, response_headers, data_date, run_id,
                 total_records, total_pages, current_page, page_size
@@ -216,7 +216,7 @@ class SplitTableMigrator:
                     if not self.dry_run:
                         self.conn.execute(
                             """
-                            UPDATE psa.pncp_content 
+                            UPDATE psa.pncp_content
                             SET reference_count = reference_count + 1,
                                 last_seen_at = CURRENT_TIMESTAMP
                             WHERE content_sha256 = ?
@@ -229,7 +229,7 @@ class SplitTableMigrator:
                     if not self.dry_run:
                         self.conn.execute(
                             """
-                            INSERT INTO psa.pncp_content 
+                            INSERT INTO psa.pncp_content
                             (id, response_content, content_sha256, content_size_bytes, reference_count)
                             VALUES (?, ?, ?, ?, 1)
                             """,
@@ -289,7 +289,7 @@ class SplitTableMigrator:
             return False
 
         # Analyze existing data
-        estimated_savings = self.analyze_existing_data()
+        self.analyze_existing_data()
         console.print()
 
         # Create/verify tables
@@ -381,7 +381,7 @@ class SplitTableMigrator:
             # Calculate actual storage metrics
             try:
                 final_stats = self.conn.execute("""
-                    SELECT 
+                    SELECT
                         COUNT(*) as content_count,
                         SUM(content_size_bytes) as total_content_size,
                         SUM(content_size_bytes * reference_count) as theoretical_size

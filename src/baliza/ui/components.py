@@ -74,7 +74,7 @@ def create_table(
     for row in rows:
         formatted_row = []
         for cell in row:
-            if isinstance(cell, (int, float)):
+            if isinstance(cell, int | float):
                 formatted_row.append(format_number(cell))
             elif isinstance(cell, str) and cell.lower() in [
                 "success",
@@ -225,12 +225,9 @@ def create_info_panel(
     content: str, title: str | None = None, icon: str | None = None, style: str = "info"
 ) -> Panel:
     """Create an informational panel with icon and styling."""
-    theme = get_theme()
+    get_theme()
 
-    if icon:
-        formatted_content = f"{icon} {content}"
-    else:
-        formatted_content = content
+    formatted_content = f"{icon} {content}" if icon else content
 
     return Panel(formatted_content, title=title, border_style=style, box=ROUNDED)
 
@@ -243,11 +240,11 @@ def create_quick_stats(stats: dict[str, Any]) -> Table:
 
     for key, value in stats.items():
         # Format value based on type
-        if isinstance(value, (int, float)) and "size" in key.lower():
+        if isinstance(value, int | float) and "size" in key.lower():
             formatted_value = format_file_size(int(value))
-        elif isinstance(value, (int, float)) and "percent" in key.lower():
+        elif isinstance(value, int | float) and "percent" in key.lower():
             formatted_value = f"[percentage]{value:.1f}%[/percentage]"
-        elif isinstance(value, (int, float)):
+        elif isinstance(value, int | float):
             formatted_value = format_number(value)
         elif isinstance(value, str) and value.lower() in [
             "success",

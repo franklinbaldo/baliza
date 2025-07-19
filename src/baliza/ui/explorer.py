@@ -412,7 +412,7 @@ class DataExplorer:
 
             # Get deduplication stats
             dedup_stats = self.conn.execute("""
-                SELECT 
+                SELECT
                     COUNT(*) as unique_content,
                     SUM(reference_count) as total_references,
                     COUNT(CASE WHEN reference_count > 1 THEN 1 END) as deduplicated,
@@ -467,7 +467,7 @@ class DataExplorer:
 
             # Deduplication analysis
             dedup_stats = self.conn.execute("""
-                SELECT 
+                SELECT
                     COUNT(*) as total_content,
                     COUNT(CASE WHEN reference_count > 1 THEN 1 END) as deduplicated,
                     SUM(content_size_bytes) as actual_size,
@@ -518,7 +518,7 @@ class DataExplorer:
         """Get statistics by endpoint."""
         try:
             endpoint_data = self.conn.execute("""
-                SELECT 
+                SELECT
                     endpoint_name,
                     COUNT(*) as total_requests,
                     COUNT(CASE WHEN response_code = 200 THEN 1 END) as successful_requests
@@ -529,7 +529,7 @@ class DataExplorer:
 
             result = []
             for endpoint, total, successful in endpoint_data:
-                success_rate = (successful / total * 100) if total > 0 else 0
+                (successful / total * 100) if total > 0 else 0
                 result.append(
                     [
                         endpoint,
