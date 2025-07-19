@@ -95,12 +95,14 @@ class PNCPClient:
         except httpx.RequestError as e:
             logger.exception(f"HTTP/2 verification failed: {e}")
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential_jitter())
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential_jitter(initial=1, max=30))
     async def fetch_with_backpressure(
         self, url: str, params: dict[str, Any], task_id: str | None = None
     ) -> dict[str, Any]:
         """Fetch with semaphore back-pressure and retry logic."""
         async with self.semaphore:
+            # Rate limiting: add configurable delay between requests to respect API limits
+            await asyncio.sleep(settings.rate_limit_delay)
             response = await self.client.get(url, params=params)
 
             # Common success data
@@ -121,8 +123,13 @@ class PNCPClient:
                 }
 
             # Handle failures
+            if response.status_code == 429:
+                # Rate limit hit - raise exception to trigger retry with backoff
+                logger.warning(f"Rate limit hit (429) for {url}, will retry with backoff")
+                response.raise_for_status()
+                
             if 400 <= response.status_code < 500:
-                # Don't retry client errors
+                # Don't retry other client errors (but do retry 429 above)
                 return {
                     "success": False,
                     "status_code": response.status_code,

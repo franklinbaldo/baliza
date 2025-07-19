@@ -20,7 +20,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="BALIZA_", env_file=".env")
 
     pncp_base_url: str = "https://pncp.gov.br/api/consulta"
-    concurrency: int = 8
+    concurrency: int = 2  # Reduced from 8 to respect API rate limits
+    rate_limit_delay: float = 0.5  # Delay in seconds between requests
     page_size: int = 500
     request_timeout: int = 30
     user_agent: str = "BALIZA/3.0 (Backup Aberto de Licitacoes)"
