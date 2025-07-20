@@ -20,6 +20,21 @@ clean-targets:
 # Configuring models
 models:
   dbt_baliza:
+    # Planning layer - Task planning for dbt-driven extraction
+    planning:
+      +materialized: table
+      +schema: planning
+    
+    # Runtime layer - Execution tracking (read-only from dbt perspective)
+    runtime:
+      +materialized: view
+      +schema: runtime
+    
+    # Analytics layer - Monitoring and reporting views
+    analytics:
+      +materialized: view
+      +schema: analytics
+    
     # Bronze layer - Incremental by default for performance
     bronze:
       +materialized: incremental

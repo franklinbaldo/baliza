@@ -105,8 +105,8 @@ class PNCPClient:
             await asyncio.sleep(settings.rate_limit_delay)
             response = await self.client.get(url, params=params)
 
-            # Common success data
-            if response.status_code in [200, 204]:
+            # Common success data - treat 404 like 204 (no data found)
+            if response.status_code in [200, 204, 404]:
                 content_text = response.text
                 data = parse_json_robust(content_text) if content_text else {}
                 return {
@@ -130,8 +130,8 @@ class PNCPClient:
                 )
                 response.raise_for_status()
 
-            if 400 <= response.status_code < 500:
-                # Don't retry other client errors (but do retry 429 above)
+            if 400 <= response.status_code < 500 and response.status_code != 404:
+                # Don't retry other client errors (but do retry 429 above, and 404 is handled as success)
                 return {
                     "success": False,
                     "status_code": response.status_code,

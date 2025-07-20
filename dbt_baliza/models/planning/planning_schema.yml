@@ -1,0 +1,69 @@
+version: 2
+
+models:
+  - name: task_plan
+    description: "Core extraction task definitions generated from endpoints.yaml"
+    columns:
+      - name: task_id
+        description: "Deterministic hash: SHA256(endpoint_name||data_date||modalidade)"
+        tests:
+          - unique
+          - not_null
+      - name: endpoint_name
+        description: "Endpoint name from unified endpoints.yaml configuration"
+        tests:
+          - not_null
+      - name: data_date
+        description: "Target extraction date for this task"
+        tests:
+          - not_null
+      - name: modalidade
+        description: "Procurement modality filter (null for endpoints without modalidade iteration)"
+      - name: status
+        description: "Task execution status: PENDING, CLAIMED, COMPLETED, FAILED"
+        tests:
+          - accepted_values:
+              values: ['PENDING', 'CLAIMED', 'COMPLETED', 'FAILED']
+      - name: plan_fingerprint
+        description: "SHA256 hash of configuration used to generate this plan"
+        tests:
+          - not_null
+      - name: created_at
+        description: "Timestamp when this task was generated"
+        tests:
+          - not_null
+
+  - name: task_plan_meta
+    description: "Plan generation metadata and versioning"
+    columns:
+      - name: plan_version
+        description: "Environment-prefixed version: {env}-YYYY-MM-DD.N"
+        tests:
+          - unique
+          - not_null
+      - name: plan_fingerprint
+        description: "SHA256 hash for configuration drift detection"
+        tests:
+          - unique
+          - not_null
+      - name: environment
+        description: "Environment where plan was generated: dev, staging, prod"
+        tests:
+          - accepted_values:
+              values: ['dev', 'staging', 'prod']
+      - name: date_range_start
+        description: "Earliest extraction date in this plan"
+        tests:
+          - not_null
+      - name: date_range_end
+        description: "Latest extraction date in this plan"
+        tests:
+          - not_null
+      - name: task_count
+        description: "Total number of tasks generated in this plan"
+        tests:
+          - not_null
+      - name: generated_at
+        description: "Timestamp when this plan was generated"
+        tests:
+          - not_null

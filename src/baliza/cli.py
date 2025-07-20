@@ -459,6 +459,88 @@ def run(
 
 
 @app.command()
+def extract_dbt(
+    start_date: str = typer.Option(
+        "2024-01-01", help="Start date for extraction (YYYY-MM-DD)"
+    ),
+    end_date: str = typer.Option(
+        "2024-01-31", help="End date for extraction (YYYY-MM-DD)"
+    ),
+    concurrency: int = typer.Option(
+        settings.concurrency, help="Number of concurrent requests"
+    ),
+    force_db: bool = typer.Option(
+        False, "--force-db", help="Force database connection by removing locks"
+    ),
+    use_existing_plan: bool = typer.Option(
+        True, "--use-existing-plan/--force-new-plan", help="Use existing task plan if available"
+    ),
+):
+    """
+    Run dbt-driven extraction (ADR-009 architecture).
+    
+    This command uses the new dbt-driven task planning architecture:
+    1. Generate/validate task plan using dbt models
+    2. Atomic task claiming for concurrent worker safety
+    3. Stream results to runtime tables for monitoring
+    """
+    # Setup signal handlers for graceful shutdown
+    setup_signal_handlers()
+    
+    # Parse dates
+    try:
+        start_dt = date.fromisoformat(start_date)
+        end_dt = date.fromisoformat(end_date)
+    except ValueError as e:
+        console.print(f"❌ [red]Invalid date format: {e}[/red]")
+        console.print("Use YYYY-MM-DD format (e.g., 2024-01-01)")
+        raise typer.Exit(1)
+    
+    console.print("🚀 [bold blue]Starting dbt-driven extraction (ADR-009)[/bold blue]")
+    console.print(f"📅 Date range: {start_date} to {end_date}")
+    console.print(f"🔧 Concurrency: {concurrency}")
+    console.print("")
+    
+    async def run_dbt_extraction():
+        try:
+            if _shutdown_requested:
+                console.print("🛑 [yellow]Shutdown requested before extraction[/yellow]")
+                return {"total_records": 0}
+            
+            async with AsyncPNCPExtractor(concurrency=concurrency, force_db=force_db) as extractor:
+                results = await extractor.extract_dbt_driven(start_dt, end_dt, use_existing_plan)
+                return results
+                
+        except KeyboardInterrupt:
+            console.print("🛑 [yellow]Extraction interrupted gracefully[/yellow]")
+            return {"total_records": 0}
+        except Exception as e:
+            if _shutdown_requested:
+                console.print("🛑 [yellow]Extraction shutdown during operation[/yellow]")
+                return {"total_records": 0}
+            else:
+                console.print(f"❌ [red]dbt extraction failed: {e}[/red]")
+                raise
+    
+    try:
+        results = asyncio.run(run_dbt_extraction())
+        
+        if not _shutdown_requested:
+            console.print("")
+            console.print("🎉 [bold green]dbt-driven extraction completed![/bold green]")
+            console.print(f"📊 Total records extracted: {results.get('total_records', 0):,}")
+            console.print(f"✅ Completed tasks: {results.get('completed_tasks', 0):,}")
+            console.print(f"❌ Failed tasks: {results.get('failed_tasks', 0):,}")
+            console.print(f"⏳ Pending tasks: {results.get('pending_tasks', 0):,}")
+        
+    except KeyboardInterrupt:
+        console.print("🛑 [yellow]dbt extraction interrupted[/yellow]")
+    except Exception as e:
+        console.print(f"❌ [red]dbt extraction failed: {e}[/red]")
+        raise typer.Exit(1)
+
+
+@app.command()
 def mcp(
     host: str = typer.Option("127.0.0.1", help="The host to bind the MCP server to."),
     port: int = typer.Option(8000, help="The port to run the MCP server on."),

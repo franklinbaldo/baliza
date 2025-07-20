@@ -63,6 +63,7 @@ class PNCPWriter:
         self.db_lock: FileLock | None = None
         self.writer_running = False
         self.force_db = force_db
+        self.db_path = str(BALIZA_DB_PATH)  # Add db_path property for TaskClaimer
 
     async def __aenter__(self):
         """Async context manager entry."""
