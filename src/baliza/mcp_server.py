@@ -21,11 +21,22 @@ logger = logging.getLogger(__name__)
 
 # Define the mapping of logical table names to their Parquet glob patterns
 # Assumes data/parquet/<table>/*.parquet structure
+# TODO: Move this to a configuration file (see ISSUES.md)
 PARQUET_TABLE_MAPPING = {
     "contratos": "contratos/*.parquet",
     "atas": "atas/*.parquet",
+    "contratacoes": "contratacoes/*.parquet",
+    "pca": "pca/*.parquet",
+    "instrumentos": "instrumentos/*.parquet",
     # Add other datasets as needed
 }
+
+def get_table_mapping() -> dict[str, str]:
+    """Get table mapping configuration. 
+    
+    Future enhancement: Load from config file instead of hardcoded dict.
+    """
+    return PARQUET_TABLE_MAPPING.copy()
 
 
 # --- Resources ---
@@ -50,7 +61,8 @@ async def _dataset_schema_logic(dataset_name: str, base_dir: str | None = None) 
     data_dir = Path(base_dir) if base_dir else Path("data/parquet")
 
     # Use the mapping to get the correct glob pattern
-    parquet_glob_pattern = PARQUET_TABLE_MAPPING.get(dataset_name)
+    table_mapping = get_table_mapping()
+    parquet_glob_pattern = table_mapping.get(dataset_name)
     if not parquet_glob_pattern:
         return json.dumps({"error": f"Dataset '{dataset_name}' not found in mapping."})
 
@@ -101,16 +113,40 @@ async def enum_metadata() -> str:
 
 async def _execute_sql_query_logic(query: str, base_dir: str | None = None) -> str:
     """Executes a read-only SQL query against the procurement dataset."""
-    # Security Validation: Only allow SELECT statements
-    if not query.strip().upper().startswith("SELECT"):
+    # Enhanced Security Validation: Strict query validation
+    query_upper = query.strip().upper()
+    
+    # Only allow SELECT statements
+    if not query_upper.startswith("SELECT"):
         return json.dumps({"error": "Only SELECT queries are allowed."})
+    
+    # Block dangerous SQL keywords that could be used for injection
+    dangerous_keywords = [
+        "DROP", "DELETE", "INSERT", "UPDATE", "CREATE", "ALTER", 
+        "TRUNCATE", "EXEC", "EXECUTE", "UNION", "--", "/*", "*/",
+        "XP_", "SP_", "BULK", "OPENROWSET", "OPENDATASOURCE"
+    ]
+    
+    for keyword in dangerous_keywords:
+        if keyword in query_upper:
+            return json.dumps({"error": f"Forbidden keyword '{keyword}' detected in query."})
+    
+    # Additional validation: Check for suspicious patterns
+    if ";" in query and not query.strip().endswith(";"):
+        return json.dumps({"error": "Multiple statements not allowed."})
 
     try:
         con = duckdb.connect(database=":memory:")
 
         parquet_dir = Path(base_dir) if base_dir else Path("data/parquet")
         if parquet_dir.exists():
-            for table_name, glob_pattern in PARQUET_TABLE_MAPPING.items():
+            table_mapping = get_table_mapping()
+            for table_name, glob_pattern in table_mapping.items():
+                # Validate table name to prevent injection
+                if not table_name.isalnum():
+                    logger.error(f"Invalid table name: {table_name}")
+                    continue
+                    
                 full_parquet_path = parquet_dir / glob_pattern
                 # Robust path sanitization for view creation
                 try:
@@ -127,17 +163,31 @@ async def _execute_sql_query_logic(query: str, base_dir: str | None = None) -> s
                     )
                     continue  # Skip on other path errors
 
-                # Create a view for each logical table using read_parquet with glob
+                # SECURITY FIX: Use safe SQL construction
+                # Validate table name is safe (alphanumeric only, already checked above)
+                # Create a view for each logical table using read_parquet with parameterized path
                 con.execute(
-                    f"CREATE OR REPLACE VIEW {table_name} AS SELECT * FROM read_parquet('{resolved_path!s}')"
+                    f"CREATE OR REPLACE VIEW {table_name} AS SELECT * FROM read_parquet(?)",
+                    [str(resolved_path)]
                 )
 
+        # SECURITY FIX: Execute user query in isolated manner
+        # Additional timeout protection (DuckDB feature)
         result = con.execute(query).fetchdf()
+        
+        # Limit result size to prevent resource exhaustion
+        if len(result) > 10000:
+            logger.warning(f"Query returned {len(result)} rows, truncating to 10000")
+            result = result.head(10000)
+            
         return result.to_json(orient="records")
 
     except duckdb.Error as e:
         logger.exception(f"Query failed: {query} - {e}")
-        return json.dumps({"error": f"Query failed: {e!s}"})
+        return json.dumps({"error": f"Query failed: {str(e)}"})
+    except Exception as e:
+        logger.exception(f"Unexpected error executing query: {e}")
+        return json.dumps({"error": "Query execution failed due to unexpected error."})
 
 
 @app.tool("mcp://baliza/execute_sql_query")

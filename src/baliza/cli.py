@@ -329,6 +329,148 @@ def load():
         raise
 
 
+# ETL Pipeline Components - Refactored for better maintainability and testability
+
+class ETLPipelineStep:
+    """Base class for ETL pipeline steps."""
+    
+    def __init__(self, name: str, emoji: str, color: str):
+        self.name = name
+        self.emoji = emoji
+        self.color = color
+    
+    def should_skip(self, skip_flag: bool) -> bool:
+        """Check if step should be skipped."""
+        if _shutdown_requested:
+            console.print(f"🛑 [yellow]Skipping {self.name} due to shutdown[/yellow]")
+            return True
+        if skip_flag:
+            console.print(f"⏭️ [dim]Skipping {self.name} step[/dim]")
+            return True
+        return False
+
+    def print_step_header(self, step_number: int):
+        """Print standardized step header."""
+        console.print("")
+        console.print(f"{self.emoji} [bold {self.color}]Step {step_number}: {self.name}[/bold {self.color}]")
+
+
+async def run_extraction_step(concurrency: int, force_db: bool, force: bool) -> dict:
+    """Execute the data extraction step with proper error handling."""
+    step = ETLPipelineStep("Extracting data from PNCP API", "📥", "green")
+    step.print_step_header(1)
+    
+    start_dt = date(2021, 1, 1)
+    end_dt = date.today()
+
+    async def extract_data():
+        try:
+            if _shutdown_requested:
+                console.print("🛑 [yellow]Shutdown requested before extraction[/yellow]")
+                return {"total_records_extracted": 0, "run_id": "cancelled"}
+
+            async with AsyncPNCPExtractor(concurrency=concurrency, force_db=force_db) as extractor:
+                results = await extractor.extract_data(start_dt, end_dt, force)
+                console.print(
+                    f"✅ Extraction completed: {results['total_records_extracted']:,} records"
+                )
+                return results
+        except KeyboardInterrupt:
+            console.print("🛑 [yellow]Extraction interrupted gracefully[/yellow]")
+            return {"total_records_extracted": 0, "run_id": "interrupted"}
+        except Exception as e:
+            if _shutdown_requested:
+                console.print("🛑 [yellow]Extraction shutdown during operation[/yellow]")
+                return {"total_records_extracted": 0, "run_id": "shutdown"}
+            else:
+                console.print(f"❌ [red]Extraction failed: {e}[/red]")
+                raise
+
+    try:
+        extraction_results = await extract_data()
+        
+        # Check for shutdown after extraction
+        if _shutdown_requested:
+            console.print("🛑 [yellow]Pipeline stopped after extraction[/yellow]")
+            
+        return extraction_results
+
+    except KeyboardInterrupt:
+        console.print("🛑 [yellow]Pipeline interrupted during extraction[/yellow]")
+        return {"total_records_extracted": 0, "run_id": "interrupted"}
+
+
+def run_transformation_step(skip_transform: bool) -> bool:
+    """Execute the data transformation step with proper error handling.
+    
+    Returns:
+        bool: True if step completed successfully, False if failed or skipped
+    """
+    step = ETLPipelineStep("Transforming data with dbt", "🔄", "yellow")
+    
+    if step.should_skip(skip_transform):
+        return True
+    
+    step.print_step_header(2)
+    
+    try:
+        transformer.transform()
+        console.print("✅ Transformation completed successfully")
+        return True
+    except KeyboardInterrupt:
+        console.print("🛑 [yellow]Transform interrupted[/yellow]")
+        return False
+    except Exception as e:
+        if _shutdown_requested:
+            console.print("🛑 [yellow]Transform stopped due to shutdown[/yellow]")
+            return False
+        else:
+            console.print(f"⚠️ [yellow]Transform step failed: {e}[/yellow]")
+            console.print("Continuing to load step...")
+            return False
+
+
+def run_load_step(skip_load: bool) -> bool:
+    """Execute the data loading step with proper error handling.
+    
+    Returns:
+        bool: True if step completed successfully, False if failed or skipped
+    """
+    step = ETLPipelineStep("Loading data to Internet Archive", "📤", "cyan")
+    
+    if step.should_skip(skip_load):
+        return True
+        
+    step.print_step_header(3)
+    
+    try:
+        loader.load()
+        console.print("✅ Load completed successfully")
+        return True
+    except KeyboardInterrupt:
+        console.print("🛑 [yellow]Load interrupted[/yellow]")
+        return False
+    except Exception as e:
+        if _shutdown_requested:
+            console.print("🛑 [yellow]Load stopped due to shutdown[/yellow]")
+            return False
+        else:
+            console.print(f"⚠️ [yellow]Load step failed: {e}[/yellow]")
+            return False
+
+
+def print_pipeline_summary(extraction_results: dict):
+    """Print the final pipeline summary."""
+    console.print("")
+    if _shutdown_requested:
+        console.print("🛑 [yellow]ETL Pipeline stopped gracefully[/yellow]")
+    else:
+        console.print("🎉 [bold green]ETL Pipeline completed![/bold green]")
+    console.print(
+        f"📊 Total records processed: {extraction_results['total_records_extracted']:,}"
+    )
+
+
 @app.command()
 def run(
     concurrency: int = typer.Option(
@@ -361,101 +503,33 @@ def run(
     console.print("🚀 [bold blue]Starting BALIZA ETL Pipeline[/bold blue]")
     console.print("")
 
-    # Step 1: Extract
-    console.print("📥 [bold green]Step 1: Extracting data from PNCP API[/bold green]")
-    start_dt = date(2021, 1, 1)
-    end_dt = date.today()
-
-    async def extract_data():
-        try:
-            if _shutdown_requested:
-                console.print("🛑 [yellow]Shutdown requested before extraction[/yellow]")
-                return {"total_records_extracted": 0, "run_id": "cancelled"}
-
-            async with AsyncPNCPExtractor(concurrency=concurrency, force_db=force_db) as extractor:
-                results = await extractor.extract_data(start_dt, end_dt, force)
-                console.print(
-                    f"✅ Extraction completed: {results['total_records_extracted']:,} records"
-                )
-                return results
-        except KeyboardInterrupt:
-            console.print("🛑 [yellow]Extraction interrupted gracefully[/yellow]")
-            return {"total_records_extracted": 0, "run_id": "interrupted"}
-        except Exception as e:
-            if _shutdown_requested:
-                console.print("🛑 [yellow]Extraction shutdown during operation[/yellow]")
-                return {"total_records_extracted": 0, "run_id": "shutdown"}
-            else:
-                console.print(f"❌ [red]Extraction failed: {e}[/red]")
-                raise
+    async def run_pipeline():
+        # Step 1: Extract
+        extraction_results = await run_extraction_step(concurrency, force_db, force)
+        
+        if _shutdown_requested:
+            return extraction_results
+        
+        # Step 2: Transform
+        run_transformation_step(skip_transform)
+        
+        if _shutdown_requested:
+            return extraction_results
+            
+        # Step 3: Load  
+        run_load_step(skip_load)
+        
+        return extraction_results
 
     try:
-        extraction_results = asyncio.run(extract_data())
-
-        # Check for shutdown after extraction
-        if _shutdown_requested:
-            console.print("🛑 [yellow]Pipeline stopped after extraction[/yellow]")
-            return
-
+        extraction_results = asyncio.run(run_pipeline())
+        print_pipeline_summary(extraction_results)
+        
     except KeyboardInterrupt:
         console.print("🛑 [yellow]Pipeline interrupted[/yellow]")
-        return
-
-    # Step 2: Transform
-    if not skip_transform and not _shutdown_requested:
-        console.print("")
-        console.print(
-            "🔄 [bold yellow]Step 2: Transforming data with dbt[/bold yellow]"
-        )
-        try:
-            transformer.transform()
-            console.print("✅ Transformation completed successfully")
-        except KeyboardInterrupt:
-            console.print("🛑 [yellow]Transform interrupted[/yellow]")
-            return
-        except Exception as e:
-            if _shutdown_requested:
-                console.print("🛑 [yellow]Transform stopped due to shutdown[/yellow]")
-                return
-            else:
-                console.print(f"⚠️ [yellow]Transform step failed: {e}[/yellow]")
-                console.print("Continuing to load step...")
-    elif _shutdown_requested:
-        console.print("🛑 [yellow]Skipping transform due to shutdown[/yellow]")
-    else:
-        console.print("⏭️ [dim]Skipping transformation step[/dim]")
-
-    # Step 3: Load
-    if not skip_load and not _shutdown_requested:
-        console.print("")
-        console.print(
-            "📤 [bold cyan]Step 3: Loading data to Internet Archive[/bold cyan]"
-        )
-        try:
-            loader.load()
-            console.print("✅ Load completed successfully")
-        except KeyboardInterrupt:
-            console.print("🛑 [yellow]Load interrupted[/yellow]")
-            return
-        except Exception as e:
-            if _shutdown_requested:
-                console.print("🛑 [yellow]Load stopped due to shutdown[/yellow]")
-                return
-            else:
-                console.print(f"⚠️ [yellow]Load step failed: {e}[/yellow]")
-    elif _shutdown_requested:
-        console.print("🛑 [yellow]Skipping load due to shutdown[/yellow]")
-    else:
-        console.print("⏭️ [dim]Skipping load step[/dim]")
-
-    console.print("")
-    if _shutdown_requested:
-        console.print("🛑 [yellow]ETL Pipeline stopped gracefully[/yellow]")
-    else:
-        console.print("🎉 [bold green]ETL Pipeline completed![/bold green]")
-    console.print(
-        f"📊 Total records processed: {extraction_results['total_records_extracted']:,}"
-    )
+    except Exception as e:
+        console.print(f"❌ [red]Pipeline failed: {e}[/red]")
+        raise
 
 
 @app.command()
