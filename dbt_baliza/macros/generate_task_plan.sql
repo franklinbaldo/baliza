@@ -15,21 +15,18 @@
 #}
 
 WITH endpoints_config AS (
-  -- Static endpoint configuration
-  -- In production, this would be loaded from endpoints.yaml via dbt-external-tables
-  -- For now, we'll hardcode the active endpoints from the YAML config
-  SELECT endpoint_name, modalidades, granularity, active
-  FROM (VALUES
-    ('contratos_publicacao', ARRAY[]::integer[], 'month', true),
-    ('contratos_atualizacao', ARRAY[]::integer[], 'month', true),
-    ('atas_periodo', ARRAY[]::integer[], 'month', true),
-    ('atas_atualizacao', ARRAY[]::integer[], 'month', true),
-    ('contratacoes_publicacao', ARRAY[1,2,3,4,5,6,7,8,9,10,11,12,99], 'month', true),
-    ('contratacoes_atualizacao', ARRAY[1,2,3,4,5,6,7,8,9,10,11,12,99], 'month', true),
-    ('pca_atualizacao', ARRAY[]::integer[], 'month', true),
-    ('instrumentoscobranca_inclusao', ARRAY[]::integer[], 'month', true),
-    ('contratacoes_proposta', ARRAY[]::integer[], 'month', true)
-  ) AS t(endpoint_name, modalidades, granularity, active)
+  -- FIXED: Load endpoint configuration from seed tables (single source of truth)
+  -- This replaces the hardcoded VALUES clause with data from endpoints.yaml
+  SELECT 
+    endpoint_name,
+    granularity,
+    active,
+    -- Parse modalidades from CSV string to array
+    CASE 
+      WHEN modalidades = '' OR modalidades IS NULL THEN ARRAY[]::integer[]
+      ELSE string_split(modalidades, ',')::integer[]
+    END AS modalidades
+  FROM {{ ref('endpoints_config') }}
   WHERE active = true
 ),
 

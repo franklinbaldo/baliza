@@ -1,0 +1,14 @@
+modalidade_id,modalidade_nome,active
+1,Pregão,True
+2,Concorrência,True
+3,Tomada de Preços,True
+4,Convite,True
+5,Concurso,True
+6,Leilão,True
+7,Diálogo Competitivo,True
+8,Procedimento de Manifestação de Interesse,True
+9,Credenciamento,True
+10,Dispensa de Licitação,True
+11,Inexigibilidade,True
+12,Regime Diferenciado de Contratações Públicas,True
+99,Outros,True
