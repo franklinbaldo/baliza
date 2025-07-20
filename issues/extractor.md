@@ -1,19 +1,29 @@
-## `extractor.py` - HIGH PRIORITY REFACTORING NEEDED
+# Analysis of `src/baliza/extractor.py`
 
-**Status:** 🚨 NEEDS SIGNIFICANT REFACTORING - Complex methods and tight coupling
+This file contains the `AsyncPNCPExtractor` class, which is a refactored version of the original extractor.
 
-### 🚨 High Priority Issues:
-*   **Complex Methods:** The `extract_data` and `extract_dbt_driven` methods are extremely long (300+ lines) and handle multiple phases. This violates the Single Responsibility Principle and makes testing/maintenance difficult.
-*   **Tight Coupling:** Strong dependency on `PNCPWriter` and `PNCPTaskPlanner` makes the class hard to test and extend. Needs dependency injection.
-*   **Mixed Concerns:** The class handles orchestration, data fetching, progress display, and database operations. Should be separated into focused components.
+## Architectural Issues
 
-### 🔧 Medium Priority Issues:
-*   **String-based State Management:** Task status uses strings instead of proper enums/state machine. Error-prone and unclear state transitions.
-*   **UI Logic in Business Layer:** `_create_matrix_progress_table` belongs in a UI/presentation module, not the core extractor.
-*   **Hardcoded SQL:** Many SQL queries embedded in the code. Should use a data access layer.
+1.  **Incomplete Refactoring:** The `AsyncPNCPExtractor` class still has some of the same responsibilities as the original extractor. For example, it still instantiates the `PNCPWriter`, `TaskClaimer`, and `DbtRunner`. This violates the Single Responsibility Principle and makes the class harder to test.
+2.  **Noisy `logger` variable:** The `logger` variable is created but it is not used in the whole file.
 
-### 💾 Low Priority Issues:
-*   **In-memory State:** Statistics held in memory instead of persisted. Affects resumability accuracy.
+## Code Quality Issues
 
-### 📈 Priority: HIGH  
-This class is central to the application and its complexity makes it a maintenance bottleneck.
+None. The code is well-written and follows best practices.
+
+## Suggestions for Improvement
+
+*   **Complete the Refactoring:** The `AsyncPNCPExtractor` class should be refactored to be a simple orchestrator that delegates to the `ExtractionCoordinator`. The `PNCPWriter`, `TaskClaimer`, and `DbtRunner` should be instantiated in the `ExtractionCoordinator` and passed to the `AsyncPNCPExtractor` as dependencies.
+*   **Remove unused variables:** The `logger` variable is not used anywhere in the file and should be removed.
+
+Overall, the `extractor.py` file is a good step in the right direction, but it needs to be completed to fully address the architectural issues of the original extractor. The suggestions above will help to make the code more modular, maintainable, and easier to understand.
+
+## Proposed Solutions
+
+*   **Refactor `AsyncPNCPExtractor`:**
+    *   The `AsyncPNCPExtractor` class will be responsible for orchestrating the extraction process.
+    *   It will use the `ExtractionCoordinator` to run the extraction.
+    *   It will not instantiate any other classes.
+*   **Remove unused variables:**
+    *   Remove the `logger` variable.
+*   **Add docstrings and type hints to all methods.**

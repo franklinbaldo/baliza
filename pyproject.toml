@@ -8,8 +8,8 @@ dependencies = [
     "typer", # Modern CLI framework - ADR-005
     "duckdb", # Primary database for analytics - ADR-001
     "httpx", # HTTP/2 client for API requests - ADR-005
-    "h2", # HTTP/2 support for httpx - ADR-005
-    "pandas>=2.3.1",
+    "h2", # Optional HTTP/2 support for httpx - ADR-005
+    "pandas~=2.3.1",
     "orjson", # Fast JSON parsing with fallback
     "aiolimiter>=1.2.1",
     "filelock", # File locking to prevent database conflicts - ADR-001
@@ -24,6 +24,9 @@ dependencies = [
     "textual>=0.41.0",          # Interactive terminal applications
     "questionary>=2.0.1",       # Beautiful command-line prompts
     "tabulate>=0.9.0",          # Enhanced table formatting
+    "pyyaml>=6.0.1",
+    "dbt-core>=1.7.0", # Medallion architecture transformation - ADR-003
+    "dbt-duckdb>=1.7.0", # DuckDB adapter for dbt - ADR-001, ADR-003
 ]
 
 [project.scripts]
@@ -32,18 +35,6 @@ baliza = "baliza.cli:app"
 [project.optional-dependencies]
 dev = [
     "pytest",
-]
-analytics = [
-    "dbt-core>=1.7.0", # Medallion architecture transformation - ADR-003
-    "dbt-duckdb>=1.7.0", # DuckDB adapter for dbt - ADR-001, ADR-003
-]
-dbt = [
-    "dbt-core>=1.7.0",
-    "dbt-duckdb>=1.7.0",
-]
-
-[dependency-groups]
-dev = [
     "mypy>=1.16.1",
     "pre-commit>=4.2.0",
     "pytest>=8.4.1", # E2E testing framework - ADR-004
@@ -52,6 +43,10 @@ dev = [
     "mkdocs-gen-files>=0.5.0",
     "mkdocs-literate-nav>=0.6.0",
     "pytest-asyncio>=1.1.0",
+]
+analytics = []
+dbt = [
+    "baliza[analytics]"
 ]
 
 # Ruff configuration for linting and formatting - ADR-005
@@ -138,8 +133,6 @@ ignore = [
     "S607",  # Starting a process with a partial executable path
     "TRY003", # Avoid specifying long messages outside the exception class
     "B008",  # Do not perform function calls in argument defaults
-    "S608",  # Possible SQL injection vector (we use DuckDB safely)
-    "BLE001", # Do not catch blind exception (sometimes needed)
     # Conflicts with formatter
     "E501",  # Line too long
     "W191",  # Indentation contains tabs
@@ -230,7 +223,7 @@ ignore_missing_imports = true
 
 # Pytest configuration for E2E tests only - ADR-004
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests/e2e"]
 python_files = "test_*.py"
 python_functions = "test_*"
 addopts = "-v --tb=short --strict-markers"

@@ -1,13 +1,28 @@
 {{
   config(
-    materialized='view'
+    materialized='incremental',
+    unique_key='analysis_id'
   )
 }}
 
--- Content deduplication analysis model (ADR-008)
--- Provides insights into storage optimization achieved through split table architecture
-
+WITH content_metrics AS (
+    SELECT
+        c.id as content_id,
+        c.reference_count,
+        c.content_size_bytes,
+        r.endpoint_name,
+        r.data_date
+    FROM {{ source('pncp', 'pncp_content') }} c
+    JOIN {{ source('pncp', 'pncp_requests') }} r ON c.id = r.content_id
+)
 SELECT
+    -- Analysis ID
+    {{ dbt_utils.generate_surrogate_key(['endpoint_name', 'data_date']) }} as analysis_id,
+
+    -- Dimensions
+    endpoint_name,
+    data_date,
+
     -- Content metrics
     COUNT(*) as unique_content_records,
     SUM(reference_count) as total_references,
@@ -25,19 +40,8 @@ SELECT
     -- Compression metrics
     (SUM(content_size_bytes)::FLOAT / SUM(content_size_bytes * reference_count)) as compression_ratio,
     
-    -- Content size distribution
-    MIN(content_size_bytes) as min_content_size,
-    MAX(content_size_bytes) as max_content_size,
-    AVG(content_size_bytes) as avg_content_size,
-    MEDIAN(content_size_bytes) as median_content_size,
-    
-    -- Reference distribution
-    MIN(reference_count) as min_references,
-    MAX(reference_count) as max_references,
-    AVG(reference_count) as avg_references,
-    MEDIAN(reference_count) as median_references,
-    
     -- Analysis timestamp
     CURRENT_TIMESTAMP as analysis_timestamp
 
-FROM {{ source('pncp', 'pncp_content') }}
+FROM content_metrics
+GROUP BY endpoint_name, data_date

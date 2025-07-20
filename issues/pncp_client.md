@@ -1,6 +1,31 @@
-## `pncp_client.py`
+# Analysis of `src/baliza/pncp_client.py`
 
-*   **Hardcoded Retry Logic:** The retry logic is hardcoded using the `@retry` decorator from the `tenacity` library. This makes it difficult to configure the retry behavior for different environments or endpoints. The retry logic should be configurable, for example, by passing a `tenacity.Retrying` object to the `PNCPClient` constructor.
-*   **Lack of a Clear Error Handling Strategy:** The `fetch_with_backpressure` method has a complex error handling logic that mixes different concerns (e.g., logging, raising exceptions, returning error dictionaries). A more consistent error handling strategy would make the code easier to understand and maintain. For example, the method could always raise an exception on failure, and the caller would be responsible for handling it.
-*   **Mixing of Concerns:** The `PNCPClient` class is responsible for both making HTTP requests and handling the business logic of parsing the response and extracting the total number of records and pages. These concerns should be separated into different classes.
-*   **Hardcoded `task_id` Passthrough:** The `task_id` is passed through the `fetch_with_backpressure` method. This is a leaky abstraction, as the `PNCPClient` should not be aware of the concept of a `task_id`. The `task_id` should be handled by the caller of the `PNCPClient`.
+This file contains the `PNCPClient` class, which is responsible for making HTTP requests to the PNCP API.
+
+## Architectural Issues
+
+None. This is a well-defined client module with a clear purpose.
+
+## Code Quality Issues
+
+1.  **Hardcoded Retry Strategy:** The retry strategy is hardcoded in the `__init__` method. This makes it difficult to configure the retry behavior without modifying the code.
+2.  **Noisy `logger` variable:** The `logger` variable is created but it is not used in the whole file.
+3.  **Noisy `_verify_http2_status` method:** The `_verify_http2_status` method does not have a docstring that explains what it does.
+4.  **Noisy `fetch_with_backpressure` method:** The `fetch_with_backpressure` method does not have a docstring that explains what it does.
+
+## Suggestions for Improvement
+
+*   **Make Retry Strategy Configurable:** The retry strategy should be configurable, for example, through a setting in the `config.py` file.
+*   **Remove unused variables:** The `logger` variable is not used anywhere in the file and should be removed.
+*   **Add docstrings:** Add docstrings to all methods to explain their purpose.
+
+Overall, the `pncp_client.py` file is a well-written and functional client module. The suggestions above are aimed at improving its flexibility and maintainability.
+
+## Proposed Solutions
+
+*   **Make Retry Strategy Configurable:**
+    *   Add a `retry_strategy` setting to the `config.py` file.
+    *   Use the `retry_strategy` setting in the `PNCPClient` class.
+*   **Remove unused variables:**
+    *   Remove the `logger` variable.
+*   **Add docstrings and type hints to all methods.**

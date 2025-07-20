@@ -23,11 +23,14 @@ models:
         description: "Task execution status: PENDING, CLAIMED, COMPLETED, FAILED"
         tests:
           - accepted_values:
-              values: ['PENDING', 'CLAIMED', 'COMPLETED', 'FAILED']
+              values: "{{ var('task_status_values') }}"
       - name: plan_fingerprint
         description: "SHA256 hash of configuration used to generate this plan"
         tests:
           - not_null
+          - relationships:
+              to: ref('task_plan_meta')
+              field: plan_fingerprint
       - name: created_at
         description: "Timestamp when this task was generated"
         tests:
@@ -50,7 +53,7 @@ models:
         description: "Environment where plan was generated: dev, staging, prod"
         tests:
           - accepted_values:
-              values: ['dev', 'staging', 'prod']
+              values: "{{ var('environment_values') }}"
       - name: date_range_start
         description: "Earliest extraction date in this plan"
         tests:

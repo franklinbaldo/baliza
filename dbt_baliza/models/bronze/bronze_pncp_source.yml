@@ -2,7 +2,7 @@ version: 2
 
 sources:
   - name: pncp
-    schema: psa
+    schema: "{{ var('psa_schema') }}"
     description: "Raw data from the PNCP API - Split table architecture (ADR-008)"
     tables:
       - name: pncp_requests
@@ -10,35 +10,49 @@ sources:
         columns:
           - name: id
             description: "Unique identifier for the request."
+            data_type: uuid
             tests:
               - unique
               - not_null
           - name: extracted_at
             description: "Timestamp when the data was extracted."
+            data_type: timestamp
           - name: endpoint_url
             description: "The URL of the API endpoint."
+            data_type: varchar
           - name: endpoint_name
             description: "The name of the API endpoint."
+            data_type: varchar
           - name: request_parameters
             description: "JSON object with the request parameters."
+            data_type: json
           - name: response_code
             description: "The HTTP response code."
+            data_type: integer
           - name: response_headers
             description: "JSON object with the response headers."
+            data_type: json
           - name: data_date
             description: "The date of the data being extracted."
+            data_type: date
           - name: run_id
             description: "The unique identifier for the extraction run."
+            data_type: varchar
           - name: total_records
             description: "The total number of records for the request."
+            data_type: integer
           - name: total_pages
             description: "The total number of pages for the request."
+            data_type: integer
           - name: current_page
             description: "The current page number."
+            data_type: integer
           - name: page_size
             description: "The page size of the request."
+            data_type: integer
           - name: content_id
             description: "Foreign key to pncp_content table (UUIDv5-based)."
+            data_type: uuid
             tests:
               - not_null
               - relationships:
@@ -50,58 +64,32 @@ sources:
         columns:
           - name: id
             description: "UUIDv5 content identifier based on SHA-256 hash."
+            data_type: uuid
             tests:
               - unique
               - not_null
           - name: response_content
             description: "The actual response content (deduplicated)."
+            data_type: text
+            tests:
+                - not_null
           - name: content_sha256
             description: "SHA-256 hash of the content for integrity verification."
+            data_type: varchar
             tests:
               - unique
               - not_null
           - name: content_size_bytes
             description: "Size of the content in bytes."
+            data_type: integer
           - name: first_seen_at
             description: "Timestamp when this content was first encountered."
+            data_type: timestamp
           - name: last_seen_at
             description: "Timestamp when this content was last encountered."
+            data_type: timestamp
           - name: reference_count
             description: "Number of requests that reference this content."
+            data_type: integer
             tests:
               - not_null
-      
-      - name: pncp_raw_responses
-        description: "Legacy table for backwards compatibility - will be deprecated after migration."
-        columns:
-          - name: id
-            description: "Unique identifier for the raw response."
-            tests:
-              - unique
-              - not_null
-          - name: extracted_at
-            description: "Timestamp when the data was extracted."
-          - name: endpoint_url
-            description: "The URL of the API endpoint."
-          - name: endpoint_name
-            description: "The name of the API endpoint."
-          - name: request_parameters
-            description: "JSON object with the request parameters."
-          - name: response_code
-            description: "The HTTP response code."
-          - name: response_content
-            description: "The raw response content."
-          - name: response_headers
-            description: "JSON object with the response headers."
-          - name: data_date
-            description: "The date of the data being extracted."
-          - name: run_id
-            description: "The unique identifier for the extraction run."
-          - name: total_records
-            description: "The total number of records for the request."
-          - name: total_pages
-            description: "The total number of pages for the request."
-          - name: current_page
-            description: "The current page number."
-          - name: page_size
-            description: "The page size of the request."

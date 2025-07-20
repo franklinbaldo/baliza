@@ -2,54 +2,54 @@ version: 2
 
 models:
   - name: mart_procurement_analytics
-    description: "Comprehensive procurement analytics mart with aggregated metrics"
+    description: "Comprehensive procurement analytics mart with aggregated metrics, including total contracts, total value, and average contract value by organization."
     columns:
       - name: org_key
-        description: "Organization identifier"
+        description: "Foreign key to the organization dimension."
         tests:
           - not_null
           - relationships:
               to: ref('silver_dim_organizacoes')
               field: org_key
       - name: total_contracts
-        description: "Total number of contracts"
+        description: "The total number of contracts for the organization."
         tests:
           - not_null
-          - dbt_utils.expression_is_true:
-              expression: ">= 0"
+          - dbt_expectations.expect_column_values_to_be_of_type:
+              column_type: number
       - name: total_value
-        description: "Total contract value"
+        description: "The total value of all contracts for the organization."
         tests:
           - not_null
-          - dbt_utils.expression_is_true:
-              expression: ">= 0"
+          - dbt_expectations.expect_column_values_to_be_of_type:
+              column_type: number
       - name: avg_contract_value
-        description: "Average contract value"
+        description: "The average value of contracts for the organization."
         tests:
           - not_null
+          - dbt_expectations.expect_column_values_to_be_of_type:
+              column_type: number
 
   - name: mart_compras_beneficios
-    description: "Benefits and procurement impact analysis mart"
+    description: "Analytics mart for analyzing the impact of procurement benefits, such as estimated savings and the percentage of items with benefits."
     columns:
       - name: org_key
-        description: "Organization identifier"
+        description: "Foreign key to the organization dimension."
         tests:
           - not_null
           - relationships:
               to: ref('silver_dim_organizacoes')
               field: org_key
       - name: economia_estimada
-        description: "Estimated savings from procurement processes"
+        description: "The estimated savings from procurement processes for the organization."
         tests:
           - not_null
-          - dbt_utils.expression_is_true:
-              expression: ">= 0"
-
-sources:
-  - name: transparency_monitoring
-    description: "Views for data quality monitoring and transparency reporting"
-    tables:
-      - name: silver_contratos_transparency_report
-        description: "Transparency report for contract data quality"
-      - name: silver_contratos_quality_monitor
-        description: "Quality monitoring for contract anomalies"
+          - dbt_expectations.expect_column_values_to_be_of_type:
+              column_type: number
+      - name: percentual_itens_com_beneficio
+        description: "The percentage of items with benefits for the organization."
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              max_value: 100

@@ -1,0 +1,6 @@
+## `pncp_client.py`
+
+*   **Hardcoded Retry Logic:** The retry logic is hardcoded using the `@retry` decorator from the `tenacity` library. This makes it difficult to configure the retry behavior for different environments or endpoints. The retry logic should be configurable, for example, by passing a `tenacity.Retrying` object to the `PNCPClient` constructor.
+*   **Lack of a Clear Error Handling Strategy:** The `fetch_with_backpressure` method has a complex error handling logic that mixes different concerns (e.g., logging, raising exceptions, returning error dictionaries). A more consistent error handling strategy would make the code easier to understand and maintain. For example, the method could always raise an exception on failure, and the caller would be responsible for handling it.
+*   **Mixing of Concerns:** The `PNCPClient` class is responsible for both making HTTP requests and handling the business logic of parsing the response and extracting the total number of records and pages. These concerns should be separated into different classes.
+*   **Hardcoded `task_id` Passthrough:** The `task_id` is passed through the `fetch_with_backpressure` method. This is a leaky abstraction, as the `PNCPClient` should not be aware of the concept of a `task_id`. The `task_id` should be handled by the caller of the `PNCPClient`.
