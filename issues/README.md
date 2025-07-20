@@ -1,6 +1,6 @@
 # BALIZA Issues Status Summary
 
-Last updated: 2025-07-20
+Last updated: 2025-07-20 (Updated with new dbt model issues)
 
 ## 📊 Overview
 
@@ -39,6 +39,20 @@ This directory contains architectural and design issues identified in the BALIZA
 - `planning_schema_yml.md` - Table structure concerns
 - `dbt_project_yml.md` - Configuration redundancy
 
+### 🆕 NEW: dbt Data Models (Schema & Quality)
+- `gold_schema_yml.md` - Incomplete schema definitions, missing documentation
+- `silver_schema_yml.md` - Missing schemas for several models, inconsistent descriptions
+- `silver_itens_contratacao_sql.md` - Hardcoded enum mappings, brittle unique keys
+- `mart_compras_beneficios_sql.md` - Hardcoded benefit type IDs, incremental logic issues
+- `silver_atas_sql.md` - Silver layer data transformation issues
+- `silver_contratacoes_sql.md` - Procurement data processing concerns
+- `silver_contratos_sql.md` - Contract data modeling issues
+- `silver_dim_organizacoes_sql.md` - Organization dimension table issues
+- `silver_dim_unidades_orgao_sql.md` - Organizational unit dimension issues
+- `silver_documentos_sql.md` - Document processing concerns
+- `silver_fact_contratacoes_sql.md` - Procurement fact table issues
+- `silver_fact_contratos_sql.md` - Contract fact table concerns
+
 ### Core Components  
 - `task_claimer.md` - **PARTIALLY RESOLVED** - Some hardcoding remains
 - `plan_fingerprint.md` - Concerns separation needed
@@ -72,24 +86,39 @@ This directory contains architectural and design issues identified in the BALIZA
 2. **Fix generate_task_plan.sql** - Implement dbt-external-tables for endpoints.yaml integration
 3. **Complete task_claimer.py** - Address remaining hardcoded values and error handling
 
+### 🆕 NEW: Data Quality Issues (Medium Priority)
+4. **Centralize enum definitions** - Create dbt seed tables from Python enums to eliminate hardcoded values
+5. **Complete schema documentation** - Add missing schema definitions for all silver/gold models
+6. **Improve incremental strategies** - Fix brittle assumptions about data ordering
+7. **Add comprehensive column documentation** - Enhance downstream usability
+
 ### Medium Term (Architecture)
 1. **Implement state machine** for task status management
 2. **Add dependency injection** throughout CLI components  
 3. **Create data access layer** to eliminate hardcoded SQL
 4. **Separate UI logic** from business components
+5. **🆕 Implement dbt-seed integration** - Dynamically generate enum mappings
 
 ### Long Term (Quality)
 1. **Schema validation** for all YAML configurations
 2. **Performance optimization** for large-scale processing
 3. **Enhanced error recovery** mechanisms
 4. **Comprehensive testing** for refactored components
+5. **🆕 Data quality monitoring** - Automated tests for enum consistency and data integrity
 
 ## 📈 Impact Assessment
 
-**Security Issues:** ✅ **RESOLVED** - Critical vulnerabilities fixed
+**Security Issues:** ✅ **RESOLVED** - Critical vulnerabilities fixed  
 **Architecture Issues:** 🚨 **HIGH** - Coupling and complexity need attention  
-**Maintainability:** 🔧 **MEDIUM** - Hardcoded values and mixed concerns
+**🆕 Data Quality Issues:** 🔧 **MEDIUM** - 12 new dbt model issues identified  
+**Maintainability:** 🔧 **MEDIUM** - Hardcoded values and mixed concerns  
 **Performance:** 💾 **LOW** - Optimizations can be deferred
+
+### 🆕 **New Issues Summary:**
+- **12 dbt model files** with data quality and schema issues
+- **Common problems:** Hardcoded enum values, incomplete documentation, brittle incremental logic
+- **Impact:** Affects data integrity and downstream analytics reliability
+- **Priority:** Medium (doesn't block core functionality but affects data quality)
 
 ---
 
