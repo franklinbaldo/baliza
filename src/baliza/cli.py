@@ -8,13 +8,13 @@ from pathlib import Path
 import typer
 
 # Late imports for optional dependencies
-from . import loader, mcp_server, transformer
+from . import mcp_server
 from .config import settings
+from .dependencies import get_cli_services
 from .enums import ENUM_REGISTRY, get_enum_choices
 from .extractor import (
     BALIZA_DB_PATH,
     DATA_DIR,
-    AsyncPNCPExtractor,
     connect_utf8,
 )
 from .ui import Dashboard, ErrorHandler, get_console
@@ -31,15 +31,19 @@ _shutdown_requested = False
 def setup_signal_handlers():
     """Setup graceful shutdown signal handlers."""
 
-    def signal_handler(_signum, _frame):
+    def signal_handler(signum, frame):
         """Handle shutdown signals gracefully."""
         global _shutdown_requested
+        # Handle the signal gracefully (using frame for context information)
+        signal_name = signal.Signals(signum).name if hasattr(signal, 'Signals') else str(signum)
+        frame_info = f" (in {frame.f_code.co_filename}:{frame.f_lineno})" if frame else ""
+        
         if not _shutdown_requested:
             _shutdown_requested = True
-            console.print("\n🛑 [yellow]Shutdown requested... cleaning up[/yellow]")
+            console.print(f"\n🛑 [yellow]Shutdown requested ({signal_name}){frame_info}... cleaning up[/yellow]")
             console.print("⏳ Please wait for graceful shutdown (Press Ctrl+C again to force)")
         else:
-            console.print("\n💥 [red]Force shutdown - may leave locks![/red]")
+            console.print(f"\n💥 [red]Force shutdown ({signal_name}) - may leave locks![/red]")
             sys.exit(1)
 
     # Register signal handlers for graceful shutdown
@@ -118,13 +122,17 @@ def extract(
         setup_signal_handlers()
 
         try:
-            async with AsyncPNCPExtractor(concurrency=concurrency, force_db=force_db) as extractor:
+            # Use dependency injection for extractor
+            services = get_cli_services()
+            extractor = services.get_extractor(concurrency=concurrency, force_db=force_db)
+            
+            async with extractor as ext:
                 # Check for shutdown before starting
                 if _shutdown_requested:
                     console.print("🛑 [yellow]Shutdown requested before extraction started[/yellow]")
                     return {"total_records_extracted": 0, "run_id": "cancelled"}
 
-                results = await extractor.extract_data(start_dt, end_dt, force)
+                results = await ext.extract_data(start_dt, end_dt, force)
 
                 # Show completion summary
                 completion_content = [
@@ -219,10 +227,12 @@ def transform():
     console.print(transform_panel)
 
     try:
-        # Run transformation
+        # Run transformation using dependency injection
         console.print(
             f"\n{theme.ICONS['process']} [primary]Running dbt transformations...[/primary]"
         )
+        services = get_cli_services()
+        transformer = services.get_transformer()
         transformer.transform()
 
         # Show success message
@@ -292,10 +302,12 @@ def load():
     console.print(load_panel)
 
     try:
-        # Run load
+        # Run load using dependency injection
         console.print(
             f"\n{theme.ICONS['process']} [primary]Uploading to Internet Archive...[/primary]"
         )
+        services = get_cli_services()
+        loader = services.get_loader()
         loader.load()
 
         # Show success message
@@ -369,8 +381,12 @@ async def run_extraction_step(concurrency: int, force_db: bool, force: bool) -> 
                 console.print("🛑 [yellow]Shutdown requested before extraction[/yellow]")
                 return {"total_records_extracted": 0, "run_id": "cancelled"}
 
-            async with AsyncPNCPExtractor(concurrency=concurrency, force_db=force_db) as extractor:
-                results = await extractor.extract_data(start_dt, end_dt, force)
+            # Use dependency injection for extractor in pipeline
+            services = get_cli_services()
+            extractor = services.get_extractor(concurrency=concurrency, force_db=force_db)
+            
+            async with extractor as ext:
+                results = await ext.extract_data(start_dt, end_dt, force)
                 console.print(
                     f"✅ Extraction completed: {results['total_records_extracted']:,} records"
                 )
@@ -414,6 +430,9 @@ def run_transformation_step(skip_transform: bool) -> bool:
     step.print_step_header(2)
     
     try:
+        # Use dependency injection for transformer in pipeline
+        services = get_cli_services()
+        transformer = services.get_transformer()
         transformer.transform()
         console.print("✅ Transformation completed successfully")
         return True
@@ -444,6 +463,9 @@ def run_load_step(skip_load: bool) -> bool:
     step.print_step_header(3)
     
     try:
+        # Use dependency injection for loader in pipeline
+        services = get_cli_services()
+        loader = services.get_loader()
         loader.load()
         console.print("✅ Load completed successfully")
         return True
@@ -581,8 +603,12 @@ def extract_dbt(
                 console.print("🛑 [yellow]Shutdown requested before extraction[/yellow]")
                 return {"total_records": 0}
             
-            async with AsyncPNCPExtractor(concurrency=concurrency, force_db=force_db) as extractor:
-                results = await extractor.extract_dbt_driven(start_dt, end_dt, use_existing_plan)
+            # Use dependency injection for dbt extraction
+            services = get_cli_services()
+            extractor = services.get_extractor(concurrency=concurrency, force_db=force_db)
+            
+            async with extractor as ext:
+                results = await ext.extract_dbt_driven(start_dt, end_dt, use_existing_plan)
                 return results
                 
         except KeyboardInterrupt:

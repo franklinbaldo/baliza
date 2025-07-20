@@ -6,8 +6,6 @@ by providing configurable dependency injection for better testability
 and modularity.
 """
 
-from abc import ABC, abstractmethod
-from pathlib import Path
 from typing import Any, Protocol
 
 from baliza.config import settings
@@ -113,7 +111,7 @@ class CLIServices:
             'force_db': force_db
         }
         
-        async with self.container.get_extractor("async_pncp", **extractor_kwargs) as extractor:
+        async with self.container.get_extractor("default", **extractor_kwargs) as extractor:
             if use_dbt:
                 return await extractor.extract_dbt_driven(start_date, end_date, not force)
             else:
@@ -121,12 +119,12 @@ class CLIServices:
     
     def run_transformation(self):
         """Run transformation with injected dependencies."""
-        transformer = self.container.get_transformer("dbt")
+        transformer = self.container.get_transformer("default")
         return transformer.transform()
     
     def run_load(self, schemas: list[str] | None = None, max_retries: int = 3):
         """Run load with injected dependencies."""
-        loader = self.container.get_loader("internet_archive")
+        loader = self.container.get_loader("default")
         return loader.load(schemas, max_retries)
 
 
@@ -147,9 +145,9 @@ def create_default_container() -> DependencyContainer:
         from baliza import loader
         return loader
     
-    container.register_extractor("async_pncp", create_async_extractor)
-    container.register_transformer("dbt", create_dbt_transformer)
-    container.register_loader("internet_archive", create_ia_loader)
+    container.register_extractor("default", create_async_extractor)
+    container.register_transformer("default", create_dbt_transformer)
+    container.register_loader("default", create_ia_loader)
     
     # Register configurations
     container.register_config("settings", settings)
@@ -172,12 +170,15 @@ def create_test_container() -> DependencyContainer:
             return self
         
         async def __aexit__(self, exc_type, exc_val, exc_tb):
+            # Mock async context manager exit
             pass
         
         async def extract_data(self, start_date, end_date, force=False):
+            # Mock data extraction
             return {"total_records_extracted": 1000, "run_id": "test"}
         
         async def extract_dbt_driven(self, start_date, end_date, use_existing_plan=True):
+            # Mock dbt-driven extraction
             return {"total_tasks": 10, "completed_tasks": 10, "total_records": 1000}
     
     class MockTransformer:
@@ -186,11 +187,12 @@ def create_test_container() -> DependencyContainer:
     
     class MockLoader:
         def load(self, schemas=None, max_retries=3):
+            # Mock loader implementation for testing
             return {"export": {"total_files": 5}, "upload": {"files_uploaded": 5}, "success": True}
     
-    container.register_extractor("async_pncp", lambda **kwargs: MockExtractor(**kwargs))
-    container.register_transformer("dbt", lambda: MockTransformer())
-    container.register_loader("internet_archive", lambda: MockLoader())
+    container.register_extractor("default", lambda **kwargs: MockExtractor(**kwargs))
+    container.register_transformer("default", lambda: MockTransformer())
+    container.register_loader("default", lambda: MockLoader())
     
     return container
 
