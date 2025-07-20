@@ -14,6 +14,7 @@ import duckdb
 import logging
 
 from baliza.plan_fingerprint import PlanFingerprint
+from baliza.task_state_machine import TaskStatus, TaskStateMachine, validate_status_value
 
 logger = logging.getLogger(__name__)
 
@@ -95,13 +96,13 @@ class TaskClaimer:
                     SELECT tp.task_id, tp.endpoint_name, tp.data_date, tp.modalidade, tp.plan_fingerprint
                     FROM main_planning.task_plan tp
                     LEFT JOIN main_runtime.task_claims tc ON tp.task_id = tc.task_id 
-                        AND tc.status IN ('CLAIMED', 'EXECUTING') 
+                        AND tc.status IN (?, ?) 
                         AND tc.expires_at > CURRENT_TIMESTAMP
-                    WHERE tp.status = 'PENDING'
+                    WHERE tp.status = ?
                       AND tc.task_id IS NULL  -- Not currently claimed
                     ORDER BY tp.data_date ASC, tp.endpoint_name ASC
                     LIMIT ?
-                """, (limit,)).fetchall()
+                """, (TaskStatus.CLAIMED.value, TaskStatus.EXECUTING.value, TaskStatus.PENDING.value, limit)).fetchall()
                 
                 if not available_tasks:
                     conn.commit()
@@ -113,9 +114,8 @@ class TaskClaimer:
                     conn.rollback()
                     raise ValueError(f"Plan fingerprint validation failed for {first_task_fingerprint[:16]}...")
                 
-                # Create claims for all selected tasks
-                claim_id = str(uuid.uuid4())
-                expires_at = datetime.utcnow() + timedelta(minutes=claim_timeout_minutes)
+                # Create claims for all selected tasks  
+                expires_at = datetime.now().replace(tzinfo=None) + timedelta(minutes=claim_timeout_minutes)
                 
                 claimed_tasks = []
                 for task_row in available_tasks:
@@ -125,15 +125,15 @@ class TaskClaimer:
                     conn.execute("""
                         INSERT INTO main_runtime.task_claims 
                         (claim_id, task_id, claimed_at, expires_at, worker_id, status)
-                        VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, 'CLAIMED')
-                    """, (str(uuid.uuid4()), task_id, expires_at, self.worker_id))
+                        VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, ?)
+                    """, (str(uuid.uuid4()), task_id, expires_at, self.worker_id, TaskStatus.CLAIMED.value))
                     
                     # Update task status to CLAIMED
                     conn.execute("""
                         UPDATE main_planning.task_plan 
-                        SET status = 'CLAIMED'
+                        SET status = ?
                         WHERE task_id = ?
-                    """, (task_id,))
+                    """, (TaskStatus.CLAIMED.value, task_id))
                     
                     claimed_tasks.append({
                         'task_id': task_id,
@@ -141,7 +141,7 @@ class TaskClaimer:
                         'data_date': data_date,
                         'modalidade': modalidade,
                         'plan_fingerprint': plan_fingerprint,
-                        'claimed_at': datetime.utcnow(),
+                        'claimed_at': datetime.now().replace(tzinfo=None),
                         'expires_at': expires_at,
                         'worker_id': self.worker_id
                     })
@@ -158,15 +158,27 @@ class TaskClaimer:
                 raise
     
     def update_claim_status(self, task_id: str, status: str) -> None:
-        """Update the status of a claimed task.
+        """Update the status of a claimed task with state machine validation.
         
         Args:
             task_id: Task identifier
             status: New status (EXECUTING, COMPLETED, FAILED)
         """
-        valid_statuses = ['CLAIMED', 'EXECUTING', 'COMPLETED', 'FAILED']
-        if status not in valid_statuses:
-            raise ValueError(f"Invalid status: {status}. Must be one of {valid_statuses}")
+        # Validate status using state machine
+        new_status = validate_status_value(status)
+        
+        # Get current status for validation
+        with duckdb.connect(self.db_path) as conn:
+            current_result = conn.execute("""
+                SELECT tc.status FROM main_runtime.task_claims tc
+                WHERE tc.task_id = ? AND tc.worker_id = ?
+                ORDER BY tc.claimed_at DESC LIMIT 1
+            """, (task_id, self.worker_id)).fetchone()
+            
+            if current_result:
+                current_status = validate_status_value(current_result[0])
+                # Validate transition
+                TaskStateMachine.validate_transition(current_status, new_status, task_id)
         
         with duckdb.connect(self.db_path) as conn:
             # Update claim status
@@ -174,15 +186,15 @@ class TaskClaimer:
                 UPDATE main_runtime.task_claims 
                 SET status = ?
                 WHERE task_id = ? AND worker_id = ?
-            """, (status, task_id, self.worker_id))
+            """, (new_status.value, task_id, self.worker_id))
             
             # Update task plan status if completed or failed
-            if status in ['COMPLETED', 'FAILED']:
+            if new_status in [TaskStatus.COMPLETED, TaskStatus.FAILED]:
                 conn.execute("""
                     UPDATE main_planning.task_plan 
                     SET status = ?
                     WHERE task_id = ?
-                """, (status, task_id))
+                """, (new_status.value, task_id))
     
     def record_task_result(self, task_id: str, request_id: str, page_number: int, records_count: int) -> None:
         """Record execution result for a task.
@@ -213,10 +225,10 @@ class TaskClaimer:
             # Update expired claims to FAILED
             result = conn.execute("""
                 UPDATE main_runtime.task_claims 
-                SET status = 'FAILED'
-                WHERE status IN ('CLAIMED', 'EXECUTING') 
+                SET status = ?
+                WHERE status IN (?, ?) 
                   AND expires_at < CURRENT_TIMESTAMP
-            """)
+            """, (TaskStatus.FAILED.value, TaskStatus.CLAIMED.value, TaskStatus.EXECUTING.value))
             
             expired_count = result.fetchone()[0] if result else 0
             
@@ -224,13 +236,13 @@ class TaskClaimer:
                 # Also update corresponding task plan statuses
                 conn.execute("""
                     UPDATE main_planning.task_plan 
-                    SET status = 'PENDING'
+                    SET status = ?
                     WHERE task_id IN (
                         SELECT task_id FROM main_runtime.task_claims 
-                        WHERE status = 'FAILED' 
+                        WHERE status = ? 
                           AND expires_at < CURRENT_TIMESTAMP
                     )
-                """)
+                """, (TaskStatus.PENDING.value, TaskStatus.FAILED.value))
                 
                 logger.info(f"🧹 Released {expired_count} expired claims")
             
@@ -246,13 +258,13 @@ class TaskClaimer:
             stats = conn.execute("""
                 SELECT 
                     COUNT(*) as total_claims,
-                    COUNT(CASE WHEN status = 'CLAIMED' THEN 1 END) as pending_claims,
-                    COUNT(CASE WHEN status = 'EXECUTING' THEN 1 END) as executing_claims,
-                    COUNT(CASE WHEN status = 'COMPLETED' THEN 1 END) as completed_claims,
-                    COUNT(CASE WHEN status = 'FAILED' THEN 1 END) as failed_claims
+                    COUNT(CASE WHEN status = ? THEN 1 END) as pending_claims,
+                    COUNT(CASE WHEN status = ? THEN 1 END) as executing_claims,
+                    COUNT(CASE WHEN status = ? THEN 1 END) as completed_claims,
+                    COUNT(CASE WHEN status = ? THEN 1 END) as failed_claims
                 FROM main_runtime.task_claims
                 WHERE worker_id = ?
-            """, (self.worker_id,)).fetchone()
+            """, (TaskStatus.CLAIMED.value, TaskStatus.EXECUTING.value, TaskStatus.COMPLETED.value, TaskStatus.FAILED.value, self.worker_id)).fetchone()
             
             if stats:
                 return {
@@ -286,7 +298,6 @@ def create_task_plan(start_date: str, end_date: str, environment: str = "prod") 
         Plan fingerprint for the generated plan
     """
     import subprocess
-    import os
     
     # Generate fingerprint for this plan
     fingerprint = PlanFingerprint()

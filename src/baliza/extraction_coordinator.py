@@ -20,6 +20,7 @@ from rich.console import Console
 from rich.progress import Progress, BarColumn, TextColumn, TimeElapsedColumn
 
 from baliza.task_claimer import TaskClaimer, create_task_plan
+from baliza.task_state_machine import TaskStatus
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -143,8 +144,8 @@ class ExecutionPhase(ExtractionPhase):
         with duckdb.connect(self.writer.db_path) as conn:
             return conn.execute("""
                 SELECT COUNT(*) FROM main_planning.task_plan 
-                WHERE status = 'PENDING' AND plan_fingerprint = ?
-            """, (plan_fingerprint,)).fetchone()[0]
+                WHERE status = ? AND plan_fingerprint = ?
+            """, (TaskStatus.PENDING.value, plan_fingerprint)).fetchone()[0]
     
     async def _execute_task_batches(self, claimer: TaskClaimer, execution_progress, progress: Progress):
         """Execute tasks in batches until completion."""
@@ -348,10 +349,10 @@ class ExtractionCoordinator:
             task_stats = conn.execute("""
                 SELECT 
                     COUNT(*) as total_tasks,
-                    SUM(CASE WHEN status = 'COMPLETED' THEN 1 ELSE 0 END) as completed_tasks,
-                    SUM(CASE WHEN status = 'FAILED' THEN 1 ELSE 0 END) as failed_tasks
+                    SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as completed_tasks,
+                    SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as failed_tasks
                 FROM main_planning.task_plan
-            """).fetchone()
+            """, (TaskStatus.COMPLETED.value, TaskStatus.FAILED.value)).fetchone()
             
             # Get total records
             total_records = conn.execute("""
