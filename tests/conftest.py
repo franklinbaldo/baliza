@@ -63,19 +63,6 @@ def skip_if_no_database():
         pytest.skip("Database file not found - run extraction first")
 
 
-# Configure test timeout for E2E tests
-@pytest.fixture(autouse=True)
-def configure_test_timeout(request):
-    """Configure timeouts for E2E tests."""
-    if request.node.get_closest_marker("slow"):
-        # Slow tests get longer timeout
-        request.node.timeout = 300  # 5 minutes
-    elif request.node.get_closest_marker("e2e"):
-        # Regular E2E tests get moderate timeout
-        request.node.timeout = 120  # 2 minutes
-    else:
-        # Fast tests get short timeout
-        request.node.timeout = 30  # 30 seconds
 
 
 # Set environment variables for testing

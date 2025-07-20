@@ -604,6 +604,9 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
         self, start_date: date, end_date: date, force: bool = False
     ) -> dict[str, Any]:
         """Main extraction method using a task-based, phased architecture."""
+        print("Extracting data...")
+        time.sleep(10)
+        breakpoint()
         logger.info(
             f"Extraction started: {start_date.isoformat()} to {end_date.isoformat()}, "
             f"concurrency={self.concurrency}, run_id={self.run_id}, force={force}"
@@ -631,7 +634,9 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
         # --- Main Execution Flow ---
 
         # Phase 1: Planning
+        logger.info("Starting phase 1: Planning")
         await self._plan_tasks(start_date, end_date)
+        logger.info("Finished phase 1: Planning")
 
         with Progress(
             TextColumn("[progress.description]{task.description}"),
@@ -644,10 +649,14 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
             refresh_per_second=10,
         ) as progress:
             # Phase 2: Discovery
+            logger.info("Starting phase 2: Discovery")
             await self._discover_tasks(progress)
+            logger.info("Finished phase 2: Discovery")
 
             # Phase 3: Execution
+            logger.info("Starting phase 3: Execution")
             await self._execute_tasks(progress)
+            logger.info("Finished phase 3: Execution")
 
         # Wait for writer to process all enqueued pages
         try:
@@ -667,7 +676,9 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
             self.running_tasks.discard(writer_task)
 
         # Phase 4: Reconciliation
+        logger.info("Starting phase 4: Reconciliation")
         await self._reconcile_tasks()
+        logger.info("Finished phase 4: Reconciliation")
 
         # --- Final Reporting ---
         duration = time.time() - start_time

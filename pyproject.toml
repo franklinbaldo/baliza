@@ -239,6 +239,9 @@ filterwarnings = [
     "ignore::DeprecationWarning",
     "ignore::PendingDeprecationWarning",
 ]
+asyncio_mode = "auto"
+log_cli = true
+log_cli_level = "INFO"
 
 # Coverage configuration for pytest-cov
 [tool.coverage.run]

@@ -100,8 +100,10 @@ class PNCPClient:
         self, url: str, params: dict[str, Any], task_id: str | None = None
     ) -> dict[str, Any]:
         """Fetch with semaphore back-pressure and retry logic."""
+        logger.info(f"Fetching {url} with params {params}")
         async with self.semaphore:
             response = await self.client.get(url, params=params)
+            logger.info(f"Response status code: {response.status_code}")
 
             # Common success data
             if response.status_code in [200, 204]:

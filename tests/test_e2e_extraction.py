@@ -18,8 +18,8 @@ from tests.schemas import ContratosResponse
 @pytest.mark.e2e
 @pytest.mark.asyncio
 @retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential_jitter(initial=1, max=30),
+    stop=stop_after_attempt(1),
+    wait=wait_exponential_jitter(initial=1, max=5),
     reraise=True,
 )
 async def test_e2e_extract_single_day():
@@ -78,8 +78,8 @@ async def test_e2e_extract_single_day():
 @pytest.mark.e2e
 @pytest.mark.asyncio
 @retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential_jitter(initial=1, max=30),
+    stop=stop_after_attempt(1),
+    wait=wait_exponential_jitter(initial=1, max=5),
     reraise=True,
 )
 async def test_e2e_extraction_resumability():
@@ -160,8 +160,8 @@ async def test_e2e_extraction_resumability():
 @pytest.mark.slow
 @pytest.mark.asyncio
 @retry(
-    stop=stop_after_attempt(2),  # Fewer retries for slow tests
-    wait=wait_exponential_jitter(initial=2, max=60),
+    stop=stop_after_attempt(1),  # Fewer retries for slow tests
+    wait=wait_exponential_jitter(initial=1, max=5),
     reraise=True,
 )
 async def test_e2e_extraction_multiple_endpoints():
