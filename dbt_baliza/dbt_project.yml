@@ -60,6 +60,12 @@ vars:
   start_date: '2024-01-01'
   end_date: '2024-12-31'
   
+  # Task status values for testing
+  task_status_values: ['PENDING', 'CLAIMED', 'EXECUTING', 'COMPLETED', 'FAILED']
+  
+  # Environment values for testing
+  environment_values: ['dev', 'staging', 'prod']
+  
   # Endpoint configurations
   endpoints:
     contratos_publicacao: 'contratos_publicacao'
