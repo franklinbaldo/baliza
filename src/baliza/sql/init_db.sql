@@ -64,3 +64,44 @@ CREATE TABLE psa.pncp_extraction_tasks (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
     CONSTRAINT unique_task UNIQUE (endpoint_name, data_date, modalidade)
 );
+
+CREATE SCHEMA IF NOT EXISTS main_planning;
+
+CREATE TABLE IF NOT EXISTS main_planning.task_plan_meta (
+    plan_fingerprint VARCHAR PRIMARY KEY,
+    date_range_start DATE,
+    date_range_end DATE,
+    environment VARCHAR,
+    task_count INTEGER,
+    generated_at TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS main_planning.task_plan (
+    task_id VARCHAR PRIMARY KEY,
+    plan_fingerprint VARCHAR,
+    endpoint_name VARCHAR,
+    data_date DATE,
+    modalidade VARCHAR,
+    status VARCHAR
+);
+
+CREATE SCHEMA IF NOT EXISTS main_runtime;
+
+CREATE TABLE IF NOT EXISTS main_runtime.task_claims (
+    claim_id VARCHAR PRIMARY KEY,
+    task_id VARCHAR,
+    claimed_at TIMESTAMP,
+    expires_at TIMESTAMP,
+    worker_id VARCHAR,
+    status VARCHAR
+);
+
+CREATE TABLE IF NOT EXISTS main_runtime.task_results (
+    result_id VARCHAR PRIMARY KEY,
+    task_id VARCHAR,
+    request_id VARCHAR,
+    page_number INTEGER,
+    records_count INTEGER,
+    completed_at TIMESTAMP,
+    status VARCHAR
+);

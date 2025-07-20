@@ -12,7 +12,7 @@ class DbtRunner:
     """Handles execution of dbt commands."""
 
     def __init__(self, dbt_project_dir: str = None):
-        self.dbt_project_dir = dbt_project_dir or str(Path(__file__).parent.parent / "dbt_baliza")
+        self.dbt_project_dir = dbt_project_dir or str(Path(__file__).parent.parent.parent / "dbt_baliza")
 
     def create_task_plan(self, start_date: str, end_date: str, environment: str = "prod") -> str:
         """Create a new task plan using dbt models.
@@ -39,9 +39,16 @@ class DbtRunner:
         vars_str = ','.join([f'"{k}": "{v}"' for k, v in dbt_vars.items()])
 
         try:
+            seed_cmd = ["uv", "run", "dbt", "seed", "--project-dir", self.dbt_project_dir, "--profiles-dir", self.dbt_project_dir]
+            subprocess.run(seed_cmd, cwd=self.dbt_project_dir)
+            deps_cmd = ["uv", "run", "dbt", "deps", "--project-dir", self.dbt_project_dir, "--profiles-dir", self.dbt_project_dir]
+            subprocess.run(deps_cmd, cwd=self.dbt_project_dir)
+
             cmd = [
                 "uv", "run", "dbt", "run", "--select", "planning",
-                "--vars", f"{{{vars_str}}}"
+                "--vars", f"{{{vars_str}}}",
+                "--project-dir", self.dbt_project_dir,
+                "--profiles-dir", self.dbt_project_dir
             ]
 
             result = subprocess.run(
@@ -49,8 +56,11 @@ class DbtRunner:
                 cwd=self.dbt_project_dir,
                 capture_output=True,
                 text=True,
-                check=True
             )
+
+            if result.returncode != 0:
+                logger.error(f"dbt run failed: {result.stderr}")
+                return None
 
             logger.info(f"✅ Generated task plan with fingerprint {plan_fingerprint[:16]}...")
             logger.info(f"dbt output: {result.stdout}")
@@ -59,4 +69,4 @@ class DbtRunner:
 
         except subprocess.CalledProcessError as e:
             logger.error(f"dbt run failed: {e.stderr}")
-            raise RuntimeError(f"Task plan generation failed: {e.stderr}")
+            return None

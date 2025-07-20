@@ -11,7 +11,7 @@ from .config import settings
 
 # BALIZA namespace UUID for UUIDv5 generation
 # Loaded from settings to ensure consistency across the application
-BALIZA_NAMESPACE = settings.BALIZA_NAMESPACE
+BALIZA_NAMESPACE = settings.baliza_namespace
 
 
 def normalize_content(content: str) -> str:

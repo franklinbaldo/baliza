@@ -68,8 +68,6 @@ class AsyncPNCPExtractor:
     async def extract_dbt_driven(self, start_date: date, end_date: date, use_existing_plan: bool = True):
         coordinator = ExtractionCoordinator(
             writer=self.writer,
-            task_claimer=self.task_claimer,
-            dbt_runner=self.dbt_runner,
             concurrency=self.concurrency,
             force_db=self.force_db
         )

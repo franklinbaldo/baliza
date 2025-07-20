@@ -8,22 +8,15 @@
   )
 }}
 
-WITH itens_beneficios AS (
-    SELECT
-        i.numero_controle_pncp,
-        i.valor_total,
-        t.tipo_beneficio_id
-    FROM {{ ref('silver_itens_contratacao') }} i
-    JOIN {{ ref('tipos_beneficio') }} t ON i.tipo_beneficio_nome = t.tipo_beneficio_nome
-),
-beneficios_agregados AS (
+WITH beneficios_agregados AS (
     SELECT
         c.org_key,
-        SUM(CASE WHEN ib.tipo_beneficio_id IN (1, 2, 3) THEN ib.valor_total ELSE 0 END) AS valor_total_com_beneficio,
-        COUNT(CASE WHEN ib.tipo_beneficio_id IN (1, 2, 3) THEN 1 END) AS qtd_itens_com_beneficio,
-        COUNT(*) AS qtd_total_itens
+        SUM(i.valor_total) AS valor_total_com_beneficio,
+        COUNT(i.numero_item) AS qtd_itens_com_beneficio,
+        (SELECT COUNT(*) FROM {{ ref('silver_itens_contratacao') }}) AS qtd_total_itens
     FROM {{ ref('silver_fact_contratacoes') }} c
-    JOIN itens_beneficios ib ON c.numero_controle_pncp = ib.numero_controle_pncp
+    JOIN {{ ref('silver_itens_contratacao') }} i ON c.numero_controle_pncp = i.numero_controle_pncp
+    WHERE i.modalidade_id IN (1, 2, 3)
     GROUP BY c.org_key
 )
 SELECT

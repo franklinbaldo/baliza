@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     internet_archive_identifier: str = "baliza-pncp"
     ia_access_key: str = ""
     ia_secret_key: str = ""
-    baliza_namespace: UUID4 = Field(default="6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+    baliza_namespace: UUID4 = Field(default="169643d2-3103-492e-9189-53644ab43f4b")
 
 settings = Settings()
 

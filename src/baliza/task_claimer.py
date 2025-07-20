@@ -170,7 +170,7 @@ class TaskClaimer:
                     WHERE task_id = ?
                 """, (status, task_id))
     
-    def record_task_result(self, task_id: str, request_id: str, page_number: int, records_count: int) -> None:
+    def record_task_result(self, task_id: str, request_id: str, page_number: int, records_count: int, status: str) -> None:
         """Record execution result for a task.
         
         Args:
@@ -178,13 +178,14 @@ class TaskClaimer:
             request_id: PNCP request ID for traceability
             page_number: Page number in paginated response
             records_count: Number of records in this page
+            status: Status of the task
         """
         with duckdb.connect(self.db_path) as conn:
             conn.execute("""
                 INSERT INTO main_runtime.task_results 
-                (result_id, task_id, request_id, page_number, records_count, completed_at)
-                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            """, (str(uuid.uuid4()), task_id, request_id, page_number, records_count))
+                (result_id, task_id, request_id, page_number, records_count, completed_at, status)
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+            """, (str(uuid.uuid4()), task_id, request_id, page_number, records_count, status))
     
     def release_expired_claims(self) -> int:
         """Release claims that have expired (claim reaper function).

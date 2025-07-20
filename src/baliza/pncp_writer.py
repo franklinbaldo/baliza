@@ -90,7 +90,7 @@ class PNCPWriter:
                 self.db_lock = None
         else:
             # Normal mode: Respect existing locks
-        self.db_lock = FileLock(self.db_path + ".lock")
+            self.db_lock = FileLock(self.db_path + ".lock")
             try:
                 self.db_lock.acquire(timeout=0.5)
             except Timeout:

@@ -58,6 +58,8 @@ vars:
   # Date range for processing (can be overridden at runtime)
   start_date: "{{ env_var('START_DATE', '2024-01-01') }}"
   end_date: "{{ env_var('END_DATE', '2024-12-31') }}"
+  task_status_values: ['PENDING', 'CLAIMED', 'COMPLETED', 'FAILED']
+  environment_values: ['dev', 'staging', 'prod']
 
 # Tests
 tests:

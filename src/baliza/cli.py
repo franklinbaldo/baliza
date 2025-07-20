@@ -12,11 +12,10 @@ from . import loader, mcp_server, transformer
 from .config import settings
 from .enums import ENUM_REGISTRY, get_enum_choices
 from .extractor import (
-    BALIZA_DB_PATH,
-    DATA_DIR,
     AsyncPNCPExtractor,
-    connect_utf8,
 )
+from .pncp_writer import BALIZA_DB_PATH, DATA_DIR
+from .db_utils import connect_db
 from .ui import Dashboard, ErrorHandler, get_console
 
 app = typer.Typer(no_args_is_help=False)  # Allow running without args
@@ -124,7 +123,7 @@ def extract(
                     console.print("🛑 [yellow]Shutdown requested before extraction started[/yellow]")
                     return {"total_records_extracted": 0, "run_id": "cancelled"}
 
-                results = await extractor.extract_data(start_dt, end_dt, force)
+                results = await extractor.extract_dbt_driven(start_dt, end_dt, use_existing_plan=not force)
 
                 # Show completion summary
                 completion_content = [
@@ -651,7 +650,7 @@ def stats(
             lock_file.unlink()
             console.print("🔓 [yellow]Force mode: Removed database lock[/yellow]")
 
-    conn = connect_utf8(str(BALIZA_DB_PATH), force=force_db)
+    conn = connect_db(str(BALIZA_DB_PATH), force=force_db)
 
     # Overall stats
     total_responses = conn.execute(

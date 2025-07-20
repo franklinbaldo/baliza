@@ -86,7 +86,7 @@ class ErrorHandler:
         return True
 
     def handle_api_error(
-        self, error: Exception, _endpoint: str, context: dict[str, Any] | None = None
+        self, error: Exception, endpoint: str, context: dict[str, Any] | None = None
     ) -> None:
         """Handle general API errors with context and suggestions."""
 

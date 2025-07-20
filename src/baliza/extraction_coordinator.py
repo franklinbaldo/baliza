@@ -19,7 +19,8 @@ import duckdb
 from rich.console import Console
 from rich.progress import Progress, BarColumn, TextColumn, TimeElapsedColumn
 
-from baliza.task_claimer import TaskClaimer, create_task_plan
+from baliza.dbt_runner import DbtRunner
+from baliza.task_claimer import TaskClaimer
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -93,17 +94,22 @@ class PlanningPhase(ExtractionPhase):
     async def _generate_new_plan(self, start_date: date, end_date: date) -> str:
         """Generate new task plan using dbt."""
         console.print("🔨 [blue]Generating new task plan with dbt...[/blue]")
-        plan_fingerprint = create_task_plan(str(start_date), str(end_date), "prod")
-        
-        # Get task count
-        with duckdb.connect(self.writer.db_path) as conn:
-            task_count = conn.execute(
-                "SELECT COUNT(*) FROM main_planning.task_plan WHERE plan_fingerprint = ?", 
-                (plan_fingerprint,)
-            ).fetchone()[0]
-        
-        console.print(f"✅ [green]Plan generated: {plan_fingerprint[:16]}... ({task_count:,} tasks)[/green]")
-        return plan_fingerprint
+        dbt_runner = DbtRunner()
+        plan_fingerprint = dbt_runner.create_task_plan(str(start_date), str(end_date), "prod")
+
+        if plan_fingerprint:
+            # Get task count
+            with duckdb.connect(self.writer.db_path) as conn:
+                task_count = conn.execute(
+                    "SELECT COUNT(*) FROM main_planning.task_plan WHERE plan_fingerprint = ?",
+                    (plan_fingerprint,)
+                ).fetchone()[0]
+
+            console.print(f"✅ [green]Plan generated: {plan_fingerprint[:16]}... ({task_count:,} tasks)[/green]")
+            return plan_fingerprint
+        else:
+            console.print("❌ [red]Failed to generate task plan.[/red]")
+            return None
     
     async def _generate_new_plan_from_existing(self) -> str:
         """Generate new plan when existing plan validation fails."""
@@ -205,11 +211,11 @@ class ExecutionPhase(ExtractionPhase):
             await asyncio.sleep(0.1)
             
             # Record successful completion
-            claimer.record_task_result(task_id, 'SUCCESS', records_extracted=100)
+            claimer.record_task_result(task_id, 'SUCCESS', 0, 100, 'SUCCESS')
             
         except Exception as e:
             logger.error(f"Task {task_id} failed: {e}")
-            claimer.record_task_result(task_id, 'FAILED', error_message=str(e))
+            claimer.record_task_result(task_id, 'FAILED', 0, 0, 'FAILED')
 
 
 class ExtractionCoordinator:
@@ -355,9 +361,10 @@ class ExtractionCoordinator:
             
             # Get total records
             total_records = conn.execute("""
-                SELECT COALESCE(SUM(records_extracted), 0) 
-                FROM main_runtime.task_results 
-                WHERE status = 'SUCCESS'
+                SELECT COALESCE(SUM(tr.records_count), 0)
+                FROM main_runtime.task_results tr
+                JOIN main_runtime.task_claims tc ON tr.task_id = tc.task_id
+                WHERE tc.status = 'COMPLETED'
             """).fetchone()[0]
             
             return {
@@ -365,5 +372,6 @@ class ExtractionCoordinator:
                 'completed_tasks': task_stats[1] or 0,
                 'failed_tasks': task_stats[2] or 0,
                 'total_records': total_records or 0,
-                'worker_id': claimer.worker_id  # Use the claimer parameter
+                'worker_id': claimer.worker_id,  # Use the claimer parameter
+                'run_id': claimer.worker_id.replace('coordinator-', '')
             }

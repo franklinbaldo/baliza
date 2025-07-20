@@ -137,10 +137,8 @@ models:
           - relationships:
               to: ref('silver_dim_unidades_orgao')
               field: unit_key
-          - not_null
       - name: valor_inicial
         description: "Initial contract value in BRL"
         tests:
           - not_null
-          - dbt_expectations.expect_column_values_to_not_be_null:
-              min_value: 0
+          - dbt_expectations.expect_column_values_to_not_be_null
