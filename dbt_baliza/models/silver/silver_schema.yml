@@ -1,6 +1,8 @@
 version: 2
 
 models:
+  - name: silver
+    description: "The silver layer contains cleaned, validated, and enriched data from the bronze layer. It serves as the single source of truth for downstream analytics and reporting."
   - name: silver_contratos
     description: "Clean, deduplicated contract data with business logic applied"
     columns:
@@ -19,13 +21,46 @@ models:
           - not_null
           - dbt_expectations.expect_column_values_to_be_of_type:
               column_type: number
-          - dbt_expectations.expect_column_values_to_not_be_null:
+          - dbt_expectations.expect_column_values_to_be_between:
               min_value: 0
+              max_value: 1000000000
+  - name: silver_atas
+    description: "Clean, deduplicated contract data with business logic applied"
+    columns:
+      - name: numero_controle_pncp
+        description: "PNCP control number - unique identifier for each contract"
+        tests:
+          - unique
+          - not_null
+  - name: silver_contratacoes
+    description: "Clean, deduplicated contract data with business logic applied"
+    columns:
+      - name: numero_controle_pncp
+        description: "PNCP control number - unique identifier for each contract"
+        tests:
+          - unique
+          - not_null
+  - name: silver_documentos
+    description: "Clean, deduplicated contract data with business logic applied"
+    columns:
+      - name: numero_controle_pncp
+        description: "PNCP control number - unique identifier for each contract"
+        tests:
+          - unique
+          - not_null
+  - name: silver_itens_contratacao
+    description: "Clean, deduplicated contract data with business logic applied"
+    columns:
+      - name: numero_controle_pncp
+        description: "PNCP control number - unique identifier for each contract"
+        tests:
+          - unique
+          - not_null
       - name: tipo_pessoa
         description: "Type of legal entity (fisica/juridica)"
         tests:
           - accepted_values:
-              values: "{{ var('tipo_pessoa_values') }}"
+              values: ["PESSOA_FISICA", "PESSOA_JURIDICA"]
       - name: ni_fornecedor
         description: "Supplier identification number (CPF/CNPJ)"
         tests:
@@ -78,13 +113,16 @@ models:
           - not_null
 
   - name: silver_fact_contratos
-    description: "Contract fact table with foreign keys to dimensions"
+    description: "Contract fact table with foreign keys to dimensions. This model is for contracts, not to be confused with `silver_fact_contratacoes`."
     columns:
       - name: numero_controle_pncp
         description: "PNCP control number"
         tests:
           - unique
           - not_null
+          - relationships:
+              to: ref('silver_contratos')
+              field: numero_controle_pncp
       - name: org_key
         description: "Foreign key to organization dimension"
         tests:
@@ -99,6 +137,7 @@ models:
           - relationships:
               to: ref('silver_dim_unidades_orgao')
               field: unit_key
+          - not_null
       - name: valor_inicial
         description: "Initial contract value in BRL"
         tests:
