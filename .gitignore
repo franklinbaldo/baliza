@@ -66,6 +66,7 @@ logs/
 # Package files
 uv.lock
 /site
+/dbt_baliza/dbt_packages/
 
 # Repomix output files
 repomix*

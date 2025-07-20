@@ -10,10 +10,10 @@ import logging
 from typing import Any
 
 import httpx
-from tenacity import retry, stop_after_attempt, wait_exponential_jitter
+from tenacity import Retrying, stop_after_attempt, wait_exponential_jitter
 
 from baliza.config import settings
-from baliza.utils import parse_json_robust
+from baliza.utils.json_utils import parse_json_robust
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +21,14 @@ logger = logging.getLogger(__name__)
 class PNCPClient:
     """Handles HTTP requests to the PNCP API with retry logic and back-pressure."""
 
-    def __init__(self, concurrency: int):
+    def __init__(self, concurrency: int, retry_strategy: Retrying = None):
         self.concurrency = concurrency
         self.semaphore = asyncio.Semaphore(concurrency)
         self.client: httpx.AsyncClient | None = None
+        self.retry_strategy = retry_strategy or Retrying(
+            stop=stop_after_attempt(3),
+            wait=wait_exponential_jitter(initial=1, max=30)
+        )
 
     async def __aenter__(self):
         """Async context manager entry."""
@@ -95,17 +99,12 @@ class PNCPClient:
         except httpx.RequestError as e:
             logger.exception(f"HTTP/2 verification failed: {e}")
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential_jitter(initial=1, max=30))
-    async def fetch_with_backpressure(
-        self, url: str, params: dict[str, Any], task_id: str | None = None
-    ) -> dict[str, Any]:
-        """Fetch with semaphore back-pressure and retry logic."""
+    async def _fetch(self, url: str, params: dict[str, Any]) -> dict[str, Any]:
+        """Core fetch logic for a single request."""
         async with self.semaphore:
-            # Rate limiting: add configurable delay between requests to respect API limits
             await asyncio.sleep(settings.rate_limit_delay)
             response = await self.client.get(url, params=params)
 
-            # Common success data - treat 404 like 204 (no data found)
             if response.status_code in [200, 204, 404]:
                 content_text = response.text
                 data = parse_json_robust(content_text) if content_text else {}
@@ -117,36 +116,35 @@ class PNCPClient:
                     "total_records": data.get("totalRegistros", 0),
                     "total_pages": data.get("totalPaginas", 1),
                     "content": content_text,
-                    "task_id": task_id,  # Pass through task_id
                     "url": url,
                     "params": params,
                 }
 
-            # Handle failures
             if response.status_code == 429:
-                # Rate limit hit - raise exception to trigger retry with backoff
-                logger.warning(
-                    f"Rate limit hit (429) for {url}, will retry with backoff"
-                )
+                logger.warning(f"Rate limit hit (429) for {url}, will retry with backoff")
                 response.raise_for_status()
 
-            if 400 <= response.status_code < 500 and response.status_code != 404:
-                # Don't retry other client errors (but do retry 429 above, and 404 is handled as success)
+            if 400 <= response.status_code < 500:
                 return {
                     "success": False,
                     "status_code": response.status_code,
                     "error": f"HTTP {response.status_code}",
                     "content": response.text,
                     "headers": dict(response.headers),
-                    "task_id": task_id,
                 }
 
-            # Final failure after retries
+            response.raise_for_status()
+
+    async def fetch_with_backpressure(self, url: str, params: dict[str, Any]) -> dict[str, Any]:
+        """Fetch with semaphore back-pressure and retry logic."""
+        try:
+            return await self.retry_strategy.call(self._fetch, url, params)
+        except Exception as e:
+            logger.exception(f"Request failed after multiple retries: {e}")
             return {
                 "success": False,
-                "status_code": response.status_code,
-                "error": f"HTTP {response.status_code} after {3} attempts",
-                "content": response.text,
-                "headers": dict(response.headers),
-                "task_id": task_id,
+                "status_code": 0,
+                "error": str(e),
+                "content": "",
+                "headers": {},
             }

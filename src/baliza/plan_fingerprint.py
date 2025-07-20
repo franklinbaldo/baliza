@@ -14,6 +14,8 @@ from typing import Any, Dict
 import yaml
 
 
+from .config import get_endpoint_config, get_all_active_endpoints, load_config
+
 class PlanFingerprint:
     """Manages plan fingerprinting for configuration drift detection.
     
@@ -27,17 +29,11 @@ class PlanFingerprint:
         Args:
             config_path: Path to unified endpoints configuration file
         """
-        if config_path is None:
-            config_path = str(Path(__file__).parent.parent.parent / "config" / "endpoints.yaml")
-        self.config_path = Path(config_path)
+        self.config_path = Path(config_path) if config_path else None
         
     def load_config(self) -> Dict[str, Any]:
         """Load and parse endpoints configuration."""
-        if not self.config_path.exists():
-            raise FileNotFoundError(f"Configuration file not found: {self.config_path}")
-            
-        with open(self.config_path, 'r', encoding='utf-8') as f:
-            return yaml.safe_load(f)
+        return load_config(self.config_path)
     
     def _filter_for_fingerprint(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """Remove environment-specific and secret values from config.
@@ -140,61 +136,3 @@ class PlanFingerprint:
             'endpoint_count': len(active_endpoints)
         }
 
-
-def get_endpoint_config(endpoint_name: str, config_path: str = None) -> Dict[str, Any]:
-    """Get configuration for a specific endpoint.
-    
-    Helper function for Python extraction code to access unified config.
-    
-    Args:
-        endpoint_name: Name of the endpoint to retrieve
-        config_path: Path to configuration file
-        
-    Returns:
-        Endpoint configuration dictionary
-        
-    Raises:
-        KeyError: If endpoint not found in configuration
-    """
-    fingerprint = PlanFingerprint(config_path)
-    config = fingerprint.load_config()
-    
-    endpoints = config.get('endpoints', {})
-    if endpoint_name not in endpoints:
-        raise KeyError(f"Endpoint '{endpoint_name}' not found in configuration")
-    
-    # Merge with default settings
-    endpoint_config = endpoints[endpoint_name].copy()
-    defaults = config.get('default_settings', {})
-    
-    # Apply defaults for missing values
-    for key, default_value in defaults.items():
-        if key not in endpoint_config:
-            endpoint_config[key] = default_value
-    
-    return endpoint_config
-
-
-def get_all_active_endpoints(config_path: str = None) -> Dict[str, Dict[str, Any]]:
-    """Get all active endpoint configurations.
-    
-    Args:
-        config_path: Path to configuration file
-        
-    Returns:
-        Dictionary mapping endpoint names to their configurations
-    """
-    fingerprint = PlanFingerprint(config_path)
-    config = fingerprint.load_config()
-    
-    active_endpoints = {}
-    defaults = config.get('default_settings', {})
-    
-    for name, endpoint_config in config.get('endpoints', {}).items():
-        if endpoint_config.get('active', True):
-            # Merge with defaults
-            merged_config = defaults.copy()
-            merged_config.update(endpoint_config)
-            active_endpoints[name] = merged_config
-    
-    return active_endpoints

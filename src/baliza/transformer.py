@@ -2,18 +2,21 @@
 Handles the 'transform' command by running dbt.
 """
 
+import logging
 import subprocess
 
-import typer
+logger = logging.getLogger(__name__)
 
-
-def transform():
+def transform(dbt_command: list[str] = None):
     """
     Runs the dbt transformation process.
     """
+    if dbt_command is None:
+        dbt_command = ["dbt", "run", "--project-dir", "dbt_baliza"]
+
     try:
         process = subprocess.Popen(
-            ["dbt", "run", "--project-dir", "dbt_baliza"],
+            dbt_command,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -22,16 +25,16 @@ def transform():
         )
         if process.stdout:
             for line in process.stdout:
-                typer.echo(line, nl=False)
+                logger.info(line.strip())
         process.wait()
         if process.returncode != 0:
-            raise typer.Exit(code=process.returncode)
+            raise subprocess.CalledProcessError(process.returncode, dbt_command)
     except FileNotFoundError:
-        typer.secho(
-            "dbt not found. Please ensure dbt is installed and in your PATH.",
-            fg=typer.colors.RED,
-        )
-        raise typer.Exit(code=1)
+        logger.error("dbt not found. Please ensure dbt is installed and in your PATH.")
+        raise
+    except subprocess.CalledProcessError as e:
+        logger.error(f"dbt process failed with exit code {e.returncode}")
+        raise
     except Exception as e:
-        typer.secho(f"An error occurred: {e}", fg=typer.colors.RED)
-        raise typer.Exit(code=1)
+        logger.error(f"An unexpected error occurred: {e}")
+        raise

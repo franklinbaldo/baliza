@@ -1,4 +1,4 @@
-{% macro generate_task_plan(start_date, end_date, environment='prod') %}
+{% macro generate_task_plan(start_date, end_date) %}
 {#
   Generate extraction task plan from unified endpoints.yaml configuration.
   
@@ -7,21 +7,21 @@
   
   Args:
     start_date: Start date for extraction (YYYY-MM-DD)
-    end_date: End date for extraction (YYYY-MM-DD) 
-    environment: Environment name (dev, staging, prod)
+    end_date: End date for extraction (YYYY-MM-DD)
     
   Returns:
     SQL query that generates task_plan rows
 #}
 
+{% if not start_date or not end_date %}
+  {{ exceptions.raise_compiler_error("`start_date` and `end_date` must be provided.") }}
+{% endif %}
+
 WITH endpoints_config AS (
-  -- FIXED: Load endpoint configuration from seed tables (single source of truth)
-  -- This replaces the hardcoded VALUES clause with data from endpoints.yaml
   SELECT 
     endpoint_name,
     granularity,
     active,
-    -- Parse modalidades from CSV string to array
     CASE 
       WHEN modalidades = '' OR modalidades IS NULL THEN ARRAY[]::integer[]
       ELSE string_split(modalidades, ',')::integer[]
@@ -31,13 +31,12 @@ WITH endpoints_config AS (
 ),
 
 date_spine AS (
-  -- Generate date range based on granularity (DuckDB syntax)
   SELECT 
-    date_trunc('month', d::TIMESTAMP) AS data_date
+    date_trunc('{{ var("date_granularity", "month") }}', d::TIMESTAMP) AS data_date
   FROM generate_series(
     '{{ start_date }}'::DATE,
     '{{ end_date }}'::DATE,
-    INTERVAL '1 month'
+    INTERVAL '1 {{ var("date_granularity", "month") }}'
   ) AS t(d)
 ),
 
@@ -57,7 +56,7 @@ task_plan_raw AS (
   -- Generate task plan by crossing dates with endpoint/modalidade combinations
   SELECT 
     -- Deterministic task ID (DuckDB MD5 hash)
-    md5(em.endpoint_name || '|' || ds.data_date::text || '|' || COALESCE(em.modalidade::text, 'null')) AS task_id,
+    {{ dbt_utils.generate_surrogate_key(['em.endpoint_name', 'ds.data_date', 'em.modalidade']) }} AS task_id,
     em.endpoint_name,
     ds.data_date,
     em.modalidade,

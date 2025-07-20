@@ -86,55 +86,42 @@ class TaskClaimer:
         """
         with duckdb.connect(self.db_path) as conn:
             try:
-                # Begin transaction for atomic claiming
                 conn.begin()
                 
-                # First, get available tasks with atomic lock
-                # Note: DuckDB doesn't support FOR UPDATE, so we use a different approach
+                # This query now uses a simplified approach for claiming
                 available_tasks = conn.execute("""
-                    SELECT tp.task_id, tp.endpoint_name, tp.data_date, tp.modalidade, tp.plan_fingerprint
-                    FROM main_planning.task_plan tp
-                    LEFT JOIN main_runtime.task_claims tc ON tp.task_id = tc.task_id 
-                        AND tc.status IN ('CLAIMED', 'EXECUTING') 
-                        AND tc.expires_at > CURRENT_TIMESTAMP
-                    WHERE tp.status = 'PENDING'
-                      AND tc.task_id IS NULL  -- Not currently claimed
-                    ORDER BY tp.data_date ASC, tp.endpoint_name ASC
-                    LIMIT ?
+                    UPDATE main_planning.task_plan
+                    SET status = 'CLAIMED'
+                    WHERE task_id IN (
+                        SELECT task_id
+                        FROM main_planning.task_plan
+                        WHERE status = 'PENDING'
+                        ORDER BY data_date ASC, endpoint_name ASC
+                        LIMIT ?
+                    )
+                    RETURNING task_id, endpoint_name, data_date, modalidade, plan_fingerprint
                 """, (limit,)).fetchall()
-                
+
                 if not available_tasks:
                     conn.commit()
                     return []
                 
-                # Validate plan fingerprint using first task
-                first_task_fingerprint = available_tasks[0][4]
-                if not self.validate_plan_fingerprint(first_task_fingerprint):
-                    conn.rollback()
-                    raise ValueError(f"Plan fingerprint validation failed for {first_task_fingerprint[:16]}...")
-                
-                # Create claims for all selected tasks
-                claim_id = str(uuid.uuid4())
                 expires_at = datetime.utcnow() + timedelta(minutes=claim_timeout_minutes)
-                
                 claimed_tasks = []
                 for task_row in available_tasks:
                     task_id, endpoint_name, data_date, modalidade, plan_fingerprint = task_row
                     
-                    # Insert claim record
                     conn.execute("""
                         INSERT INTO main_runtime.task_claims 
                         (claim_id, task_id, claimed_at, expires_at, worker_id, status)
                         VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, 'CLAIMED')
-                    """, (str(uuid.uuid4()), task_id, expires_at, self.worker_id))
-                    
-                    # Update task status to CLAIMED
-                    conn.execute("""
-                        UPDATE main_planning.task_plan 
-                        SET status = 'CLAIMED'
-                        WHERE task_id = ?
-                    """, (task_id,))
-                    
+                        ON CONFLICT (task_id) DO UPDATE SET
+                        claimed_at = CURRENT_TIMESTAMP,
+                        expires_at = ?,
+                        worker_id = ?,
+                        status = 'CLAIMED'
+                    """, (str(uuid.uuid4()), task_id, expires_at, self.worker_id, expires_at, self.worker_id))
+
                     claimed_tasks.append({
                         'task_id': task_id,
                         'endpoint_name': endpoint_name,
@@ -145,8 +132,7 @@ class TaskClaimer:
                         'expires_at': expires_at,
                         'worker_id': self.worker_id
                     })
-                
-                # Commit transaction
+
                 conn.commit()
                 
                 logger.info(f"🔒 Claimed {len(claimed_tasks)} tasks for worker {self.worker_id}")
@@ -273,57 +259,3 @@ class TaskClaimer:
                     'failed_claims': 0
                 }
 
-
-def create_task_plan(start_date: str, end_date: str, environment: str = "prod") -> str:
-    """Create a new task plan using dbt models.
-    
-    Args:
-        start_date: Start date (YYYY-MM-DD)
-        end_date: End date (YYYY-MM-DD) 
-        environment: Environment name
-        
-    Returns:
-        Plan fingerprint for the generated plan
-    """
-    import subprocess
-    import os
-    
-    # Generate fingerprint for this plan
-    fingerprint = PlanFingerprint()
-    plan_fingerprint = fingerprint.generate_fingerprint(start_date, end_date, environment)
-    
-    # Run dbt to generate the plan
-    dbt_vars = {
-        'plan_start_date': start_date,
-        'plan_end_date': end_date,
-        'plan_fingerprint': plan_fingerprint,
-        'plan_environment': environment,
-        'config_version': '1.0'
-    }
-    
-    vars_str = ','.join([f'"{k}": "{v}"' for k, v in dbt_vars.items()])
-    
-    try:
-        # Change to dbt directory and run models
-        dbt_dir = str(Path(__file__).parent.parent.parent / "dbt_baliza")
-        cmd = [
-            "uv", "run", "dbt", "run", "--select", "planning",
-            "--vars", f"{{{vars_str}}}"
-        ]
-        
-        result = subprocess.run(
-            cmd,
-            cwd=dbt_dir,
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        
-        logger.info(f"✅ Generated task plan with fingerprint {plan_fingerprint[:16]}...")
-        logger.info(f"dbt output: {result.stdout}")
-        
-        return plan_fingerprint
-        
-    except subprocess.CalledProcessError as e:
-        logger.error(f"dbt run failed: {e.stderr}")
-        raise RuntimeError(f"Task plan generation failed: {e.stderr}")

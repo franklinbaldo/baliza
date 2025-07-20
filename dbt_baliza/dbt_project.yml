@@ -22,7 +22,7 @@ models:
   dbt_baliza:
     # Planning layer - Task planning for dbt-driven extraction
     planning:
-      +materialized: table
+      +materialized: "{{ 'table' if target.name == 'prod' else 'view' }}"
       +schema: planning
     
     # Runtime layer - Execution tracking (read-only from dbt perspective)
@@ -52,33 +52,20 @@ models:
 
 # Variables
 vars:
-  data_dir: ../data
-  # Schema for raw data
-  psa_schema: 'psa'
+  data_dir: "{{ env_var('DATA_DIR', '../data') }}"
+  psa_schema: "{{ env_var('PSA_SCHEMA', 'psa') }}"
   
   # Date range for processing (can be overridden at runtime)
-  start_date: '2024-01-01'
-  end_date: '2024-12-31'
-  
-  # Endpoint configurations
-  endpoints:
-    contratos_publicacao: 'contratos_publicacao'
-    contratos_atualizacao: 'contratos_atualizacao'
-    contratacoes_publicacao: 'contratacoes_publicacao'
-    contratacoes_atualizacao: 'contratacoes_atualizacao'
-    contratacoes_proposta: 'contratacoes_proposta'
-    atas_periodo: 'atas_periodo'
-    atas_atualizacao: 'atas_atualizacao'
-    instrumentos_cobranca: 'instrumentos_cobranca'
-    pca_atualizacao: 'pca_atualizacao'
+  start_date: "{{ env_var('START_DATE', '2024-01-01') }}"
+  end_date: "{{ env_var('END_DATE', '2024-12-31') }}"
 
 # Tests
 tests:
-  +schema: tests
+  +schema: "{{ target.schema }}_tests"
 
 # Snapshots
 snapshots:
-  +schema: snapshots
+  +schema: "{{ target.schema }}_snapshots"
 
 # Seeds
 seeds:

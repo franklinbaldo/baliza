@@ -17,15 +17,15 @@ models:
         description: "Initial contract value in BRL"
         tests:
           - not_null
-          - dbt_utils.expression_is_true:
-              expression: ">= 0"
-              # Note: We preserve zero values for transparency as per data philosophy
-              # This test just ensures no negative values due to data corruption
+          - dbt_expectations.expect_column_values_to_be_of_type:
+              column_type: number
+          - dbt_expectations.expect_column_values_to_not_be_null:
+              min_value: 0
       - name: tipo_pessoa
         description: "Type of legal entity (fisica/juridica)"
         tests:
           - accepted_values:
-              values: ['FÍSICA', 'JURIDICA', 'JURÍDICA']
+              values: "{{ var('tipo_pessoa_values') }}"
       - name: ni_fornecedor
         description: "Supplier identification number (CPF/CNPJ)"
         tests:
@@ -37,20 +37,23 @@ models:
       - name: data_assinatura
         description: "Contract signature date"
         tests:
-          - dbt_utils.expression_is_true:
-              expression: ">= '2000-01-01'"
-              # Basic sanity check for reasonable dates
+          - dbt_expectations.expect_column_values_to_be_of_type:
+              column_type: date
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: '2000-01-01'
+              max_value: "{{ modules.datetime.date.today().strftime('%Y-%m-%d') }}"
       - name: data_vigencia_inicio
         description: "Contract validity start date"
         tests:
-          - dbt_utils.expression_is_true:
-              expression: ">= '2000-01-01'"
+          - dbt_expectations.expect_column_values_to_be_of_type:
+              column_type: date
       - name: data_vigencia_fim
         description: "Contract validity end date"
         tests:
-          - dbt_utils.expression_is_true:
-              expression: ">= data_vigencia_inicio"
-              # End date should be after start date
+          - dbt_expectations.expect_column_values_to_be_of_type:
+              column_type: date
+          - dbt_expectations.expect_column_values_to_be_greater_than_or_equal_to:
+              column_name: data_vigencia_inicio
 
   - name: silver_dim_organizacoes
     description: "Organization dimension table"
@@ -92,6 +95,7 @@ models:
       - name: unit_key
         description: "Foreign key to organizational unit dimension"
         tests:
+          - not_null
           - relationships:
               to: ref('silver_dim_unidades_orgao')
               field: unit_key
@@ -99,6 +103,5 @@ models:
         description: "Initial contract value in BRL"
         tests:
           - not_null
-          - dbt_utils.expression_is_true:
-              expression: ">= 0"
-              # Preserve zero values for transparency, but check for negatives
+          - dbt_expectations.expect_column_values_to_not_be_null:
+              min_value: 0

@@ -7,9 +7,11 @@ content identification and SHA-256 hashing for integrity verification.
 import hashlib
 import uuid
 
+from .config import settings
+
 # BALIZA namespace UUID for UUIDv5 generation
-# Generated once for the project - all content IDs will use this namespace
-BALIZA_NAMESPACE = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+# Loaded from settings to ensure consistency across the application
+BALIZA_NAMESPACE = settings.BALIZA_NAMESPACE
 
 
 def normalize_content(content: str) -> str:
@@ -28,47 +30,47 @@ def normalize_content(content: str) -> str:
     return content.strip()
 
 
-def generate_content_hash(content: str) -> str:
-    """Generate SHA-256 hash of normalized content.
+def generate_content_hash(content: str, algorithm: str = "sha256") -> str:
+    """Generate hash of normalized content using the specified algorithm.
 
     Args:
         content: Response content string
+        algorithm: Hashing algorithm to use (e.g., "sha256", "sha512")
 
     Returns:
-        Hexadecimal SHA-256 hash string
+        Hexadecimal hash string
     """
     normalized = normalize_content(content)
-    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+    hasher = hashlib.new(algorithm)
+    hasher.update(normalized.encode("utf-8"))
+    return hasher.hexdigest()
 
 
-def generate_content_id(content: str) -> str:
-    """Generate deterministic UUIDv5 based on content.
-
-    This creates a deterministic UUID that will always be the same
-    for the same content, enabling efficient deduplication.
+def generate_content_id(content_hash: str) -> str:
+    """Generate deterministic UUIDv5 based on a content hash.
 
     Args:
-        content: Response content string
+        content_hash: Pre-computed hash of the content
 
     Returns:
         UUIDv5 string based on content hash
     """
-    content_hash = generate_content_hash(content)
     return str(uuid.uuid5(BALIZA_NAMESPACE, content_hash))
 
 
-def analyze_content(content: str) -> tuple[str, str, int]:
+def analyze_content(content: str, hash_algorithm: str = "sha256") -> tuple[str, str, int]:
     """Analyze content and return all relevant metadata.
 
     Args:
         content: Response content string
+        hash_algorithm: Hashing algorithm to use
 
     Returns:
         Tuple of (content_id, content_hash, content_size)
     """
     normalized = normalize_content(content)
-    content_hash = generate_content_hash(content)
-    content_id = str(uuid.uuid5(BALIZA_NAMESPACE, content_hash))
+    content_hash = generate_content_hash(normalized, algorithm=hash_algorithm)
+    content_id = generate_content_id(content_hash)
     content_size = len(normalized.encode("utf-8"))
 
     return content_id, content_hash, content_size

@@ -1,18 +1,23 @@
 {{
   config(
-    materialized='table'
+    materialized='incremental',
+    unique_key='numero_controle_pncp',
+    incremental_strategy='merge'
   )
 }}
 
 WITH source AS (
-    SELECT *
+    SELECT
+        *,
+        ROW_NUMBER() OVER (PARTITION BY numero_controle_pncp ORDER BY data_atualizacao DESC) as rn
     FROM {{ ref('bronze_pncp_raw') }}
     WHERE endpoint_category = 'atas'
-),
-
-parsed_responses AS (
-  SELECT
-    id,
+    {% if is_incremental() %}
+    AND data_atualizacao > (SELECT MAX(data_atualizacao) FROM {{ this }})
+    {% endif %}
+)
+SELECT
+    id AS response_id,
     extracted_at,
     endpoint_name,
     endpoint_url,
@@ -21,70 +26,31 @@ parsed_responses AS (
     total_records,
     total_pages,
     current_page,
-    response_json
-  FROM source
-),
 
--- Extract individual ata records from the data array
-ata_records AS (
-  SELECT
-    parsed_responses.id AS response_id,
-    parsed_responses.extracted_at,
-    parsed_responses.endpoint_name,
-    parsed_responses.endpoint_url,
-    parsed_responses.data_date,
-    parsed_responses.run_id,
-    parsed_responses.total_records,
-    parsed_responses.total_pages,
-    parsed_responses.current_page,
-    -- Generate a unique key for each ata record
-    ROW_NUMBER() OVER (PARTITION BY parsed_responses.id ORDER BY ata_data_table.value) AS record_index,
-    -- Extract individual ata data
-    ata_data_table.value AS ata_data
-  FROM parsed_responses
-  CROSS JOIN json_each(json_extract(parsed_responses.response_json, '$.data')) AS ata_data_table
-  WHERE json_extract(parsed_responses.response_json, '$.data') IS NOT NULL
-)
+    -- Ata identifiers
+    json_extract_string(response_json, '$.numeroControlePNCP') AS numero_controle_pncp,
+    json_extract_string(response_json, '$.numeroAta') AS numero_ata,
+    TRY_CAST(json_extract_string(response_json, '$.anoAta') AS INTEGER) AS ano_ata,
 
-SELECT
-  response_id,
-  extracted_at,
-  endpoint_name,
-  endpoint_url,
-  data_date,
-  run_id,
-  total_records,
-  total_pages,
-  current_page,
-  record_index,
+    -- Dates
+    TRY_CAST(json_extract_string(response_json, '$.dataAssinatura') AS DATE) AS data_assinatura,
+    TRY_CAST(json_extract_string(response_json, '$.dataVigenciaInicio') AS DATE) AS data_vigencia_inicio,
+    TRY_CAST(json_extract_string(response_json, '$.dataVigenciaFim') AS DATE) AS data_vigencia_fim,
+    TRY_CAST(json_extract_string(response_json, '$.dataPublicacaoPncp') AS TIMESTAMP) AS data_publicacao_pncp,
+    TRY_CAST(json_extract_string(response_json, '$.dataAtualizacao') AS TIMESTAMP) AS data_atualizacao,
 
-  -- Ata identifiers
-  ata_data ->> 'numeroControlePNCP' AS numero_controle_pncp,
-  ata_data ->> 'numeroAta' AS numero_ata,
-  CAST(ata_data ->> 'anoAta' AS INTEGER) AS ano_ata,
+    -- Supplier information
+    json_extract_string(response_json, '$.niFornecedor') AS ni_fornecedor,
+    json_extract_string(response_json, '$.nomeRazaoSocialFornecedor') AS nome_razao_social_fornecedor,
 
-  -- Dates
-  TRY_CAST(ata_data ->> 'dataAssinatura' AS DATE) AS data_assinatura,
-  TRY_CAST(ata_data ->> 'dataVigenciaInicio' AS DATE) AS data_vigencia_inicio,
-  TRY_CAST(ata_data ->> 'dataVigenciaFim' AS DATE) AS data_vigencia_fim,
-  TRY_CAST(ata_data ->> 'dataPublicacaoPncp' AS TIMESTAMP) AS data_publicacao_pncp,
-  TRY_CAST(ata_data ->> 'dataAtualizacao' AS TIMESTAMP) AS data_atualizacao,
+    -- Ata details
+    json_extract_string(response_json, '$.objetoAta') AS objeto_ata,
+    json_extract_string(response_json, '$.informacaoComplementar') AS informacao_complementar,
+    TRY_CAST(json_extract_string(response_json, '$.numeroRetificacao') AS INTEGER) AS numero_retificacao,
 
-  -- Supplier information
-  ata_data ->> 'niFornecedor' AS ni_fornecedor,
-  ata_data ->> 'nomeRazaoSocialFornecedor' AS nome_razao_social_fornecedor,
+    -- Organization data (nested JSON)
+    json_extract(response_json, '$.orgaoEntidade') AS orgao_entidade_json,
+    json_extract(response_json, '$.unidadeOrgao') AS unidade_orgao_json
 
-  -- Ata details
-  ata_data ->> 'objetoAta' AS objeto_ata,
-  ata_data ->> 'informacaoComplementar' AS informacao_complementar,
-  CAST(ata_data ->> 'numeroRetificacao' AS INTEGER) AS numero_retificacao,
-
-  -- Organization data (nested JSON)
-  ata_data -> 'orgaoEntidade' AS orgao_entidade_json,
-  ata_data -> 'unidadeOrgao' AS unidade_orgao_json,
-
-  -- Full ata data as JSON for fallback
-  ata_data AS ata_json
-
-FROM ata_records
-WHERE ata_data ->> 'numeroControlePNCP' IS NOT NULL
+FROM source
+WHERE rn = 1 AND json_extract_string(response_json, '$.numeroControlePNCP') IS NOT NULL

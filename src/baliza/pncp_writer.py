@@ -19,6 +19,7 @@ from filelock import FileLock, Timeout
 from rich.console import Console
 
 from .content_utils import analyze_content, is_empty_response
+from .db_utils import connect_db, execute_sql_from_file
 
 logger = logging.getLogger(__name__)
 console = Console(force_terminal=True, legacy_windows=False, stderr=False)
@@ -29,41 +30,15 @@ DATA_DIR = Path.cwd() / "data"
 BALIZA_DB_PATH = DATA_DIR / "baliza.duckdb"
 
 
-def connect_utf8(path: str, force: bool = False) -> duckdb.DuckDBPyConnection:
-    """Connect to DuckDB with UTF-8 error handling."""
-    try:
-        if force:
-            # Force mode: try read-only connection first
-            try:
-                return duckdb.connect(path, read_only=True)
-            except duckdb.Error:
-                # If read-only fails, try regular connection
-                pass
-
-        return duckdb.connect(path)
-    except duckdb.Error as exc:
-        if force and "lock" in str(exc).lower():
-            console.print("⚠️ [yellow]Database locked by another process, trying read-only access[/yellow]")
-            try:
-                return duckdb.connect(path, read_only=True)
-            except duckdb.Error as read_exc:
-                error_msg = f"Database connection failed even in read-only mode: {read_exc}"
-                raise RuntimeError(error_msg) from read_exc
-        else:
-            # DuckDB error - preserve original exception with clean message
-            error_msg = f"Database connection failed: {exc}"
-            raise RuntimeError(error_msg) from exc
-
-
 class PNCPWriter:
     """Handles writing PNCP data to DuckDB."""
 
-    def __init__(self, force_db: bool = False):
+    def __init__(self, force_db: bool = False, db_path: str = None):
+        self.db_path = db_path or str(BALIZA_DB_PATH)
         self.conn: duckdb.DuckDBPyConnection | None = None
         self.db_lock: FileLock | None = None
         self.writer_running = False
         self.force_db = force_db
-        self.db_path = str(BALIZA_DB_PATH)  # Add db_path property for TaskClaimer
 
     async def __aenter__(self):
         """Async context manager entry."""
@@ -115,98 +90,15 @@ class PNCPWriter:
                 self.db_lock = None
         else:
             # Normal mode: Respect existing locks
-            self.db_lock = FileLock(str(BALIZA_DB_PATH) + ".lock")
+        self.db_lock = FileLock(self.db_path + ".lock")
             try:
                 self.db_lock.acquire(timeout=0.5)
             except Timeout:
                 raise RuntimeError("Another instance is using the database. Use --force-db to override.")
 
-        self.conn = connect_utf8(str(BALIZA_DB_PATH))
-
-        # Create PSA schema
-        self.conn.execute("CREATE SCHEMA IF NOT EXISTS psa")
-
-        # Create the split table architecture (ADR-008)
-
-        # Table 1: Content storage with deduplication
-        self.conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS psa.pncp_content (
-                id UUID PRIMARY KEY, -- UUIDv5 based on content hash
-                response_content TEXT NOT NULL,
-                content_sha256 VARCHAR(64) NOT NULL UNIQUE, -- For integrity verification
-                content_size_bytes INTEGER,
-                first_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                last_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                reference_count INTEGER DEFAULT 1 -- How many requests reference this content
-            ) WITH (compression = "zstd")
-        """
-        )
-
-        # Table 2: Request metadata with foreign key to content
-        self.conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS psa.pncp_requests (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                extracted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                endpoint_url VARCHAR NOT NULL,
-                endpoint_name VARCHAR NOT NULL,
-                request_parameters JSON,
-                response_code INTEGER NOT NULL,
-                response_headers JSON,
-                data_date DATE,
-                run_id VARCHAR,
-                total_records INTEGER,
-                total_pages INTEGER,
-                current_page INTEGER,
-                page_size INTEGER,
-                content_id UUID REFERENCES psa.pncp_content(id) -- Foreign key to content
-            ) WITH (compression = "zstd")
-        """
-        )
-
-        # Legacy table for backwards compatibility during migration
-        self.conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS psa.pncp_raw_responses (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                extracted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                endpoint_url VARCHAR NOT NULL,
-                endpoint_name VARCHAR NOT NULL,
-                request_parameters JSON,
-                response_code INTEGER NOT NULL,
-                response_content TEXT,
-                response_headers JSON,
-                data_date DATE,
-                run_id VARCHAR,
-                total_records INTEGER,
-                total_pages INTEGER,
-                current_page INTEGER,
-                page_size INTEGER
-            ) WITH (compression = "zstd")
-        """
-        )
-
-        # Create the new control table
-        self.conn.execute("DROP TABLE IF EXISTS psa.pncp_extraction_tasks")
-        self.conn.execute(
-            """
-            CREATE TABLE psa.pncp_extraction_tasks (
-                task_id VARCHAR PRIMARY KEY,
-                endpoint_name VARCHAR NOT NULL,
-                data_date DATE NOT NULL,
-                modalidade INTEGER,
-                status VARCHAR DEFAULT 'PENDING' NOT NULL,
-                total_pages INTEGER,
-                total_records INTEGER,
-                missing_pages JSON,
-                last_error TEXT,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-                updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-                CONSTRAINT unique_task UNIQUE (endpoint_name, data_date, modalidade)
-            );
-        """
-        )
+        self.conn = connect_db(self.db_path, force=self.force_db)
+        sql_file = Path(__file__).parent / "sql" / "init_db.sql"
+        execute_sql_from_file(self.conn, sql_file)
 
         # Create indexes if they don't exist
         self._create_indexes_if_not_exist()

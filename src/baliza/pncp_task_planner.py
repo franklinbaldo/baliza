@@ -1,15 +1,13 @@
 import calendar
+import logging
 from datetime import date, timedelta
 from typing import Any
 
-from baliza.config import settings
+from .config import get_all_active_endpoints
 
 
 class PNCPTaskPlanner:
     """Handles the planning of PNCP data extraction tasks."""
-
-    def __init__(self):
-        pass
 
     def _format_date(self, date_obj: date) -> str:
         """Format date for PNCP API (YYYYMMDD)."""
@@ -44,27 +42,27 @@ class PNCPTaskPlanner:
 
         return chunks
 
+    def __init__(self, settings, writer_conn=None):
+        self.settings = settings
+        self.writer_conn = writer_conn
+
     async def plan_tasks(
-        self, start_date: date, end_date: date, writer_conn=None
+        self, start_date: date, end_date: date
     ) -> list[tuple[str, str, date, Any]]:
         """Populate the control table with all necessary tasks.
 
         Optimized for resumable extractions - only creates new tasks that don't already exist.
         """
-        from rich.console import Console
-        console = Console()
-
-        # Get existing tasks to avoid redundant planning
         existing_tasks = set()
-        if writer_conn:
+        if self.writer_conn:
             try:
-                existing_task_ids = writer_conn.execute(
+                existing_task_ids = self.writer_conn.execute(
                     "SELECT task_id FROM psa.pncp_extraction_tasks"
                 ).fetchall()
                 existing_tasks = {task_id for (task_id,) in existing_task_ids}
-                console.print(f"📋 Found {len(existing_tasks):,} existing tasks in database")
+                logging.info(f"Found {len(existing_tasks):,} existing tasks in database")
             except Exception as e:
-                console.print(f"⚠️ Could not check existing tasks: {e}")
+                logging.warning(f"Could not check existing tasks: {e}")
                 existing_tasks = set()
 
         date_chunks = self._monthly_chunks(start_date, end_date)
@@ -72,76 +70,54 @@ class PNCPTaskPlanner:
         total_planned = 0
         skipped_existing = 0
 
-        for endpoint in settings.pncp_endpoints:
-            modalidades = endpoint.get(
+        endpoints = get_all_active_endpoints()
+        for endpoint_name, endpoint_config in endpoints.items():
+            modalidades = endpoint_config.get(
                 "iterate_modalidades", [None]
-            )  # None means no modalidade iteration
+            )
 
             for modalidade in modalidades:
-                if endpoint.get("requires_single_date", False):
-                    # For single-date endpoints, create only one task with the end_date
-                    # Special handling for endpoints that need future dates
-                    if endpoint.get("requires_future_date", False):
-                        # Use a future date for endpoints that need current/future dates
-                        future_days = endpoint.get("future_days_offset", 1825)
+                if endpoint_config.get("requires_single_date", False):
+                    if endpoint_config.get("requires_future_date", False):
+                        future_days = endpoint_config.get("future_days_offset", 1825)
                         future_date = date.today() + timedelta(days=future_days)
-                        task_suffix = (
-                            f"_modalidade_{modalidade}"
-                            if modalidade is not None
-                            else ""
-                        )
-                        task_id = (
-                            f"{endpoint['name']}_{future_date.isoformat()}{task_suffix}"
-                        )
+                        task_suffix = f"_modalidade_{modalidade}" if modalidade is not None else ""
+                        task_id = f"{endpoint_name}_{future_date.isoformat()}{task_suffix}"
 
                         total_planned += 1
                         if task_id in existing_tasks:
                             skipped_existing += 1
                         else:
                             tasks_to_create.append(
-                                (task_id, endpoint["name"], future_date, modalidade)
+                                (task_id, endpoint_name, future_date, modalidade)
                             )
                     else:
-                        task_suffix = (
-                            f"_modalidade_{modalidade}"
-                            if modalidade is not None
-                            else ""
-                        )
-                        task_id = (
-                            f"{endpoint['name']}_{end_date.isoformat()}{task_suffix}"
-                        )
+                        task_suffix = f"_modalidade_{modalidade}" if modalidade is not None else ""
+                        task_id = f"{endpoint_name}_{end_date.isoformat()}{task_suffix}"
 
                         total_planned += 1
                         if task_id in existing_tasks:
                             skipped_existing += 1
                         else:
                             tasks_to_create.append(
-                                (task_id, endpoint["name"], end_date, modalidade)
+                                (task_id, endpoint_name, end_date, modalidade)
                             )
                 else:
-                    # For range endpoints, use monthly chunking
                     for chunk_start, _ in date_chunks:
-                        task_suffix = (
-                            f"_modalidade_{modalidade}"
-                            if modalidade is not None
-                            else ""
-                        )
-                        task_id = (
-                            f"{endpoint['name']}_{chunk_start.isoformat()}{task_suffix}"
-                        )
+                        task_suffix = f"_modalidade_{modalidade}" if modalidade is not None else ""
+                        task_id = f"{endpoint_name}_{chunk_start.isoformat()}{task_suffix}"
 
                         total_planned += 1
                         if task_id in existing_tasks:
                             skipped_existing += 1
                         else:
                             tasks_to_create.append(
-                                (task_id, endpoint["name"], chunk_start, modalidade)
+                                (task_id, endpoint_name, chunk_start, modalidade)
                             )
 
-        # Show resumable planning statistics
-        console.print("🎯 Resumable Planning Results:")
-        console.print(f"   Total tasks planned: {total_planned:,}")
-        console.print(f"   Already exists: {skipped_existing:,}")
-        console.print(f"   New tasks to create: {len(tasks_to_create):,}")
+        logging.info("Resumable Planning Results:")
+        logging.info(f"   Total tasks planned: {total_planned:,}")
+        logging.info(f"   Already exists: {skipped_existing:,}")
+        logging.info(f"   New tasks to create: {len(tasks_to_create):,}")
 
         return tasks_to_create
