@@ -40,6 +40,7 @@ from rich.progress import (
 
 from baliza.pncp_client import PNCPClient
 from baliza.pncp_writer import PNCPWriter
+from baliza.enums import ModalidadeContratacao
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -121,12 +122,26 @@ class AsyncPNCPExtractor:
         Uses a vectorized approach with a cross-join.
         """
         console.print("📋 [bold]Phase 1: Planning Initial Requests[/bold]")
-        # Simplified configuration - in a real scenario, this would come from a config file or DB
-        endpoints_config = pd.DataFrame([
+        
+        # Create base endpoints without modalidade
+        base_endpoints = [
             {'endpoint_name': 'contratos', 'modalidade': None},
             {'endpoint_name': 'atas', 'modalidade': None},
-            {'endpoint_name': 'contratacoes', 'modalidade': [1, 2, 3, 4, 5, 6, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150]},
-        ])
+        ]
+        
+        # Create separate request for each modalidade for contratacoes endpoint
+        # Use actual ModalidadeContratacao enum values
+        modalidades = [m.value for m in ModalidadeContratacao]
+        
+        # Add each modalidade as a separate contratacoes request
+        contratacoes_endpoints = [
+            {'endpoint_name': 'contratacoes', 'modalidade': modalidade} 
+            for modalidade in modalidades
+        ]
+        
+        # Combine all endpoints
+        all_endpoints = base_endpoints + contratacoes_endpoints
+        endpoints_config = pd.DataFrame(all_endpoints)
 
         date_range = pd.date_range(start_date, end_date, freq='D')
         dates_df = pd.DataFrame(date_range, columns=['data_date'])
@@ -143,11 +158,19 @@ class AsyncPNCPExtractor:
         Executes the 'Discovery Pass'. Fetches page 1 for all requests to find out
         the total number of pages and persists these initial results.
         """
-        console.print("\nDiscovery Pass: Fetching page 1 for all requests...")
-
+        total_tasks = len(initial_plan_df)
+        
+        console.print(f"\n📥 [bold blue]Discovery Pass: Processing {total_tasks:,} requests...[/bold blue]")
+        
         page_queue = asyncio.Queue()
+        completed_count = 0
+        
+        # Progress tracking for console updates
+        last_reported = 0
+        report_interval = max(1, total_tasks // 20)  # Report every 5% or at least every request
 
         async def worker():
+            nonlocal completed_count, last_reported
             while not self.shutdown_event.is_set():
                 try:
                     row = await page_queue.get()
@@ -155,12 +178,12 @@ class AsyncPNCPExtractor:
                         break
 
                     params = {
-                        "dataInicial": row.data_date.strftime('%Y-%m-%d'),
-                        "dataFinal": row.data_date.strftime('%Y-%m-%d'),
+                        "dataInicial": row.data_date.strftime('%Y%m%d'),
+                        "dataFinal": row.data_date.strftime('%Y%m%d'),
                         "pagina": 1,
                         "tamanhoPagina": 500,
                     }
-                    if row.modalidade:
+                    if row.modalidade is not None:
                         params['modalidade'] = row.modalidade
 
                     # Make the actual API request
@@ -186,6 +209,15 @@ class AsyncPNCPExtractor:
 
                     # Queue transformed data for persistence by writer worker
                     await self.write_queue.put(writer_data)
+                    
+                    # Update progress counter
+                    completed_count += 1
+                    
+                    # Report progress periodically
+                    if completed_count - last_reported >= report_interval:
+                        percentage = (completed_count / total_tasks) * 100
+                        console.print(f"⏳ Progress: {completed_count:,}/{total_tasks:,} ({percentage:.1f}%)")
+                        last_reported = completed_count
                     
                     logger.info(f"Fetched page 1 for {row.endpoint_name}, got {len(response.get('data', []))} items")
 
@@ -266,11 +298,19 @@ class AsyncPNCPExtractor:
             console.print("\nNo missing pages to fetch. Execution phase skipped.")
             return
 
-        console.print(f"\nExecution Pass: Fetching {len(tasks_df):,} missing pages...")
-
+        total_tasks = len(tasks_df)
+        
+        console.print(f"\n📤 [bold green]Execution Pass: Processing {total_tasks:,} missing pages...[/bold green]")
+        
         page_queue = asyncio.Queue()
+        completed_count = 0
+        
+        # Progress tracking for console updates
+        last_reported = 0
+        report_interval = max(1, total_tasks // 20)  # Report every 5% or at least every request
 
         async def worker():
+            nonlocal completed_count, last_reported
             while not self.shutdown_event.is_set():
                 try:
                     row = await page_queue.get()
@@ -278,12 +318,12 @@ class AsyncPNCPExtractor:
                         break
 
                     params = {
-                        "dataInicial": row.data_date.strftime('%Y-%m-%d'),
-                        "dataFinal": row.data_date.strftime('%Y-%m-%d'),
+                        "dataInicial": row.data_date.strftime('%Y%m%d'),
+                        "dataFinal": row.data_date.strftime('%Y%m%d'),
                         "pagina": row.pagina,
                         "tamanhoPagina": 500,
                     }
-                    if row.modalidade:
+                    if row.modalidade is not None:
                         params['modalidade'] = row.modalidade
 
                     endpoint_path = f"/v1/{row.endpoint_name}"
@@ -308,6 +348,15 @@ class AsyncPNCPExtractor:
                     
                     # Queue transformed data for persistence by writer worker
                     await self.write_queue.put(writer_data)
+                    
+                    # Update progress counter
+                    completed_count += 1
+                    
+                    # Report progress periodically
+                    if completed_count - last_reported >= report_interval:
+                        percentage = (completed_count / total_tasks) * 100
+                        console.print(f"⏳ Progress: {completed_count:,}/{total_tasks:,} ({percentage:.1f}%)")
+                        last_reported = completed_count
                     
                     logger.info(f"Fetched page {row.pagina} for {row.endpoint_name}, got {len(response.get('data', []))} items")
 
@@ -337,30 +386,50 @@ class AsyncPNCPExtractor:
         """
         console.print(f"🚀 [bold blue]Starting Vectorized Extraction for {start_date} to {end_date}[/bold blue]")
         start_time = time.time()
-
-        # 1. Plan initial `pagina=1` requests
-        initial_plan_df = self._plan_initial_requests_df(start_date, end_date)
         
-        if self.shutdown_event.is_set():
-            console.print("🛑 [red]Shutdown requested, stopping after planning phase[/red]")
-            return
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[bold cyan]Overall Progress"),
+            BarColumn(bar_width=30),
+            "[progress.percentage]{task.percentage:>3.0f}%",
+            TextColumn("{task.description}"),
+            TimeElapsedColumn(),
+            console=console,
+            transient=True
+        ) as overall_progress:
+            overall_task = overall_progress.add_task("Initializing...", total=4)
 
-        # 2. Discover total pages and persist page 1 results
-        await self._discover_total_pages_concurrently(initial_plan_df)
-        
-        if self.shutdown_event.is_set():
-            console.print("🛑 [red]Shutdown requested, stopping after discovery phase[/red]")
-            return
+            # 1. Plan initial `pagina=1` requests
+            overall_progress.update(overall_task, description="Planning requests...")
+            initial_plan_df = self._plan_initial_requests_df(start_date, end_date)
+            overall_progress.update(overall_task, completed=1)
+            
+            if self.shutdown_event.is_set():
+                console.print("🛑 [red]Shutdown requested, stopping after planning phase[/red]")
+                return
 
-        # 3. Vectorized reconciliation to find missing pages
-        missing_pages_df = self._expand_and_reconcile_from_db_vectorized()
-        
-        if self.shutdown_event.is_set():
-            console.print("🛑 [red]Shutdown requested, stopping after reconciliation phase[/red]")
-            return
+            # 2. Discover total pages and persist page 1 results
+            overall_progress.update(overall_task, description="Discovery phase...")
+            await self._discover_total_pages_concurrently(initial_plan_df)
+            overall_progress.update(overall_task, completed=2)
+            
+            if self.shutdown_event.is_set():
+                console.print("🛑 [red]Shutdown requested, stopping after discovery phase[/red]")
+                return
 
-        # 4. Execute fetching of the final work queue
-        await self._execute_fetch_tasks(missing_pages_df)
+            # 3. Vectorized reconciliation to find missing pages
+            overall_progress.update(overall_task, description="Reconciliation...")
+            missing_pages_df = self._expand_and_reconcile_from_db_vectorized()
+            overall_progress.update(overall_task, completed=3)
+            
+            if self.shutdown_event.is_set():
+                console.print("🛑 [red]Shutdown requested, stopping after reconciliation phase[/red]")
+                return
+
+            # 4. Execute fetching of the final work queue
+            overall_progress.update(overall_task, description="Execution phase...")
+            await self._execute_fetch_tasks(missing_pages_df)
+            overall_progress.update(overall_task, completed=4, description="Complete!")
 
         duration = time.time() - start_time
         console.print(f"\n🎉 [bold green]Extraction Complete![/bold green]")
