@@ -1,5 +1,0 @@
-## `config.py`
-
-*   **Hardcoded Configuration:** The `pncp_endpoints` list is hardcoded in the `Settings` class. This should be moved to a separate configuration file (e.g., YAML or TOML) to allow for easier modification without changing the code. This would also allow for different configurations for different environments (e.g., development, testing, production).
-*   **Lack of Secrets Management:** The `ia_access_key` and `ia_secret_key` are defined as empty strings in the `Settings` class. This suggests that they are expected to be set as environment variables. While this is better than hardcoding them, a more robust solution would be to use a secrets management tool like HashiCorp Vault or AWS Secrets Manager.
-*   **Mixing of Static and Dynamic Configuration:** The `pncp_endpoints` list is a static configuration, while other settings like `concurrency` and `request_timeout` might be more dynamic. Separating these into different configuration files or sections would improve clarity.

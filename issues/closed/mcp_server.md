@@ -1,7 +1,0 @@
-## `mcp_server.py`
-
-*   **SQL Injection Vulnerability:** The `_execute_sql_query_logic` function has a basic check for `SELECT` statements, but it is still vulnerable to SQL injection attacks. A more robust solution would be to use a library that provides safe SQL query parameterization, or to use a more sophisticated SQL parser to validate the query.
-*   **Hardcoded Table Mapping:** The `PARQUET_TABLE_MAPPING` is hardcoded. This should be moved to a separate configuration file (e.g., YAML or TOML) to allow for easier modification without changing the code.
-*   **Lack of Authentication and Authorization:** The MCP server is open to anyone who can access it. This is a security risk, as it allows unauthorized users to access the data. A proper authentication and authorization mechanism should be implemented.
-*   **In-memory Database:** The server uses an in-memory DuckDB database. This means that the database is not persistent and will be lost when the server is restarted. For a production environment, a persistent database should be used.
-*   **No Input Validation on `dataset_name`:** The `_dataset_schema_logic` function takes a `dataset_name` as input and uses it to construct a file path. This is a potential security risk, as a malicious user could provide a `dataset_name` that traverses the file system and accesses unauthorized files. The code attempts to sanitize the path, but a more robust solution would be to use a whitelist of allowed dataset names.
