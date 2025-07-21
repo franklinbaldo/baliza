@@ -197,27 +197,6 @@ class PNCPWriter:
         """
         )
 
-        # Create the new control table
-        self.conn.execute("DROP TABLE IF EXISTS psa.pncp_extraction_tasks")
-        self.conn.execute(
-            """
-            CREATE TABLE psa.pncp_extraction_tasks (
-                task_id VARCHAR PRIMARY KEY,
-                endpoint_name VARCHAR NOT NULL,
-                data_date DATE NOT NULL,
-                modalidade INTEGER,
-                status VARCHAR DEFAULT 'PENDING' NOT NULL,
-                total_pages INTEGER,
-                total_records INTEGER,
-                missing_pages JSON,
-                last_error TEXT,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-                updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-                CONSTRAINT unique_task UNIQUE (endpoint_name, data_date, modalidade)
-            );
-        """
-        )
-
         # Create indexes if they don't exist
         self._create_indexes_if_not_exist()
 
