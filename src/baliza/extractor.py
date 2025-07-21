@@ -123,25 +123,15 @@ class AsyncPNCPExtractor:
         """
         console.print("📋 [bold]Phase 1: Planning Initial Requests[/bold]")
         
-        # Create base endpoints without modalidade
+        # Create base endpoints. For 'contratacoes', we omit the `modalidade`
+        # parameter to get the most comprehensive results, simplifying the logic.
         base_endpoints = [
             {'endpoint_name': 'contratos', 'modalidade': None},
             {'endpoint_name': 'atas', 'modalidade': None},
+            {'endpoint_name': 'contratacoes', 'modalidade': None},
         ]
         
-        # Create separate request for each modalidade for contratacoes endpoint
-        # Use actual ModalidadeContratacao enum values
-        modalidades = [m.value for m in ModalidadeContratacao]
-        
-        # Add each modalidade as a separate contratacoes request
-        contratacoes_endpoints = [
-            {'endpoint_name': 'contratacoes', 'modalidade': modalidade} 
-            for modalidade in modalidades
-        ]
-        
-        # Combine all endpoints
-        all_endpoints = base_endpoints + contratacoes_endpoints
-        endpoints_config = pd.DataFrame(all_endpoints)
+        endpoints_config = pd.DataFrame(base_endpoints)
 
         date_range = pd.date_range(start_date, end_date, freq='D')
         dates_df = pd.DataFrame(date_range, columns=['data_date'])
@@ -499,7 +489,7 @@ class AsyncPNCPExtractor:
 
         total_tasks = len(tasks_df)
         
-        console.print(f"\n📤 [bold green]Execution Pass: Processing {total_tasks:,} missing pages...[/bold green]")
+        console.print(f"\n📤 [bold green]Execution Pass: Processando {total_tasks:,} missing pages...[/bold green]")
         
         page_queue = asyncio.Queue()
         completed_count = 0
@@ -746,4 +736,3 @@ class AsyncPNCPExtractor:
         if hasattr(self, '_request_start_time'):
             final_rate = self._completed_requests / (time.time() - self._request_start_time) if time.time() - self._request_start_time > 0 else 0
             console.print(f"⚡ Average request rate: {final_rate:.1f} req/s")
-
