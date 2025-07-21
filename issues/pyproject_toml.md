@@ -1,8 +1,19 @@
-## `pyproject.toml`
+## `pyproject.toml`: Pin dbt-duckdb Version
 
-*   **Redundant `dependency-groups` and `project.optional-dependencies`:** The file uses both `[project.optional-dependencies]` and `[dependency-groups]` for defining optional dependencies. While `dependency-groups` is a newer feature in `uv` (which is the primary package manager for this project), `project.optional-dependencies` is the standard way to define optional dependencies in `pyproject.toml` for tools like `pip`. This redundancy can lead to confusion and potential inconsistencies. It would be better to standardize on one approach.
-*   **Inconsistent `dbt` Dependency Definition:** The `dbt` and `analytics` optional dependency groups both define `dbt-core` and `dbt-duckdb`. This is redundant and could be simplified by having `analytics` depend on `dbt` if `dbt` is a subset of `analytics`.
-*   **Overly Broad Ruff Ignores:** The `[tool.ruff.lint.ignore]` section contains several broad ignores (e.g., `S101`, `S603`, `S607`, `S608`, `BLE001`). While some might be justified (like `E501` for line length if an auto-formatter is used), others like `S608` (Possible SQL injection vector) and `BLE001` (Do not catch blind exception) are security and reliability concerns that should ideally be addressed in the code rather than ignored globally. The comment for `S608` ("we use DuckDB safely") is an assertion that should be backed by rigorous testing and code review, not a global ignore.
-*   **Mixing of Test Types in `pytest.ini_options`:** The `pytest.ini_options` explicitly sets `testpaths = ["tests"]` and then attempts to filter for E2E tests using markers. While the philosophy states "E2E tests only, no unit tests," the `tests` directory might still contain non-E2E tests or fixtures that are not explicitly marked. It would be clearer to have a dedicated `tests/e2e` directory and set `testpaths = ["tests/e2e"]` if only E2E tests are intended to be run by default.
-*   **Implicit `h2` Dependency:** The `httpx` library is listed as a dependency, and `h2` is listed separately for HTTP/2 support. `httpx` can work without `h2`, but `h2` provides HTTP/2 capabilities. This is fine, but the comment "HTTP/2 support for httpx" is a bit vague. It would be clearer to state that `h2` is an *optional* dependency for HTTP/2 support, or to make it a direct dependency of `httpx` if HTTP/2 is strictly required.
-*   **`pandas` Version Pinning:** `pandas>=2.3.1` is specified. While this ensures a minimum version, it doesn't pin to a specific major/minor version, which could lead to unexpected behavior if future `pandas` versions introduce breaking changes. Consider using a more restrictive version range (e.g., `pandas~=2.3.1`) or pinning to a specific version for better reproducibility.
+### Problem
+
+The `dbt-duckdb` dependency in `pyproject.toml` is specified as `>=1.7.0`. While this is not strictly an error, it can lead to problems in the future if a new version of `dbt-duckdb` is released with breaking changes.
+
+### Potential Solutions
+
+1.  **Pin to a Specific Version**:
+    *   Change the dependency to `==1.7.0` or a similar specific version. This will ensure that the project always uses a known-good version of the library.
+    *   This is the safest approach, but it requires manually updating the version number when a new version is released.
+
+2.  **Use a Compatible Release Specifier**:
+    *   Change the dependency to `~=1.7.0`. This will allow updates to patch releases (e.g., `1.7.1`) but not to minor or major releases (e.g., `1.8.0` or `2.0.0`).
+    *   This provides a good balance between stability and getting bug fixes.
+
+### Recommendation
+
+Use a compatible release specifier (`~=1.7.0`) for the `dbt-duckdb` dependency. This will ensure that the project remains compatible with future patch releases of `dbt-duckdb` while protecting it from potentially breaking changes in minor or major releases. The same should be applied to `dbt-core`.

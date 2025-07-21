@@ -1,17 +1,15 @@
-# Analysis of `src/baliza/mcp.py`
+## `mcp.py`: Deprecated File
 
-This file is deprecated.
+### Problem
 
-## Issues Found
+The file `src/baliza/mcp.py` is deprecated and its contents indicate that the MCP logic is now handled by `mcp_server.py`.
 
-1.  **Deprecated File:** The file is deprecated and should be removed.
+### Potential Solutions
 
-## Suggestions for Improvement
+1.  **Delete the File**:
+    *   The file should be deleted to avoid confusion and reduce clutter in the codebase.
+    *   Before deleting, a quick search should be done to ensure that no other part of the application is still importing it.
 
-*   **Remove the file:** The file should be removed from the project.
+### Recommendation
 
-Overall, the `mcp.py` file is no longer needed and should be removed to avoid confusion.
-
-## Proposed Solutions
-
-*   **Delete the `src/baliza/mcp.py` file.**
+Delete the file `src/baliza/mcp.py`.

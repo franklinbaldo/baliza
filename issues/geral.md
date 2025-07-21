@@ -1,23 +1,20 @@
-# Analysis of `src/baliza/enums/geral.py`
+## Hardcoded Database Path
 
-This file defines several general-purpose enums.
+### Problem
 
-## Architectural Issues
+Multiple modules in the application have a hardcoded path to the DuckDB database file. This includes:
 
-None. This is a well-defined enum module with a clear purpose.
+*   `src/baliza/loader.py`
+*   `src/baliza/pncp_writer.py`
 
-## Code Quality Issues
+This makes the application less flexible and harder to configure.
 
-None. The code is well-written and follows best practices for defining enums.
+### Potential Solutions
 
-## Suggestions for Improvement
+1.  **Centralize Database Path in `config.py`**:
+    *   Add a `db_path` attribute to the `Settings` class in `src/baliza/config.py`.
+    *   Update all modules that access the database to get the path from `settings.db_path`.
 
-*   **Add Docstrings:** The enums could be improved by adding docstrings to explain the meaning of each enum and its members.
-*   **Use a More Descriptive Naming Convention:** The names of the enums and their members could be more descriptive. For example, `CategoriaProcesso` could be renamed to `ProcessCategory`.
+### Recommendation
 
-Overall, the `geral.py` file is a well-written and functional enum module. The suggestions above are aimed at improving its clarity and readability.
-
-## Proposed Solutions
-
-*   **Add docstrings to all enums and their members.**
-*   **Rename the enums and their members to be more descriptive.**
+Centralize the database path in the `Settings` class. This will make the application more configurable and easier to maintain. All hardcoded instances of `DATA_DIR / "baliza.duckdb"` or similar should be replaced with a reference to the settings object.
