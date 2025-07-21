@@ -306,13 +306,16 @@ class AsyncPNCPExtractor:
                         raise
 
                     # Transform response for writer persistence
+                    status_code = response.get("status_code")
+                    response_content = response.get("content", "") if status_code and 200 <= status_code < 300 else ""
+                    
                     writer_data = {
                         "extracted_at": None,  # Writer will set this
                         "endpoint_url": endpoint_path,
                         "endpoint_name": row.endpoint_name,
                         "request_parameters": params,
-                        "response_code": response.get("status_code"),
-                        "response_content": response.get("content", ""),
+                        "response_code": status_code,
+                        "response_content": response_content,
                         "response_headers": response.get("headers", {}),
                         "data_date": row.data_date,
                         "run_id": self.run_id,
@@ -537,13 +540,16 @@ class AsyncPNCPExtractor:
                         raise
                     
                     # Transform response for writer persistence
+                    status_code = response.get("status_code")
+                    response_content = response.get("content", "") if status_code and 200 <= status_code < 300 else ""
+
                     writer_data = {
                         "extracted_at": None,  # Writer will set this
                         "endpoint_url": endpoint_path,
                         "endpoint_name": row.endpoint_name,
                         "request_parameters": params,
                         "response_code": response.get("status_code"),
-                        "response_content": response.get("content", ""),
+                        "response_content": response_content,
                         "response_headers": response.get("headers", {}),
                         "data_date": row.data_date,
                         "run_id": self.run_id,
