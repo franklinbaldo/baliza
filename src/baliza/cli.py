@@ -70,7 +70,7 @@ def main(ctx: typer.Context):
 
 @app.command()
 def extract(
-    start_date: str = typer.Option("2024-01-01", help="Start date (YYYY-MM-DD)"),
+    start_date: str = typer.Option("2021-01-01", help="Start date (YYYY-MM-DD)"),
     end_date: str = typer.Option(date.today().strftime("%Y-%m-%d"), help="End date (YYYY-MM-DD)"),
     concurrency: int = typer.Option(
         settings.concurrency, help="Number of concurrent requests"
@@ -159,7 +159,7 @@ def load():
 
 @app.command()
 def run(
-    start_date: str = typer.Option("2024-01-01", help="Start date (YYYY-MM-DD)"),
+    start_date: str = typer.Option("2021-01-01", help="Start date (YYYY-MM-DD)"),
     end_date: str = typer.Option(date.today().strftime("%Y-%m-%d"), help="End date (YYYY-MM-DD)"),
     concurrency: int = typer.Option(
         settings.concurrency, help="Number of concurrent requests"

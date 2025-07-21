@@ -9,7 +9,7 @@ from typing import Any
 from rich.columns import Columns
 from rich.panel import Panel
 
-from ..extractor import BALIZA_DB_PATH, connect_utf8
+from ..pncp_writer import BALIZA_DB_PATH, connect_utf8
 from .components import (
     create_header,
     create_quick_stats,

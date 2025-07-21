@@ -20,6 +20,7 @@ Architecture:
 """
 
 import asyncio
+import logging
 import signal
 import sys
 import time
@@ -190,9 +191,9 @@ class AsyncPNCPExtractor:
         # 3. Fetch all existing requests for an anti-join
         # This is a simplified query. The actual query would be more complex.
         all_existing_df = pd.DataFrame({
-            'endpoint_name': ['contratos'],
-            'data_date': [date(2024, 1, 1)],
-            'modalidade': [None],
+            'endpoint_name': ['contratos', 'contratos', 'contratos'],
+            'data_date': [date(2024, 1, 1), date(2024, 1, 1), date(2024, 1, 1)],
+            'modalidade': [None, None, None],
             'pagina': [2, 3, 5]
         })
 

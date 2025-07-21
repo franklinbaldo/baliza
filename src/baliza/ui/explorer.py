@@ -7,7 +7,7 @@ from typing import Any
 
 import questionary
 
-from ..extractor import BALIZA_DB_PATH, connect_utf8
+from ..pncp_writer import BALIZA_DB_PATH, connect_utf8
 from .components import (
     create_header,
     create_info_panel,

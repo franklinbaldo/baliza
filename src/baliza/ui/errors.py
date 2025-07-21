@@ -92,7 +92,7 @@ class ErrorHandler:
 
         header = create_header(
             "API Request Failed",
-            f"Error communicating with {endpoint}",
+            f"Error communicating with {_endpoint}",
             self.theme.ICONS["error"],
         )
 
@@ -101,7 +101,7 @@ class ErrorHandler:
         # Error details
         error_content = [
             f"Error: {str(error)[:100]}{'...' if len(str(error)) > 100 else ''}",
-            f"Endpoint: {endpoint}",
+            f"Endpoint: {_endpoint}",
         ]
 
         if context:
