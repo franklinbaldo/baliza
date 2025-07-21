@@ -12,11 +12,7 @@ from . import mcp_server
 from .config import settings
 from .dependencies import get_cli_services
 from .enums import ENUM_REGISTRY, get_enum_choices
-from .extractor import (
-    BALIZA_DB_PATH,
-    DATA_DIR,
-    connect_utf8,
-)
+from .extractor import AsyncPNCPExtractor
 from .ui import Dashboard, ErrorHandler, get_console
 
 app = typer.Typer(no_args_is_help=False)  # Allow running without args
@@ -74,134 +70,40 @@ def main(ctx: typer.Context):
 
 @app.command()
 def extract(
-    endpoint: str = typer.Argument(
-        "all", help="Endpoint to extract (all, contratos, atas, contratacoes)"
-    ),
+    start_date: str = typer.Option("2024-01-01", help="Start date (YYYY-MM-DD)"),
+    end_date: str = typer.Option(date.today().strftime("%Y-%m-%d"), help="End date (YYYY-MM-DD)"),
     concurrency: int = typer.Option(
         settings.concurrency, help="Number of concurrent requests"
-    ),
-    force: bool = typer.Option(
-        False, "--force", help="Force re-extraction even if data exists"
     ),
     force_db: bool = typer.Option(
         False, "--force-db", help="Force database connection by removing locks"
     ),
 ):
-    """Extract data from PNCP API with beautiful progress tracking."""
-    from .ui import create_header, format_number, get_theme
+    """Extract data from PNCP API using the new vectorized engine."""
+    from .ui import create_header, get_theme
 
     theme = get_theme()
-    start_dt = date(2021, 1, 1)
-    end_dt = date.today()
-
-    # Show beautiful header
-    if endpoint == "all":
-        endpoint_display = "All Endpoints"
-        subtitle = "Complete data extraction from PNCP API"
-    else:
-        endpoint_display = endpoint.title()
-        subtitle = f"Targeted extraction from {endpoint} endpoint"
+    start_dt = date.fromisoformat(start_date)
+    end_dt = date.fromisoformat(end_date)
 
     header = create_header(
-        f"Extracting {endpoint_display} Data", subtitle, theme.ICONS["extract"]
+        "Extracting Data (Vectorized)",
+        "High-performance, stateless extraction",
+        theme.ICONS["extract"],
     )
     console.print(header)
 
-    # Show configuration
-    config_content = [
-        "⚙️  Configuration",
-        f"   📅 Date range: {start_dt} to {end_dt}",
-        f"   🔀 Concurrency: {concurrency} parallel requests",
-        "   💾 Storage: Split-table architecture with deduplication",
-        "   🔄 Rate limiting: Optimized for PNCP (0ms delay)",
-        "",
-        "🚀 Starting extraction...",
-    ]
-
-    from .ui.components import create_info_panel
-
-    config_panel = create_info_panel(
-        "\n".join(config_content),
-        title=f"{theme.ICONS['settings']} Extraction Setup",
-        style="primary",
-    )
-    console.print(config_panel)
-
     async def main():
-        # Setup signal handlers for graceful shutdown
         setup_signal_handlers()
-
         try:
-            # Use dependency injection for extractor
-            services = get_cli_services()
-            extractor = services.get_extractor(
-                concurrency=concurrency, force_db=force_db
-            )
-
+            extractor = AsyncPNCPExtractor(concurrency=concurrency, force_db=force_db)
             async with extractor as ext:
-                # Check for shutdown before starting
                 if _shutdown_requested:
-                    console.print(
-                        "🛑 [yellow]Shutdown requested before extraction started[/yellow]"
-                    )
-                    return {"total_records_extracted": 0, "run_id": "cancelled"}
-
-                results = await ext.extract_data(start_dt, end_dt, force)
-
-                # Show completion summary
-                completion_content = [
-                    "✨ Extraction Complete",
-                    "",
-                    "📊 Results:",
-                    f"   New records: {format_number(results.get('total_records_extracted', 0))}",
-                    f"   API calls: {format_number(results.get('total_requests', 0))}",
-                    f"   Success rate: {results.get('success_rate', 0):.1f}%",
-                    f"   Run ID: {results.get('run_id', 'Unknown')[:8]}...",
-                ]
-
-                completion_panel = create_info_panel(
-                    "\n".join(completion_content),
-                    title=f"{theme.ICONS['success']} Extraction Summary",
-                    style="success",
-                )
-                console.print(completion_panel)
-
-                # Save results file
-                results_file = (
-                    DATA_DIR / f"async_extraction_results_{results['run_id']}.json"
-                )
-                with Path(results_file).open("w", encoding="utf-8") as f:
-                    json.dump(results, f, indent=2, default=str)
-
-                # Show next steps
-                next_steps_content = [
-                    "💡 Next steps:",
-                    "   baliza transform → Process data with dbt models",
-                    "   baliza status    → View detailed system status",
-                    "   baliza explore   → Interactive data browser",
-                ]
-
-                next_steps_panel = create_info_panel(
-                    "\n".join(next_steps_content),
-                    title=f"{theme.ICONS['info']} What's Next?",
-                    style="info",
-                )
-                console.print(next_steps_panel)
-
-        except KeyboardInterrupt:
-            console.print("\n🛑 [yellow]Graceful shutdown completed[/yellow]")
-            return {"total_records_extracted": 0, "run_id": "interrupted"}
+                    return
+                await ext.extract_data(start_dt, end_dt)
         except Exception as e:
-            if _shutdown_requested:
-                console.print(
-                    "🛑 [yellow]Shutdown during extraction - cleaning up[/yellow]"
-                )
-                return {"total_records_extracted": 0, "run_id": "shutdown"}
-            else:
-                error_handler.handle_api_error(
-                    e, "PNCP API", {"endpoint": endpoint, "concurrency": concurrency}
-                )
-                raise
+            error_handler.handle_api_error(e, "PNCP API", {})
+            raise
 
     asyncio.run(main())
 
@@ -209,12 +111,11 @@ def extract(
 @app.command()
 def transform():
     """Transform raw data into analytics-ready tables with dbt."""
+    # This command remains largely the same
     from .ui import create_header, get_theme
     from .ui.components import create_info_panel
 
     theme = get_theme()
-
-    # Show beautiful header
     header = create_header(
         "Transforming Data with dbt",
         "Raw data → Analytics-ready tables",
@@ -222,463 +123,74 @@ def transform():
     )
     console.print(header)
 
-    # Show transformation info
-    transform_content = [
-        "🏗️  Building Data Models",
-        "",
-        "This will create analytics-ready tables from your raw PNCP data:",
-        "   📋 bronze_pncp_raw      → Clean, validated contract data",
-        "   📊 bronze_content_analysis → Deduplication metrics",
-        "   🏆 mart_compras_beneficios → High-value contract analysis",
-        "   💰 mart_spending_analysis  → Spending trends and patterns",
-        "",
-        "⏱️  Estimated time: 10-30 seconds",
-    ]
-
-    transform_panel = create_info_panel(
-        "\n".join(transform_content),
-        title=f"{theme.ICONS['info']} Transform Overview",
-        style="primary",
-    )
-    console.print(transform_panel)
-
     try:
-        # Run transformation using dependency injection
-        console.print(
-            f"\n{theme.ICONS['process']} [primary]Running dbt transformations...[/primary]"
-        )
         services = get_cli_services()
         transformer = services.get_transformer()
         transformer.transform()
-
-        # Show success message
-        success_content = [
-            "✨ Transform Complete",
-            "",
-            "🎯 Data is now ready for analysis:",
-            "   📊 All models built successfully",
-            "   🔍 Data quality checks passed",
-            "   💾 Tables optimized and indexed",
-            "",
-            "💡 Next steps:",
-            "   baliza explore   → Browse your data interactively",
-            "   baliza load      → Publish to Internet Archive",
-            "   baliza status    → View system health",
-        ]
-
-        success_panel = create_info_panel(
-            "\n".join(success_content),
-            title=f"{theme.ICONS['success']} Transform Success",
-            style="success",
-        )
-        console.print(success_panel)
-
+        console.print("✅ [bold green]Transformation complete![/bold green]")
     except Exception as e:
         error_handler.handle_database_error(e, "transform")
-        console.print(
-            "\n[warning]💡 Tip: Check that your database has data with 'baliza extract' first[/warning]"
-        )
         raise
 
 
 @app.command()
 def load():
     """Load data to Internet Archive for public access."""
+    # This command remains largely the same
     from .ui import create_header, get_theme
-    from .ui.components import create_info_panel
 
     theme = get_theme()
-
-    # Show beautiful header
     header = create_header(
         "Loading Data to Internet Archive",
-        "Publishing your data for public access and preservation",
+        "Publishing data for public access",
         theme.ICONS["load"],
     )
     console.print(header)
 
-    # Show load info
-    load_content = [
-        "📤 Publishing to Internet Archive",
-        "",
-        "This will upload your processed data to the Internet Archive:",
-        "   🌐 Public access for researchers and developers",
-        "   📚 Permanent preservation of Brazilian procurement data",
-        "   🔄 Automated versioning and metadata",
-        "   🏛️  Open government data initiative",
-        "",
-        "⏱️  Estimated time: 2-5 minutes (depending on data size)",
-    ]
-
-    load_panel = create_info_panel(
-        "\n".join(load_content),
-        title=f"{theme.ICONS['info']} Publication Overview",
-        style="primary",
-    )
-    console.print(load_panel)
-
     try:
-        # Run load using dependency injection
-        console.print(
-            f"\n{theme.ICONS['process']} [primary]Uploading to Internet Archive...[/primary]"
-        )
         services = get_cli_services()
         loader = services.get_loader()
         loader.load()
-
-        # Show success message
-        success_content = [
-            "✨ Load Complete",
-            "",
-            "🎯 Your data is now publicly available:",
-            "   🌐 Accessible via Internet Archive",
-            "   📊 Searchable and downloadable",
-            "   🔗 Permanent archival links generated",
-            "   📈 Contributing to open government data",
-            "",
-            "💡 What's next:",
-            "   Share the archive links with researchers",
-            "   Schedule regular updates with 'baliza run'",
-            "   Monitor usage and impact",
-        ]
-
-        success_panel = create_info_panel(
-            "\n".join(success_content),
-            title=f"{theme.ICONS['success']} Publication Success",
-            style="success",
-        )
-        console.print(success_panel)
-
+        console.print("✅ [bold green]Load complete![/bold green]")
     except Exception as e:
-        error_handler.handle_api_error(e, "Internet Archive", {"operation": "upload"})
-        console.print(
-            "\n[warning]💡 Tip: Check your Internet Archive credentials and network connection[/warning]"
-        )
+        error_handler.handle_api_error(e, "Internet Archive", {})
         raise
-
-
-# ETL Pipeline Components - Refactored for better maintainability and testability
-
-
-class ETLPipelineStep:
-    """Base class for ETL pipeline steps."""
-
-    def __init__(self, name: str, emoji: str, color: str):
-        self.name = name
-        self.emoji = emoji
-        self.color = color
-
-    def should_skip(self, skip_flag: bool) -> bool:
-        """Check if step should be skipped."""
-        if _shutdown_requested:
-            console.print(f"🛑 [yellow]Skipping {self.name} due to shutdown[/yellow]")
-            return True
-        if skip_flag:
-            console.print(f"⏭️ [dim]Skipping {self.name} step[/dim]")
-            return True
-        return False
-
-    def print_step_header(self, step_number: int):
-        """Print standardized step header."""
-        console.print("")
-        console.print(
-            f"{self.emoji} [bold {self.color}]Step {step_number}: {self.name}[/bold {self.color}]"
-        )
-
-
-async def run_extraction_step(concurrency: int, force_db: bool, force: bool) -> dict:
-    """Execute the data extraction step with proper error handling."""
-    step = ETLPipelineStep("Extracting data from PNCP API", "📥", "green")
-    step.print_step_header(1)
-
-    start_dt = date(2021, 1, 1)
-    end_dt = date.today()
-
-    async def extract_data():
-        try:
-            if _shutdown_requested:
-                console.print(
-                    "🛑 [yellow]Shutdown requested before extraction[/yellow]"
-                )
-                return {"total_records_extracted": 0, "run_id": "cancelled"}
-
-            # Use dependency injection for extractor in pipeline
-            services = get_cli_services()
-            extractor = services.get_extractor(
-                concurrency=concurrency, force_db=force_db
-            )
-
-            async with extractor as ext:
-                results = await ext.extract_data(start_dt, end_dt, force)
-                console.print(
-                    f"✅ Extraction completed: {results['total_records_extracted']:,} records"
-                )
-                return results
-        except KeyboardInterrupt:
-            console.print("🛑 [yellow]Extraction interrupted gracefully[/yellow]")
-            return {"total_records_extracted": 0, "run_id": "interrupted"}
-        except Exception as e:
-            if _shutdown_requested:
-                console.print(
-                    "🛑 [yellow]Extraction shutdown during operation[/yellow]"
-                )
-                return {"total_records_extracted": 0, "run_id": "shutdown"}
-            else:
-                console.print(f"❌ [red]Extraction failed: {e}[/red]")
-                raise
-
-    try:
-        extraction_results = await extract_data()
-
-        # Check for shutdown after extraction
-        if _shutdown_requested:
-            console.print("🛑 [yellow]Pipeline stopped after extraction[/yellow]")
-
-        return extraction_results
-
-    except KeyboardInterrupt:
-        console.print("🛑 [yellow]Pipeline interrupted during extraction[/yellow]")
-        return {"total_records_extracted": 0, "run_id": "interrupted"}
-
-
-def run_transformation_step(skip_transform: bool) -> bool:
-    """Execute the data transformation step with proper error handling.
-
-    Returns:
-        bool: True if step completed successfully, False if failed or skipped
-    """
-    step = ETLPipelineStep("Transforming data with dbt", "🔄", "yellow")
-
-    if step.should_skip(skip_transform):
-        return True
-
-    step.print_step_header(2)
-
-    try:
-        # Use dependency injection for transformer in pipeline
-        services = get_cli_services()
-        transformer = services.get_transformer()
-        transformer.transform()
-        console.print("✅ Transformation completed successfully")
-        return True
-    except KeyboardInterrupt:
-        console.print("🛑 [yellow]Transform interrupted[/yellow]")
-        return False
-    except Exception as e:
-        if _shutdown_requested:
-            console.print("🛑 [yellow]Transform stopped due to shutdown[/yellow]")
-            return False
-        else:
-            console.print(f"⚠️ [yellow]Transform step failed: {e}[/yellow]")
-            console.print("Continuing to load step...")
-            return False
-
-
-def run_load_step(skip_load: bool) -> bool:
-    """Execute the data loading step with proper error handling.
-
-    Returns:
-        bool: True if step completed successfully, False if failed or skipped
-    """
-    step = ETLPipelineStep("Loading data to Internet Archive", "📤", "cyan")
-
-    if step.should_skip(skip_load):
-        return True
-
-    step.print_step_header(3)
-
-    try:
-        # Use dependency injection for loader in pipeline
-        services = get_cli_services()
-        loader = services.get_loader()
-        loader.load()
-        console.print("✅ Load completed successfully")
-        return True
-    except KeyboardInterrupt:
-        console.print("🛑 [yellow]Load interrupted[/yellow]")
-        return False
-    except Exception as e:
-        if _shutdown_requested:
-            console.print("🛑 [yellow]Load stopped due to shutdown[/yellow]")
-            return False
-        else:
-            console.print(f"⚠️ [yellow]Load step failed: {e}[/yellow]")
-            return False
-
-
-def print_pipeline_summary(extraction_results: dict):
-    """Print the final pipeline summary."""
-    console.print("")
-    if _shutdown_requested:
-        console.print("🛑 [yellow]ETL Pipeline stopped gracefully[/yellow]")
-    else:
-        console.print("🎉 [bold green]ETL Pipeline completed![/bold green]")
-    console.print(
-        f"📊 Total records processed: {extraction_results['total_records_extracted']:,}"
-    )
 
 
 @app.command()
 def run(
+    start_date: str = typer.Option("2024-01-01", help="Start date (YYYY-MM-DD)"),
+    end_date: str = typer.Option(date.today().strftime("%Y-%m-%d"), help="End date (YYYY-MM-DD)"),
     concurrency: int = typer.Option(
         settings.concurrency, help="Number of concurrent requests"
-    ),
-    force: bool = typer.Option(
-        False, "--force", help="Force re-extraction even if data exists"
     ),
     force_db: bool = typer.Option(
         False, "--force-db", help="Force database connection by removing locks"
     ),
-    skip_transform: bool = typer.Option(
-        False, "--skip-transform", help="Skip dbt transformation step"
-    ),
-    skip_load: bool = typer.Option(
-        False, "--skip-load", help="Skip Internet Archive upload step"
-    ),
+    skip_transform: bool = typer.Option(False, help="Skip dbt transformation"),
+    skip_load: bool = typer.Option(False, help="Skip Internet Archive upload"),
 ):
-    """
-    Run complete ETL pipeline: Extract → Transform → Load.
-
-    This command executes the full BALIZA pipeline:
-    1. Extract data from PNCP API
-    2. Transform data with dbt models
-    3. Load data to Internet Archive
-    """
-    # Setup signal handlers for graceful shutdown
-    setup_signal_handlers()
-
+    """Run the complete ETL pipeline: Extract → Transform → Load."""
     console.print("🚀 [bold blue]Starting BALIZA ETL Pipeline[/bold blue]")
-    console.print("")
 
-    async def run_pipeline():
-        # Step 1: Extract
-        extraction_results = await run_extraction_step(concurrency, force_db, force)
+    # Run Extract
+    console.print("\n[bold green]Step 1: Extract[/bold green]")
+    extract(start_date, end_date, concurrency, force_db)
 
-        if _shutdown_requested:
-            return extraction_results
+    # Run Transform
+    if not skip_transform:
+        console.print("\n[bold yellow]Step 2: Transform[/bold yellow]")
+        transform()
 
-        # Step 2: Transform
-        run_transformation_step(skip_transform)
+    # Run Load
+    if not skip_load:
+        console.print("\n[bold cyan]Step 3: Load[/bold cyan]")
+        load()
 
-        if _shutdown_requested:
-            return extraction_results
-
-        # Step 3: Load
-        run_load_step(skip_load)
-
-        return extraction_results
-
-    try:
-        extraction_results = asyncio.run(run_pipeline())
-        print_pipeline_summary(extraction_results)
-
-    except KeyboardInterrupt:
-        console.print("🛑 [yellow]Pipeline interrupted[/yellow]")
-    except Exception as e:
-        console.print(f"❌ [red]Pipeline failed: {e}[/red]")
-        raise
+    console.print("\n🎉 [bold green]ETL Pipeline finished![/bold green]")
 
 
-@app.command()
-def extract_dbt(
-    start_date: str = typer.Option(
-        "2024-01-01", help="Start date for extraction (YYYY-MM-DD)"
-    ),
-    end_date: str = typer.Option(
-        "2024-01-31", help="End date for extraction (YYYY-MM-DD)"
-    ),
-    concurrency: int = typer.Option(
-        settings.concurrency, help="Number of concurrent requests"
-    ),
-    force_db: bool = typer.Option(
-        False, "--force-db", help="Force database connection by removing locks"
-    ),
-    use_existing_plan: bool = typer.Option(
-        True,
-        "--use-existing-plan/--force-new-plan",
-        help="Use existing task plan if available",
-    ),
-):
-    """
-    Run dbt-driven extraction (ADR-009 architecture).
-
-    This command uses the new dbt-driven task planning architecture:
-    1. Generate/validate task plan using dbt models
-    2. Atomic task claiming for concurrent worker safety
-    3. Stream results to runtime tables for monitoring
-    """
-    # Setup signal handlers for graceful shutdown
-    setup_signal_handlers()
-
-    # Parse dates
-    try:
-        start_dt = date.fromisoformat(start_date)
-        end_dt = date.fromisoformat(end_date)
-    except ValueError as e:
-        console.print(f"❌ [red]Invalid date format: {e}[/red]")
-        console.print("Use YYYY-MM-DD format (e.g., 2024-01-01)")
-        raise typer.Exit(1)
-
-    console.print("🚀 [bold blue]Starting dbt-driven extraction (ADR-009)[/bold blue]")
-    console.print(f"📅 Date range: {start_date} to {end_date}")
-    console.print(f"🔧 Concurrency: {concurrency}")
-    console.print("")
-
-    async def run_dbt_extraction():
-        try:
-            if _shutdown_requested:
-                console.print(
-                    "🛑 [yellow]Shutdown requested before extraction[/yellow]"
-                )
-                return {"total_records": 0}
-
-            # Use dependency injection for dbt extraction
-            services = get_cli_services()
-            extractor = services.get_extractor(
-                concurrency=concurrency, force_db=force_db
-            )
-
-            async with extractor as ext:
-                results = await ext.extract_dbt_driven(
-                    start_dt, end_dt, use_existing_plan
-                )
-                return results
-
-        except KeyboardInterrupt:
-            console.print("🛑 [yellow]Extraction interrupted gracefully[/yellow]")
-            return {"total_records": 0}
-        except Exception as e:
-            if _shutdown_requested:
-                console.print(
-                    "🛑 [yellow]Extraction shutdown during operation[/yellow]"
-                )
-                return {"total_records": 0}
-            else:
-                console.print(f"❌ [red]dbt extraction failed: {e}[/red]")
-                raise
-
-    try:
-        results = asyncio.run(run_dbt_extraction())
-
-        if not _shutdown_requested:
-            console.print("")
-            console.print(
-                "🎉 [bold green]dbt-driven extraction completed![/bold green]"
-            )
-            console.print(
-                f"📊 Total records extracted: {results.get('total_records', 0):,}"
-            )
-            console.print(f"✅ Completed tasks: {results.get('completed_tasks', 0):,}")
-            console.print(f"❌ Failed tasks: {results.get('failed_tasks', 0):,}")
-            console.print(f"⏳ Pending tasks: {results.get('pending_tasks', 0):,}")
-
-    except KeyboardInterrupt:
-        console.print("🛑 [yellow]dbt extraction interrupted[/yellow]")
-    except Exception as e:
-        console.print(f"❌ [red]dbt extraction failed: {e}[/red]")
-        raise typer.Exit(1)
-
-
+# ... (keep other commands like mcp, status, stats, enums, explore, tutorial)
 @app.command()
 def mcp(
     host: str = typer.Option("127.0.0.1", help="The host to bind the MCP server to."),
@@ -809,7 +321,7 @@ def tutorial():
         "Step 1: Extract Some Data (2 minutes)",
         "   Let's grab today's contract data from the government API.",
         "   ",
-        "   $ [primary]baliza extract contratos[/primary]",
+        "   $ [primary]baliza extract --start-date <today> --end-date <today>[/primary]",
         "   ",
         "   This will:",
         "   ✅ Connect to PNCP (Portal Nacional de Contratações Públicas)",
@@ -832,7 +344,7 @@ def tutorial():
         "   📈 See trends and patterns",
         "   🏆 Find the biggest contracts",
         "",
-        "Ready to start? Try: [primary]baliza extract contratos[/primary]",
+        "Ready to start? Try: [primary]baliza extract[/primary]",
     ]
 
     tutorial_panel = create_info_panel(

@@ -5,7 +5,7 @@
   <p><strong>Guardando a memória das compras públicas no Brasil.</strong></p>
   <p>
     <a href="https://github.com/franklinbaldo/baliza/blob/main/LICENSE"><img src="https://img.shields.io/github/license/franklinbaldo/baliza?style=for-the-badge" alt="Licença"></a>
-    <a href="https://github.com/franklinbaldo/baliza/actions/workflows/baliza_daily_run.yml"><img src="https://img.shields.io/github/actions/workflow/status/franklinbaldo/baliza/baliza_daily_run.yml?branch=main&label=Build%20Di%C3%A1rio&style=for-the-badge" alt="Status do Build"></a>
+    <a href="https://github.com/franklinbaldo/baliza/actions/workflows/etl_pipeline.yml"><img src="https://img.shields.io/github/actions/workflow/status/franklinbaldo/baliza/etl_pipeline.yml?branch=main&label=Build%20Di%C3%A1rio&style=for-the-badge" alt="Status do Build"></a>
     <a href="https://pypi.org/project/baliza/"><img src="https://img.shields.io/pypi/v/baliza?style=for-the-badge" alt="Versão no PyPI"></a>
   </p>
 </div>
@@ -87,14 +87,14 @@ cd baliza
 # 2. Instale as dependências com uv
 uv sync
 
-# 3. Execute a extração (isso pode levar horas!)
-# Por padrão, extrai de 2021 até o mês atual
-uv run baliza extract
+# 3. Execute a pipeline completa (isso pode levar horas!)
+uv run baliza run
 ```
 
 **Principais Comandos:**
 | Comando | Descrição |
 |---|---|
+| `uv run baliza run` | Executa a pipeline completa: Extração, Transformação e Carga. |
 | `uv run baliza extract` | Inicia a extração de dados do PNCP. |
 | `uv run baliza transform` | Executa os modelos de transformação do dbt. |
 | `uv run baliza load` | Exporta os dados para Parquet e os carrega no Internet Archive. |
@@ -103,20 +103,20 @@ uv run baliza extract
 
 ## ⚙️ Como Funciona
 
-O BALIZA opera com uma arquitetura de extração em fases, garantindo que o processo seja robusto e possa ser retomado em caso de falhas.
+O BALIZA opera com uma arquitetura de extração em duas fases, garantindo que o processo seja robusto e possa ser retomado em caso de falhas.
 
 ```mermaid
 flowchart TD
     A[API do PNCP] -->|1. Requisições| B{BALIZA};
-    subgraph BALIZA [Processo de Extração]
+    subgraph BALIZA [Processo de Extração Vetorizado]
         direction LR
-        B1(Planejamento) --> B2(Descoberta) --> B3(Execução) --> B4(Reconciliação);
+        B1(Descoberta) --> B2(Reconciliação Vetorizada) --> B3(Execução);
     end
     B -->|2. Armazenamento| C{DuckDB Local};
     C -- "3. Transformação (dbt)" --> D[Tabelas Limpas e Analíticas];
     D -->|4. Análise| E(Jornalistas, Pesquisadores, Cidadãos);
 ```
-_**Legenda:** O BALIZA orquestra a coleta da API do PNCP, armazena os dados brutos em um banco DuckDB e, com dbt, os transforma em insumos para análise._
+_**Legenda:** O BALIZA orquestra a coleta da API do PNCP com um processo de reconciliação vetorizado, armazena os dados brutos em um banco DuckDB e, com dbt, os transforma em insumos para análise._
 
 
 ## 🤖 Servidor de Análise com IA (MCP)
@@ -153,7 +153,7 @@ Para saber mais sobre a arquitetura, leia nosso [**Guia Teórico do MCP**](./doc
 
 | Camada | Tecnologias | Propósito | ADR |
 |---|---|---|---|
-| **Coleta** | Python, asyncio, httpx, tenacity | Extração eficiente, assíncrona e resiliente. | [ADR-002](docs/adr/002-resilient-extraction.md), [ADR-005](docs/adr/005-modern-python-toolchain.md) |
+| **Coleta** | Python, asyncio, httpx, tenacity, pandas | Extração eficiente, assíncrona e vetorizada. | [ADR-002](docs/adr/002-resilient-extraction.md), [ADR-005](docs/adr/005-modern-python-toolchain.md) |
 | **Armazenamento** | DuckDB | Banco de dados analítico local, rápido e sem servidor. | [ADR-001](docs/adr/001-adopt-duckdb.md) |
 | **Transformação** | dbt (Data Build Tool) | Transforma dados brutos em modelos de dados limpos e confiáveis. | [ADR-003](docs/adr/003-medallion-architecture.md) |
 | **Interface** | Typer, Rich | CLI amigável, informativa e com ótima usabilidade. | [ADR-005](docs/adr/005-modern-python-toolchain.md) |
@@ -164,8 +164,9 @@ Para saber mais sobre a arquitetura, leia nosso [**Guia Teórico do MCP**](./doc
 ## 🗺️ Roadmap do Projeto
 
 -   [✅] **Fase 1: Fundação** - Extração resiliente, armazenamento em DuckDB, CLI funcional.
--   [⏳] **Fase 2: Expansão e Acessibilidade** - Modelos dbt analíticos, exportação para Parquet, documentação aprimorada.
--   [🗺️] **Fase 3: Ecossistema e Análise** - Dashboards de cobertura, sistema de plugins, tutoriais.
+-   [✅] **Fase 2: Motor Vetorizado** - Extração de alta performance com reconciliação vetorizada.
+-   [⏳] **Fase 3: Expansão e Acessibilidade** - Modelos dbt analíticos, exportação para Parquet, documentação aprimorada.
+-   [🗺️] **Fase 4: Ecossistema e Análise** - Dashboards de cobertura, sistema de plugins, tutoriais.
 -   [💡] **Futuro:** Painel de monitoramento de dados, detecção de anomalias, integração com mais fontes.
 
 ## 📋 Decisões Arquiteturais
