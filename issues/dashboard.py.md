@@ -1,43 +1,23 @@
-# Analysis of `src/baliza/ui/dashboard.py`
+## `dashboard.py`: Simulated Data in Dashboard
 
-This file provides the main dashboard for the BALIZA application.
+### Problem
 
-## Architectural Issues
+The `Dashboard` class in `src/baliza/ui/dashboard.py` uses simulated or hardcoded data in some of its panels. This includes:
 
-1.  **Mixing UI and Data Logic:** The `Dashboard` class mixes UI code (e.g., creating panels and tables) with data retrieval logic (e.g., querying the database). This violates the Single Responsibility Principle and makes the code harder to test.
-2.  **Hardcoded SQL Queries:** The SQL queries are hardcoded as strings. This makes them difficult to maintain and test. They should be moved to separate `.sql` files or a dedicated query module.
-3.  **Simulated Data:** The `_get_quick_insights` and `_get_pipeline_health` methods return simulated data. This makes the dashboard less useful and misleading. The dashboard should display real data from the system.
+*   `_get_quick_insights`: The `total_value`, `top_agency`, and `top_agency_contracts` are hardcoded.
+*   `_get_pipeline_health`: All the data in this panel is hardcoded.
+*   `_create_data_sources_health`: Some of the API performance metrics are hardcoded.
 
-## Code Quality Issues
+This means that the dashboard does not currently provide a fully accurate picture of the system's status.
 
-1.  **Bare `except Exception`:** The `_get_database_stats`, `_get_quick_insights`, and `_get_storage_stats` methods use a bare `except Exception`, which is too broad. It's better to catch more specific exceptions.
-2.  **Long Methods:** Some of the methods in the `Dashboard` class are too long and complex, such as `_get_database_stats`. They should be broken down into smaller, more focused methods.
-3.  **Noisy `_create_welcome_header` method:** The `_create_welcome_header` method does not have a docstring that explains what it does.
-4.  **Noisy `_format_status` method:** The `_format_status` method does not have a docstring that explains what it does.
+### Potential Solutions
 
-## Suggestions for Improvement
+1.  **Implement Real Data Fetching**:
+    *   The simulated data needs to be replaced with real data fetched from the database or other sources.
+    *   For example, the `_get_quick_insights` method should be updated to run queries against the dbt models (e.g., the gold-level tables) to get the total value of contracts, the top agency, etc.
+    *   The `_get_pipeline_health` method should be updated to get information about the last dbt run, the number of models, etc. This could be done by reading dbt's `run_results.json` file or by storing metadata about dbt runs in the database.
+    *   The API performance metrics could be calculated from the `psa.pncp_requests` table.
 
-*   **Separate UI and Data Logic:** Create a separate `DataProvider` class to handle the data retrieval logic. The `Dashboard` class should then use the `DataProvider` to get the data it needs to display.
-*   **Externalize SQL Queries:** Move the SQL queries to separate `.sql` files or a dedicated query module.
-*   **Use Real Data:** The dashboard should display real data from the system. The `_get_quick_insights` and `_get_pipeline_health` methods should be updated to query the database for real data.
-*   **Specific Exception Handling:** Use more specific exception handling to provide better error messages and make the script more robust.
-*   **Refactor Long Methods:** Break down the long methods into smaller, more focused methods.
-*   **Add docstrings:** Add docstrings to all methods to explain their purpose.
+### Recommendation
 
-Overall, the `dashboard.py` file is a good starting point, but it needs a significant refactoring to improve its architecture and code quality. The suggestions above will help to make the code more modular, maintainable, and easier to understand.
-
-## Proposed Solutions
-
-*   **Create a `DataProvider` class:**
-    *   This class will be responsible for retrieving data from the database.
-    *   It will have methods for getting database stats, quick insights, storage stats, and pipeline health.
-*   **Refactor `Dashboard`:**
-    *   The `Dashboard` class will be responsible for displaying the dashboard.
-    *   It will use the `DataProvider` to get the data it needs to display.
-    *   It will have methods for creating the welcome header, status overview, quick insights, and quick actions panels.
-*   **Externalize SQL Queries:**
-    *   Move the SQL queries to separate `.sql` files.
-    *   Use a query builder or an ORM to build the queries.
-*   **Use Real Data:**
-    *   Update the `_get_quick_insights` and `_get_pipeline_health` methods to query the database for real data.
-*   **Add docstrings and type hints to all methods.**
+Replace all simulated data in the dashboard with real, data-driven insights. This will make the dashboard much more useful and will provide a true reflection of the system's status. This will likely require adding new queries to the dashboard's data-fetching methods and potentially storing more metadata about the ETL process in the database.

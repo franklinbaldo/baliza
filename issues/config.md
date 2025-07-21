@@ -1,32 +1,24 @@
-# Analysis of `src/baliza/config.py`
+## `config.py`: Hardcoded PNCP Endpoint Configuration
 
-This file manages the application's configuration using Pydantic's `BaseSettings`.
+### Problem
 
-## Architectural Issues
+The `pncp_endpoints` list is hardcoded within the `Settings` class in `src/baliza/config.py`. While this works, it has a few drawbacks:
 
-1.  **Hardcoded Configuration File Path:** The `load_config` function has a hardcoded default path to the `endpoints.yaml` file. This makes the code less flexible and harder to test.
-2.  **Mixing Configuration Sources:** The code mixes configuration from environment variables, a `.env` file, and a YAML file. This can make it difficult to understand where a particular configuration value is coming from.
-3.  **Noisy `ModalidadeContratacao` import:** The `ModalidadeContratacao` enum is imported but never used.
+1.  **Reduced Flexibility**: Users who want to add, remove, or modify endpoints must directly edit the Python source code. This is not ideal, especially for users who are not developers.
+2.  **Maintenance Overhead**: As the number of endpoints grows, the `Settings` class can become cluttered, making it harder to maintain.
+3.  **Less Declarative**: Configuration is generally better when it's declarative (e.g., in a YAML or JSON file) rather than imperative (in code).
 
-## Code Quality Issues
+### Potential Solutions
 
-None. The code is well-written and follows best practices for configuration management.
+1.  **Move Endpoint Configuration to a YAML File**:
+    *   Create a `endpoints.yaml` file (or similar) that contains the list of endpoint configurations.
+    *   Modify the `Settings` class to load this YAML file. Pydantic can be extended to support custom file formats, or you can write a simple loader function.
+    *   This would allow users to easily customize the endpoints by editing the YAML file.
 
-## Suggestions for Improvement
+2.  **Allow Overriding Endpoints via Environment Variables**:
+    *   Pydantic supports complex types in environment variables (e.g., by providing a JSON string). You could document how users can override the `pncp_endpoints` list using an environment variable.
+    *   This is less user-friendly than a YAML file but doesn't require adding a new file to the project.
 
-*   **Make Configuration File Path Configurable:** The path to the `endpoints.yaml` file should be configurable, for example, through an environment variable or a command-line argument.
-*   **Clarify Configuration Precedence:** The documentation should clearly state the precedence of the different configuration sources (e.g., environment variables override `.env` file, which overrides YAML file).
-*   **Remove Unused Imports:** The `ModalidadeContratacao` import should be removed if it's not being used.
+### Recommendation
 
-Overall, the `config.py` file is a well-designed and robust configuration module. The suggestions above are aimed at improving its flexibility and clarity.
-
-## Proposed Solutions
-
-*   **Make Configuration File Path Configurable:**
-    *   Add a `config_path` setting to the `Settings` class.
-    *   Use the `config_path` setting in the `load_config` function.
-*   **Clarify Configuration Precedence in the Docstring:**
-    *   Add a section to the `Settings` docstring that explains the precedence of the different configuration sources.
-*   **Remove Unused Imports:**
-    *   Remove the `ModalidadeContratacao` import.
-*   **Add docstrings and type hints to all functions.**
+Move the endpoint configuration to a separate `endpoints.yaml` file. This is the most flexible and user-friendly solution. It separates configuration from code and makes the system easier to extend and maintain. The `config/endpoints.yaml` file already exists, so it should be used. The settings loader should be updated to read from this file.
