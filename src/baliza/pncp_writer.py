@@ -200,9 +200,6 @@ class PNCPWriter:
         # Create indexes if they don't exist
         self._create_indexes_if_not_exist()
 
-        # Migrate existing table to use ZSTD compression
-        self._migrate_to_zstd_compression()
-
     def _index_exists(self, index_name: str) -> bool:
         """Check if a given index exists in the database."""
         try:
@@ -244,127 +241,6 @@ class PNCPWriter:
             except duckdb.Error as e:
                 logger.exception(f"Failed to create index '{idx_name}': {e}")
 
-    def _migrate_to_zstd_compression(self):
-        """Migrate existing table to use ZSTD compression for better storage efficiency."""
-        try:
-            # Check if table exists and has data
-            table_exists = (
-                self.conn.execute(
-                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'pncp_raw_responses' AND table_schema = 'psa'"
-                ).fetchone()[0]
-                > 0
-            )
-
-            if not table_exists:
-                return  # Table doesn't exist yet, will be created with ZSTD
-
-            # Check if migration already happened by looking for a marker
-            try:
-                marker_exists = (
-                    self.conn.execute(
-                        "SELECT COUNT(*) FROM psa.pncp_raw_responses WHERE run_id = 'ZSTD_MIGRATION_MARKER'"
-                    ).fetchone()[0]
-                    > 0
-                )
-
-                if marker_exists:
-                    return  # Migration already completed
-
-            except (duckdb.Error, AttributeError) as db_err:
-                logger.debug(
-                    "Table might not exist or have run_id column yet", error=str(db_err)
-                )
-
-            # Check if table already has ZSTD compression by attempting to create a duplicate
-            try:
-                self.conn.execute(
-                    """
-                    CREATE TABLE psa.pncp_raw_responses_zstd (
-                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                        extracted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        endpoint_url VARCHAR NOT NULL,
-                        endpoint_name VARCHAR NOT NULL,
-                        request_parameters JSON,
-                        response_code INTEGER NOT NULL,
-                        response_content TEXT,
-                        response_headers JSON,
-                        data_date DATE,
-                        run_id VARCHAR,
-                        total_records INTEGER,
-                        total_pages INTEGER,
-                        current_page INTEGER,
-                        page_size INTEGER
-                    ) WITH (compression = "zstd")
-                """
-                )
-
-                # Check if we have data to migrate
-                row_count = self.conn.execute(
-                    "SELECT COUNT(*) FROM psa.pncp_raw_responses"
-                ).fetchone()[0]
-
-                if row_count > 0:
-                    console.print(
-                        f"🗜️ Migrating {row_count:,} rows to ZSTD compression..."
-                    )
-
-                    # Copy data to new compressed table
-                    self.conn.execute(
-                        """
-                        INSERT INTO psa.pncp_raw_responses_zstd
-                        SELECT * FROM psa.pncp_raw_responses
-                    """
-                    )
-
-                    # Add migration marker
-                    self.conn.execute(
-                        """
-                        INSERT INTO psa.pncp_raw_responses_zstd
-                        (endpoint_url, endpoint_name, request_parameters, response_code, response_content, response_headers, run_id)
-                        VALUES ('MIGRATION_MARKER', 'ZSTD_MIGRATION', '{}', 0, 'Migration completed', '{}', 'ZSTD_MIGRATION_MARKER')
-                    """
-                    )
-
-                    # Drop old table and rename new one
-                    self.conn.execute("DROP TABLE psa.pncp_raw_responses")
-                    self.conn.execute(
-                        "ALTER TABLE psa.pncp_raw_responses_zstd RENAME TO pncp_raw_responses"
-                    )
-
-                    # Recreate indexes
-                    self.conn.execute(
-                        "CREATE INDEX idx_endpoint_date_page ON psa.pncp_raw_responses(endpoint_name, data_date, current_page)"
-                    )
-                    self.conn.execute(
-                        "CREATE INDEX idx_response_code ON psa.pncp_raw_responses(response_code)"
-                    )
-
-                    self.conn.commit()
-                    console.print("Successfully migrated to ZSTD compression")
-                else:
-                    # No data to migrate, just replace table
-                    self.conn.execute("DROP TABLE psa.pncp_raw_responses")
-                    self.conn.execute(
-                        "ALTER TABLE psa.pncp_raw_responses_zstd RENAME TO pncp_raw_responses"
-                    )
-                    console.print("Empty table replaced with ZSTD compression")
-
-            except duckdb.Error as create_error:
-                # If table already exists with ZSTD, clean up
-                with contextlib.suppress(duckdb.Error):
-                    self.conn.execute("DROP TABLE psa.pncp_raw_responses_zstd")
-
-                # This likely means the table already has ZSTD or migration already happened
-                if "already exists" in str(create_error):
-                    pass  # Expected, migration already done
-                else:
-                    raise
-
-        except duckdb.Error as e:
-            console.print(f"⚠️ ZSTD migration error: {e}")
-            # Rollback on error
-            with contextlib.suppress(duckdb.Error):
-                self.conn.rollback()
 
     def _batch_store_responses(self, responses: list[dict[str, Any]]):
         """Store multiple responses in a single batch operation with transaction."""

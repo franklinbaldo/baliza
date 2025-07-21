@@ -2,6 +2,7 @@ import asyncio
 import json
 import signal
 import sys
+from calendar import monthrange
 from datetime import date
 from pathlib import Path
 
@@ -22,6 +23,14 @@ error_handler = ErrorHandler()
 
 # Global shutdown flag
 _shutdown_requested = False
+
+
+def adjust_to_end_of_month(input_date: date) -> date:
+    """Ajusta a data para o final do mês para manter requisições idempotentes."""
+    year = input_date.year
+    month = input_date.month
+    _, last_day = monthrange(year, month)
+    return date(year, month, last_day)
 
 
 def setup_signal_handlers():
@@ -84,7 +93,11 @@ def extract(
 
     theme = get_theme()
     start_dt = date.fromisoformat(start_date)
-    end_dt = date.fromisoformat(end_date)
+    end_dt = adjust_to_end_of_month(date.fromisoformat(end_date))
+    
+    # Mostrar a data ajustada para o usuário
+    if end_date != end_dt.strftime("%Y-%m-%d"):
+        console.print(f"📅 [yellow]Data final ajustada para final do mês: {end_dt.strftime('%Y-%m-%d')}[/yellow]")
 
     header = create_header(
         "Extracting Data (Vectorized)",
