@@ -92,10 +92,26 @@ class AsyncPNCPExtractor:
         logger.info("Vectorized Extractor resources cleaned up.")
 
     def setup_signal_handlers(self):
-        """Sets up graceful shutdown handlers."""
+        """Sets up aggressive shutdown handlers for immediate termination."""
         def signal_handler(signum, frame):
-            console.print(f"\n⚠️ [yellow]Signal {signum} received, shutting down...[/yellow]")
+            console.print(f"\n🛑 [bold red]Signal {signum} received, STOPPING immediately![/bold red]")
             self.shutdown_event.set()
+            
+            # Cancel all running tasks aggressively
+            try:
+                # Get current event loop
+                loop = asyncio.get_event_loop()
+                
+                # Cancel all running tasks
+                tasks = [t for t in asyncio.all_tasks(loop) if not t.done()]
+                if tasks:
+                    console.print(f"🔄 [yellow]Cancelling {len(tasks)} running tasks...[/yellow]")
+                    for task in tasks:
+                        task.cancel()
+                        
+            except Exception as e:
+                console.print(f"⚠️ [yellow]Signal cleanup error: {e}[/yellow]")
+                
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
 
@@ -132,10 +148,10 @@ class AsyncPNCPExtractor:
         page_queue = asyncio.Queue()
 
         async def worker():
-            while True:
+            while not self.shutdown_event.is_set():
                 try:
                     row = await page_queue.get()
-                    if row is None:
+                    if row is None or self.shutdown_event.is_set():
                         break
 
                     params = {
@@ -255,10 +271,10 @@ class AsyncPNCPExtractor:
         page_queue = asyncio.Queue()
 
         async def worker():
-            while True:
+            while not self.shutdown_event.is_set():
                 try:
                     row = await page_queue.get()
-                    if row is None:
+                    if row is None or self.shutdown_event.is_set():
                         break
 
                     params = {
@@ -324,12 +340,24 @@ class AsyncPNCPExtractor:
 
         # 1. Plan initial `pagina=1` requests
         initial_plan_df = self._plan_initial_requests_df(start_date, end_date)
+        
+        if self.shutdown_event.is_set():
+            console.print("🛑 [red]Shutdown requested, stopping after planning phase[/red]")
+            return
 
         # 2. Discover total pages and persist page 1 results
         await self._discover_total_pages_concurrently(initial_plan_df)
+        
+        if self.shutdown_event.is_set():
+            console.print("🛑 [red]Shutdown requested, stopping after discovery phase[/red]")
+            return
 
         # 3. Vectorized reconciliation to find missing pages
         missing_pages_df = self._expand_and_reconcile_from_db_vectorized()
+        
+        if self.shutdown_event.is_set():
+            console.print("🛑 [red]Shutdown requested, stopping after reconciliation phase[/red]")
+            return
 
         # 4. Execute fetching of the final work queue
         await self._execute_fetch_tasks(missing_pages_df)
