@@ -58,6 +58,8 @@ class AsyncPNCPExtractor:
         self.run_id = str(uuid.uuid4())
         self.writer = None
         self.client = None
+        self.write_queue = None
+        self.writer_task = None
 
     async def __aenter__(self):
         """Initializes resources for the extractor."""
@@ -65,12 +67,24 @@ class AsyncPNCPExtractor:
         await self.writer.__aenter__()
         self.client = PNCPClient(concurrency=self.concurrency)
         await self.client.__aenter__()
+        
+        # Initialize write queue and start writer worker
+        self.write_queue = asyncio.Queue()
+        self.writer_task = asyncio.create_task(
+            self.writer.writer_worker(self.write_queue)
+        )
+        
         self.setup_signal_handlers()
         logger.info(f"Vectorized Extractor initialized with run_id: {self.run_id}")
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Cleans up resources."""
+        # Stop writer worker gracefully
+        if hasattr(self, 'write_queue') and hasattr(self, 'writer_task'):
+            await self.write_queue.put(None)  # Signal writer to stop
+            await self.writer_task  # Wait for writer to finish
+        
         if self.client:
             await self.client.__aexit__(exc_type, exc_val, exc_tb)
         if self.writer:
@@ -133,14 +147,31 @@ class AsyncPNCPExtractor:
                     if row.modalidade:
                         params['modalidade'] = row.modalidade
 
-                    # This is a simplified version. The actual client would handle this.
-                    # response = await self.client.get(f"/v1/{row.endpoint_name}", params=params)
+                    # Make the actual API request
+                    endpoint_path = f"/v1/{row.endpoint_name}"
+                    response = await self.client.fetch_with_backpressure(endpoint_path, params)
 
-                    # Mocking the response for now
-                    response = {'total_pages': 1, 'data': [{'id': 1}]}
+                    # Transform response for writer persistence
+                    writer_data = {
+                        "extracted_at": None,  # Writer will set this
+                        "endpoint_url": endpoint_path,
+                        "endpoint_name": row.endpoint_name,
+                        "request_parameters": params,
+                        "response_code": response.get("status_code"),
+                        "response_content": response.get("content", ""),
+                        "response_headers": response.get("headers", {}),
+                        "data_date": row.data_date,
+                        "run_id": self.run_id,
+                        "total_records": response.get("total_records", 0),
+                        "total_pages": response.get("total_pages", 1),
+                        "current_page": row.pagina,
+                        "page_size": params.get("tamanhoPagina", 500)
+                    }
 
-                    # Persist the result
-                    # await self.writer.persist_page(response)
+                    # Queue transformed data for persistence by writer worker
+                    await self.write_queue.put(writer_data)
+                    
+                    logger.info(f"Fetched page 1 for {row.endpoint_name}, got {len(response.get('data', []))} items")
 
                 finally:
                     page_queue.task_done()
@@ -239,8 +270,30 @@ class AsyncPNCPExtractor:
                     if row.modalidade:
                         params['modalidade'] = row.modalidade
 
-                    # response = await self.client.get(f"/v1/{row.endpoint_name}", params=params)
-                    # await self.writer.persist_page(response)
+                    endpoint_path = f"/v1/{row.endpoint_name}"
+                    response = await self.client.fetch_with_backpressure(endpoint_path, params)
+                    
+                    # Transform response for writer persistence
+                    writer_data = {
+                        "extracted_at": None,  # Writer will set this
+                        "endpoint_url": endpoint_path,
+                        "endpoint_name": row.endpoint_name,
+                        "request_parameters": params,
+                        "response_code": response.get("status_code"),
+                        "response_content": response.get("content", ""),
+                        "response_headers": response.get("headers", {}),
+                        "data_date": row.data_date,
+                        "run_id": self.run_id,
+                        "total_records": response.get("total_records", 0),
+                        "total_pages": response.get("total_pages", 1),
+                        "current_page": row.pagina,
+                        "page_size": params.get("tamanhoPagina", 500)
+                    }
+                    
+                    # Queue transformed data for persistence by writer worker
+                    await self.write_queue.put(writer_data)
+                    
+                    logger.info(f"Fetched page {row.pagina} for {row.endpoint_name}, got {len(response.get('data', []))} items")
 
                 finally:
                     page_queue.task_done()

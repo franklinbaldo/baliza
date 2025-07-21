@@ -116,7 +116,7 @@ class ErrorHandler:
         self.console.print(error_panel)
 
         # Recovery suggestions
-        suggestions = self._get_error_suggestions(error, endpoint)
+        suggestions = self._get_error_suggestions(error, _endpoint)
         if suggestions:
             suggestions_panel = Panel(
                 "\n".join(suggestions),
