@@ -12,7 +12,7 @@ from typing import Any
 import duckdb
 import typer
 from internetarchive import get_item, upload
-from internetarchive.exceptions import ItemLocateError, AuthenticationError
+from internetarchive.exceptions import AuthenticationError, ItemLocateError
 
 from .config import settings
 

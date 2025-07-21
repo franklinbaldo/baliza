@@ -7,7 +7,6 @@ Manages raw data storage and task state tracking for the extraction pipeline.
 """
 
 import asyncio
-import contextlib
 import json
 import logging
 from datetime import date

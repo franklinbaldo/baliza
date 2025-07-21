@@ -1,5 +1,4 @@
 import asyncio
-import json
 import signal
 import sys
 from calendar import monthrange
@@ -94,7 +93,7 @@ def extract(
     theme = get_theme()
     start_dt = date.fromisoformat(start_date)
     end_dt = adjust_to_end_of_month(date.fromisoformat(end_date))
-    
+
     # Mostrar a data ajustada para o usuário
     if end_date != end_dt.strftime("%Y-%m-%d"):
         console.print(f"📅 [yellow]Data final ajustada para final do mês: {end_dt.strftime('%Y-%m-%d')}[/yellow]")
@@ -126,7 +125,6 @@ def transform():
     """Transform raw data into analytics-ready tables with dbt."""
     # This command remains largely the same
     from .ui import create_header, get_theme
-    from .ui.components import create_info_panel
 
     theme = get_theme()
     header = create_header(

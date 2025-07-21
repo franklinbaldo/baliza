@@ -130,7 +130,7 @@ class PNCPClient:
                 if params:
                     param_str = "&".join([f"{k}={v}" for k, v in params.items() if v is not None])
                     full_url = f"{full_url}?{param_str}"
-                
+
                 logger.warning(
                     f"Rate limit hit (429) - Full URL: {full_url}"
                 )

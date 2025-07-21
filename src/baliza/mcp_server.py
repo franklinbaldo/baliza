@@ -202,7 +202,7 @@ async def _execute_sql_query_logic(query: str, base_dir: str | None = None) -> s
 
     except duckdb.Error as e:
         logger.exception(f"Query failed: {query} - {e}")
-        return json.dumps({"error": f"Query failed: {str(e)}"})
+        return json.dumps({"error": f"Query failed: {e!s}"})
     except Exception as e:
         logger.exception(f"Unexpected error executing query: {e}")
         return json.dumps({"error": "Query execution failed due to unexpected error."})

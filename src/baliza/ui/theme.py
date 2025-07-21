@@ -125,45 +125,45 @@ def get_theme() -> BalızaTheme:
 
 def get_console() -> Console:
     """Get a Rich console configured with BALIZA theme."""
-    import sys
     import os
+    import sys
     theme = get_theme()
-    
+
     # Windows-specific Unicode setup
     if sys.platform == "win32":
         try:
             # Set UTF-8 encoding environment variables
             os.environ["PYTHONIOENCODING"] = "utf-8"
-            
+
             # Try to enable Windows console virtual terminal processing
             import ctypes
             from ctypes import wintypes
-            
+
             STD_OUTPUT_HANDLE = -11
             ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
-            
+
             kernel32 = ctypes.windll.kernel32
             handle = kernel32.GetStdHandle(STD_OUTPUT_HANDLE)
-            
+
             mode = wintypes.DWORD()
             kernel32.GetConsoleMode(handle, ctypes.byref(mode))
             mode.value |= ENABLE_VIRTUAL_TERMINAL_PROCESSING
             kernel32.SetConsoleMode(handle, mode.value)
-            
+
             # Force output to use UTF-8
             if hasattr(sys.stdout, 'reconfigure'):
                 sys.stdout.reconfigure(encoding='utf-8')
             if hasattr(sys.stderr, 'reconfigure'):
                 sys.stderr.reconfigure(encoding='utf-8')
-                
+
         except Exception:
-            # Fallback: if we can't enable modern console features, 
+            # Fallback: if we can't enable modern console features,
             # we'll still try with basic settings
             pass
-    
+
     return Console(
-        theme=theme.RICH_THEME, 
-        force_terminal=True, 
+        theme=theme.RICH_THEME,
+        force_terminal=True,
         legacy_windows=False,  # Try modern mode first
         stderr=False
     )

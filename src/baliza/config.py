@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     )
 
     pncp_base_url: str = "https://pncp.gov.br/api/consulta"
-    concurrency: int = 4  # 
+    concurrency: int = 4  #
     rate_limit_delay: float = (
         0.1  # delay between requests to respect API limits
     )
