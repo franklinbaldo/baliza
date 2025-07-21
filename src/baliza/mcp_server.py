@@ -31,9 +31,10 @@ PARQUET_TABLE_MAPPING = {
     # Add other datasets as needed
 }
 
+
 def get_table_mapping() -> dict[str, str]:
-    """Get table mapping configuration. 
-    
+    """Get table mapping configuration.
+
     Future enhancement: Load from config file instead of hardcoded dict.
     """
     return PARQUET_TABLE_MAPPING.copy()
@@ -115,22 +116,39 @@ async def _execute_sql_query_logic(query: str, base_dir: str | None = None) -> s
     """Executes a read-only SQL query against the procurement dataset."""
     # Enhanced Security Validation: Strict query validation
     query_upper = query.strip().upper()
-    
+
     # Only allow SELECT statements
     if not query_upper.startswith("SELECT"):
         return json.dumps({"error": "Only SELECT queries are allowed."})
-    
+
     # Block dangerous SQL keywords that could be used for injection
     dangerous_keywords = [
-        "DROP", "DELETE", "INSERT", "UPDATE", "CREATE", "ALTER", 
-        "TRUNCATE", "EXEC", "EXECUTE", "UNION", "--", "/*", "*/",
-        "XP_", "SP_", "BULK", "OPENROWSET", "OPENDATASOURCE"
+        "DROP",
+        "DELETE",
+        "INSERT",
+        "UPDATE",
+        "CREATE",
+        "ALTER",
+        "TRUNCATE",
+        "EXEC",
+        "EXECUTE",
+        "UNION",
+        "--",
+        "/*",
+        "*/",
+        "XP_",
+        "SP_",
+        "BULK",
+        "OPENROWSET",
+        "OPENDATASOURCE",
     ]
-    
+
     for keyword in dangerous_keywords:
         if keyword in query_upper:
-            return json.dumps({"error": f"Forbidden keyword '{keyword}' detected in query."})
-    
+            return json.dumps(
+                {"error": f"Forbidden keyword '{keyword}' detected in query."}
+            )
+
     # Additional validation: Check for suspicious patterns
     if ";" in query and not query.strip().endswith(";"):
         return json.dumps({"error": "Multiple statements not allowed."})
@@ -146,7 +164,7 @@ async def _execute_sql_query_logic(query: str, base_dir: str | None = None) -> s
                 if not table_name.isalnum():
                     logger.error(f"Invalid table name: {table_name}")
                     continue
-                    
+
                 full_parquet_path = parquet_dir / glob_pattern
                 # Robust path sanitization for view creation
                 try:
@@ -168,18 +186,18 @@ async def _execute_sql_query_logic(query: str, base_dir: str | None = None) -> s
                 # Create a view for each logical table using read_parquet with parameterized path
                 con.execute(
                     f"CREATE OR REPLACE VIEW {table_name} AS SELECT * FROM read_parquet(?)",
-                    [str(resolved_path)]
+                    [str(resolved_path)],
                 )
 
         # SECURITY FIX: Execute user query in isolated manner
         # Additional timeout protection (DuckDB feature)
         result = con.execute(query).fetchdf()
-        
+
         # Limit result size to prevent resource exhaustion
         if len(result) > 10000:
             logger.warning(f"Query returned {len(result)} rows, truncating to 10000")
             result = result.head(10000)
-            
+
         return result.to_json(orient="records")
 
     except duckdb.Error as e:
@@ -198,7 +216,7 @@ async def execute_sql_query(query: str) -> str:
 def run_server(host: str = "127.0.0.1", port: int = 8000):
     """
     Runs the MCP server. This function will be called by the CLI.
-    
+
     Args:
         host: The host to bind the server to
         port: The port to run the server on
@@ -209,7 +227,9 @@ def run_server(host: str = "127.0.0.1", port: int = 8000):
         app.run(host=host, port=port)
     except TypeError:
         # Fallback if FastMCP doesn't support host/port parameters
-        logger.warning("FastMCP app.run() doesn't support host/port parameters, using defaults")
+        logger.warning(
+            "FastMCP app.run() doesn't support host/port parameters, using defaults"
+        )
         try:
             app.run()
         except Exception as e:
@@ -225,7 +245,7 @@ def run_server(host: str = "127.0.0.1", port: int = 8000):
 async def run_server_async(host: str = "127.0.0.1", port: int = 8000):
     """
     Async version of run_server for proper lifecycle management.
-    
+
     Args:
         host: The host to bind the server to
         port: The port to run the server on
@@ -233,7 +253,7 @@ async def run_server_async(host: str = "127.0.0.1", port: int = 8000):
     logger.info(f"Starting MCP server on {host}:{port}")
     try:
         # If FastMCP has an async run method, use it
-        if hasattr(app, 'run_async'):
+        if hasattr(app, "run_async"):
             await app.run_async(host=host, port=port)
         else:
             # Fallback to sync version

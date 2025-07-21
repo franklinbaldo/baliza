@@ -35,19 +35,29 @@ def setup_signal_handlers():
         """Handle shutdown signals gracefully."""
         global _shutdown_requested
         # Handle the signal gracefully (using frame for context information)
-        signal_name = signal.Signals(signum).name if hasattr(signal, 'Signals') else str(signum)
-        frame_info = f" (in {frame.f_code.co_filename}:{frame.f_lineno})" if frame else ""
-        
+        signal_name = (
+            signal.Signals(signum).name if hasattr(signal, "Signals") else str(signum)
+        )
+        frame_info = (
+            f" (in {frame.f_code.co_filename}:{frame.f_lineno})" if frame else ""
+        )
+
         if not _shutdown_requested:
             _shutdown_requested = True
-            console.print(f"\n🛑 [yellow]Shutdown requested ({signal_name}){frame_info}... cleaning up[/yellow]")
-            console.print("⏳ Please wait for graceful shutdown (Press Ctrl+C again to force)")
+            console.print(
+                f"\n🛑 [yellow]Shutdown requested ({signal_name}){frame_info}... cleaning up[/yellow]"
+            )
+            console.print(
+                "⏳ Please wait for graceful shutdown (Press Ctrl+C again to force)"
+            )
         else:
-            console.print(f"\n💥 [red]Force shutdown ({signal_name}) - may leave locks![/red]")
+            console.print(
+                f"\n💥 [red]Force shutdown ({signal_name}) - may leave locks![/red]"
+            )
             sys.exit(1)
 
     # Register signal handlers for graceful shutdown
-    signal.signal(signal.SIGINT, signal_handler)   # Ctrl+C
+    signal.signal(signal.SIGINT, signal_handler)  # Ctrl+C
     signal.signal(signal.SIGTERM, signal_handler)  # Termination signal
 
 
@@ -124,12 +134,16 @@ def extract(
         try:
             # Use dependency injection for extractor
             services = get_cli_services()
-            extractor = services.get_extractor(concurrency=concurrency, force_db=force_db)
-            
+            extractor = services.get_extractor(
+                concurrency=concurrency, force_db=force_db
+            )
+
             async with extractor as ext:
                 # Check for shutdown before starting
                 if _shutdown_requested:
-                    console.print("🛑 [yellow]Shutdown requested before extraction started[/yellow]")
+                    console.print(
+                        "🛑 [yellow]Shutdown requested before extraction started[/yellow]"
+                    )
                     return {"total_records_extracted": 0, "run_id": "cancelled"}
 
                 results = await ext.extract_data(start_dt, end_dt, force)
@@ -179,7 +193,9 @@ def extract(
             return {"total_records_extracted": 0, "run_id": "interrupted"}
         except Exception as e:
             if _shutdown_requested:
-                console.print("🛑 [yellow]Shutdown during extraction - cleaning up[/yellow]")
+                console.print(
+                    "🛑 [yellow]Shutdown during extraction - cleaning up[/yellow]"
+                )
                 return {"total_records_extracted": 0, "run_id": "shutdown"}
             else:
                 error_handler.handle_api_error(
@@ -343,14 +359,15 @@ def load():
 
 # ETL Pipeline Components - Refactored for better maintainability and testability
 
+
 class ETLPipelineStep:
     """Base class for ETL pipeline steps."""
-    
+
     def __init__(self, name: str, emoji: str, color: str):
         self.name = name
         self.emoji = emoji
         self.color = color
-    
+
     def should_skip(self, skip_flag: bool) -> bool:
         """Check if step should be skipped."""
         if _shutdown_requested:
@@ -364,27 +381,33 @@ class ETLPipelineStep:
     def print_step_header(self, step_number: int):
         """Print standardized step header."""
         console.print("")
-        console.print(f"{self.emoji} [bold {self.color}]Step {step_number}: {self.name}[/bold {self.color}]")
+        console.print(
+            f"{self.emoji} [bold {self.color}]Step {step_number}: {self.name}[/bold {self.color}]"
+        )
 
 
 async def run_extraction_step(concurrency: int, force_db: bool, force: bool) -> dict:
     """Execute the data extraction step with proper error handling."""
     step = ETLPipelineStep("Extracting data from PNCP API", "📥", "green")
     step.print_step_header(1)
-    
+
     start_dt = date(2021, 1, 1)
     end_dt = date.today()
 
     async def extract_data():
         try:
             if _shutdown_requested:
-                console.print("🛑 [yellow]Shutdown requested before extraction[/yellow]")
+                console.print(
+                    "🛑 [yellow]Shutdown requested before extraction[/yellow]"
+                )
                 return {"total_records_extracted": 0, "run_id": "cancelled"}
 
             # Use dependency injection for extractor in pipeline
             services = get_cli_services()
-            extractor = services.get_extractor(concurrency=concurrency, force_db=force_db)
-            
+            extractor = services.get_extractor(
+                concurrency=concurrency, force_db=force_db
+            )
+
             async with extractor as ext:
                 results = await ext.extract_data(start_dt, end_dt, force)
                 console.print(
@@ -396,7 +419,9 @@ async def run_extraction_step(concurrency: int, force_db: bool, force: bool) -> 
             return {"total_records_extracted": 0, "run_id": "interrupted"}
         except Exception as e:
             if _shutdown_requested:
-                console.print("🛑 [yellow]Extraction shutdown during operation[/yellow]")
+                console.print(
+                    "🛑 [yellow]Extraction shutdown during operation[/yellow]"
+                )
                 return {"total_records_extracted": 0, "run_id": "shutdown"}
             else:
                 console.print(f"❌ [red]Extraction failed: {e}[/red]")
@@ -404,11 +429,11 @@ async def run_extraction_step(concurrency: int, force_db: bool, force: bool) -> 
 
     try:
         extraction_results = await extract_data()
-        
+
         # Check for shutdown after extraction
         if _shutdown_requested:
             console.print("🛑 [yellow]Pipeline stopped after extraction[/yellow]")
-            
+
         return extraction_results
 
     except KeyboardInterrupt:
@@ -418,17 +443,17 @@ async def run_extraction_step(concurrency: int, force_db: bool, force: bool) -> 
 
 def run_transformation_step(skip_transform: bool) -> bool:
     """Execute the data transformation step with proper error handling.
-    
+
     Returns:
         bool: True if step completed successfully, False if failed or skipped
     """
     step = ETLPipelineStep("Transforming data with dbt", "🔄", "yellow")
-    
+
     if step.should_skip(skip_transform):
         return True
-    
+
     step.print_step_header(2)
-    
+
     try:
         # Use dependency injection for transformer in pipeline
         services = get_cli_services()
@@ -451,17 +476,17 @@ def run_transformation_step(skip_transform: bool) -> bool:
 
 def run_load_step(skip_load: bool) -> bool:
     """Execute the data loading step with proper error handling.
-    
+
     Returns:
         bool: True if step completed successfully, False if failed or skipped
     """
     step = ETLPipelineStep("Loading data to Internet Archive", "📤", "cyan")
-    
+
     if step.should_skip(skip_load):
         return True
-        
+
     step.print_step_header(3)
-    
+
     try:
         # Use dependency injection for loader in pipeline
         services = get_cli_services()
@@ -528,25 +553,25 @@ def run(
     async def run_pipeline():
         # Step 1: Extract
         extraction_results = await run_extraction_step(concurrency, force_db, force)
-        
+
         if _shutdown_requested:
             return extraction_results
-        
+
         # Step 2: Transform
         run_transformation_step(skip_transform)
-        
+
         if _shutdown_requested:
             return extraction_results
-            
-        # Step 3: Load  
+
+        # Step 3: Load
         run_load_step(skip_load)
-        
+
         return extraction_results
 
     try:
         extraction_results = asyncio.run(run_pipeline())
         print_pipeline_summary(extraction_results)
-        
+
     except KeyboardInterrupt:
         console.print("🛑 [yellow]Pipeline interrupted[/yellow]")
     except Exception as e:
@@ -569,12 +594,14 @@ def extract_dbt(
         False, "--force-db", help="Force database connection by removing locks"
     ),
     use_existing_plan: bool = typer.Option(
-        True, "--use-existing-plan/--force-new-plan", help="Use existing task plan if available"
+        True,
+        "--use-existing-plan/--force-new-plan",
+        help="Use existing task plan if available",
     ),
 ):
     """
     Run dbt-driven extraction (ADR-009 architecture).
-    
+
     This command uses the new dbt-driven task planning architecture:
     1. Generate/validate task plan using dbt models
     2. Atomic task claiming for concurrent worker safety
@@ -582,7 +609,7 @@ def extract_dbt(
     """
     # Setup signal handlers for graceful shutdown
     setup_signal_handlers()
-    
+
     # Parse dates
     try:
         start_dt = date.fromisoformat(start_date)
@@ -591,48 +618,60 @@ def extract_dbt(
         console.print(f"❌ [red]Invalid date format: {e}[/red]")
         console.print("Use YYYY-MM-DD format (e.g., 2024-01-01)")
         raise typer.Exit(1)
-    
+
     console.print("🚀 [bold blue]Starting dbt-driven extraction (ADR-009)[/bold blue]")
     console.print(f"📅 Date range: {start_date} to {end_date}")
     console.print(f"🔧 Concurrency: {concurrency}")
     console.print("")
-    
+
     async def run_dbt_extraction():
         try:
             if _shutdown_requested:
-                console.print("🛑 [yellow]Shutdown requested before extraction[/yellow]")
+                console.print(
+                    "🛑 [yellow]Shutdown requested before extraction[/yellow]"
+                )
                 return {"total_records": 0}
-            
+
             # Use dependency injection for dbt extraction
             services = get_cli_services()
-            extractor = services.get_extractor(concurrency=concurrency, force_db=force_db)
-            
+            extractor = services.get_extractor(
+                concurrency=concurrency, force_db=force_db
+            )
+
             async with extractor as ext:
-                results = await ext.extract_dbt_driven(start_dt, end_dt, use_existing_plan)
+                results = await ext.extract_dbt_driven(
+                    start_dt, end_dt, use_existing_plan
+                )
                 return results
-                
+
         except KeyboardInterrupt:
             console.print("🛑 [yellow]Extraction interrupted gracefully[/yellow]")
             return {"total_records": 0}
         except Exception as e:
             if _shutdown_requested:
-                console.print("🛑 [yellow]Extraction shutdown during operation[/yellow]")
+                console.print(
+                    "🛑 [yellow]Extraction shutdown during operation[/yellow]"
+                )
                 return {"total_records": 0}
             else:
                 console.print(f"❌ [red]dbt extraction failed: {e}[/red]")
                 raise
-    
+
     try:
         results = asyncio.run(run_dbt_extraction())
-        
+
         if not _shutdown_requested:
             console.print("")
-            console.print("🎉 [bold green]dbt-driven extraction completed![/bold green]")
-            console.print(f"📊 Total records extracted: {results.get('total_records', 0):,}")
+            console.print(
+                "🎉 [bold green]dbt-driven extraction completed![/bold green]"
+            )
+            console.print(
+                f"📊 Total records extracted: {results.get('total_records', 0):,}"
+            )
             console.print(f"✅ Completed tasks: {results.get('completed_tasks', 0):,}")
             console.print(f"❌ Failed tasks: {results.get('failed_tasks', 0):,}")
             console.print(f"⏳ Pending tasks: {results.get('pending_tasks', 0):,}")
-        
+
     except KeyboardInterrupt:
         console.print("🛑 [yellow]dbt extraction interrupted[/yellow]")
     except Exception as e:

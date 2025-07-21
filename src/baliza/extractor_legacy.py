@@ -151,7 +151,9 @@ class AsyncPNCPExtractor:
     async def _plan_tasks(self, start_date: date, end_date: date):
         """Phase 1: Populate the control table with all necessary tasks."""
         console.print("🎯 [bold blue]Phase 1: Resumable Task Planning[/bold blue]")
-        tasks_to_create = await self.task_planner.plan_tasks(start_date, end_date, writer_conn=self.writer.conn)
+        tasks_to_create = await self.task_planner.plan_tasks(
+            start_date, end_date, writer_conn=self.writer.conn
+        )
 
         if tasks_to_create:
             # Schema migration - update constraint to include modalidade
@@ -196,9 +198,13 @@ class AsyncPNCPExtractor:
             )
             self.writer.conn.commit()
         if len(tasks_to_create) > 0:
-            console.print(f"✅ [green]Planning complete: {len(tasks_to_create):,} new tasks created[/green]")
+            console.print(
+                f"✅ [green]Planning complete: {len(tasks_to_create):,} new tasks created[/green]"
+            )
         else:
-            console.print("✅ [green]Planning complete: All tasks already exist - fully resumable![/green]")
+            console.print(
+                "✅ [green]Planning complete: All tasks already exist - fully resumable![/green]"
+            )
 
     async def _discover_tasks(self, progress: Progress):
         """Phase 2: Get metadata for all PENDING tasks (resumable)."""
@@ -216,8 +222,10 @@ class AsyncPNCPExtractor:
             console.print(f"   {status}: {count:,} tasks")
 
         # Fast bulk PSA check using JOIN to avoid individual API calls
-        console.print("🔍 [cyan]Checking for existing requests in PSA area with fast JOIN...[/cyan]")
-        
+        console.print(
+            "🔍 [cyan]Checking for existing requests in PSA area with fast JOIN...[/cyan]"
+        )
+
         # Mark existing tasks as completed in bulk using efficient JOIN
         completed_count = self.writer.conn.execute("""
             UPDATE psa.pncp_extraction_tasks 
@@ -233,20 +241,26 @@ class AsyncPNCPExtractor:
                 )
             )
         """).rowcount
-        
+
         if completed_count > 0:
-            console.print(f"✅ [green]Marked {completed_count:,} tasks as completed (data exists in PSA)[/green]")
-        
+            console.print(
+                f"✅ [green]Marked {completed_count:,} tasks as completed (data exists in PSA)[/green]"
+            )
+
         # Get remaining pending tasks that need discovery
         pending_tasks = self.writer.conn.execute(
             "SELECT task_id, endpoint_name, data_date, modalidade FROM psa.pncp_extraction_tasks WHERE status = 'PENDING'"
         ).fetchall()
 
         if not pending_tasks:
-            console.print("✅ [green]No pending tasks to discover - all tasks already processed![/green]")
+            console.print(
+                "✅ [green]No pending tasks to discover - all tasks already processed![/green]"
+            )
             return
 
-        console.print(f"🔍 Discovering metadata for {len(pending_tasks):,} pending tasks...")
+        console.print(
+            f"🔍 Discovering metadata for {len(pending_tasks):,} pending tasks..."
+        )
         discovery_progress = progress.add_task(
             "[cyan]Phase 2: Discovery", total=len(pending_tasks)
         )
@@ -321,7 +335,7 @@ class AsyncPNCPExtractor:
                     )
                     progress.update(discovery_progress, advance=1)
                     continue
-                
+
                 total_records = response.get("total_records", 0)
                 total_pages = response.get("total_pages", 1)
 
@@ -434,14 +448,18 @@ class AsyncPNCPExtractor:
 
         # Validate response before processing
         if not response.get("success", False):
-            logger.warning(f"Failed to fetch page {page_number} for {endpoint_name} {data_date}: {response.get('error', 'Unknown error')}")
+            logger.warning(
+                f"Failed to fetch page {page_number} for {endpoint_name} {data_date}: {response.get('error', 'Unknown error')}"
+            )
             # Don't enqueue failed responses - they should be handled by reconciliation
             return response
 
         # Validate response content
         content = response.get("content", "")
         if not content or content.strip() == "":
-            logger.warning(f"Empty response content for page {page_number} of {endpoint_name} {data_date}")
+            logger.warning(
+                f"Empty response content for page {page_number} of {endpoint_name} {data_date}"
+            )
             # Mark as failed response for reconciliation
             response["success"] = False
             response["error"] = "Empty response content"
@@ -471,7 +489,11 @@ class AsyncPNCPExtractor:
 
     def _create_matrix_progress_table(self, endpoint_month_data: dict) -> Table:
         """Create a beautiful matrix-style progress table showing endpoint x month progress."""
-        table = Table(show_header=True, header_style="bold blue", title="📊 PNCP Extraction Progress Matrix")
+        table = Table(
+            show_header=True,
+            header_style="bold blue",
+            title="📊 PNCP Extraction Progress Matrix",
+        )
 
         # Get all unique months and endpoints
         all_months = set()
@@ -502,7 +524,11 @@ class AsyncPNCPExtractor:
 
         for endpoint in sorted_endpoints:
             # Shorten endpoint names for better table display
-            short_name = endpoint.replace("_publicacao", "_pub").replace("_atualizacao", "_upd").replace("contratacoes", "contr")
+            short_name = (
+                endpoint.replace("_publicacao", "_pub")
+                .replace("_atualizacao", "_upd")
+                .replace("contratacoes", "contr")
+            )
             color = endpoint_colors.get(endpoint, "white")
             table.add_column(short_name, style=color, min_width=12)
 
@@ -514,8 +540,8 @@ class AsyncPNCPExtractor:
                 key = (endpoint, month)
                 if key in endpoint_month_data:
                     data = endpoint_month_data[key]
-                    completed = data['completed']
-                    total = data['total']
+                    completed = data["completed"]
+                    total = data["total"]
                     percentage = (completed / total * 100) if total > 0 else 0
 
                     # Create mini progress bar
@@ -528,7 +554,9 @@ class AsyncPNCPExtractor:
                     elif percentage > 25:
                         progress_bar = f"[red]▓░░░ {percentage:.0f}%[/red]"
                     elif percentage > 0:
-                        progress_bar = f"[bright_black]░░░░ {percentage:.0f}%[/bright_black]"
+                        progress_bar = (
+                            f"[bright_black]░░░░ {percentage:.0f}%[/bright_black]"
+                        )
                     else:
                         progress_bar = "[dim]---- 0%[/dim]"
 
@@ -560,7 +588,9 @@ class AsyncPNCPExtractor:
         console.print("Execution status overview:")
         for status, task_count, total_pages, missing_pages in execution_status:
             if missing_pages is not None:
-                console.print(f"   {status}: {task_count:,} tasks ({missing_pages:,} pages remaining)")
+                console.print(
+                    f"   {status}: {task_count:,} tasks ({missing_pages:,} pages remaining)"
+                )
             else:
                 console.print(f"   {status}: {task_count:,} tasks")
 
@@ -595,7 +625,9 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
             month_key = data_date.strftime("%Y-%m")
             key = (endpoint_name, month_key)
 
-            endpoint_month_pages[key].append((task_id, data_date, modalidade, page_number))
+            endpoint_month_pages[key].append(
+                (task_id, data_date, modalidade, page_number)
+            )
             endpoint_month_totals[key] += 1
 
         # Initialize completion tracking
@@ -606,12 +638,14 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
         matrix_data = {}
         for key, total in endpoint_month_totals.items():
             matrix_data[key] = {
-                'total': total,
-                'completed': endpoint_month_completed[key]
+                "total": total,
+                "completed": endpoint_month_completed[key],
             }
 
         # Create and display initial matrix table
-        console.print("\n🚀 [bold blue]PNCP Data Extraction Progress Matrix[/bold blue]\n")
+        console.print(
+            "\n🚀 [bold blue]PNCP Data Extraction Progress Matrix[/bold blue]\n"
+        )
 
         # Create live updating progress display
         matrix_table = self._create_matrix_progress_table(matrix_data)
@@ -653,7 +687,9 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
                 if current_time - last_update_time >= 3.0:
                     # Clear previous table and show updated matrix
                     console.print("\n" + "─" * 80)  # Separator line
-                    updated_matrix_table = self._create_matrix_progress_table(matrix_data)
+                    updated_matrix_table = self._create_matrix_progress_table(
+                        matrix_data
+                    )
                     console.print(updated_matrix_table)
 
                     last_update_time = current_time
@@ -715,7 +751,7 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
             await self._fetch_page(endpoint_name, data_date, modalidade, page_number)
 
             # Update matrix progress
-            matrix_data[matrix_key]['completed'] += 1
+            matrix_data[matrix_key]["completed"] += 1
 
         except asyncio.CancelledError:
             console.print("⚠️ [yellow]Page fetch cancelled during shutdown[/yellow]")
@@ -725,7 +761,7 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
                 f"Failed to fetch page {page_number} for {endpoint_name} {data_date} modalidade {modalidade}: {e}"
             )
             # Still update progress to show completion (even if failed)
-            matrix_data[matrix_key]['completed'] += 1
+            matrix_data[matrix_key]["completed"] += 1
 
     async def _fetch_page_with_progress(
         self,
@@ -932,105 +968,138 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
 
         return total_results
 
-    async def extract_dbt_driven(self, start_date: date, end_date: date, use_existing_plan: bool = True):
+    async def extract_dbt_driven(
+        self, start_date: date, end_date: date, use_existing_plan: bool = True
+    ):
         """dbt-driven extraction using task planning tables.
-        
+
         This method now delegates to ExtractionCoordinator for better separation of concerns
         and improved maintainability. The complex orchestration logic has been moved to
         dedicated phase classes.
-        
+
         Args:
             start_date: Start date for extraction
-            end_date: End date for extraction  
+            end_date: End date for extraction
             use_existing_plan: Use existing plan if available, otherwise generate new
         """
         # Initialize coordinator with dependency injection
         coordinator = ExtractionCoordinator(
-            writer=self.writer,
-            concurrency=self.concurrency,
-            force_db=self.force_db
+            writer=self.writer, concurrency=self.concurrency, force_db=self.force_db
         )
-        
-        # Delegate to coordinator for clean orchestration
-        return await coordinator.extract_dbt_driven(start_date, end_date, use_existing_plan)
 
-    async def _dbt_plan_tasks(self, start_date: date, end_date: date, use_existing_plan: bool, claimer: TaskClaimer) -> str:
+        # Delegate to coordinator for clean orchestration
+        return await coordinator.extract_dbt_driven(
+            start_date, end_date, use_existing_plan
+        )
+
+    async def _dbt_plan_tasks(
+        self,
+        start_date: date,
+        end_date: date,
+        use_existing_plan: bool,
+        claimer: TaskClaimer,
+    ) -> str:
         """Phase 1: Generate or validate task plan using dbt."""
         console.print("🎯 [bold blue]Phase 1: dbt Task Planning[/bold blue]")
-        
+
         # Check for existing plan
         with duckdb.connect(self.writer.db_path) as conn:
-            existing_plan = conn.execute("""
+            existing_plan = conn.execute(
+                """
                 SELECT plan_fingerprint, task_count, generated_at
                 FROM main_planning.task_plan_meta 
                 WHERE date_range_start <= ? AND date_range_end >= ?
                 ORDER BY generated_at DESC
                 LIMIT 1
-            """, (start_date, end_date)).fetchone()
-        
+            """,
+                (start_date, end_date),
+            ).fetchone()
+
         if existing_plan and use_existing_plan:
             plan_fingerprint, task_count, generated_at = existing_plan
-            console.print(f"✅ [green]Using existing plan: {plan_fingerprint[:16]}... ({task_count:,} tasks)[/green]")
+            console.print(
+                f"✅ [green]Using existing plan: {plan_fingerprint[:16]}... ({task_count:,} tasks)[/green]"
+            )
             console.print(f"   Generated: {generated_at}")
-            
+
             # Validate fingerprint
             if not claimer.validate_plan_fingerprint(plan_fingerprint):
-                console.print("⚠️ [yellow]Plan fingerprint validation failed - generating new plan[/yellow]")
-                plan_fingerprint = create_task_plan(str(start_date), str(end_date), "prod")
+                console.print(
+                    "⚠️ [yellow]Plan fingerprint validation failed - generating new plan[/yellow]"
+                )
+                plan_fingerprint = create_task_plan(
+                    str(start_date), str(end_date), "prod"
+                )
         else:
             console.print("🔨 [blue]Generating new task plan with dbt...[/blue]")
             plan_fingerprint = create_task_plan(str(start_date), str(end_date), "prod")
-            
+
             # Get task count
             with duckdb.connect(self.writer.db_path) as conn:
-                task_count = conn.execute("SELECT COUNT(*) FROM main_planning.task_plan WHERE plan_fingerprint = ?", (plan_fingerprint,)).fetchone()[0]
-            
-            console.print(f"✅ [green]Plan generated: {plan_fingerprint[:16]}... ({task_count:,} tasks)[/green]")
-        
+                task_count = conn.execute(
+                    "SELECT COUNT(*) FROM main_planning.task_plan WHERE plan_fingerprint = ?",
+                    (plan_fingerprint,),
+                ).fetchone()[0]
+
+            console.print(
+                f"✅ [green]Plan generated: {plan_fingerprint[:16]}... ({task_count:,} tasks)[/green]"
+            )
+
         return plan_fingerprint
 
-    async def _dbt_execute_tasks(self, progress: Progress, claimer: TaskClaimer, plan_fingerprint: str):
+    async def _dbt_execute_tasks(
+        self, progress: Progress, claimer: TaskClaimer, plan_fingerprint: str
+    ):
         """Phase 2: Claim and execute tasks from the dbt plan."""
         console.print("⚡ [bold blue]Phase 2: Task Execution[/bold blue]")
-        
+
         # Get total pending tasks for progress tracking
         with duckdb.connect(self.writer.db_path) as conn:
-            total_pending = conn.execute("""
+            total_pending = conn.execute(
+                """
                 SELECT COUNT(*) FROM main_planning.task_plan 
                 WHERE status = 'PENDING' AND plan_fingerprint = ?
-            """, (plan_fingerprint,)).fetchone()[0]
-        
+            """,
+                (plan_fingerprint,),
+            ).fetchone()[0]
+
         if total_pending == 0:
-            console.print("✅ [green]No pending tasks - all work already completed![/green]")
+            console.print(
+                "✅ [green]No pending tasks - all work already completed![/green]"
+            )
             return
-        
+
         console.print(f"🎯 Executing {total_pending:,} pending tasks...")
-        execution_progress = progress.add_task("[cyan]Executing tasks", total=total_pending)
-        
+        execution_progress = progress.add_task(
+            "[cyan]Executing tasks", total=total_pending
+        )
+
         processed_tasks = 0
-        
+
         while not self.shutdown_event.is_set():
             # Release expired claims
             expired_count = claimer.release_expired_claims()
             if expired_count > 0:
                 console.print(f"🧹 Released {expired_count} expired claims")
-            
+
             # Claim batch of tasks
             claimed_tasks = claimer.claim_pending_tasks(limit=self.concurrency * 2)
-            
+
             if not claimed_tasks:
-                console.print("✅ [green]No more tasks to claim - execution complete![/green]")
+                console.print(
+                    "✅ [green]No more tasks to claim - execution complete![/green]"
+                )
                 break
-            
+
             console.print(f"🔒 Claimed {len(claimed_tasks)} tasks for execution")
-            
+
             # Execute claimed tasks concurrently
             execution_jobs = []
             for task in claimed_tasks:
                 job = asyncio.create_task(self._execute_dbt_task(task, claimer))
                 execution_jobs.append(job)
                 self.running_tasks.add(job)
-            
+
             # Wait for all jobs to complete
             try:
                 await asyncio.gather(*execution_jobs)
@@ -1041,94 +1110,100 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
             finally:
                 for job in execution_jobs:
                     self.running_tasks.discard(job)
-            
+
             # Small delay to prevent tight loops
             await asyncio.sleep(0.1)
 
     async def _execute_dbt_task(self, task: dict, claimer: TaskClaimer):
         """Execute a single claimed task."""
-        task_id = task['task_id']
-        endpoint_name = task['endpoint_name']
-        data_date = task['data_date']
-        modalidade = task['modalidade']
-        
+        task_id = task["task_id"]
+        endpoint_name = task["endpoint_name"]
+        data_date = task["data_date"]
+        modalidade = task["modalidade"]
+
         try:
             # Update status to EXECUTING
-            claimer.update_claim_status(task_id, 'EXECUTING')
-            
+            claimer.update_claim_status(task_id, "EXECUTING")
+
             # Get endpoint configuration from unified config
             endpoint_config = get_endpoint_config(endpoint_name)
-            
+
             # Build API URL and parameters
             url = f"{settings.pncp_base_url}{endpoint_config['path']}"
             params = {
                 "pagina": 1,
-                "tamanhoPagina": endpoint_config.get('page_size', 500),
+                "tamanhoPagina": endpoint_config.get("page_size", 500),
             }
-            
+
             # Add date parameters
-            date_params = endpoint_config.get('date_params', [])
+            date_params = endpoint_config.get("date_params", [])
             if len(date_params) >= 2:
                 params[date_params[0]] = str(data_date)
                 params[date_params[1]] = str(data_date)
             elif len(date_params) == 1:
                 params[date_params[0]] = str(data_date)
-            
+
             # Add modalidade if specified
             if modalidade is not None:
-                params['modalidade'] = modalidade
-            
+                params["modalidade"] = modalidade
+
             # Execute all pages for this task
             page_number = 1
             total_records = 0
-            
+
             while True:
-                params['pagina'] = page_number
-                
+                params["pagina"] = page_number
+
                 # Fetch page with backpressure
                 response = await self._fetch_with_backpressure(url, params, task_id)
-                
-                if not response['success']:
-                    console.print(f"❌ [red]Failed to fetch {endpoint_name} page {page_number}: {response.get('error', 'Unknown error')}[/red]")
+
+                if not response["success"]:
+                    console.print(
+                        f"❌ [red]Failed to fetch {endpoint_name} page {page_number}: {response.get('error', 'Unknown error')}[/red]"
+                    )
                     break
-                
+
                 # Record result
                 request_id = str(uuid.uuid4())
-                page_records = len(response.get('data', []))
+                page_records = len(response.get("data", []))
                 total_records += page_records
-                
-                claimer.record_task_result(task_id, request_id, page_number, page_records)
-                
+
+                claimer.record_task_result(
+                    task_id, request_id, page_number, page_records
+                )
+
                 # Queue page for writing
                 page_data = {
-                    'task_id': task_id,
-                    'endpoint_name': endpoint_name,
-                    'response': response,
-                    'page_number': page_number,
-                    'data_date': data_date,
-                    'modalidade': modalidade,
-                    'request_id': request_id
+                    "task_id": task_id,
+                    "endpoint_name": endpoint_name,
+                    "response": response,
+                    "page_number": page_number,
+                    "data_date": data_date,
+                    "modalidade": modalidade,
+                    "request_id": request_id,
                 }
-                
+
                 await self.page_queue.put(page_data)
-                
+
                 # Check if we have more pages
-                if page_records < endpoint_config.get('page_size', 500):
+                if page_records < endpoint_config.get("page_size", 500):
                     break  # Last page
-                
+
                 page_number += 1
-                
+
                 # Prevent runaway pagination
                 if page_number > 1000:
-                    console.print(f"⚠️ [yellow]Stopping pagination at page {page_number} for safety[/yellow]")
+                    console.print(
+                        f"⚠️ [yellow]Stopping pagination at page {page_number} for safety[/yellow]"
+                    )
                     break
-            
+
             # Mark task as completed
-            claimer.update_claim_status(task_id, 'COMPLETED')
-            
+            claimer.update_claim_status(task_id, "COMPLETED")
+
         except Exception as e:
             console.print(f"❌ [red]Task {task_id[:8]}... failed: {e}[/red]")
-            claimer.update_claim_status(task_id, 'FAILED')
+            claimer.update_claim_status(task_id, "FAILED")
             raise
 
     async def _get_dbt_extraction_stats(self, claimer: TaskClaimer) -> dict:
@@ -1143,29 +1218,31 @@ WHERE t.status IN ('FETCHING', 'PARTIAL');
                     COUNT(CASE WHEN status = 'PENDING' THEN 1 END) as pending_tasks
                 FROM main_planning.task_plan
             """).fetchone()
-            
-            # Result statistics  
+
+            # Result statistics
             result_stats = conn.execute("""
                 SELECT 
                     COUNT(*) as total_results,
                     SUM(records_extracted) as total_records
                 FROM main_runtime.task_results
             """).fetchone()
-            
+
             # Worker statistics
             worker_stats = claimer.get_worker_stats()
-            
+
             return {
-                'total_tasks': task_stats[0] if task_stats else 0,
-                'completed_tasks': task_stats[1] if task_stats else 0,
-                'failed_tasks': task_stats[2] if task_stats else 0,
-                'pending_tasks': task_stats[3] if task_stats else 0,
-                'total_results': result_stats[0] if result_stats else 0,
-                'total_records': result_stats[1] if result_stats and result_stats[1] is not None else 0,
-                'worker_stats': worker_stats,
-                'total_requests': self.total_requests,
-                'successful_requests': self.successful_requests,
-                'failed_requests': self.failed_requests
+                "total_tasks": task_stats[0] if task_stats else 0,
+                "completed_tasks": task_stats[1] if task_stats else 0,
+                "failed_tasks": task_stats[2] if task_stats else 0,
+                "pending_tasks": task_stats[3] if task_stats else 0,
+                "total_results": result_stats[0] if result_stats else 0,
+                "total_records": result_stats[1]
+                if result_stats and result_stats[1] is not None
+                else 0,
+                "worker_stats": worker_stats,
+                "total_requests": self.total_requests,
+                "successful_requests": self.successful_requests,
+                "failed_requests": self.failed_requests,
             }
 
 

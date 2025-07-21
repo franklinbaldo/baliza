@@ -14,17 +14,23 @@ import duckdb
 import logging
 
 from baliza.plan_fingerprint import PlanFingerprint
-from baliza.task_state_machine import TaskStatus, TaskStateMachine, validate_status_value
+from baliza.task_state_machine import (
+    TaskStatus,
+    TaskStateMachine,
+    validate_status_value,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class TaskClaimer:
     """Handles atomic task claiming for concurrent worker execution."""
-    
-    def __init__(self, db_path: str = "data/baliza.duckdb", worker_id: Optional[str] = None):
+
+    def __init__(
+        self, db_path: str = "data/baliza.duckdb", worker_id: Optional[str] = None
+    ):
         """Initialize task claimer.
-        
+
         Args:
             db_path: Path to DuckDB database
             worker_id: Unique identifier for this worker (auto-generated if None)
@@ -32,15 +38,15 @@ class TaskClaimer:
         self.db_path = db_path
         self.worker_id = worker_id or f"worker-{str(uuid.uuid4())[:8]}"
         self.fingerprint = PlanFingerprint()
-        
+
     def validate_plan_fingerprint(self, expected_fingerprint: str) -> bool:
         """Validate that the current configuration matches the plan fingerprint.
-        
+
         This prevents execution of stale plans when configuration has changed.
-        
+
         Args:
             expected_fingerprint: Fingerprint from task plan metadata
-            
+
         Returns:
             True if fingerprints match, False if configuration drift detected
         """
@@ -48,40 +54,47 @@ class TaskClaimer:
             # Generate current fingerprint (environment will be detected from plan)
             with duckdb.connect(self.db_path) as conn:
                 # Get environment from existing plan metadata
-                result = conn.execute("""
+                result = conn.execute(
+                    """
                     SELECT environment, date_range_start, date_range_end 
                     FROM main_planning.task_plan_meta 
                     WHERE plan_fingerprint = ?
                     LIMIT 1
-                """, (expected_fingerprint,)).fetchone()
-                
+                """,
+                    (expected_fingerprint,),
+                ).fetchone()
+
                 if not result:
-                    logger.warning(f"No plan metadata found for fingerprint {expected_fingerprint[:16]}...")
+                    logger.warning(
+                        f"No plan metadata found for fingerprint {expected_fingerprint[:16]}..."
+                    )
                     return False
-                
+
                 environment, start_date, end_date = result
                 current_fingerprint = self.fingerprint.generate_fingerprint(
                     date_range_start=str(start_date),
                     date_range_end=str(end_date),
-                    environment=environment
+                    environment=environment,
                 )
-                
+
                 return current_fingerprint == expected_fingerprint
-                
+
         except Exception as e:
             logger.error(f"Fingerprint validation failed: {e}")
             return False
-    
-    def claim_pending_tasks(self, limit: int = 100, claim_timeout_minutes: int = 15) -> List[Dict[str, Any]]:
+
+    def claim_pending_tasks(
+        self, limit: int = 100, claim_timeout_minutes: int = 15
+    ) -> List[Dict[str, Any]]:
         """Atomically claim pending tasks for execution.
-        
+
         Uses SELECT...FOR UPDATE for atomic claiming to prevent race conditions
         between concurrent workers.
-        
+
         Args:
             limit: Maximum number of tasks to claim
             claim_timeout_minutes: Claim expiration timeout
-            
+
         Returns:
             List of claimed task dictionaries
         """
@@ -89,10 +102,11 @@ class TaskClaimer:
             try:
                 # Begin transaction for atomic claiming
                 conn.begin()
-                
+
                 # First, get available tasks with atomic lock
                 # Note: DuckDB doesn't support FOR UPDATE, so we use a different approach
-                available_tasks = conn.execute("""
+                available_tasks = conn.execute(
+                    """
                     SELECT tp.task_id, tp.endpoint_name, tp.data_date, tp.modalidade, tp.plan_fingerprint
                     FROM main_planning.task_plan tp
                     LEFT JOIN main_runtime.task_claims tc ON tp.task_id = tc.task_id 
@@ -102,103 +116,145 @@ class TaskClaimer:
                       AND tc.task_id IS NULL  -- Not currently claimed
                     ORDER BY tp.data_date ASC, tp.endpoint_name ASC
                     LIMIT ?
-                """, (TaskStatus.CLAIMED.value, TaskStatus.EXECUTING.value, TaskStatus.PENDING.value, limit)).fetchall()
-                
+                """,
+                    (
+                        TaskStatus.CLAIMED.value,
+                        TaskStatus.EXECUTING.value,
+                        TaskStatus.PENDING.value,
+                        limit,
+                    ),
+                ).fetchall()
+
                 if not available_tasks:
                     conn.commit()
                     return []
-                
+
                 # Validate plan fingerprint using first task
                 first_task_fingerprint = available_tasks[0][4]
                 if not self.validate_plan_fingerprint(first_task_fingerprint):
                     conn.rollback()
-                    raise ValueError(f"Plan fingerprint validation failed for {first_task_fingerprint[:16]}...")
-                
-                # Create claims for all selected tasks  
-                expires_at = datetime.now().replace(tzinfo=None) + timedelta(minutes=claim_timeout_minutes)
-                
+                    raise ValueError(
+                        f"Plan fingerprint validation failed for {first_task_fingerprint[:16]}..."
+                    )
+
+                # Create claims for all selected tasks
+                expires_at = datetime.now().replace(tzinfo=None) + timedelta(
+                    minutes=claim_timeout_minutes
+                )
+
                 claimed_tasks = []
                 for task_row in available_tasks:
-                    task_id, endpoint_name, data_date, modalidade, plan_fingerprint = task_row
-                    
+                    task_id, endpoint_name, data_date, modalidade, plan_fingerprint = (
+                        task_row
+                    )
+
                     # Insert claim record
-                    conn.execute("""
+                    conn.execute(
+                        """
                         INSERT INTO main_runtime.task_claims 
                         (claim_id, task_id, claimed_at, expires_at, worker_id, status)
                         VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, ?)
-                    """, (str(uuid.uuid4()), task_id, expires_at, self.worker_id, TaskStatus.CLAIMED.value))
-                    
+                    """,
+                        (
+                            str(uuid.uuid4()),
+                            task_id,
+                            expires_at,
+                            self.worker_id,
+                            TaskStatus.CLAIMED.value,
+                        ),
+                    )
+
                     # Update task status to CLAIMED
-                    conn.execute("""
+                    conn.execute(
+                        """
                         UPDATE main_planning.task_plan 
                         SET status = ?
                         WHERE task_id = ?
-                    """, (TaskStatus.CLAIMED.value, task_id))
-                    
-                    claimed_tasks.append({
-                        'task_id': task_id,
-                        'endpoint_name': endpoint_name,
-                        'data_date': data_date,
-                        'modalidade': modalidade,
-                        'plan_fingerprint': plan_fingerprint,
-                        'claimed_at': datetime.now().replace(tzinfo=None),
-                        'expires_at': expires_at,
-                        'worker_id': self.worker_id
-                    })
-                
+                    """,
+                        (TaskStatus.CLAIMED.value, task_id),
+                    )
+
+                    claimed_tasks.append(
+                        {
+                            "task_id": task_id,
+                            "endpoint_name": endpoint_name,
+                            "data_date": data_date,
+                            "modalidade": modalidade,
+                            "plan_fingerprint": plan_fingerprint,
+                            "claimed_at": datetime.now().replace(tzinfo=None),
+                            "expires_at": expires_at,
+                            "worker_id": self.worker_id,
+                        }
+                    )
+
                 # Commit transaction
                 conn.commit()
-                
-                logger.info(f"🔒 Claimed {len(claimed_tasks)} tasks for worker {self.worker_id}")
+
+                logger.info(
+                    f"🔒 Claimed {len(claimed_tasks)} tasks for worker {self.worker_id}"
+                )
                 return claimed_tasks
-                
+
             except Exception as e:
                 conn.rollback()
                 logger.error(f"Task claiming failed: {e}")
                 raise
-    
+
     def update_claim_status(self, task_id: str, status: str) -> None:
         """Update the status of a claimed task with state machine validation.
-        
+
         Args:
             task_id: Task identifier
             status: New status (EXECUTING, COMPLETED, FAILED)
         """
         # Validate status using state machine
         new_status = validate_status_value(status)
-        
+
         # Get current status for validation
         with duckdb.connect(self.db_path) as conn:
-            current_result = conn.execute("""
+            current_result = conn.execute(
+                """
                 SELECT tc.status FROM main_runtime.task_claims tc
                 WHERE tc.task_id = ? AND tc.worker_id = ?
                 ORDER BY tc.claimed_at DESC LIMIT 1
-            """, (task_id, self.worker_id)).fetchone()
-            
+            """,
+                (task_id, self.worker_id),
+            ).fetchone()
+
             if current_result:
                 current_status = validate_status_value(current_result[0])
                 # Validate transition
-                TaskStateMachine.validate_transition(current_status, new_status, task_id)
-        
+                TaskStateMachine.validate_transition(
+                    current_status, new_status, task_id
+                )
+
         with duckdb.connect(self.db_path) as conn:
             # Update claim status
-            conn.execute("""
+            conn.execute(
+                """
                 UPDATE main_runtime.task_claims 
                 SET status = ?
                 WHERE task_id = ? AND worker_id = ?
-            """, (new_status.value, task_id, self.worker_id))
-            
+            """,
+                (new_status.value, task_id, self.worker_id),
+            )
+
             # Update task plan status if completed or failed
             if new_status in [TaskStatus.COMPLETED, TaskStatus.FAILED]:
-                conn.execute("""
+                conn.execute(
+                    """
                     UPDATE main_planning.task_plan 
                     SET status = ?
                     WHERE task_id = ?
-                """, (new_status.value, task_id))
-    
-    def record_task_result(self, task_id: str, request_id: str, page_number: int, records_count: int) -> None:
+                """,
+                    (new_status.value, task_id),
+                )
+
+    def record_task_result(
+        self, task_id: str, request_id: str, page_number: int, records_count: int
+    ) -> None:
         """Record execution result for a task.
-        
+
         Args:
             task_id: Task identifier
             request_id: PNCP request ID for traceability
@@ -206,35 +262,46 @@ class TaskClaimer:
             records_count: Number of records in this page
         """
         with duckdb.connect(self.db_path) as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO main_runtime.task_results 
                 (result_id, task_id, request_id, page_number, records_count, completed_at)
                 VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            """, (str(uuid.uuid4()), task_id, request_id, page_number, records_count))
-    
+            """,
+                (str(uuid.uuid4()), task_id, request_id, page_number, records_count),
+            )
+
     def release_expired_claims(self) -> int:
         """Release claims that have expired (claim reaper function).
-        
+
         This is the simplified claim reaper that replaces complex heartbeat mechanisms.
         Should be called periodically (every 5 minutes) to clean up zombie claims.
-        
+
         Returns:
             Number of expired claims released
         """
         with duckdb.connect(self.db_path) as conn:
             # Update expired claims to FAILED
-            result = conn.execute("""
+            result = conn.execute(
+                """
                 UPDATE main_runtime.task_claims 
                 SET status = ?
                 WHERE status IN (?, ?) 
                   AND expires_at < CURRENT_TIMESTAMP
-            """, (TaskStatus.FAILED.value, TaskStatus.CLAIMED.value, TaskStatus.EXECUTING.value))
-            
+            """,
+                (
+                    TaskStatus.FAILED.value,
+                    TaskStatus.CLAIMED.value,
+                    TaskStatus.EXECUTING.value,
+                ),
+            )
+
             expired_count = result.fetchone()[0] if result else 0
-            
+
             if expired_count > 0:
                 # Also update corresponding task plan statuses
-                conn.execute("""
+                conn.execute(
+                    """
                     UPDATE main_planning.task_plan 
                     SET status = ?
                     WHERE task_id IN (
@@ -242,20 +309,23 @@ class TaskClaimer:
                         WHERE status = ? 
                           AND expires_at < CURRENT_TIMESTAMP
                     )
-                """, (TaskStatus.PENDING.value, TaskStatus.FAILED.value))
-                
+                """,
+                    (TaskStatus.PENDING.value, TaskStatus.FAILED.value),
+                )
+
                 logger.info(f"🧹 Released {expired_count} expired claims")
-            
+
             return expired_count
-    
+
     def get_worker_stats(self) -> Dict[str, Any]:
         """Get statistics for this worker's claimed tasks.
-        
+
         Returns:
             Dictionary with worker statistics
         """
         with duckdb.connect(self.db_path) as conn:
-            stats = conn.execute("""
+            stats = conn.execute(
+                """
                 SELECT 
                     COUNT(*) as total_claims,
                     COUNT(CASE WHEN status = ? THEN 1 END) as pending_claims,
@@ -264,77 +334,91 @@ class TaskClaimer:
                     COUNT(CASE WHEN status = ? THEN 1 END) as failed_claims
                 FROM main_runtime.task_claims
                 WHERE worker_id = ?
-            """, (TaskStatus.CLAIMED.value, TaskStatus.EXECUTING.value, TaskStatus.COMPLETED.value, TaskStatus.FAILED.value, self.worker_id)).fetchone()
-            
+            """,
+                (
+                    TaskStatus.CLAIMED.value,
+                    TaskStatus.EXECUTING.value,
+                    TaskStatus.COMPLETED.value,
+                    TaskStatus.FAILED.value,
+                    self.worker_id,
+                ),
+            ).fetchone()
+
             if stats:
                 return {
-                    'worker_id': self.worker_id,
-                    'total_claims': stats[0],
-                    'pending_claims': stats[1],
-                    'executing_claims': stats[2],
-                    'completed_claims': stats[3],
-                    'failed_claims': stats[4]
+                    "worker_id": self.worker_id,
+                    "total_claims": stats[0],
+                    "pending_claims": stats[1],
+                    "executing_claims": stats[2],
+                    "completed_claims": stats[3],
+                    "failed_claims": stats[4],
                 }
             else:
                 return {
-                    'worker_id': self.worker_id,
-                    'total_claims': 0,
-                    'pending_claims': 0,
-                    'executing_claims': 0,
-                    'completed_claims': 0,
-                    'failed_claims': 0
+                    "worker_id": self.worker_id,
+                    "total_claims": 0,
+                    "pending_claims": 0,
+                    "executing_claims": 0,
+                    "completed_claims": 0,
+                    "failed_claims": 0,
                 }
 
 
 def create_task_plan(start_date: str, end_date: str, environment: str = "prod") -> str:
     """Create a new task plan using dbt models.
-    
+
     Args:
         start_date: Start date (YYYY-MM-DD)
-        end_date: End date (YYYY-MM-DD) 
+        end_date: End date (YYYY-MM-DD)
         environment: Environment name
-        
+
     Returns:
         Plan fingerprint for the generated plan
     """
     import subprocess
-    
+
     # Generate fingerprint for this plan
     fingerprint = PlanFingerprint()
-    plan_fingerprint = fingerprint.generate_fingerprint(start_date, end_date, environment)
-    
+    plan_fingerprint = fingerprint.generate_fingerprint(
+        start_date, end_date, environment
+    )
+
     # Run dbt to generate the plan
     dbt_vars = {
-        'plan_start_date': start_date,
-        'plan_end_date': end_date,
-        'plan_fingerprint': plan_fingerprint,
-        'plan_environment': environment,
-        'config_version': '1.0'
+        "plan_start_date": start_date,
+        "plan_end_date": end_date,
+        "plan_fingerprint": plan_fingerprint,
+        "plan_environment": environment,
+        "config_version": "1.0",
     }
-    
-    vars_str = ','.join([f'"{k}": "{v}"' for k, v in dbt_vars.items()])
-    
+
+    vars_str = ",".join([f'"{k}": "{v}"' for k, v in dbt_vars.items()])
+
     try:
         # Change to dbt directory and run models
         dbt_dir = str(Path(__file__).parent.parent.parent / "dbt_baliza")
         cmd = [
-            "uv", "run", "dbt", "run", "--select", "planning",
-            "--vars", f"{{{vars_str}}}"
+            "uv",
+            "run",
+            "dbt",
+            "run",
+            "--select",
+            "planning",
+            "--vars",
+            f"{{{vars_str}}}",
         ]
-        
+
         result = subprocess.run(
-            cmd,
-            cwd=dbt_dir,
-            capture_output=True,
-            text=True,
-            check=True
+            cmd, cwd=dbt_dir, capture_output=True, text=True, check=True
         )
-        
-        logger.info(f"✅ Generated task plan with fingerprint {plan_fingerprint[:16]}...")
+
+        logger.info(
+            f"✅ Generated task plan with fingerprint {plan_fingerprint[:16]}..."
+        )
         logger.info(f"dbt output: {result.stdout}")
-        
+
         return plan_fingerprint
-        
+
     except subprocess.CalledProcessError as e:
         logger.error(f"dbt run failed: {e.stderr}")
         raise RuntimeError(f"Task plan generation failed: {e.stderr}")

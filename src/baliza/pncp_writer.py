@@ -43,11 +43,15 @@ def connect_utf8(path: str, force: bool = False) -> duckdb.DuckDBPyConnection:
         return duckdb.connect(path)
     except duckdb.Error as exc:
         if force and "lock" in str(exc).lower():
-            console.print("⚠️ [yellow]Database locked by another process, trying read-only access[/yellow]")
+            console.print(
+                "⚠️ [yellow]Database locked by another process, trying read-only access[/yellow]"
+            )
             try:
                 return duckdb.connect(path, read_only=True)
             except duckdb.Error as read_exc:
-                error_msg = f"Database connection failed even in read-only mode: {read_exc}"
+                error_msg = (
+                    f"Database connection failed even in read-only mode: {read_exc}"
+                )
                 raise RuntimeError(error_msg) from read_exc
         else:
             # DuckDB error - preserve original exception with clean message
@@ -104,14 +108,18 @@ class PNCPWriter:
             lock_file = Path(str(BALIZA_DB_PATH) + ".lock")
             if lock_file.exists():
                 lock_file.unlink()
-                console.print("🔓 [yellow]Force mode: Removed existing database lock[/yellow]")
+                console.print(
+                    "🔓 [yellow]Force mode: Removed existing database lock[/yellow]"
+                )
 
             # Still create lock for this session but don't fail if can't acquire
             self.db_lock = FileLock(str(BALIZA_DB_PATH) + ".lock")
             try:
                 self.db_lock.acquire(timeout=0.1)
             except Timeout:
-                console.print("⚠️ [yellow]Warning: Could not acquire lock in force mode, proceeding anyway[/yellow]")
+                console.print(
+                    "⚠️ [yellow]Warning: Could not acquire lock in force mode, proceeding anyway[/yellow]"
+                )
                 self.db_lock = None
         else:
             # Normal mode: Respect existing locks
@@ -119,7 +127,9 @@ class PNCPWriter:
             try:
                 self.db_lock.acquire(timeout=0.5)
             except Timeout:
-                raise RuntimeError("Another instance is using the database. Use --force-db to override.")
+                raise RuntimeError(
+                    "Another instance is using the database. Use --force-db to override."
+                )
 
         self.conn = connect_utf8(str(BALIZA_DB_PATH))
 
@@ -540,16 +550,23 @@ class PNCPWriter:
             placeholders = ",".join("?" * len(content_map))
             existing_content = self.conn.execute(
                 f"SELECT content_sha256, id, reference_count FROM psa.pncp_content WHERE content_sha256 IN ({placeholders})",
-                list(content_map.keys())
+                list(content_map.keys()),
             ).fetchall()
 
-            existing_hashes = {content_hash: (content_id, ref_count) for content_hash, content_id, ref_count in existing_content}
+            existing_hashes = {
+                content_hash: (content_id, ref_count)
+                for content_hash, content_id, ref_count in existing_content
+            }
 
             # Step 3: Batch insert new content and update reference counts
             new_content_records = []
             update_ref_counts = []
 
-            for content_hash, (content_id, content, content_size) in content_map.items():
+            for content_hash, (
+                content_id,
+                content,
+                content_size,
+            ) in content_map.items():
                 if content_hash in existing_hashes:
                     # Content exists - mark for reference count update
                     existing_id, ref_count = existing_hashes[content_hash]
@@ -560,7 +577,9 @@ class PNCPWriter:
                             page_data["_content_id"] = existing_id
                 else:
                     # New content - mark for insertion
-                    new_content_records.append((content_id, content, content_hash, content_size))
+                    new_content_records.append(
+                        (content_id, content, content_hash, content_size)
+                    )
 
             # Batch insert new content
             if new_content_records:
@@ -570,9 +589,11 @@ class PNCPWriter:
                     (id, response_content, content_sha256, content_size_bytes, reference_count)
                     VALUES (?, ?, ?, ?, 1)
                     """,
-                    new_content_records
+                    new_content_records,
                 )
-                logger.debug(f"Batch inserted {len(new_content_records)} new content records")
+                logger.debug(
+                    f"Batch inserted {len(new_content_records)} new content records"
+                )
 
             # Batch update reference counts
             if update_ref_counts:
@@ -582,29 +603,36 @@ class PNCPWriter:
                     SET reference_count = ?, last_seen_at = CURRENT_TIMESTAMP
                     WHERE content_sha256 = ?
                     """,
-                    [(new_count, content_hash) for content_hash, new_count in update_ref_counts]
+                    [
+                        (new_count, content_hash)
+                        for content_hash, new_count in update_ref_counts
+                    ],
                 )
-                logger.debug(f"Batch updated {len(update_ref_counts)} content reference counts")
+                logger.debug(
+                    f"Batch updated {len(update_ref_counts)} content reference counts"
+                )
 
         # Step 4: Batch store requests using the resolved content_ids
         request_records = []
         for page_data in pages:
             content_id = page_data["_content_id"]
-            request_records.append([
-                page_data.get("extracted_at"),
-                page_data.get("endpoint_url"),
-                page_data.get("endpoint_name"),
-                json.dumps(page_data.get("request_parameters", {})),
-                page_data.get("response_code"),
-                json.dumps(page_data.get("response_headers", {})),
-                page_data.get("data_date"),
-                page_data.get("run_id"),
-                page_data.get("total_records"),
-                page_data.get("total_pages"),
-                page_data.get("current_page"),
-                page_data.get("page_size"),
-                content_id,
-            ])
+            request_records.append(
+                [
+                    page_data.get("extracted_at"),
+                    page_data.get("endpoint_url"),
+                    page_data.get("endpoint_name"),
+                    json.dumps(page_data.get("request_parameters", {})),
+                    page_data.get("response_code"),
+                    json.dumps(page_data.get("response_headers", {})),
+                    page_data.get("data_date"),
+                    page_data.get("run_id"),
+                    page_data.get("total_records"),
+                    page_data.get("total_pages"),
+                    page_data.get("current_page"),
+                    page_data.get("page_size"),
+                    content_id,
+                ]
+            )
 
         if request_records:
             self.conn.executemany(
@@ -615,7 +643,7 @@ class PNCPWriter:
                     total_records, total_pages, current_page, page_size, content_id
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                request_records
+                request_records,
             )
 
         # Step 5: Also store in legacy table for backwards compatibility

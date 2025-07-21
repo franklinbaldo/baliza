@@ -8,8 +8,10 @@ from baliza.config import settings
 class PNCPTaskPlanner:
     """Handles the planning of PNCP data extraction tasks."""
 
-    def __init__(self):
-        pass
+    def __init__(self, start_date: date = None, end_date: date = None):
+        """Initialize task planner with optional date range."""
+        self.start_date = start_date
+        self.end_date = end_date
 
     def _format_date(self, date_obj: date) -> str:
         """Format date for PNCP API (YYYYMMDD)."""
@@ -52,6 +54,7 @@ class PNCPTaskPlanner:
         Optimized for resumable extractions - only creates new tasks that don't already exist.
         """
         from rich.console import Console
+
         console = Console()
 
         # Get existing tasks to avoid redundant planning
@@ -62,7 +65,9 @@ class PNCPTaskPlanner:
                     "SELECT task_id FROM psa.pncp_extraction_tasks"
                 ).fetchall()
                 existing_tasks = {task_id for (task_id,) in existing_task_ids}
-                console.print(f"📋 Found {len(existing_tasks):,} existing tasks in database")
+                console.print(
+                    f"📋 Found {len(existing_tasks):,} existing tasks in database"
+                )
             except Exception as e:
                 console.print(f"⚠️ Could not check existing tasks: {e}")
                 existing_tasks = set()
@@ -145,3 +150,24 @@ class PNCPTaskPlanner:
         console.print(f"   New tasks to create: {len(tasks_to_create):,}")
 
         return tasks_to_create
+
+    async def generate_tasks(self) -> list[dict]:
+        """Generate tasks using stored date range."""
+        if self.start_date is None or self.end_date is None:
+            raise ValueError("Start date and end date must be set before generating tasks")
+        
+        # Get tuple tasks and convert to dictionaries
+        tuple_tasks = await self.plan_tasks(self.start_date, self.end_date)
+        
+        # Convert tuples to dictionaries for compatibility with extractor
+        dict_tasks = []
+        for task_id, endpoint_name, data_date, modalidade in tuple_tasks:
+            task_dict = {
+                "task_id": task_id,
+                "endpoint_name": endpoint_name,
+                "data_date": data_date,
+                "modalidade": modalidade
+            }
+            dict_tasks.append(task_dict)
+        
+        return dict_tasks
