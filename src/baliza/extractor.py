@@ -303,23 +303,6 @@ class AsyncPNCPExtractor:
                         console.print(f"   🏷️  Modalidade: {row.modalidade}")
                         console.print(f"   ⚠️  Error: {str(e)}")
                         console.print()
-                        
-                        # Still update progress for failed requests
-                        # Somar 1 às requests reais (sem contar as reutilizadas)
-                        actual_requests_made = (self._completed_requests - getattr(self, '_skipped_requests', 0)) + 1
-                        self._completed_requests = getattr(self, '_skipped_requests', 0) + actual_requests_made
-                        
-                        elapsed = time.time() - self._request_start_time
-                        rate = actual_requests_made / elapsed if elapsed > 0 else 0
-                        if hasattr(self, '_progress') and self._progress_task is not None:
-                            http_total = self._progress.tasks[0].fields.get('http_total', 1)
-                            http_percentage = (self._completed_requests / max(1, http_total)) * 100
-                            self._progress.update(
-                                self._progress_task,
-                                http_completed=self._completed_requests,
-                                http_percentage=http_percentage,
-                                rate=rate
-                            )
                         raise
 
                     # Transform response for writer persistence
@@ -551,23 +534,6 @@ class AsyncPNCPExtractor:
                         console.print(f"   📌 Page: {row.pagina}")
                         console.print(f"   ⚠️  Error: {str(e)}")
                         console.print()
-                        
-                        # Still update progress for failed requests
-                        # Somar 1 às requests reais (sem contar as reutilizadas)
-                        actual_requests_made = (self._completed_requests - getattr(self, '_skipped_requests', 0)) + 1
-                        self._completed_requests = getattr(self, '_skipped_requests', 0) + actual_requests_made
-                        
-                        elapsed = time.time() - self._request_start_time
-                        rate = actual_requests_made / elapsed if elapsed > 0 else 0
-                        if hasattr(self, '_progress') and self._progress_task is not None:
-                            http_total = self._progress.tasks[0].fields.get('http_total', 1)
-                            http_percentage = (self._completed_requests / max(1, http_total)) * 100
-                            self._progress.update(
-                                self._progress_task,
-                                http_completed=self._completed_requests,
-                                http_percentage=http_percentage,
-                                rate=rate
-                            )
                         raise
                     
                     # Transform response for writer persistence
