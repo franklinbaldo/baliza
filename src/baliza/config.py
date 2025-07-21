@@ -22,12 +22,12 @@ class Settings(BaseSettings):
     )
 
     pncp_base_url: str = "https://pncp.gov.br/api/consulta"
-    concurrency: int = 8  # Optimal based on stress testing - PNCP handles this well
+    concurrency: int = 32  # 
     rate_limit_delay: float = (
-        0.0  # No delay needed - PNCP API is more tolerant than expected
+        0.1  # delay between requests to respect API limits
     )
     page_size: int = 500
-    request_timeout: int = 30
+    request_timeout: int = 60
     user_agent: str = "BALIZA/3.0 (Backup Aberto de Licitacoes)"
     internet_archive_identifier: str = "baliza-pncp"
     ia_access_key: str = ""
