@@ -13,6 +13,7 @@ from .config import settings
 from .dependencies import get_cli_services
 from .enums import ENUM_REGISTRY, get_enum_choices
 from .extractor import AsyncPNCPExtractor
+from .pncp_writer import BALIZA_DB_PATH, connect_utf8
 from .ui import Dashboard, ErrorHandler, get_console
 
 app = typer.Typer(no_args_is_help=False)  # Allow running without args
@@ -78,41 +79,97 @@ def main(ctx: typer.Context):
 
 @app.command()
 def extract(
-    start_date: str = typer.Option("2021-01-01", help="Start date (YYYY-MM-DD)"),
-    end_date: str = typer.Option(date.today().strftime("%Y-%m-%d"), help="End date (YYYY-MM-DD)"),
+    month: str = typer.Option(None, help="Month to extract (YYYY-MM format, required)"),
     concurrency: int = typer.Option(
         settings.concurrency, help="Number of concurrent requests"
     ),
     force_db: bool = typer.Option(
         False, "--force-db", help="Force database connection by removing locks"
     ),
+    skip_archival: bool = typer.Option(
+        False, "--skip-archival", help="Skip Internet Archive upload"
+    ),
+    keep_local: bool = typer.Option(
+        False, "--keep-local", help="Keep local data after archival"
+    ),
 ):
     """Extract data from PNCP API using the new vectorized engine."""
     from .ui import create_header, get_theme
 
     theme = get_theme()
-    start_dt = date.fromisoformat(start_date)
-    end_dt = adjust_to_end_of_month(date.fromisoformat(end_date))
-
-    # Mostrar a data ajustada para o usuário
-    if end_date != end_dt.strftime("%Y-%m-%d"):
-        console.print(f"📅 [yellow]Data final ajustada para final do mês: {end_dt.strftime('%Y-%m-%d')}[/yellow]")
+    
+    # Validar e processar parâmetro de mês
+    if not month:
+        console.print("❌ [red]Erro: Parâmetro --month é obrigatório![/red]")
+        console.print("💡 [yellow]Exemplo: baliza extract --month 2024-01[/yellow]")
+        raise typer.Exit(1)
+    
+    try:
+        year, month_num = month.split('-')
+        year = int(year)
+        month_num = int(month_num)
+        
+        if not (1 <= month_num <= 12):
+            raise ValueError("Mês deve estar entre 01-12")
+            
+        # Calcular primeiro e último dia do mês
+        start_dt = date(year, month_num, 1)
+        _, last_day = monthrange(year, month_num)
+        end_dt = date(year, month_num, last_day)
+        
+    except (ValueError, TypeError) as e:
+        console.print(f"❌ [red]Formato de mês inválido: {month}[/red]")
+        console.print("💡 [yellow]Use formato YYYY-MM (ex: 2024-01)[/yellow]")
+        raise typer.Exit(1) from e
+    
+    console.print(f"📅 [cyan]Extraindo mês completo: {start_dt.strftime('%B %Y')} ({start_dt} até {end_dt})[/cyan]")
 
     header = create_header(
-        "Extracting Data (Vectorized)",
-        "High-performance, stateless extraction",
-        theme.ICONS["extract"],
+        "Monthly Extraction with Auto-Archival",
+        f"Extracting {start_dt.strftime('%B %Y')} → Internet Archive",
+        "📦",
     )
     console.print(header)
 
     async def main():
         setup_signal_handlers()
+        
         try:
+            # Phase 1: Extract data for the month
+            console.print("\n🚀 [bold blue]Phase 1: Extraction[/bold blue]")
             extractor = AsyncPNCPExtractor(concurrency=concurrency, force_db=force_db)
             async with extractor as ext:
                 if _shutdown_requested:
                     return
                 await ext.extract_data(start_dt, end_dt)
+            
+            if _shutdown_requested:
+                return
+                
+            # Phase 2: Archive to Internet Archive
+            if not skip_archival:
+                console.print("\n📦 [bold blue]Phase 2: Archival[/bold blue]")
+                from .archival import MonthlyArchiver
+                
+                archiver = MonthlyArchiver(db_path=extractor.writer.db_path)
+                archival_stats = await archiver.archive_month(
+                    year=start_dt.year,
+                    month=start_dt.month,
+                    skip_upload=False,
+                    keep_local=keep_local
+                )
+                
+                # Show final stats
+                console.print("\n📊 [bold green]Final Statistics:[/bold green]")
+                console.print(f"📅 Month: {archival_stats['month']}")
+                console.print(f"📁 Files created: {archival_stats['files_created']}")
+                console.print(f"📝 Records archived: {archival_stats['total_records']:,}")
+                console.print(f"💾 Total size: {archival_stats['total_size_mb']:.1f} MB")
+                console.print(f"🌐 Upload success: {'✅' if archival_stats['upload_success'] else '❌'}")
+                console.print(f"🧹 Local cleanup: {'✅' if archival_stats['local_cleanup'] else '❌'}")
+            else:
+                console.print("\n⏭️ [yellow]Archival skipped - data remains in local database[/yellow]")
+                
         except Exception as e:
             error_handler.handle_api_error(e, "PNCP API", {})
             raise
