@@ -125,8 +125,14 @@ class PNCPClient:
             # Handle failures
             if response.status_code == 429:
                 # Rate limit hit - raise exception to trigger retry with backoff
+                # Build full URL for easy testing
+                full_url = f"{self.client.base_url}{url}"
+                if params:
+                    param_str = "&".join([f"{k}={v}" for k, v in params.items() if v is not None])
+                    full_url = f"{full_url}?{param_str}"
+                
                 logger.warning(
-                    f"Rate limit hit (429) for {url}, will retry with backoff"
+                    f"Rate limit hit (429) - Full URL: {full_url}"
                 )
                 response.raise_for_status()
 

@@ -188,7 +188,24 @@ class AsyncPNCPExtractor:
 
                     # Make the actual API request
                     endpoint_path = f"/v1/{row.endpoint_name}"
-                    response = await self.client.fetch_with_backpressure(endpoint_path, params)
+                    try:
+                        response = await self.client.fetch_with_backpressure(endpoint_path, params)
+                    except Exception as e:
+                        # Show exact request details when error occurs
+                        # Build full clickable URL
+                        base_url = "https://pncp.gov.br/api/consulta"
+                        full_url = f"{base_url}{endpoint_path}"
+                        if params:
+                            param_str = "&".join([f"{k}={v}" for k, v in params.items() if v is not None])
+                            full_url = f"{full_url}?{param_str}"
+                        
+                        console.print(f"\n❌ [bold red]Request Error Details:[/bold red]")
+                        console.print(f"   🔗 Full URL: {full_url}")
+                        console.print(f"   📅 Date: {row.data_date}")
+                        console.print(f"   🏷️  Modalidade: {row.modalidade}")
+                        console.print(f"   ⚠️  Error: {str(e)}")
+                        console.print()
+                        raise
 
                     # Transform response for writer persistence
                     writer_data = {
@@ -327,7 +344,25 @@ class AsyncPNCPExtractor:
                         params['modalidade'] = row.modalidade
 
                     endpoint_path = f"/v1/{row.endpoint_name}"
-                    response = await self.client.fetch_with_backpressure(endpoint_path, params)
+                    try:
+                        response = await self.client.fetch_with_backpressure(endpoint_path, params)
+                    except Exception as e:
+                        # Show exact request details when error occurs
+                        # Build full clickable URL
+                        base_url = "https://pncp.gov.br/api/consulta"
+                        full_url = f"{base_url}{endpoint_path}"
+                        if params:
+                            param_str = "&".join([f"{k}={v}" for k, v in params.items() if v is not None])
+                            full_url = f"{full_url}?{param_str}"
+                        
+                        console.print(f"\n❌ [bold red]Request Error Details:[/bold red]")
+                        console.print(f"   🔗 Full URL: {full_url}")
+                        console.print(f"   📅 Date: {row.data_date}")
+                        console.print(f"   🏷️  Modalidade: {row.modalidade}")
+                        console.print(f"   📄 Page: {row.pagina}")
+                        console.print(f"   ⚠️  Error: {str(e)}")
+                        console.print()
+                        raise
                     
                     # Transform response for writer persistence
                     writer_data = {
