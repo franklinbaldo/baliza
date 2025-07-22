@@ -1,64 +1,50 @@
 {{
   config(
     materialized='incremental',
-    unique_key='numero_controle_pncp',
-    incremental_strategy='merge'
+    unique_key='numeroControlePNCP'
   )
 }}
 
-WITH source AS (
-    SELECT
-        *,
-        ROW_NUMBER() OVER (PARTITION BY numero_controle_pncp ORDER BY data_atualizacao DESC) as rn
-    FROM {{ ref('bronze_pncp_raw') }}
-    WHERE endpoint_category = 'contratacoes'
-    {% if is_incremental() %}
-    AND data_atualizacao > (SELECT MAX(data_atualizacao) FROM {{ this }})
-    {% endif %}
-),
-modalidades AS (
-    SELECT * FROM {{ ref('modalidades_config') }}
-)
 SELECT
-    s.id AS response_id,
-    s.extracted_at,
-    s.endpoint_name,
-    s.endpoint_url,
-    s.data_date,
-    s.run_id,
-    s.total_records,
-    s.total_pages,
-    s.current_page,
+  "numeroControlePNCP",
+  "anoContratacao",
+  "dataPublicacaoPNCP"::DATE AS "dataPublicacaoPNCP",
+  "dataAtualizacaoPNCP"::DATE AS "dataAtualizacaoPNCP",
+  "horaAtualizacaoPNCP",
+  "sequencialOrgao",
+  "cnpjOrgao"::VARCHAR(14) AS "cnpjOrgao",
+  "siglaOrgao",
+  "nomeOrgao",
+  "sequencialUnidade",
+  "codigoUnidade",
+  "siglaUnidade",
+  "nomeUnidade",
+  "codigoEsfera",
+  "nomeEsfera",
+  "codigoPoder",
+  "nomePoder",
+  "codigoMunicipio",
+  "nomeMunicipio",
+  "uf"::uf_brasil_enum AS "uf",
+  "amparoLegalId",
+  "amparoLegalNome",
+  "modalidadeId"::modalidade_contratacao_enum AS "modalidadeId",
+  "modalidadeNome",
+  "numeroContratacao",
+  "processo",
+  "objetoContratacao",
+  "codigoSituacaoContratacao"::situacao_contratacao_enum AS "codigoSituacaoContratacao",
+  "nomeSituacaoContratacao",
+  "valorTotalEstimado"::DECIMAL(15, 4) AS "valorTotalEstimado",
+  "informacaoComplementar",
+  "dataAssinatura"::DATE AS "dataAssinatura",
+  "dataVigenciaInicio"::DATE AS "dataVigenciaInicio",
+  "dataVigenciaFim"::DATE AS "dataVigenciaFim",
+  "numeroControlePNCPContrato",
+  "justificativa",
+  "fundamentacaoLegal"
+FROM {{ ref('bronze_pncp_raw') }}
 
-    -- Procurement identifiers
-    json_extract_string(s.response_json, '$.numeroControlePNCP') AS numero_controle_pncp,
-    json_extract_string(s.response_json, '$.numeroCompra') AS numero_compra,
-    TRY_CAST(json_extract_string(s.response_json, '$.anoCompra') AS INTEGER) AS ano_compra,
-    TRY_CAST(json_extract_string(s.response_json, '$.sequencialCompra') AS INTEGER) AS sequencial_compra,
-
-    -- Dates
-    TRY_CAST(json_extract_string(s.response_json, '$.dataPublicacaoPncp') AS TIMESTAMP) AS data_publicacao_pncp,
-    TRY_CAST(json_extract_string(s.response_json, '$.dataAberturaProposta') AS TIMESTAMP) AS data_abertura_proposta,
-    TRY_CAST(json_extract_string(s.response_json, '$.dataEncerramentoProposta') AS TIMESTAMP) AS data_encerramento_proposta,
-    TRY_CAST(json_extract_string(s.response_json, '$.dataInclusao') AS TIMESTAMP) AS data_inclusao,
-    TRY_CAST(json_extract_string(s.response_json, '$.dataAtualizacao') AS TIMESTAMP) AS data_atualizacao,
-
-    -- Amounts
-    TRY_CAST(json_extract_string(s.response_json, '$.valorTotalEstimado') AS DOUBLE) AS valor_total_estimado,
-
-    -- Procurement details
-    json_extract_string(s.response_json, '$.objetoCompra') AS objeto_compra,
-
-    -- Procurement method and mode
-    m.modalidade_nome,
-
-    -- Status and flags
-    json_extract_string(s.response_json, '$.situacaoCompraNome') AS situacao_compra_nome,
-    TRY_CAST(json_extract_string(s.response_json, '$.srp') AS BOOLEAN) AS srp,
-
-    -- Nested JSON
-    json_extract(s.response_json, '$.orgaoEntidade') AS orgao_entidade_json,
-    json_extract(s.response_json, '$.unidadeOrgao') AS unidade_orgao_json
-FROM source s
-LEFT JOIN modalidades m ON TRY_CAST(json_extract_string(s.response_json, '$.modalidadeId') AS INTEGER) = m.modalidade_id
-WHERE s.rn = 1
+{% if is_incremental() %}
+WHERE "dataAtualizacaoPNCP" > (SELECT max("dataAtualizacaoPNCP") FROM {{ this }})
+{% endif %}
