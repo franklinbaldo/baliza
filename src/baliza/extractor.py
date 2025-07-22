@@ -343,7 +343,7 @@ class AsyncPNCPExtractor:
 
         console.print("✅ Discovery Pass complete. All page 1 responses persisted.")
 
-    def _expand_and_reconcile_from_db_vectorized(self) -> pd.DataFrame:
+    def _expand_and_reconcile_from_db_vectorized(self, start_date: date, end_date: date) -> pd.DataFrame:
         """
         Performs the vectorized reconciliation.
         1. Fetches discovery results (page 1) from the database.
@@ -369,6 +369,8 @@ class AsyncPNCPExtractor:
             WHERE current_page = 1 
                 AND total_pages > 1 
                 AND response_code = 200
+                AND data_date >= ?
+                AND data_date <= ?
                 AND (
                     -- Para meses anteriores, usar dados existentes (qualquer run_id)
                     data_date < ? 
@@ -380,7 +382,7 @@ class AsyncPNCPExtractor:
         try:
             discovery_results = self.writer.conn.execute(
                 discovery_query,
-                [current_month_start, current_month_start, self.run_id]
+                [start_date, end_date, current_month_start, current_month_start, self.run_id]
             ).fetchall()
 
             if not discovery_results:
@@ -411,13 +413,15 @@ class AsyncPNCPExtractor:
                 current_page as pagina
             FROM psa.pncp_raw_responses 
             WHERE response_code = 200
+                AND data_date >= ?
+                AND data_date <= ?
                 -- Ignorar dados do mês atual para forçar refresh
                 AND data_date < ?
         """
 
         try:
             existing_results = self.writer.conn.execute(
-                existing_query, [current_month_start]
+                existing_query, [start_date, end_date, current_month_start]
             ).fetchall()
 
             if existing_results:
@@ -555,7 +559,7 @@ class AsyncPNCPExtractor:
 
             # 3. Vectorized reconciliation to find missing pages
             progress.update(overall_task, description="[yellow]⚙️ Reconciliação...[/yellow]")
-            missing_pages_df = self._expand_and_reconcile_from_db_vectorized()
+            missing_pages_df = self._expand_and_reconcile_from_db_vectorized(start_date, end_date)
             progress.update(overall_task, completed=3)
 
             if self.shutdown_event.is_set():
