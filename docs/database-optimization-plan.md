@@ -43,6 +43,17 @@ Este plano visa otimizar radicalmente a arquitetura de dados BALIZA através de:
            └── Contratos/Atas (numeroControlePNCPContrato + valores + datas)
    ```
 
+## Princípios de Compressão: Heurística Automática do DuckDB
+
+> **🎯 IMPORTANTE**: DuckDB possui heurística automática de compressão que escolhe o algoritmo mais eficiente por coluna. Forçar `USING COMPRESSION` só é necessário em casos específicos onde a heurística comprovadamente falha.
+
+**Estratégia Recomendada**:
+- ✅ **ENUM já é dicionário** - não usar `USING COMPRESSION dictionary` adicional  
+- ✅ **Configuração global**: `SET default_compression='zstd'` ao invés de por tabela
+- ✅ **Evitar --strict** em hot writes, aplicar ZSTD no CHECKPOINT noturno
+- ✅ **Row-group tuning** apenas para Parquet export (tier frio)
+- ❌ **Não forçar** FSST, bitpacking, delta - deixar heurística decidir
+
 ## Fase 1: Diagnóstico e Mapeamento Orientado pela Documentação Oficial (1-2 dias)
 
 ### 1.1 Auditoria da Base Atual vs Schema Oficial
@@ -305,13 +316,9 @@ models:
     config:
       materialized: table
       post_hook: |
-        ALTER TABLE {{ this }} SET COMPRESSION zstd;
-        {{ apply_column_compression([
-          ('url_path', 'fsst'),
-          ('total_records', 'bitpacking'),
-          ('file_size_bytes', 'bitpacking'),
-          ('processing_time_ms', 'bitpacking')
-        ]) }}
+        -- DuckDB escolhe compressão automaticamente - heurística é eficiente
+        -- Apenas definir ZSTD global, evitar forçar compressões específicas
+        SET default_compression='zstd';
     tests:
       - dbt_utils.expression_is_true:
           expression: "extracted_at >= CURRENT_DATE - INTERVAL '90 days'"
@@ -430,16 +437,16 @@ models:
 {% macro apply_column_compression(column_specs) %}
   {% if execute %}
     {% for column_name, compression_type in column_specs %}
-      ALTER TABLE {{ this }} 
-      ALTER COLUMN {{ column_name }} 
-      SET COMPRESSION {{ compression_type }};
+      -- DuckDB heurística automática é melhor que forçar compressões específicas
+    -- Apenas aplicar ZSTD global se necessário
     {% endfor %}
   {% endif %}
 {% endmacro %}
 
 {% macro apply_table_compression(table_name, compression='zstd') %}
   {% if execute %}
-    ALTER TABLE {{ this }} SET COMPRESSION {{ compression }};
+    -- Usar configuração global ao invés de por tabela
+    -- SET default_compression='{{ compression }}';
     CHECKPOINT;  -- Force compression to take effect
   {% endif %}
 {% endmacro %}
