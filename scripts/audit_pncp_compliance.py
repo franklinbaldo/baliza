@@ -128,14 +128,22 @@ def generate_sql_seeds(enums: dict, output_path: Path):
     if not output_path.parent.exists():
         output_path.parent.mkdir(parents=True)
 
+    # Mapeamento para nomes em inglês padronizados
+    english_names = {
+        'Instrumento Convocatório': 'call_instrument',
+        'Modalidade de Contratação': 'contracting_modality', 
+        'Modo de Disputa': 'bidding_mode',
+        'Critério de Julgamento': 'judgment_criteria'
+    }
+
     with output_path.open('w', encoding='utf-8') as f:
         for table_name, values in enums.items():
-            # Normaliza o nome da tabela para ser um identificador SQL válido
-            safe_table_name = re.sub(r'\W|^(?=\d)', '_', table_name.lower())
+            # Usa nome em inglês se disponível, senão normaliza
+            safe_table_name = english_names.get(table_name, re.sub(r'\W|^(?=\d)', '_', table_name.lower()))
             f.write(f"-- Seeds para a tabela de domínio: {table_name}\n")
 
-            # Cria um CSV inline para o dbt seed
-            f.write(f"código,descrição\n")
+            # Cria um CSV inline com colunas em inglês
+            f.write(f"code,description\n")
             for value in values:
                 # Escapa aspas duplas na descrição e a coloca entre aspas
                 description = '"' + value['descrição'].replace('"', '""') + '"'
@@ -169,13 +177,22 @@ def main():
     if not seeds_dir.exists():
         seeds_dir.mkdir(parents=True)
 
+    # Mapeamento para nomes em inglês padronizados
+    english_names = {
+        'Instrumento Convocatório': 'call_instrument',
+        'Modalidade de Contratação': 'contracting_modality', 
+        'Modo de Disputa': 'bidding_mode',
+        'Critério de Julgamento': 'judgment_criteria'
+    }
+
     for table_name, values in enums.items():
-        safe_table_name = re.sub(r'\W|^(?=\d)', '_', table_name.lower())
+        # Usa nome em inglês se disponível, senão normaliza
+        safe_table_name = english_names.get(table_name, re.sub(r'\W|^(?=\d)', '_', table_name.lower()))
         seed_path = seeds_dir / f"{safe_table_name}.csv"
         try:
             with seed_path.open('w', encoding='utf-8', newline='') as f:
                 writer = csv.writer(f)
-                writer.writerow(['código', 'descrição'])
+                writer.writerow(['code', 'description'])  # Colunas em inglês
                 for value in values:
                     writer.writerow([value['código'], value['descrição']])
             print(f"   Seed CSV salvo em: {seed_path}")
