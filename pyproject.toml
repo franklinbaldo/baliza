@@ -17,14 +17,15 @@ dependencies = [
     "fastmcp", # MCP Server library - ADR-007
     "pyarrow", # Parquet engine for pandas and duckdb - ADR-001
     "tenacity>=9.1.2", # Resilient extraction with retries - ADR-002
-    "pydantic>=2.0",             # Runtime data validation
-    "pydantic-settings>=2.0",   # Environment-aware configuration
-    "internetarchive",          # For uploading data to Internet Archive
-    "rich>=13.7.0",             # Enhanced terminal UI
-    "tabulate>=0.9.0",          # Enhanced table formatting
+    "pydantic>=2.0", # Runtime data validation
+    "pydantic-settings>=2.0", # Environment-aware configuration
+    "internetarchive", # For uploading data to Internet Archive
+    "rich>=13.7.0", # Enhanced terminal UI
+    "tabulate>=0.9.0", # Enhanced table formatting
     "pyyaml>=6.0.1",
     "dbt-core>=1.7.0", # Medallion architecture transformation - ADR-003
     "dbt-duckdb>=1.7.0", # DuckDB adapter for dbt - ADR-001, ADR-003
+    "prance[osv]>=23.6.21.0",
 ]
 
 [project.scripts]
