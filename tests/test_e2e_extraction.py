@@ -39,7 +39,6 @@ async def test_e2e_extract_single_day():
         await extractor.extract_data(
             start_date=test_date,
             end_date=test_date,
-            force=True,  # Ensure clean test state
         )
 
     # Verify data was extracted
@@ -95,7 +94,7 @@ async def test_e2e_extraction_resumability():
     # First extraction run
     async with AsyncPNCPExtractor(concurrency=1) as extractor:
         await extractor.extract_data(
-            start_date=test_date, end_date=test_date, force=True
+            start_date=test_date, end_date=test_date
         )
 
     if BALIZA_DB_PATH.exists():
@@ -125,7 +124,6 @@ async def test_e2e_extraction_resumability():
             await extractor.extract_data(
                 start_date=test_date,
                 end_date=test_date,
-                force=False,  # Don't force, should resume
             )
 
         # Verify idempotency
@@ -176,7 +174,7 @@ async def test_e2e_extraction_multiple_endpoints():
 
     async with AsyncPNCPExtractor(concurrency=2) as extractor:
         await extractor.extract_data(
-            start_date=test_date, end_date=test_date, force=True
+            start_date=test_date, end_date=test_date
         )
 
     if BALIZA_DB_PATH.exists():
@@ -304,7 +302,7 @@ async def test_e2e_validate_response_schema():
     # Run extraction
     async with AsyncPNCPExtractor(concurrency=1) as extractor:
         await extractor.extract_data(
-            start_date=test_date, end_date=test_date, force=True
+            start_date=test_date, end_date=test_date
         )
 
     # Verify data was extracted and validate schema

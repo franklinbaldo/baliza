@@ -1,4 +1,3 @@
-
 import pytest
 
 from baliza.sql_loader import SQLLoader

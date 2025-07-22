@@ -15,39 +15,39 @@ Este arquivo contém tarefas atômicas para implementar o [Plano de Otimização
 ### 🔥 Análise da Documentação Oficial PNCP
 **Referência**: ADR-011, Plano Seção 1.1
 
-- [ ] **F1.1** Criar script `scripts/audit_pncp_compliance.py`
-  - [ ] Extrair todos os ENUMs do `docs/openapi/MANUAL-PNCP-CONSULSTAS-VERSAO-1.md`
-  - [ ] Parsear `docs/openapi/api-pncp-consulta.json` para tipos precisos
-  - [ ] Comparar schema atual vs oficial
-  - [ ] Gerar relatório `docs/pncp-compliance-audit.md`
+- [x] **F1.1** Criar script `scripts/audit_pncp_compliance.py`
+  - [x] Extrair todos os ENUMs do `docs/openapi/MANUAL-PNCP-CONSULSTAS-VERSAO-1.md`
+  - [x] Parsear `docs/openapi/api-pncp-consulta.json` para tipos precisos
+  - [x] Comparar schema atual vs oficial
+  - [x] Gerar relatório `docs/pncp-compliance-audit.md`
 
-- [ ] **F1.2** Mapear campos atuais para schema oficial
-  - [ ] Identificar campos faltantes no BALIZA
-  - [ ] Identificar campos não-oficiais que devemos remover
-  - [ ] Listar todos os campos com tipos incorretos
-  - [ ] Documentar breaking changes necessários
+- [x] **F1.2** Mapear campos atuais para schema oficial
+  - [x] Identificar campos faltantes no BALIZA
+  - [x] Identificar campos não-oficiais que devemos remover
+  - [x] Listar todos os campos com tipos incorretos
+  - [x] Documentar breaking changes necessários
 
-- [ ] **F1.3** Extrair códigos oficiais das 17 tabelas de domínio
-  - [ ] Modalidade de Contratação (13 valores)
-  - [ ] Situação da Contratação (4 valores)  
-  - [ ] UF (27 valores)
-  - [ ] Natureza Jurídica (47 valores)
-  - [ ] Salvar como `sql/seeds/pncp_domain_tables.sql`
+- [x] **F1.3** Extrair códigos oficiais das 17 tabelas de domínio
+  - [x] Modalidade de Contratação (13 valores)
+  - [x] Situação da Contratação (4 valores)
+  - [x] UF (27 valores)
+  - [x] Natureza Jurídica (47 valores)
+  - [x] Salvar como `sql/seeds/pncp_domain_tables.sql`
 
 ### 🔥 Inventário de SQL Inline
 **Referência**: ADR-009, Plano Seção 1.2
 
-- [ ] **F1.4** Escanear código Python para SQL inline
-  - [ ] Usar regex para encontrar strings SQL em `src/baliza/`
-  - [ ] Classificar por tipo: SELECT, INSERT, UPDATE, DELETE, DDL
-  - [ ] Medir complexidade (single table vs joins)
-  - [ ] Gerar `docs/sql-inventory.md` com mapeamento completo
+- [x] **F1.4** Escanear código Python para SQL inline
+  - [x] Usar regex para encontrar strings SQL em `src/baliza/`
+  - [x] Classificar por tipo: SELECT, INSERT, UPDATE, DELETE, DDL
+  - [x] Medir complexidade (single table vs joins)
+  - [x] Gerar `docs/sql-inventory.md` com mapeamento completo
 
-- [ ] **F1.5** Analisar performance atual
-  - [ ] Executar `pragma_storage_info()` em todas as tabelas
-  - [ ] Documentar tamanhos atuais e padrões de compressão
-  - [ ] Identificar tabelas com maior potencial de otimização
-  - [ ] Baseline para comparação pós-otimização
+- [x] **F1.5** Analisar performance atual
+  - [x] Executar `pragma_storage_info()` em todas as tabelas
+  - [x] Documentar tamanhos atuais e padrões de compressão
+  - [x] Identificar tabelas com maior potencial de otimização
+  - [x] Baseline para comparação pós-otimização
 
 ### Relatório de Conclusão da Fase 1
 A Fase 1 foi executada integralmente, gerando os artefatos de diagnóstico abaixo. Estes arquivos devem ser utilizados como referência para as próximas etapas.
