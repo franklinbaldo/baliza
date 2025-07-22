@@ -181,8 +181,9 @@ class AsyncPNCPExtractor:
 
         # Padronizar tipos de modalidade (converter None/NaN para string vazia)
         # Remover aspas duplas do JSON e converter para consistência
-        existing_df['modalidade'] = existing_df['modalidade'].replace('NaN', '').fillna('').astype(str)
-        existing_df['modalidade'] = existing_df['modalidade'].str.replace('"', '', regex=False)  # Remove aspas
+        existing_df['modalidade'] = existing_df['modalidade'].fillna('').astype(str)
+        existing_df['modalidade'] = existing_df['modalidade'].str.replace('"', '', regex=False)  # Remove aspas first
+        existing_df['modalidade'] = existing_df['modalidade'].replace('NaN', '')  # Then handle NaN
         plan_df['modalidade'] = plan_df['modalidade'].fillna('').astype(str)
 
         # Anti-join: pegar apenas o que NÃO existe
@@ -390,6 +391,11 @@ class AsyncPNCPExtractor:
                 return pd.DataFrame()
 
             discovery_df = pd.DataFrame(discovery_results, columns=['endpoint_name', 'data_date', 'modalidade', 'total_pages'])
+            
+            # Normalize modalidade values in discovery_df
+            discovery_df['modalidade'] = discovery_df['modalidade'].fillna('').astype(str)
+            discovery_df['modalidade'] = discovery_df['modalidade'].str.replace('"', '', regex=False)  # Remove quotes first
+            discovery_df['modalidade'] = discovery_df['modalidade'].replace('NaN', '')  # Then handle NaN
 
         except Exception as e:
             logger.exception(f"Error fetching discovery results: {e}")
@@ -401,7 +407,7 @@ class AsyncPNCPExtractor:
         expanded_df = discovery_df.explode('pagina').reset_index(drop=True)
 
         # 3. Fetch all existing requests for an anti-join
-        # Para o mês atual, ignorar dados cached (forçar re-fetch)
+        # Use ALL existing data regardless of month - we want to skip what we already have
         existing_query = """
             SELECT DISTINCT
                 endpoint_name,
@@ -415,13 +421,11 @@ class AsyncPNCPExtractor:
             WHERE response_code = 200
                 AND data_date >= ?
                 AND data_date <= ?
-                -- Ignorar dados do mês atual para forçar refresh
-                AND data_date < ?
         """
 
         try:
             existing_results = self.writer.conn.execute(
-                existing_query, [start_date, end_date, current_month_start]
+                existing_query, [start_date, end_date]
             ).fetchall()
 
             if existing_results:
@@ -430,6 +434,15 @@ class AsyncPNCPExtractor:
                 # Convert data_date to proper date objects for comparison
                 all_existing_df['data_date'] = pd.to_datetime(all_existing_df['data_date']).dt.date
                 expanded_df['data_date'] = pd.to_datetime(expanded_df['data_date']).dt.date
+
+                # Normalize modalidade values to ensure consistent comparison
+                # Remove quotes first, then convert NaN to empty string for both DataFrames
+                all_existing_df['modalidade'] = all_existing_df['modalidade'].fillna('').astype(str)
+                all_existing_df['modalidade'] = all_existing_df['modalidade'].str.replace('"', '', regex=False)
+                all_existing_df['modalidade'] = all_existing_df['modalidade'].replace('NaN', '')
+                expanded_df['modalidade'] = expanded_df['modalidade'].fillna('').astype(str)
+                expanded_df['modalidade'] = expanded_df['modalidade'].str.replace('"', '', regex=False)
+                expanded_df['modalidade'] = expanded_df['modalidade'].replace('NaN', '')
 
                 # 4. Vectorized Anti-Join
                 merged_df = expanded_df.merge(
