@@ -10,7 +10,7 @@ seeds:
         description: varchar
         granularity: varchar
         page_size: integer
-        modalidades: varchar  # CSV string, not integer
+        modalidades: varchar 
         active: boolean
         supports_date_range: boolean
         date_params: varchar

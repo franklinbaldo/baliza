@@ -17,7 +17,7 @@ from .pncp_writer import BALIZA_DB_PATH, connect_utf8
 from .ui import Dashboard, ErrorHandler, get_console
 
 app = typer.Typer(no_args_is_help=False)  # Allow running without args
-console = get_console()  # Use themed console
+console = get_console()
 dashboard = Dashboard()
 error_handler = ErrorHandler()
 
@@ -361,11 +361,50 @@ def enums(
 
 @app.command()
 def explore():
-    """Interactive data explorer for browsing procurement data."""
-    from .ui.explorer import DataExplorer
+    """Show simple data overview."""
+    from .ui import create_header, get_theme
+    
+    if not BALIZA_DB_PATH.exists():
+        console.print("❌ [red]No data available[/red]")
+        console.print("💡 [yellow]Run 'baliza extract --month YYYY-MM' first[/yellow]")
+        return
 
-    explorer = DataExplorer()
-    explorer.start_interactive_session()
+    try:
+        with connect_utf8(str(BALIZA_DB_PATH)) as conn:
+            theme = get_theme()
+            header = create_header(
+                "Data Overview", 
+                "Current database statistics",
+                theme.ICONS["data"]
+            )
+            console.print(header)
+
+            # Basic stats
+            total_records = conn.execute(
+                "SELECT COUNT(*) FROM psa.pncp_requests"
+            ).fetchone()[0]
+            unique_content = conn.execute(
+                "SELECT COUNT(*) FROM psa.pncp_content"
+            ).fetchone()[0]
+
+            # Date range
+            date_range_result = conn.execute(
+                "SELECT MIN(extracted_at), MAX(extracted_at) FROM psa.pncp_requests"
+            ).fetchone()
+
+            if date_range_result and date_range_result[0]:
+                earliest, latest = date_range_result
+                date_range = f"{str(earliest)[:10]} to {str(latest)[:10]}"
+            else:
+                date_range = "No data"
+
+            console.print(f"\n📊 [bold]Database Statistics:[/bold]")
+            console.print(f"   Total Records: [number]{total_records:,}[/number]")
+            console.print(f"   Unique Content: [number]{unique_content:,}[/number]")
+            console.print(f"   Date Range: {date_range}")
+
+    except Exception as e:
+        error_handler.handle_database_error(e, "explore")
 
 
 @app.command()

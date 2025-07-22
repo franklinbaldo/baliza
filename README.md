@@ -1,16 +1,18 @@
 <div align="center">
-  <img src="assets/logo.png" alt="Logo do BALIZA: Um farol de dados sobre um mar de informações, com o nome BALIZA abaixo" width="400">
+  <img src="https://raw.githubusercontent.com/franklinbaldo/baliza/main/assets/logo.png" alt="Logo do BALIZA: Um farol de dados sobre um mar de informações, com o nome BALIZA abaixo" width="400">
   <br>
+  <h1>BALIZA</h1>
   <h3>Backup Aberto de Licitações Zelando pelo Acesso</h3>
   <p><strong>Guardando a memória das compras públicas no Brasil.</strong></p>
   <p>
-    <a href="https://github.com/franklinbaldo/baliza/blob/main/LICENSE"><img src="https://img.shields.io/github/license/franklinbaldo/baliza?style=for-the-badge" alt="Licença"></a>
     <a href="https://github.com/franklinbaldo/baliza/actions/workflows/etl_pipeline.yml"><img src="https://img.shields.io/github/actions/workflow/status/franklinbaldo/baliza/etl_pipeline.yml?branch=main&label=Build%20Di%C3%A1rio&style=for-the-badge" alt="Status do Build"></a>
+    <a href="https://github.com/franklinbaldo/baliza/blob/main/LICENSE"><img src="https://img.shields.io/github/license/franklinbaldo/baliza?style=for-the-badge" alt="Licença"></a>
     <a href="https://pypi.org/project/baliza/"><img src="https://img.shields.io/pypi/v/baliza?style=for-the-badge" alt="Versão no PyPI"></a>
+    <a href="https://franklinbaldo.github.io/baliza/"><img src="https://img.shields.io/badge/docs-material-blue?style=for-the-badge" alt="Documentação"></a>
   </p>
 </div>
 
-> **BALIZA** é uma ferramenta de código aberto que extrai, armazena e estrutura dados do Portal Nacional de Contratações Públicas (PNCP), criando um backup histórico confiável para análises e auditoria da maior plataforma de compras públicas do país.
+> **BALIZA** é uma ferramenta de código aberto que extrai, armazena e estrutura dados do Portal Nacional de Contratações Públicas (PNCP), criando um backup histórico, confiável e otimizado para análises e auditoria da maior plataforma de compras públicas do país.
 
 ---
 
@@ -18,9 +20,7 @@
 
 Seu objetivo é **analisar os dados** de contratações públicas, sem a necessidade de executar o processo de extração. Com o BALIZA, você pode fazer isso em segundos, diretamente no seu navegador ou ambiente de análise preferido.
 
-<a href="https://colab.research.google.com/github/colab-examples/colab-badge-example/blob/main/colab-badge-example.ipynb" target="_parent"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a>
-
-O banco de dados completo e atualizado diariamente está hospedado no [Internet Archive](https://archive.org/details/baliza-pncp) em formato DuckDB, e pode ser consultado remotamente.
+O banco de dados completo e atualizado diariamente está hospedado no [**Internet Archive**](https://archive.org/details/baliza-pncp) em formato DuckDB, e pode ser consultado remotamente.
 
 **Exemplo de Análise Rápida com Python:**
 Não é preciso baixar nada! Apenas instale as bibliotecas e execute o código.
@@ -32,29 +32,37 @@ Não é preciso baixar nada! Apenas instale as bibliotecas e execute o código.
 import duckdb
 
 # Conecte-se remotamente ao banco de dados no Internet Archive
-# NOTA: Substitua 'baliza-latest.duckdb' pelo nome do arquivo mais recente disponível no IA
-DB_URL = "https://archive.org/download/baliza-pncp/baliza-latest.duckdb"
+# NOTA: O nome do arquivo pode ser atualizado. Verifique o link acima para o nome mais recente.
+DB_URL = "https://archive.org/download/baliza-pncp/baliza.duckdb"
 
-con = duckdb.connect(database=DB_URL, read_only=True)
+# Para uma análise mais rápida, use os arquivos Parquet exportados
+# Exemplo: Analisar contratos de janeiro de 2024
+# PARQUET_URL = "https://archive.org/download/baliza-pncp-data/2024/01/contratos_2024_01.parquet"
 
-# Exemplo: Top 10 órgãos por valor total de contratos (camada GOLD)
-top_orgaos = con.sql("""
+con = duckdb.connect(read_only=True)
+con.execute("INSTALL httpfs; LOAD httpfs;")
+
+# Exemplo: Top 10 órgãos por quantidade de contratos na camada Silver
+# (Camadas Gold podem estar disponíveis dependendo da execução do build)
+top_orgaos_query = """
     SELECT
-        nome_orgao,
-        SUM(valor_total_contrato) AS valor_total
-    FROM mart_procurement_analytics
-    GROUP BY nome_orgao
-    ORDER BY valor_total DESC
+        o.razao_social,
+        COUNT(f.contract_key) AS total_contratos
+    FROM read_parquet('https://archive.org/download/baliza-pncp/silver_fact_contratos.parquet') AS f
+    JOIN read_parquet('https://archive.org/download/baliza-pncp/silver_dim_organizacoes.parquet') AS o
+        ON f.org_key = o.org_key
+    GROUP BY o.razao_social
+    ORDER BY total_contratos DESC
     LIMIT 10;
-""").to_df()
+"""
 
+top_orgaos = con.sql(top_orgaos_query).to_df()
 print(top_orgaos)
 ```
 
 - ✅ **Zero Setup:** Comece a analisar em menos de um minuto.
 - ✅ **Sempre Atualizado:** Acesse os dados mais recentes coletados pelo workflow diário.
 - ✅ **Integração Total:** Funciona perfeitamente com Pandas, Polars, Jupyter Notebooks e outras ferramentas do ecossistema PyData.
-
 
 ## 🎯 O Problema: A Memória Volátil da Transparência
 
@@ -65,10 +73,9 @@ O Portal Nacional de Contratações Públicas (PNCP) é um avanço, mas sua API 
 O BALIZA atua como uma **âncora de dados para o PNCP**. Ele sistematicamente coleta, armazena e estrutura os dados, garantindo que a memória das contratações públicas brasileiras seja preservada e acessível a todos.
 
 -   🛡️ **Resiliência:** Cria um backup imune a mudanças na API ou indisponibilidades do portal.
--   🕰️ **Séries Históricas:** Constrói um acervo completo e cronológico.
--   🔍 **Dados Estruturados para Análise:** Transforma respostas JSON em tabelas limpas e prontas para SQL.
+-   🕰️ **Séries Históricas:** Constrói um acervo completo e cronológico, com deduplicação inteligente de conteúdo para economizar espaço.
+-   🔍 **Dados Estruturados para Análise:** Transforma respostas JSON em tabelas limpas e prontas para SQL usando uma arquitetura *Medallion*.
 -   🌍 **Aberto por Natureza:** Utiliza formatos abertos (DuckDB, Parquet), garantindo que os dados sejam seus, para sempre.
-
 
 ## 🔧 Para Desenvolvedores e Coletores de Dados
 
@@ -85,56 +92,53 @@ git clone https://github.com/franklinbaldo/baliza.git
 cd baliza
 
 # 2. Instale as dependências com uv
-uv sync
+uv sync --all-extras
 
-# 3. Execute a pipeline completa (isso pode levar horas!)
-uv run baliza run
+# 3. Execute a extração para um mês específico (ex: Janeiro de 2024)
+# Este é o principal comando do workflow.
+uv run baliza extract --month 2024-01
 ```
 
 **Principais Comandos:**
 | Comando | Descrição |
 |---|---|
-| `uv run baliza run` | Executa a pipeline completa: Extração, Transformação e Carga. |
-| `uv run baliza extract` | Inicia a extração de dados do PNCP. |
-| `uv run baliza transform` | Executa os modelos de transformação do dbt. |
-| `uv run baliza load` | Exporta os dados para Parquet e os carrega no Internet Archive. |
-| `uv run baliza stats` | Mostra estatísticas sobre os dados já baixados. |
-
+| `baliza extract --month YYYY-MM` | **Workflow principal.** Extrai, arquiva e limpa dados para um mês específico. |
+| `baliza transform` | Executa os modelos de transformação do dbt para criar as camadas Silver e Gold. |
+| `baliza mcp` | Inicia o servidor de análise com IA (Model Context Protocol). |
+| `baliza status` | Mostra um painel detalhado sobre a saúde e o estado do sistema. |
+| `baliza explore` | Inicia um explorador de dados interativo no terminal. |
 
 ## ⚙️ Como Funciona
 
-O BALIZA opera com uma arquitetura de extração em duas fases, garantindo que o processo seja robusto e possa ser retomado em caso de falhas.
+O BALIZA opera com uma arquitetura de extração moderna, garantindo que o processo seja robusto, eficiente e possa ser retomado em caso de falhas.
 
 ```mermaid
 flowchart TD
     A[API do PNCP] -->|1. Requisições| B{BALIZA};
-    subgraph BALIZA [Processo de Extração Vetorizado]
+    subgraph BALIZA [Motor de Extração Vetorizado]
         direction LR
-        B1(Descoberta) --> B2(Reconciliação Vetorizada) --> B3(Execução);
+        B1(Descoberta Concorrente) --> B2(Reconciliação Vetorizada) --> B3(Execução em Lote);
     end
-    B -->|2. Armazenamento| C{DuckDB Local};
-    C -- "3. Transformação (dbt)" --> D[Tabelas Limpas e Analíticas];
-    D -->|4. Análise| E(Jornalistas, Pesquisadores, Cidadãos);
+    B -->|2. Armazenamento Otimizado| C[DuckDB Local (Split Tables)];
+    C -->|3. Transformação (dbt)| D[Camadas Silver & Gold];
+    D -->|4. Análise & Publicação| E(Análise Local, Internet Archive, Servidor IA);
 ```
-_**Legenda:** O BALIZA orquestra a coleta da API do PNCP com um processo de reconciliação vetorizado, armazena os dados brutos em um banco DuckDB e, com dbt, os transforma em insumos para análise._
+_**Legenda:** O BALIZA orquestra a coleta da API do PNCP com um processo de reconciliação vetorizado, armazena os dados brutos de forma otimizada (deduplicação de conteúdo), e com dbt, os transforma em modelos analíticos para análise e publicação._
 
-
-## 🤖 Servidor de Análise com IA (MCP)
+## 🤖 Análise com Inteligência Artificial (Servidor MCP)
 
 O BALIZA inclui um servidor compatível com o **Model Context Protocol (MCP)** da Anthropic. Isso permite que modelos de linguagem, como o Claude, se conectem diretamente aos seus dados de licitações para realizar análises complexas, consultas e visualizações de forma segura.
 
 **Como Funciona:**
-Em vez de você fazer uma pergunta diretamente, você inicia um servidor local. Um LLM compatível com MCP pode então se conectar a este servidor para usar as "ferramentas" que ele oferece, como a capacidade de executar consultas SQL no seu banco de dados.
+Você inicia um servidor local, e um LLM compatível com MCP pode se conectar a ele para usar as "ferramentas" que o servidor oferece, como a capacidade de executar consultas SQL no seu banco de dados.
 
 **Exemplo de Uso:**
 ```bash
-# 1. Inicie o servidor MCP
-# O servidor ficará em execução, aguardando conexões de um LLM
-uv run baliza mcp
+# 1. Certifique-se de que os dados foram transformados (camadas silver/gold)
+uv run baliza transform
 
-# 2. Conecte seu LLM ao servidor
-# Use uma ferramenta como o MCP Workbench da Anthropic ou configure um
-# cliente LLM para se conectar a http://127.0.0.1:8000.
+# 2. Inicie o servidor MCP. Ele ficará aguardando conexões de um LLM.
+uv run baliza mcp
 ```
 
 O servidor expõe as seguintes capacidades ao LLM:
@@ -148,40 +152,21 @@ O servidor expõe as seguintes capacidades ao LLM:
 
 Para saber mais sobre a arquitetura, leia nosso [**Guia Teórico do MCP**](./docs/mcp_guide.md).
 
+## 🏗️ Arquitetura e Decisões Técnicas
 
-## 🏗️ Arquitetura e Tecnologias
+O BALIZA é construído sobre uma base de tecnologias modernas e decisões de arquitetura bem documentadas (ADRs).
 
-| Camada | Tecnologias | Propósito | ADR |
+| Camada | Tecnologias | Propósito | ADRs Relevantes |
 |---|---|---|---|
 | **Coleta** | Python, asyncio, httpx, tenacity, pandas | Extração eficiente, assíncrona e vetorizada. | [ADR-002](docs/adr/002-resilient-extraction.md), [ADR-005](docs/adr/005-modern-python-toolchain.md) |
-| **Armazenamento** | DuckDB | Banco de dados analítico local, rápido e sem servidor. | [ADR-001](docs/adr/001-adopt-duckdb.md) |
-| **Transformação** | dbt (Data Build Tool) | Transforma dados brutos em modelos de dados limpos e confiáveis. | [ADR-003](docs/adr/003-medallion-architecture.md) |
+| **Armazenamento**| DuckDB | Banco de dados analítico local, rápido e sem servidor, com arquitetura de tabelas divididas para deduplicação. | [ADR-001](docs/adr/001-adopt-duckdb.md), [ADR-008](docs/adr/008-split-psa-table-architecture.md) |
+| **Transformação**| dbt (Data Build Tool) | Transforma dados brutos em modelos de dados limpos e confiáveis (Arquitetura Medallion). | [ADR-003](docs/adr/003-medallion-architecture.md) |
 | **Interface** | Typer, Rich | CLI amigável, informativa e com ótima usabilidade. | [ADR-005](docs/adr/005-modern-python-toolchain.md) |
-| **Dependências**| uv (da Astral) | Gerenciamento de pacotes e ambientes virtuais de alta performance. | [ADR-005](docs/adr/005-modern-python-toolchain.md) |
+| **Dependências**| uv | Gerenciamento de pacotes e ambientes virtuais de alta performance. | [ADR-005](docs/adr/005-modern-python-toolchain.md) |
 | **Publicação** | Internet Archive | Hospedagem pública e permanente dos dados. | [ADR-006](docs/adr/006-internet-archive.md) |
-| **Análise IA** | MCP Server | Análise de dados com LLMs de forma segura. | [ADR-007](docs/adr/007-mcp-server.md) |
+| **Análise IA** | MCP Server (fastmcp) | Análise de dados com LLMs de forma segura. | [ADR-007](docs/adr/007-mcp-server.md) |
 
-## 🗺️ Roadmap do Projeto
-
--   [✅] **Fase 1: Fundação** - Extração resiliente, armazenamento em DuckDB, CLI funcional.
--   [✅] **Fase 2: Motor Vetorizado** - Extração de alta performance com reconciliação vetorizada.
--   [⏳] **Fase 3: Expansão e Acessibilidade** - Modelos dbt analíticos, exportação para Parquet, documentação aprimorada.
--   [🗺️] **Fase 4: Ecossistema e Análise** - Dashboards de cobertura, sistema de plugins, tutoriais.
--   [💡] **Futuro:** Painel de monitoramento de dados, detecção de anomalias, integração com mais fontes.
-
-## 📋 Decisões Arquiteturais
-
-O BALIZA segue um conjunto de **Architectural Decision Records (ADRs)** que documentam as principais decisões técnicas do projeto:
-
-- **[ADR-001: Adopt DuckDB as Primary Database](docs/adr/001-adopt-duckdb.md)** - Por que escolhemos DuckDB para armazenamento analítico
-- **[ADR-002: Resilient Extraction Architecture](docs/adr/002-resilient-extraction.md)** - Arquitetura de extração tolerante a falhas
-- **[ADR-003: Medallion Architecture with dbt](docs/adr/003-medallion-architecture.md)** - Estrutura Bronze/Silver/Gold para transformação de dados
-- **[ADR-004: E2E Testing Strategy](docs/adr/004-e2e-testing.md)** - Estratégia de testes focada em E2E
-- **[ADR-005: Modern Python Toolchain](docs/adr/005-modern-python-toolchain.md)** - Toolchain Python moderna (uv, ruff, httpx)
-- **[ADR-006: Internet Archive Publishing](docs/adr/006-internet-archive.md)** - Publicação de dados abertos no Internet Archive
-- **[ADR-007: MCP Server for AI Analysis](docs/adr/007-mcp-server.md)** - Servidor MCP para análise com IA
-
-📖 **[Veja todos os ADRs](docs/adr/README.md)**
+📖 **[Veja todos os ADRs](docs/adr/README.md)** para entender as decisões que moldaram o projeto.
 
 ## 🙌 Como Contribuir
 

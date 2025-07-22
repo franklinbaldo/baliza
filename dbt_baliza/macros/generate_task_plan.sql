@@ -21,7 +21,6 @@ WITH endpoints_config AS (
     endpoint_name,
     granularity,
     active,
-    -- Parse modalidades from CSV string to array
     CASE 
       WHEN modalidades = '' OR modalidades IS NULL THEN ARRAY[]::integer[]
       ELSE string_split(modalidades, ',')::integer[]
