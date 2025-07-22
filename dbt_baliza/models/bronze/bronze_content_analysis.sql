@@ -12,8 +12,8 @@ WITH content_metrics AS (
         c.content_size_bytes,
         r.endpoint_name,
         r.data_date
-    FROM {{ source('pncp', 'pncp_content') }} c
-    JOIN {{ source('pncp', 'pncp_requests') }} r ON c.id = r.content_id
+    FROM {{ source('bronze', 'pncp_content') }} c
+    JOIN {{ source('bronze', 'pncp_requests') }} r ON c.id = r.content_id
 )
 SELECT
     -- Analysis ID

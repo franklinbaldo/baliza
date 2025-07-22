@@ -3,7 +3,7 @@ version: '1.0.0'
 config-version: 2
 
 # This setting configures which "profile" dbt uses for this project.
-profile: 'baliza'
+profile: 'dbt_baliza'
 
 # These configurations specify where dbt should look for different types of files.
 model-paths: ["models"]
@@ -18,6 +18,12 @@ clean-targets:
   - "dbt_packages"
 
 # Configuring models
+on-run-start:
+  - "{{ create_enum_from_seed('modalidade_contratacao') }}"
+  - "{{ create_enum_from_seed('situacao_contratacao') }}"
+  - "{{ create_enum_from_seed('uf_brasil') }}"
+  - "{{ create_enum_from_seed('natureza_juridica') }}"
+
 models:
   dbt_baliza:
     # Planning layer - Task planning for dbt-driven extraction

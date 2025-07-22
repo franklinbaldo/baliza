@@ -69,3 +69,6 @@ uv.lock
 
 # Repomix output files
 repomix*
+
+# Dbt
+dbt_packages/

@@ -1,0 +1,34 @@
+version: 2
+
+models:
+  - name: silver_pncp_contratacoes
+    description: "Cleaned and validated PNCP contratacoes data"
+    columns:
+      - name: numeroControlePNCP
+        tests:
+          - unique
+          - not_null
+  - name: silver_pncp_orgaos_entidades
+    description: "Cleaned and validated PNCP orgaos e entidades data"
+    columns:
+      - name: sequencialOrgao
+        tests:
+          - unique
+          - not_null
+  - name: silver_pncp_contratos
+    description: "Cleaned and validated PNCP contratos data"
+    columns:
+      - name: numeroControlePNCPContrato
+        tests:
+          - unique
+          - not_null
+      - name: numeroControlePNCP
+        tests:
+          - relationships:
+              to: ref('silver_pncp_contratacoes')
+              field: numeroControlePNCP
+  - name: silver_pncp_orgaos_entidades
+    columns:
+      - name: cnpjOrgao
+        tests:
+          - test_cnpj_format
