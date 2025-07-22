@@ -18,9 +18,12 @@ from filelock import FileLock, Timeout
 from rich.console import Console
 
 from .content_utils import analyze_content, is_empty_response
+from .sql_loader import SQLLoader
 
 logger = logging.getLogger(__name__)
 console = Console(force_terminal=True, legacy_windows=False, stderr=False)
+
+SQL_LOADER = SQLLoader()
 
 
 # Data directory
@@ -240,7 +243,6 @@ class PNCPWriter:
             except duckdb.Error as e:
                 logger.exception(f"Failed to create index '{idx_name}': {e}")
 
-
     def _batch_store_responses(self, responses: list[dict[str, Any]]):
         """Store multiple responses in a single batch operation with transaction."""
         if not responses:
@@ -269,15 +271,9 @@ class PNCPWriter:
         # Batch insert with transaction
         self.conn.execute("BEGIN TRANSACTION")
         try:
+            insert_sql = SQL_LOADER.load("dml/inserts/pncp_raw_responses.sql")
             self.conn.executemany(
-                """
-                INSERT INTO psa.pncp_raw_responses (
-                    endpoint_url, endpoint_name, request_parameters,
-                    response_code, response_content, response_headers,
-                    data_date, run_id, total_records, total_pages,
-                    current_page, page_size
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
+                insert_sql,
                 batch_data,
             )
             self.conn.execute("COMMIT")
@@ -328,12 +324,9 @@ class PNCPWriter:
                 return existing[0]  # Return existing content_id
             else:
                 # New content - insert new record
+                insert_sql = SQL_LOADER.load("dml/inserts/pncp_content.sql")
                 self.conn.execute(
-                    """
-                    INSERT INTO psa.pncp_content
-                    (id, response_content, content_sha256, content_size_bytes, reference_count)
-                    VALUES (?, ?, ?, ?, 1)
-                    """,
+                    insert_sql,
                     [content_id, content, content_hash, content_size],
                 )
                 logger.debug(f"New content stored: {content_id} ({content_size} bytes)")
@@ -346,14 +339,9 @@ class PNCPWriter:
     def _store_request_with_content_id(self, page_data: dict, content_id: str) -> None:
         """Store request metadata with reference to deduplicated content."""
         try:
+            insert_sql = SQL_LOADER.load("dml/inserts/pncp_requests.sql")
             self.conn.execute(
-                """
-                INSERT INTO psa.pncp_requests (
-                    extracted_at, endpoint_url, endpoint_name, request_parameters,
-                    response_code, response_headers, data_date, run_id,
-                    total_records, total_pages, current_page, page_size, content_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
+                insert_sql,
                 [
                     page_data.get("extracted_at"),
                     page_data.get("endpoint_url"),
@@ -437,12 +425,9 @@ class PNCPWriter:
 
             # Batch insert new content
             if new_content_records:
+                insert_sql = SQL_LOADER.load("dml/inserts/pncp_content.sql")
                 self.conn.executemany(
-                    """
-                    INSERT INTO psa.pncp_content 
-                    (id, response_content, content_sha256, content_size_bytes, reference_count)
-                    VALUES (?, ?, ?, ?, 1)
-                    """,
+                    insert_sql,
                     new_content_records,
                 )
                 logger.debug(
@@ -489,14 +474,9 @@ class PNCPWriter:
             )
 
         if request_records:
+            insert_sql = SQL_LOADER.load("dml/inserts/pncp_requests.sql")
             self.conn.executemany(
-                """
-                INSERT INTO psa.pncp_requests (
-                    extracted_at, endpoint_url, endpoint_name, request_parameters,
-                    response_code, response_headers, data_date, run_id,
-                    total_records, total_pages, current_page, page_size, content_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
+                insert_sql,
                 request_records,
             )
 
@@ -507,14 +487,9 @@ class PNCPWriter:
     def _store_legacy_response(self, page_data: dict) -> None:
         """Store in legacy pncp_raw_responses table for backwards compatibility."""
         try:
+            insert_sql = SQL_LOADER.load("dml/inserts/pncp_raw_responses.sql")
             self.conn.execute(
-                """
-                INSERT INTO psa.pncp_raw_responses (
-                    extracted_at, endpoint_url, endpoint_name, request_parameters,
-                    response_code, response_content, response_headers, data_date, run_id,
-                    total_records, total_pages, current_page, page_size
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
+                insert_sql,
                 [
                     page_data.get("extracted_at"),
                     page_data.get("endpoint_url"),
