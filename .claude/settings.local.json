@@ -14,7 +14,8 @@
       "Bash(git merge:*)",
       "Bash(git push:*)",
       "Bash(rm:*)",
-      "Bash(uv add:*)"
+      "Bash(uv add:*)",
+      "Bash(mkdir:*)"
     ],
     "deny": []
   }
