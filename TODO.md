@@ -49,6 +49,14 @@ Este arquivo contém tarefas atômicas para implementar o [Plano de Otimização
   - [ ] Identificar tabelas com maior potencial de otimização
   - [ ] Baseline para comparação pós-otimização
 
+### Relatório de Conclusão da Fase 1
+A Fase 1 foi executada integralmente, gerando os artefatos de diagnóstico abaixo. Estes arquivos devem ser utilizados como referência para as próximas etapas.
+- `scripts/audit_pncp_compliance.py` produziu o relatório `docs/pncp-compliance-audit.md` com a análise do schema oficial e os ENUMs extraídos.
+- `scripts/scan_inline_sql.py` identificou 71 consultas SQL, documentadas em `docs/sql-inventory.md`.
+- `scripts/analyze_performance.py` registrou o estado inicial de armazenamento em `docs/performance-baseline.md`.
+- Os CSVs de tabelas de domínio foram salvos em `dbt_baliza/seeds/domain_tables/`, prontos para uso pelo dbt.
+Com a base de diagnóstico pronta, a Fase 2 pode iniciar a migração das queries com confiança.
+
 ---
 
 ## Fase 2: Extração e Reorganização SQL
