@@ -1,6 +1,9 @@
 import re
 import json
+import csv
 from pathlib import Path
+from prance import ResolvingParser
+from prance.util.formats import ParseError
 
 def extract_enums_from_manual(manual_path: Path) -> dict:
     """Extrai tabelas de domínio (ENUMs) do manual em markdown."""
@@ -9,19 +12,14 @@ def extract_enums_from_manual(manual_path: Path) -> dict:
 
     # Regex para encontrar seções de tabelas de domínio
     # O padrão foi ajustado para lidar com formatos de tabela e listas com marcadores
-    # Regex para capturar todas as seções de domínio
-    pattern = re.compile(r"###\s+5\.(\d{1,2})\.\s+([^\n]+)(.*?)(?=\n###\s+5\.|\n##\s+6\.)", re.DOTALL)
+    # Regex aprimorado para capturar todas as 17 seções, incluindo a última.
+    # O lookahead agora inclui o final do texto (`\Z`) como um delimitador.
+    pattern = re.compile(r"###\s+5\.(\d{1,2})\.\s+([^\n]+)(.*?)(?=\n###\s+5\.|\n##\s+6\.|\Z)", re.DOTALL)
 
     list_pattern = re.compile(r"\*\s+\(código\s*=\s*(\d+)\)\s+(.+)")
     natureza_juridica_pattern = re.compile(r"\*\s+(\d{4})\s+-\s+(.+)")
 
     matches = pattern.findall(text)
-
-    # Adiciona a última seção manualmente
-    last_section_match = re.search(r"###\s+5\.17\.\s+([^\n]+)(.*?)(?=\n##\s+7\.)", text, re.DOTALL)
-    if last_section_match and not any(m[0] == '17' for m in matches):
-        matches.append(('17', last_section_match.group(1), last_section_match.group(2)))
-
 
     for section_number, enum_name, content in matches:
         enum_name = enum_name.strip()
@@ -48,48 +46,108 @@ def extract_enums_from_manual(manual_path: Path) -> dict:
     return enums
 
 def parse_openapi_schema(schema_path: Path) -> dict:
-    """Parseia o schema OpenAPI para extrair tipos de dados."""
-    with schema_path.open('r', encoding='utf-8') as f:
-        schema = json.load(f)
+    """Parseia o schema OpenAPI usando Prance para uma análise detalhada."""
+    try:
+        # Prance resolve todas as referências ($ref) automaticamente
+        parser = ResolvingParser(str(schema_path))
 
-    # Aqui você extrairia as definições de schema relevantes
-    # Por simplicidade, vamos focar em um exemplo
-    # A implementação completa dependeria da estrutura do JSON
+        # Extrai os schemas dos componentes
+        components = parser.specification.get('components', {})
+        schemas = components.get('schemas', {})
 
-    return schema.get('components', {}).get('schemas', {})
+        # Realiza uma análise detalhada por schema
+        schema_analysis = {}
+        for name, schema_def in schemas.items():
+            properties = schema_def.get('properties', {})
+            schema_analysis[name] = {
+                'type': schema_def.get('type'),
+                'properties': list(properties.keys()),
+                'required': schema_def.get('required', []),
+                'property_types': {
+                    prop: prop_def.get('type', 'unknown')
+                    for prop, prop_def in properties.items()
+                }
+            }
 
-def generate_compliance_report(enums: dict, openapi_schemas: dict, output_path: Path):
-    """Gera o relatório de auditoria de compliance."""
+        return schema_analysis
+
+    except ParseError as e:
+        print(f"❌ Erro de parsing no OpenAPI com Prance: {e}")
+        return {}
+    except Exception as e:
+        print(f"❌ Erro inesperado durante o parsing do OpenAPI: {e}")
+        return {}
+
+def generate_compliance_report(enums: dict, openapi_analysis: dict, output_path: Path):
+    """Gera um relatório de compliance detalhado, incluindo a análise do Prance."""
     report = []
     report.append("# Relatório de Auditoria de Compliance PNCP\n")
 
+    # Seção 1: ENUMs
     report.append("## 1. Tabelas de Domínio (ENUMs) Encontradas\n")
     for name, values in enums.items():
         report.append(f"### {name}")
         report.append(f"Encontrados {len(values)} valores.")
-        # Preview dos primeiros 3 valores
         for value in values[:3]:
-            report.append(f"- `{value}`")
-        report.append("\n")
+            report.append(f"- `{value['código']}`: {value['descrição']}")
+        if len(values) > 3:
+            report.append(f"... e mais {len(values) - 3} valores\n")
 
-    report.append("## 2. Análise do Schema OpenAPI\n")
-    report.append(f"Encontrados {len(openapi_schemas)} schemas no OpenAPI.\n")
+    # Seção 2: Análise detalhada do OpenAPI
+    report.append("## 2. Análise Detalhada do Schema OpenAPI (via Prance)\n")
+    for schema_name, schema_info in openapi_analysis.items():
+        report.append(f"### Schema: `{schema_name}`")
+        report.append(f"- **Tipo**: `{schema_info.get('type', 'N/A')}`")
+        report.append(f"- **Total de Propriedades**: {len(schema_info.get('properties', []))}")
+        report.append(f"- **Campos Obrigatórios**: {len(schema_info.get('required', []))}")
 
-    # Exemplo de análise - comparar com um schema hipotético do Baliza
-    # baliza_schema = {"Contratacao": {"properties": {"modalidadeId": "integer"}}}
-    # if "Contratacao" in openapi_schemas:
-    #     official_type = openapi_schemas["Contratacao"]["properties"]["modalidadeId"]["type"]
-    #     report.append(f"Comparação para Contratacao.modalidadeId:")
-    #     report.append(f"  - Schema Oficial: {official_type}")
-    #     report.append(f"  - Schema Baliza (hipotético): {baliza_schema['Contratacao']['properties']['modalidadeId']}")
+        if schema_info.get('required'):
+            report.append("\n**Campos obrigatórios e seus tipos:**")
+            for field in schema_info['required']:
+                field_type = schema_info.get('property_types', {}).get(field, 'unknown')
+                report.append(f"  - `{field}`: `{field_type}`")
+            report.append("")
+
+    # Seção 3: Mapeamento ENUMs vs. OpenAPI
+    report.append("## 3. Mapeamento Preliminar: ENUMs vs. Campos OpenAPI\n")
+    enum_mapping = {
+        'Modalidade de Contratação': 'codigoModalidadeContratacao',
+        'Situação da Contratação': 'situacaoCompraId', # Nome do campo pode variar, verificar no schema
+        'Amparo Legal': 'amparoLegal',
+    }
+    for enum_name, openapi_field in enum_mapping.items():
+        if enum_name in enums:
+            report.append(f"- ✅ **{enum_name}** → `{openapi_field}`: ENUM encontrado com {len(enums[enum_name])} valores.")
+        else:
+            report.append(f"- ❌ **{enum_name}** → `{openapi_field}`: ENUM não encontrado no manual.")
 
     output_path.write_text("\n".join(report), encoding='utf-8')
 
+def generate_sql_seeds(enums: dict, output_path: Path):
+    """Gera um arquivo SQL com os dados das tabelas de domínio para o dbt seeds."""
+    if not output_path.parent.exists():
+        output_path.parent.mkdir(parents=True)
+
+    with output_path.open('w', encoding='utf-8') as f:
+        for table_name, values in enums.items():
+            # Normaliza o nome da tabela para ser um identificador SQL válido
+            safe_table_name = re.sub(r'\W|^(?=\d)', '_', table_name.lower())
+            f.write(f"-- Seeds para a tabela de domínio: {table_name}\n")
+
+            # Cria um CSV inline para o dbt seed
+            f.write(f"código,descrição\n")
+            for value in values:
+                # Escapa aspas duplas na descrição e a coloca entre aspas
+                description = '"' + value['descrição'].replace('"', '""') + '"'
+                f.write(f"{value['código']},{description}\n")
+            f.write("\n")
+
+
 def main():
-    """Função principal para executar a auditoria."""
+    """Função principal para executar a auditoria e gerar os seeds."""
     repo_root = Path(__file__).parent.parent
 
-    # Caminhos para os arquivos de documentação
+    # Caminhos
     manual_path = repo_root / "docs/openapi/MANUAL-PNCP-CONSULSTAS-VERSAO-1.md"
     openapi_path = repo_root / "docs/openapi/api-pncp-consulta.json"
     report_path = repo_root / "docs/pncp-compliance-audit.md"
@@ -105,6 +163,25 @@ def main():
     print("3. Gerando relatório de compliance...")
     generate_compliance_report(enums, openapi_schemas, report_path)
     print(f"   Relatório salvo em: {report_path}")
+
+    print("4. Gerando arquivos de seeds CSV para dbt...")
+    seeds_dir = repo_root / "dbt_baliza/seeds/domain_tables"
+    if not seeds_dir.exists():
+        seeds_dir.mkdir(parents=True)
+
+    for table_name, values in enums.items():
+        safe_table_name = re.sub(r'\W|^(?=\d)', '_', table_name.lower())
+        seed_path = seeds_dir / f"{safe_table_name}.csv"
+        try:
+            with seed_path.open('w', encoding='utf-8', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(['código', 'descrição'])
+                for value in values:
+                    writer.writerow([value['código'], value['descrição']])
+            print(f"   Seed CSV salvo em: {seed_path}")
+        except OSError as e:
+            print(f"Erro ao salvar o arquivo {seed_path}: {e}")
+
 
 if __name__ == "__main__":
     main()
