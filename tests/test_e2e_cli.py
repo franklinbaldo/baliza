@@ -63,7 +63,17 @@ def test_e2e_cli_extract_single_day():
     """E2E test: Verify CLI extract command works for single day"""
 
     result = subprocess.run(
-        ["uv", "run", "baliza", "extract", "--concurrency", "1", "--force"],
+        [
+            "uv",
+            "run",
+            "baliza",
+            "extract",
+            "--month",
+            "2024-01",
+            "--concurrency",
+            "1",
+            "--force-db",
+        ],
         capture_output=True,
         text=True,
         cwd=Path(__file__).parent.parent,
@@ -152,6 +162,8 @@ def test_e2e_cli_concurrency_validation():
             "run",
             "baliza",
             "extract",
+            "--month",
+            "2024-01",
             "--concurrency",
             "0",  # Invalid concurrency
         ],

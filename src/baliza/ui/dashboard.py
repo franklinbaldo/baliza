@@ -240,17 +240,15 @@ class Dashboard:
 
             with connect_utf8(str(BALIZA_DB_PATH)) as conn:
                 # Basic counts
-                total_requests = conn.execute(
-                    "SELECT COUNT(*) FROM psa.pncp_requests"
-                ).fetchone()[0]
-                unique_content = conn.execute(
-                    "SELECT COUNT(*) FROM psa.pncp_content"
-                ).fetchone()[0]
+                total_requests_sql = SQL_LOADER.load("analytics/total_requests.sql")
+                total_requests = conn.execute(total_requests_sql).fetchone()[0]
+
+                unique_content_sql = SQL_LOADER.load("analytics/unique_content.sql")
+                unique_content = conn.execute(unique_content_sql).fetchone()[0]
 
                 # Last run info
-                last_run = conn.execute(
-                    "SELECT endpoint_name, extracted_at FROM psa.pncp_requests ORDER BY extracted_at DESC LIMIT 1"
-                ).fetchone()
+                last_run_sql = SQL_LOADER.load("analytics/last_run.sql")
+                last_run = conn.execute(last_run_sql).fetchone()
 
                 if last_run:
                     endpoint_name, extracted_at = last_run
@@ -332,18 +330,16 @@ class Dashboard:
 
         try:
             with connect_utf8(str(BALIZA_DB_PATH)) as conn:
-                # Recent contracts (simulated - would need actual contract parsing)
-                recent_contracts = conn.execute(
-                    "SELECT COUNT(*) FROM psa.pncp_requests WHERE DATE(extracted_at) = CURRENT_DATE"
-                ).fetchone()[0]
+                # Recent contracts
+                recent_contracts_sql = SQL_LOADER.load("analytics/recent_contracts.sql")
+                recent_contracts = conn.execute(recent_contracts_sql).fetchone()[0]
 
                 # Success rate
-                total_requests = conn.execute(
-                    "SELECT COUNT(*) FROM psa.pncp_requests"
-                ).fetchone()[0]
-                success_requests = conn.execute(
-                    "SELECT COUNT(*) FROM psa.pncp_requests WHERE response_code = 200"
-                ).fetchone()[0]
+                total_requests_sql = SQL_LOADER.load("analytics/total_requests.sql")
+                total_requests = conn.execute(total_requests_sql).fetchone()[0]
+
+                success_requests_sql = SQL_LOADER.load("analytics/success_requests.sql")
+                success_requests = conn.execute(success_requests_sql).fetchone()[0]
 
                 return {
                     "recent_contracts": recent_contracts,
@@ -379,12 +375,11 @@ class Dashboard:
             db_size = BALIZA_DB_PATH.stat().st_size
 
             with connect_utf8(str(BALIZA_DB_PATH)) as conn:
-                content_records = conn.execute(
-                    "SELECT COUNT(*) FROM psa.pncp_content"
-                ).fetchone()[0]
-                request_records = conn.execute(
-                    "SELECT COUNT(*) FROM psa.pncp_requests"
-                ).fetchone()[0]
+                content_records_sql = SQL_LOADER.load("analytics/unique_content.sql")
+                content_records = conn.execute(content_records_sql).fetchone()[0]
+
+                request_records_sql = SQL_LOADER.load("analytics/total_requests.sql")
+                request_records = conn.execute(request_records_sql).fetchone()[0]
 
                 # Deduplication analysis via external SQL
                 dedup_sql = SQL_LOADER.load(
