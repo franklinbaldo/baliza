@@ -10,6 +10,7 @@ from rich.columns import Columns
 from rich.panel import Panel
 
 from ..pncp_writer import BALIZA_DB_PATH, connect_utf8
+from ..sql_loader import SQLLoader
 from .components import (
     create_header,
     create_quick_stats,
@@ -19,6 +20,8 @@ from .components import (
     format_percentage,
 )
 from .theme import get_console, get_theme
+
+SQL_LOADER = SQLLoader()
 
 
 class Dashboard:
@@ -269,17 +272,26 @@ class Dashboard:
                     endpoint_name = "None"
                     last_run_time = "Never"
 
-                # Deduplication stats
-                dedup_stats = conn.execute("""
-                    SELECT
-                        SUM(content_size_bytes) as actual_size,
-                        SUM(content_size_bytes * reference_count) as theoretical_size
-                    FROM psa.pncp_content
-                """).fetchone()
+                # Deduplication stats via external SQL
+                dedup_sql = SQL_LOADER.load(
+                    "analytics/deduplication_stats.sql",
+                    SCHEMA_NAME="psa",
+                    DATE_FILTER="",
+                )
+                dedup_stats = conn.execute(dedup_sql).fetchone()
 
-                if dedup_stats and dedup_stats[1] > 0:
-                    actual_size, theoretical_size = dedup_stats
-                    dedup_saved = theoretical_size - actual_size
+                if dedup_stats and dedup_stats[5] > 0:
+                    (
+                        _unique_content,
+                        _total_references,
+                        _deduplicated,
+                        _dedup_rate,
+                        actual_size,
+                        theoretical_size,
+                        bytes_saved,
+                        _efficiency_pct,
+                    ) = dedup_stats
+                    dedup_saved = bytes_saved
                     total_size = theoretical_size
                 else:
                     dedup_saved = 0
@@ -374,23 +386,27 @@ class Dashboard:
                     "SELECT COUNT(*) FROM psa.pncp_requests"
                 ).fetchone()[0]
 
-                # Deduplication analysis
-                dedup_stats = conn.execute("""
-                    SELECT
-                        COUNT(*) as unique_content,
-                        SUM(reference_count) as total_references,
-                        COUNT(CASE WHEN reference_count > 1 THEN 1 END) as deduplicated
-                    FROM psa.pncp_content
-                """).fetchone()
+                # Deduplication analysis via external SQL
+                dedup_sql = SQL_LOADER.load(
+                    "analytics/deduplication_stats.sql",
+                    SCHEMA_NAME="psa",
+                    DATE_FILTER="",
+                )
+                dedup_stats = conn.execute(dedup_sql).fetchone()
 
                 if dedup_stats and dedup_stats[0] > 0:
-                    unique_content, total_references, deduplicated = dedup_stats
-                    dedup_rate = (deduplicated / unique_content) * 100
-                    storage_efficiency = (
-                        ((total_references - unique_content) / total_references) * 100
-                        if total_references > 0
-                        else 0
-                    )
+                    (
+                        unique_content,
+                        total_references,
+                        deduplicated,
+                        dedup_rate_pct,
+                        _actual,
+                        _theoretical,
+                        _bytes_saved,
+                        storage_efficiency_pct,
+                    ) = dedup_stats
+                    dedup_rate = dedup_rate_pct
+                    storage_efficiency = storage_efficiency_pct
                 else:
                     dedup_rate = 0.0
                     storage_efficiency = 0.0

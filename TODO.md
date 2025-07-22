@@ -56,12 +56,12 @@ Este arquivo contém tarefas atômicas para implementar o [Plano de Otimização
 ### ⚡ Estrutura de Diretórios SQL
 **Referência**: ADR-009, Plano Seção 2.1
 
-- [ ] **F2.1** Criar estrutura de diretórios
+- [x] **F2.1** Criar estrutura de diretórios
 ```bash
 mkdir -p sql/{ddl,dml/{inserts,updates,deletes},analytics,maintenance,migrations}
 ```
 
-- [ ] **F2.2** Implementar SQLLoader
+- [x] **F2.2** Implementar SQLLoader
   - [ ] Criar `src/baliza/sql_loader.py` conforme spec do plano
   - [ ] Adicionar cache de arquivos SQL
   - [ ] Implementar parametrização segura com `string.Template`
@@ -71,23 +71,23 @@ mkdir -p sql/{ddl,dml/{inserts,updates,deletes},analytics,maintenance,migrations
 ### ⚡ Migração de SQL Inline
 **Referência**: ADR-009
 
-- [ ] **F2.3** Extrair queries de inserção
+- [x] **F2.3** Extrair queries de inserção
   - [ ] `src/baliza/pncp_writer.py` → `sql/dml/inserts/pncp_content.sql`
   - [ ] `src/baliza/pncp_writer.py` → `sql/dml/inserts/pncp_requests.sql`  
   - [ ] Adicionar headers padronizados com metadata
   - [ ] Converter hard-coded values para parâmetros
 
-- [ ] **F2.4** Extrair queries analíticas
+- [x] **F2.4** Extrair queries analíticas
   - [ ] Dashboard queries → `sql/analytics/deduplication_stats.sql`
   - [ ] Performance queries → `sql/analytics/endpoint_performance.sql`
   - [ ] Storage queries → `sql/analytics/storage_efficiency.sql`
 
-- [ ] **F2.5** Extrair queries de manutenção
+- [x] **F2.5** Extrair queries de manutenção
   - [ ] Cleanup queries → `sql/maintenance/cleanup_old_data.sql`
   - [ ] Optimization → `sql/maintenance/optimize_compression.sql`
   - [ ] Archiving → `sql/maintenance/export_to_cold_storage.sql`
 
-- [ ] **F2.6** Refatorar código Python
+- [x] **F2.6** Refatorar código Python
   - [ ] Substituir SQL inline por `sql_loader.load()`
   - [ ] Adicionar error handling para arquivos SQL missing
   - [ ] Manter parâmetros consistentes
