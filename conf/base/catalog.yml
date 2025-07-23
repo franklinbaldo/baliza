@@ -1,0 +1,75 @@
+pncp_content:
+  type: pandas.ParquetDataSet
+  filepath: data/01_raw/pncp_content.parquet
+
+pncp_requests:
+  type: pandas.ParquetDataSet
+  filepath: data/01_raw/pncp_requests.parquet
+
+bronze_content_analysis:
+  type: pandas.ParquetDataSet
+  filepath: data/02_intermediate/bronze_content_analysis.parquet
+
+bronze_pncp_raw:
+  type: pandas.ParquetDataSet
+  filepath: data/02_intermediate/bronze_pncp_raw.parquet
+
+bronze_pncp_requests:
+  type: pandas.ParquetDataSet
+  filepath: data/02_intermediate/bronze_pncp_requests.parquet
+
+silver_atas:
+  type: pandas.ParquetDataSet
+  filepath: data/03_primary/silver_atas.parquet
+
+silver_contratacoes:
+  type: pandas.ParquetDataSet
+  filepath: data/03_primary/silver_contratacoes.parquet
+
+silver_contratos:
+  type: pandas.ParquetDataSet
+  filepath: data/03_primary/silver_contratos.parquet
+
+silver_dim_organizacoes:
+  type: pandas.ParquetDataSet
+  filepath: data/03_primary/silver_dim_organizacoes.parquet
+
+silver_dim_unidades_orgao:
+  type: pandas.ParquetDataSet
+  filepath: data/03_primary/silver_dim_unidades_orgao.parquet
+
+silver_documentos:
+  type: pandas.ParquetDataSet
+  filepath: data/03_primary/silver_documentos.parquet
+
+silver_fact_contratacoes:
+  type: pandas.ParquetDataSet
+  filepath: data/03_primary/silver_fact_contratacoes.parquet
+
+silver_fact_contratos:
+  type: pandas.ParquetDataSet
+  filepath: data/03_primary/silver_fact_contratos.parquet
+
+silver_itens_contratacao:
+  type: pandas.ParquetDataSet
+  filepath: data/03_primary/silver_itens_contratacao.parquet
+
+silver_orgaos_entidades:
+  type: pandas.ParquetDataSet
+  filepath: data/03_primary/silver_orgaos_entidades.parquet
+
+gold_contratacoes_analytics:
+  type: pandas.ParquetDataSet
+  filepath: data/08_reporting/gold_contratacoes_analytics.parquet
+
+gold_deduplication_efficiency:
+  type: pandas.ParquetDataSet
+  filepath: data/08_reporting/gold_deduplication_efficiency.parquet
+
+mart_compras_beneficios:
+  type: pandas.ParquetDataSet
+  filepath: data/08_reporting/mart_compras_beneficios.parquet
+
+mart_procurement_analytics:
+  type: pandas.ParquetDataSet
+  filepath: data/08_reporting/mart_procurement_analytics.parquet

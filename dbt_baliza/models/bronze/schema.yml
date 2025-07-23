@@ -1,7 +1,0 @@
-version: 2
-
-models:
-  - name: bronze_pncp_raw
-    description: "Raw data from PNCP API"
-  - name: bronze_pncp_requests
-    description: "Metadata about requests made to PNCP API"

@@ -1,0 +1,87 @@
+from kedro.pipeline import Pipeline, node
+from .silver_nodes import (
+    create_silver_atas,
+    create_silver_contratacoes,
+    create_silver_contratos,
+    create_silver_dim_organizacoes,
+    create_silver_dim_unidades_orgao,
+    create_silver_documentos,
+    create_silver_fact_contratacoes,
+    create_silver_fact_contratos,
+    create_silver_itens_contratacao,
+    create_silver_orgaos_entidades,
+)
+
+def create_pipeline(**kwargs):
+    return Pipeline(
+        [
+            node(
+                func=create_silver_atas,
+                inputs="bronze_pncp_raw",
+                outputs="silver_atas",
+                name="create_silver_atas",
+            ),
+            node(
+                func=create_silver_contratacoes,
+                inputs="bronze_pncp_raw",
+                outputs="silver_contratacoes",
+                name="create_silver_contratacoes",
+            ),
+            node(
+                func=create_silver_contratos,
+                inputs="bronze_pncp_raw",
+                outputs="silver_contratos",
+                name="create_silver_contratos",
+            ),
+            node(
+                func=create_silver_dim_organizacoes,
+                inputs=["silver_contratos", "silver_contratacoes"],
+                outputs="silver_dim_organizacoes",
+                name="create_silver_dim_organizacoes",
+            ),
+            node(
+                func=create_silver_dim_unidades_orgao,
+                inputs="bronze_pncp_raw",
+                outputs="silver_dim_unidades_orgao",
+                name="create_silver_dim_unidades_orgao",
+            ),
+            node(
+                func=create_silver_documentos,
+                inputs=["silver_contratacoes", "silver_atas", "silver_contratos"],
+                outputs="silver_documentos",
+                name="create_silver_documentos",
+            ),
+            node(
+                func=create_silver_fact_contratacoes,
+                inputs=[
+                    "silver_contratacoes",
+                    "silver_dim_organizacoes",
+                    "silver_dim_unidades_orgao",
+                ],
+                outputs="silver_fact_contratacoes",
+                name="create_silver_fact_contratacoes",
+            ),
+            node(
+                func=create_silver_fact_contratos,
+                inputs=[
+                    "silver_contratos",
+                    "silver_dim_organizacoes",
+                    "silver_dim_unidades_orgao",
+                ],
+                outputs="silver_fact_contratos",
+                name="create_silver_fact_contratos",
+            ),
+            node(
+                func=create_silver_itens_contratacao,
+                inputs="bronze_pncp_raw",
+                outputs="silver_itens_contratacao",
+                name="create_silver_itens_contratacao",
+            ),
+            node(
+                func=create_silver_orgaos_entidades,
+                inputs="bronze_pncp_raw",
+                outputs="silver_orgaos_entidades",
+                name="create_silver_orgaos_entidades",
+            ),
+        ]
+    )
