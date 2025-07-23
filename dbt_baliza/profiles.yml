@@ -3,4 +3,4 @@ dbt_baliza:
   outputs:
     dev:
       type: duckdb
-      path: 'baliza.db'
+      path: '../data/baliza.duckdb'
