@@ -15,7 +15,10 @@
       "Bash(git push:*)",
       "Bash(rm:*)",
       "Bash(uv add:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(del:*)",
+      "Bash(powershell:*)",
+      "Bash(tasklist:*)"
     ],
     "deny": []
   }

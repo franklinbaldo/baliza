@@ -227,7 +227,64 @@ A Fase 3 foi **completamente implementada** e testada com sucesso. Os principais
 - ✅ `dbt seed` - Todos os seeds carregados corretamente
 - ✅ Testes de qualidade: CNPJ/CPF, chaves estrangeiras, not_null
 
-**🚀 Status**: Pronto para integração com pipeline Python e implementação da Fase 4.
+**🚀 Status**: Pronto para integração com pipeline Python e implementação da Fase 3B.
+
+---
+
+## Fase 3B: Eliminação da Persistência de Raw Content
+
+### 🔥 Nova Arquitetura Direct-to-Table
+**Referência**: Otimização de Storage e Performance
+
+- [ ] **F3B.1** Mapear completamente output da API PNCP
+  - [ ] Analisar todos os endpoints: `/contratos`, `/atas`, `/contratacoes`
+  - [ ] Documentar schema completo de cada endpoint
+  - [ ] Identificar todos os campos e tipos de dados
+  - [ ] Criar mapeamento direto API → tabelas específicas
+
+- [ ] **F3B.2** Redesenhar pipeline de extração
+  - [ ] Eliminar `pncp_content` e `bronze_pncp_raw`
+  - [ ] Implementar parsing direto para tabelas específicas:
+    - [ ] `contratos` → `bronze_contratos`
+    - [ ] `atas` → `bronze_atas`  
+    - [ ] `contratacoes` → `bronze_contratacoes`
+    - [ ] `fontes_orcamentarias` → `bronze_fontes_orcamentarias`
+    - [ ] `instrumentos_cobranca` → `bronze_instrumentos_cobranca`
+    - [ ] `planos_contratacao` → `bronze_planos_contratacao` + `bronze_planos_contratacao_itens`
+  - [ ] Atualizar `pncp_requests` → `bronze_pncp_requests`:
+    - [ ] Adicionar campo `month` (YYYY-MM, NULL para endpoints sem data)
+    - [ ] Adicionar `parse_status`, `parse_error_message`, `records_parsed`
+    - [ ] Controle de duplicadas por (endpoint_name, month, request_parameters)
+
+- [ ] **F3B.3** Sistema de fallback para erros
+  - [ ] Criar tabela `pncp_parse_errors` 
+  - [ ] Campos: `url`, `response_raw`, `error_message`, `extracted_at`
+  - [ ] Persistir apenas respostas que falharam no parsing
+  - [ ] Sistema de retry para reprocessar erros
+
+### 📊 Benefícios Esperados
+- **-90% storage usage**: Eliminar duplicação de dados
+- **+5x parsing speed**: Processamento direto sem intermediários
+- **+10x query performance**: Dados já estruturados
+- **Debugging capability**: Erros preservados para análise
+
+### ⚡ Refatoração dos Modelos dbt
+
+- [ ] **F3B.4** Atualizar bronze layer
+  - [ ] Remover `bronze_pncp_raw`
+  - [ ] Criar `bronze_contratos`, `bronze_atas`, `bronze_contratacoes`
+  - [ ] Cada tabela com schema específico do endpoint
+  - [ ] Compressão ZSTD aplicada diretamente
+
+- [ ] **F3B.5** Atualizar silver layer
+  - [ ] Modificar `silver_*` para usar novos bronze tables
+  - [ ] Simplificar transformações (dados já estruturados)
+  - [ ] Manter validação de ENUMs e tipos
+
+- [ ] **F3B.6** Implementar monitoramento
+  - [ ] Métricas de parsing success rate
+  - [ ] Alertas para aumento de erros
+  - [ ] Dashboard de health do pipeline
 
 ---
 
