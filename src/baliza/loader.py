@@ -60,92 +60,67 @@ def validate_credentials() -> None:
         )
 
 
-def export_to_parquet(schemas: list[str] | None = None) -> dict[str, Any]:
+def export_to_parquet(pipeline: "dlt.Pipeline") -> dict[str, Any]:
     """
-    Exports tables from DuckDB to Parquet files with proper error handling.
+    Exports tables from a dlt pipeline's destination to Parquet files.
 
     Args:
-        schemas: List of schemas to export. Defaults to DEFAULT_EXPORT_SCHEMAS.
+        pipeline: The dlt pipeline object.
 
     Returns:
-        dict: Export results with statistics
+        dict: Export results with statistics.
 
     Raises:
-        ExportError: If export fails
+        ExportError: If export fails.
     """
-    if schemas is None:
-        schemas = DEFAULT_EXPORT_SCHEMAS
-
-    logger.info(f"Starting export to Parquet for schemas: {schemas}")
+    logger.info(f"Starting export to Parquet for pipeline {pipeline.pipeline_name}")
 
     try:
         PARQUET_DIR.mkdir(parents=True, exist_ok=True)
-
-        db_path = DATA_DIR / "baliza.duckdb"
-        if not db_path.exists():
-            raise ExportError(f"Database file not found: {db_path}")
 
         results = {
             "exported_tables": [],
             "total_files": 0,
             "total_rows": 0,
-            "schemas_processed": schemas,
+            "dataset_name": pipeline.dataset_name,
         }
 
-        with duckdb.connect(database=str(db_path), read_only=True) as conn:
-            for schema in schemas:
-                logger.info(f"Exporting tables from schema: {schema}")
+        with pipeline.destination_client() as client:
+            # Get the list of tables in the dataset
+            schema = client.get_storage_schema()
+            for table_name in schema.tables:
+                full_table_name = f"{pipeline.dataset_name}.{table_name}"
+                output_path = PARQUET_DIR / f"{table_name}.parquet"
 
-                # Get tables for this schema with error handling
                 try:
-                    tables = conn.execute(
-                        "SELECT table_name FROM information_schema.tables WHERE table_schema = ?",
-                        [schema],
-                    ).fetchall()
-                except duckdb.Error as e:
-                    logger.warning(f"Failed to list tables in schema '{schema}': {e}")
+                    typer.echo(f"Exporting table: {full_table_name}")
+                    logger.info(f"Exporting {full_table_name} to {output_path}")
+
+                    # Get table data as a DataFrame
+                    df = client.sql_client.execute_sql(f"SELECT * FROM {full_table_name}").df()
+                    row_count = len(df)
+
+                    # Export to Parquet
+                    df.to_parquet(output_path, index=False)
+
+                    results["exported_tables"].append(
+                        {
+                            "table": table_name,
+                            "file": str(output_path),
+                            "rows": row_count,
+                        }
+                    )
+                    results["total_files"] += 1
+                    results["total_rows"] += row_count
+
+                    typer.echo(
+                        f"✅ Exported {row_count:,} rows to {output_path.name}"
+                    )
+
+                except Exception as e:
+                    logger.error(f"Failed to export table {full_table_name}: {e}")
+                    typer.echo(f"❌ Failed to export {full_table_name}: {e}")
                     continue
-
-                if not tables:
-                    logger.warning(f"No tables found in schema '{schema}'")
-                    continue
-
-                for table_row in tables:
-                    table_name = table_row[0]
-                    full_table_name = f"{schema}.{table_name}"
-                    output_path = PARQUET_DIR / f"{schema}_{table_name}.parquet"
-
-                    try:
-                        typer.echo(f"Exporting table: {full_table_name}")
-                        logger.info(f"Exporting {full_table_name} to {output_path}")
-
-                        # Get table data with row count
-                        df = conn.table(full_table_name).df()
-                        row_count = len(df)
-
-                        # Export to Parquet
-                        df.to_parquet(output_path, index=False)
-
-                        results["exported_tables"].append(
-                            {
-                                "schema": schema,
-                                "table": table_name,
-                                "file": str(output_path),
-                                "rows": row_count,
-                            }
-                        )
-                        results["total_files"] += 1
-                        results["total_rows"] += row_count
-
-                        typer.echo(
-                            f"✅ Exported {row_count:,} rows to {output_path.name}"
-                        )
-
-                    except Exception as e:
-                        logger.error(f"Failed to export table {full_table_name}: {e}")
-                        typer.echo(f"❌ Failed to export {full_table_name}: {e}")
-                        # Continue with other tables rather than failing completely
-                        continue
 
         logger.info(
             f"Export completed: {results['total_files']} files, {results['total_rows']:,} total rows"
@@ -267,26 +242,31 @@ def upload_to_internet_archive(max_retries: int = 3) -> dict[str, Any]:
                 time.sleep(wait_time)
 
 
-def load(schemas: list[str] | None = None, max_retries: int = 3) -> dict[str, Any]:
+def load(pipeline_name: str, dataset_name: str, max_retries: int = 3) -> dict[str, Any]:
     """
     Exports data to Parquet and uploads to the Internet Archive with full error handling.
 
     Args:
-        schemas: List of schemas to export. Defaults to DEFAULT_EXPORT_SCHEMAS.
-        max_retries: Maximum upload retry attempts
+        pipeline_name: The name of the dlt pipeline.
+        dataset_name: The name of the dataset to load.
+        max_retries: Maximum upload retry attempts.
 
     Returns:
-        dict: Combined results from export and upload operations
+        dict: Combined results from export and upload operations.
 
     Raises:
-        LoaderError: If any step fails
+        LoaderError: If any step fails.
     """
     logger.info("Starting load operation: export + upload")
 
     try:
+        # Get the dlt pipeline
+        import dlt
+        pipeline = dlt.attach(pipeline_name=pipeline_name)
+
         # Step 1: Export to Parquet
         typer.echo("📦 Exporting data to Parquet files...")
-        export_results = export_to_parquet(schemas)
+        export_results = export_to_parquet(pipeline)
         typer.echo(
             f"✅ Export completed: {export_results['total_files']} files, {export_results['total_rows']:,} rows"
         )

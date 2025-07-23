@@ -1,0 +1,202 @@
+id,nome
+1,Contrato de Fornecimento
+2,Contrato de Prestação de Serviço
+3,Contrato de Obra
+4,Contrato de Concessão
+5,Contrato de Permissão
+6,Contrato de Locação
+7,Contrato de Arrendamento
+8,Contrato de Alienação
+9,Contrato de Cessão
+10,Contrato de Comodato
+11,Contrato de Doação
+12,Contrato de Empréstimo
+13,Contrato de Financiamento
+14,Contrato de Mútuo
+15,Contrato de Patrocínio
+16,Contrato de Programa
+17,Contrato de Rateio
+18,Contrato de Sociedade
+19,Contrato de Termo de Parceria
+20,Contrato de Termo de Colaboração
+21,Contrato de Termo de Fomento
+22,Contrato de Termo de Cooperação
+23,Contrato de Termo de Compromisso
+24,Contrato de Termo de Execução Descentralizada
+25,Contrato de Termo de Referência
+26,Contrato de Termo Aditivo
+27,Contrato de Termo de Apostilamento
+28,Contrato de Termo de Rescisão
+29,Contrato de Termo de Encerramento
+30,Contrato de Termo de Distrato
+31,Contrato de Termo de Rerratificação
+32,Contrato de Termo de Convalidação
+33,Contrato de Termo de Ratificação
+34,Contrato de Termo de Homologação
+35,Contrato de Termo de Adjudicação
+36,Contrato de Termo de Anulação
+37,Contrato de Termo de Revogação
+38,Contrato de Termo de Suspensão
+39,Contrato de Termo de Paralisação
+40,Contrato de Termo de Reinício
+41,Contrato de Termo de Recebimento Provisório
+42,Contrato de Termo de Recebimento Definitivo
+43,Contrato de Termo de Garantia
+44,Contrato de Termo de Caução
+45,Contrato de Termo de Liberação de Garantia
+46,Contrato de Termo de Liberação de Caução
+47,Contrato de Termo de Medição
+48,Contrato de Termo de Vistoria
+49,Contrato de Termo de Ensaio
+50,Contrato de Termo de Amostra
+51,Contrato de Termo de Prova de Conceito
+52,Contrato de Termo de Aceite
+53,Contrato de Termo de Rejeição
+54,Contrato de Termo de Notificação
+55,Contrato de Termo de Advertência
+56,Contrato de Termo de Multa
+57,Contrato de Termo de Sanção
+58,Contrato de Termo de Defesa Prévia
+59,Contrato de Termo de Recurso
+60,Contrato de Termo de Contrarrazões
+61,Contrato de Termo de Decisão
+62,Contrato de Termo de Julgamento
+63,Contrato de Termo de Deliberação
+64,Contrato de Termo de Acórdão
+65,Contrato de Termo de Resolução
+66,Contrato de Termo de Portaria
+67,Contrato de Termo de Decreto
+68,Contrato de Termo de Lei
+69,Contrato de Termo de Medida Provisória
+70,Contrato de Termo de Emenda Constitucional
+71,Contrato de Termo de Tratado Internacional
+72,Contrato de Termo de Convenção
+73,Contrato de Termo de Acordo
+74,Contrato de Termo de Protocolo
+75,Contrato de Termo de Memorando de Entendimento
+76,Contrato de Termo de Ajuste
+77,Contrato de Termo de Convênio
+78,Contrato de Termo de Cooperação Técnica
+79,Contrato de Termo de Cooperação Financeira
+80,Contrato de Termo de Doação com Encargo
+81,Contrato de Termo de Permuta
+82,Contrato de Termo de Dação em Pagamento
+83,Contrato de Termo de Confissão de Dívida
+84,Contrato de Termo de Assunção de Dívida
+85,Contrato de Termo de Novação
+86,Contrato de Termo de Transação
+87,Contrato de Termo de Compromisso de Ajustamento de Conduta
+88,Contrato de Termo de Acordo de Leniência
+89,Contrato de Termo de Acordo de Colaboração Premiada
+90,Contrato de Termo de Acordo de Não Persecução Cível
+91,Contrato de Termo de Acordo de Não Persecução Penal
+92,Contrato de Termo de Transação Penal
+93,Contrato de Termo de Suspensão Condicional do Processo
+94,Contrato de Termo de Suspensão Condicional da Pena
+95,Contrato de Termo de Livramento Condicional
+96,Contrato de Termo de Indulto
+97,Contrato de Termo de Comutação de Pena
+98,Contrato de Termo de Anistia
+99,Contrato de Termo de Graça
+100,Contrato de Termo de Reabilitação
+101,Contrato de Termo de Absolvição
+102,Contrato de Termo de Condenação
+103,Contrato de Termo de Arquivamento
+104,Contrato de Termo de Desarquivamento
+105,Contrato de Termo de Baixa
+106,Contrato de Termo de Distribuição
+107,Contrato de Termo de Redistribuição
+108,Contrato de Termo de Conclusão
+109,Contrato de Termo de Despacho
+110,Contrato de Termo de Sentença
+111,Contrato de Termo de Acórdão
+112,Contrato de Termo de Decisão Monocrática
+113,Contrato de Termo de Voto
+114,Contrato de Termo de Ata
+115,Contrato de Termo de Pauta
+116,Contrato de Termo de Edital de Convocação
+117,Contrato de Termo de Edital de Intimação
+118,Contrato de Termo de Edital de Citação
+119,Contrato de Termo de Edital de Leilão
+120,Contrato de Termo de Edital de Praça
+121,Contrato de Termo de Edital de Concurso
+122,Contrato de Termo de Edital de Processo Seletivo
+123,Contrato de Termo de Edital de Credenciamento
+124,Contrato de Termo de Edital de Chamamento Público
+125,Contrato de Termo de Edital de Consulta Pública
+126,Contrato de Termo de Edital de Audiência Pública
+127,Contrato de Termo de Edital de Notificação
+128,Contrato de Termo de Edital de Protesto
+129,Contrato de Termo de Edital de Interdição
+130,Contrato de Termo de Edital de Curatela
+131,Contrato de Termo de Edital de Tutela
+132,Contrato de Termo de Edital de Adoção
+133,Contrato de Termo de Edital de Usucapião
+134,Contrato de Termo de Edital de Retificação de Registro
+135,Contrato de Termo de Edital de Averbação
+136,Contrato de Termo de Edital de Matrícula
+137,Contrato de Termo de Edital de Transcrição
+138,Contrato de Termo de Edital de Inscrição
+139,Contrato de Termo de Edital de Registro
+140,Contrato de Termo de Edital de Cancelamento
+141,Contrato de Termo de Edital de Suscitação de Dúvida
+142,Contrato de Termo de Edital de Pedido de Providências
+143,Contrato de Termo de Edital de Correição Parcial
+144,Contrato de Termo de Edital de Reclamação
+145,Contrato de Termo de Edital de Representação
+146,Contrato de Termo de Edital de Mandado de Segurança
+147,Contrato de Termo de Edital de Habeas Corpus
+148,Contrato de Termo de Edital de Habeas Data
+149,Contrato de Termo de Edital de Mandado de Injunção
+150,Contrato de Termo de Edital de Ação Popular
+151,Contrato de Termo de Edital de Ação Civil Pública
+152,Contrato de Termo de Edital de Ação de Improbidade Administrativa
+153,Contrato de Termo de Edital de Ação Rescisória
+154,Contrato de Termo de Edital de Ação Anulatória
+155,Contrato de Termo de Edital de Ação Declaratória
+156,Contrato de Termo de Edital de Ação de Consignação em Pagamento
+157,Contrato de Termo de Edital de Ação de Depósito
+158,Contrato de Termo de Edital de Ação de Exigir Contas
+159,Contrato de Termo de Edital de Ação de Prestar Contas
+160,Contrato de Termo de Edital de Ação de Nunciação de Obra Nova
+161,Contrato de Termo de Edital de Ação de Dano Infecto
+162,Contrato de Termo de Edital de Ação de Usucapião
+163,Contrato de Termo de Edital de Ação de Reintegração de Posse
+164,Contrato de Termo de Edital de Ação de Manutenção de Posse
+165,Contrato de Termo de Edital de Ação de Interdito Proibitório
+166,Contrato de Termo de Edital de Embargos de Terceiro
+167,Contrato de Termo de Edital de Oposição
+168,Contrato de Termo de Edital de Habilitação
+169,Contrato de Termo de Edital de Restauração de Autos
+170,Contrato de Termo de Edital de Ação Monitória
+171,Contrato de Termo de Edital de Ação de Despejo
+172,Contrato de Termo de Edital de Ação de Consignação de Aluguel
+173,Contrato de Termo de Edital de Ação Revisional de Aluguel
+174,Contrato de Termo de Edital de Ação Renovatória de Locação
+175,Contrato de Termo de Edital de Ação de Alimentos
+176,Contrato de Termo de Edital de Ação de Investigação de Paternidade
+177,Contrato de Termo de Edital de Ação de Divórcio
+178,Contrato de Termo de Edital de Ação de Separação
+179,Contrato de Termo de Edital de Ação de Anulação de Casamento
+180,Contrato de Termo de Edital de Ação de Interdição
+181,Contrato de Termo de Edital de Ação de Tutela
+182,Contrato de Termo de Edital de Ação de Curatela
+183,Contrato de Termo de Edital de Ação de Adoção
+184,Contrato de Termo de Edital de Inventário
+185,Contrato de Termo de Edital de Arrolamento
+186,Contrato de Termo de Edital de Testamento
+187,Contrato de Termo de Edital de Codicilo
+188,Contrato de Termo de Edital de Herança Jacente
+189,Contrato de Termo de Edital de Bens de Ausentes
+190,Contrato de Termo de Edital de Coisas Vagas
+191,Contrato de Termo de Edital de Falência
+192,Contrato de Termo de Edital de Recuperação Judicial
+193,Contrato de Termo de Edital de Recuperação Extrajudicial
+194,Contrato de Termo de Edital de Insolvência Civil
+195,Contrato de Termo de Edital de Liquidação Extrajudicial
+196,Contrato de Termo de Edital de Intervenção
+197,Contrato de Termo de Edital de Regime de Administração Especial Temporária
+198,Contrato de Termo de Edital de Direção Fiscal
+199,Contrato de Termo de Edital de Portabilidade
+200,Contrato de Termo de Edital de Refugiado
+-1,Não Informado

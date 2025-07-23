@@ -1,0 +1,9 @@
+id,nome
+1,Publicado
+2,Em Andamento
+3,Concluído
+4,Anulado
+5,Revogado
+6,Suspenso
+7,Cancelado
+-1,Não Informado

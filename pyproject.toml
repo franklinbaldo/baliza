@@ -23,9 +23,8 @@ dependencies = [
     "rich>=13.7.0", # Enhanced terminal UI
     "tabulate>=0.9.0", # Enhanced table formatting
     "pyyaml>=6.0.1",
-    "dbt-core>=1.7.0", # Medallion architecture transformation - ADR-003
-    "dbt-duckdb>=1.7.0", # DuckDB adapter for dbt - ADR-001, ADR-003
     "prance[osv]>=23.6.21.0",
+    "dlt[duckdb]",
 ]
 
 [project.scripts]
@@ -44,9 +43,6 @@ dev = [
     "pytest-asyncio>=1.1.0",
 ]
 analytics = []
-dbt = [
-    "baliza[analytics]"
-]
 
 # Ruff configuration for linting and formatting - ADR-005
 [tool.ruff]

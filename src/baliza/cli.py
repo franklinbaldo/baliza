@@ -12,9 +12,10 @@ from . import mcp_server
 from .config import settings
 from .dependencies import get_cli_services
 from .enums import ENUM_REGISTRY, get_enum_choices
-from .extractor import AsyncPNCPExtractor
 from .pncp_writer import BALIZA_DB_PATH, connect_utf8
 from .ui import Dashboard, ErrorHandler, get_console
+from .pipeline import run_pipeline
+from .seeds_pipeline import run_seeds_pipeline
 
 app = typer.Typer(no_args_is_help=False)  # Allow running without args
 console = get_console()
@@ -78,126 +79,54 @@ def main(ctx: typer.Context):
 
 
 @app.command()
-def extract(
-    month: str = typer.Option(None, help="Month to extract (YYYY-MM format, required)"),
-    concurrency: int = typer.Option(
-        settings.concurrency, help="Number of concurrent requests"
-    ),
-    force_db: bool = typer.Option(
-        False, "--force-db", help="Force database connection by removing locks"
-    ),
-    skip_archival: bool = typer.Option(
-        False, "--skip-archival", help="Skip Internet Archive upload"
-    ),
-    keep_local: bool = typer.Option(
-        False, "--keep-local", help="Keep local data after archival"
-    ),
+def pipeline(
+    start_date: str = typer.Option(..., help="Start date in YYYY-MM-DD format"),
+    end_date: str = typer.Option(..., help="End date in YYYY-MM-DD format"),
 ):
-    """Extract data from PNCP API using the new vectorized engine."""
-    from .ui import create_header, get_theme
-
-    theme = get_theme()
-    
-    # Validar e processar parâmetro de mês
-    if not month:
-        console.print("❌ [red]Erro: Parâmetro --month é obrigatório![/red]")
-        console.print("💡 [yellow]Exemplo: baliza extract --month 2024-01[/yellow]")
-        raise typer.Exit(1)
-    
-    try:
-        year, month_num = month.split('-')
-        year = int(year)
-        month_num = int(month_num)
-        
-        if not (1 <= month_num <= 12):
-            raise ValueError("Mês deve estar entre 01-12")
-            
-        # Calcular primeiro e último dia do mês
-        start_dt = date(year, month_num, 1)
-        _, last_day = monthrange(year, month_num)
-        end_dt = date(year, month_num, last_day)
-        
-    except (ValueError, TypeError) as e:
-        console.print(f"❌ [red]Formato de mês inválido: {month}[/red]")
-        console.print("💡 [yellow]Use formato YYYY-MM (ex: 2024-01)[/yellow]")
-        raise typer.Exit(1) from e
-    
-    console.print(f"📅 [cyan]Extraindo mês completo: {start_dt.strftime('%B %Y')} ({start_dt} até {end_dt})[/cyan]")
+    """
+    Runs the dlt pipeline to extract data from the PNCP API and load it into DuckDB.
+    """
+    from .ui import create_header
 
     header = create_header(
-        "Monthly Extraction with Auto-Archival",
-        f"Extracting {start_dt.strftime('%B %Y')} → Internet Archive",
+        "Running dlt pipeline",
+        f"Extracting data from {start_date} to {end_date}",
         "📦",
     )
     console.print(header)
 
-    async def main():
-        setup_signal_handlers()
-        
-        try:
-            # Phase 1: Extract data for the month
-            console.print("\n🚀 [bold blue]Phase 1: Extraction[/bold blue]")
-            extractor = AsyncPNCPExtractor(concurrency=concurrency, force_db=force_db)
-            async with extractor as ext:
-                if _shutdown_requested:
-                    return
-                await ext.extract_data(start_dt, end_dt)
-            
-            if _shutdown_requested:
-                return
-                
-            # Phase 2: Archive to Internet Archive
-            if not skip_archival:
-                console.print("\n📦 [bold blue]Phase 2: Archival[/bold blue]")
-                from .archival import MonthlyArchiver
-                
-                archiver = MonthlyArchiver(db_path=extractor.writer.db_path)
-                archival_stats = await archiver.archive_month(
-                    year=start_dt.year,
-                    month=start_dt.month,
-                    skip_upload=False,
-                    keep_local=keep_local
-                )
-                
-                # Show final stats
-                console.print("\n📊 [bold green]Final Statistics:[/bold green]")
-                console.print(f"📅 Month: {archival_stats['month']}")
-                console.print(f"📁 Files created: {archival_stats['files_created']}")
-                console.print(f"📝 Records archived: {archival_stats['total_records']:,}")
-                console.print(f"💾 Total size: {archival_stats['total_size_mb']:.1f} MB")
-                console.print(f"🌐 Upload success: {'✅' if archival_stats['upload_success'] else '❌'}")
-                console.print(f"🧹 Local cleanup: {'✅' if archival_stats['local_cleanup'] else '❌'}")
-            else:
-                console.print("\n⏭️ [yellow]Archival skipped - data remains in local database[/yellow]")
-                
-        except Exception as e:
-            error_handler.handle_api_error(e, "PNCP API", {})
-            raise
+    try:
+        start_dt = date.fromisoformat(start_date)
+        end_dt = date.fromisoformat(end_date)
+    except ValueError:
+        console.print("❌ [red]Invalid date format. Please use YYYY-MM-DD.[/red]")
+        raise typer.Exit(1)
 
-    asyncio.run(main())
+    try:
+        run_pipeline(start_dt, end_dt)
+        console.print("✅ [bold green]Pipeline finished successfully![/bold green]")
+    except Exception as e:
+        error_handler.handle_api_error(e, "dlt pipeline", {})
+        raise
 
 
 @app.command()
-def transform():
-    """Transform raw data into analytics-ready tables with dbt."""
-    # This command remains largely the same
-    from .ui import create_header, get_theme
+def seed():
+    """Loads seed data into the database."""
+    from .ui import create_header
 
-    theme = get_theme()
     header = create_header(
-        "Transforming Data with dbt",
-        "Raw data → Analytics-ready tables",
-        theme.ICONS["transform"],
+        "Loading seed data",
+        "Loading static data from CSV files into the database",
+        "🌱",
     )
     console.print(header)
 
     try:
-        services = get_cli_services()
-        transformer = services.get_transformer()
-        transformer.transform()
-        console.print("✅ [bold green]Transformation complete![/bold green]")
+        run_seeds_pipeline()
+        console.print("✅ [bold green]Seed data loaded successfully![/bold green]")
     except Exception as e:
-        error_handler.handle_database_error(e, "transform")
+        error_handler.handle_database_error(e, "seed")
         raise
 
 
@@ -223,39 +152,6 @@ def load():
     except Exception as e:
         error_handler.handle_api_error(e, "Internet Archive", {})
         raise
-
-
-@app.command()
-def run(
-    start_date: str = typer.Option("2021-01-01", help="Start date (YYYY-MM-DD)"),
-    end_date: str = typer.Option(date.today().strftime("%Y-%m-%d"), help="End date (YYYY-MM-DD)"),
-    concurrency: int = typer.Option(
-        settings.concurrency, help="Number of concurrent requests"
-    ),
-    force_db: bool = typer.Option(
-        False, "--force-db", help="Force database connection by removing locks"
-    ),
-    skip_transform: bool = typer.Option(False, help="Skip dbt transformation"),
-    skip_load: bool = typer.Option(False, help="Skip Internet Archive upload"),
-):
-    """Run the complete ETL pipeline: Extract → Transform → Load."""
-    console.print("🚀 [bold blue]Starting BALIZA ETL Pipeline[/bold blue]")
-
-    # Run Extract
-    console.print("\n[bold green]Step 1: Extract[/bold green]")
-    extract(start_date, end_date, concurrency, force_db)
-
-    # Run Transform
-    if not skip_transform:
-        console.print("\n[bold yellow]Step 2: Transform[/bold yellow]")
-        transform()
-
-    # Run Load
-    if not skip_load:
-        console.print("\n[bold cyan]Step 3: Load[/bold cyan]")
-        load()
-
-    console.print("\n🎉 [bold green]ETL Pipeline finished![/bold green]")
 
 
 # ... (keep other commands like mcp, status, stats, enums, explore, tutorial)

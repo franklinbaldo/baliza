@@ -1,0 +1,19 @@
+id,nome
+1,Concorrência
+2,Concurso
+3,Leilão
+4,Pregão
+5,Tomada de Preços
+6,Convite
+7,Dispensa de Licitação
+8,Inexigibilidade de Licitação
+9,Credenciamento
+10,Chamamento Público
+11,Processo de Seleção
+12,Regime Diferenciado de Contratações (RDC)
+13,Consulta
+14,Cotação Eletrônica
+15,Pregão Eletrônico
+16,Concorrência Eletrônica
+17,Diálogo Competitivo
+-1,Não Informado

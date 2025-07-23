@@ -94,36 +94,36 @@ cd baliza
 # 2. Instale as dependências com uv
 uv sync --all-extras
 
-# 3. Execute a extração para um mês específico (ex: Janeiro de 2024)
+# 3. Execute a extração para um período específico (ex: 01/01/2024 a 02/01/2024)
 # Este é o principal comando do workflow.
-uv run baliza extract --month 2024-01
+uv run baliza pipeline --start-date 2024-01-01 --end-date 2024-01-02
 ```
 
 **Principais Comandos:**
 | Comando | Descrição |
 |---|---|
-| `baliza extract --month YYYY-MM` | **Workflow principal.** Extrai, arquiva e limpa dados para um mês específico. |
-| `baliza transform` | Executa os modelos de transformação do dbt para criar as camadas Silver e Gold. |
+| `baliza pipeline --start-date YYYY-MM-DD --end-date YYYY-MM-DD` | **Workflow principal.** Extrai e carrega dados de um período específico. |
+| `baliza seed` | Carrega os dados de domínio (seeds) para o banco de dados. |
+| `baliza load` | Carrega os dados para o Internet Archive. |
 | `baliza mcp` | Inicia o servidor de análise com IA (Model Context Protocol). |
 | `baliza status` | Mostra um painel detalhado sobre a saúde e o estado do sistema. |
 | `baliza explore` | Inicia um explorador de dados interativo no terminal. |
 
 ## ⚙️ Como Funciona
 
-O BALIZA opera com uma arquitetura de extração moderna, garantindo que o processo seja robusto, eficiente e possa ser retomado em caso de falhas.
+O BALIZA opera com uma arquitetura de extração moderna e simplificada, garantindo que o processo seja robusto, eficiente e fácil de manter.
 
 ```mermaid
 flowchart TD
-    A[API do PNCP] -->|1. Requisições| B{BALIZA};
-    subgraph BALIZA [Motor de Extração Vetorizado]
+    A[API do PNCP] -->|1. Requisições| B{BALIZA com dlt};
+    subgraph BALIZA [Pipeline com dlt]
         direction LR
-        B1(Descoberta Concorrente) --> B2(Reconciliação Vetorizada) --> B3(Execução em Lote);
+        B1(Fonte dlt) --> B2(Recurso dlt);
     end
-    B -->|2. Armazenamento Otimizado| C[DuckDB Local (Split Tables)];
-    C -->|3. Transformação (dbt)| D[Camadas Silver & Gold];
-    D -->|4. Análise & Publicação| E(Análise Local, Internet Archive, Servidor IA);
+    B -->|2. Carregamento Direto| C[DuckDB Local];
+    C -->|3. Análise & Publicação| E(Análise Local, Internet Archive, Servidor IA);
 ```
-_**Legenda:** O BALIZA orquestra a coleta da API do PNCP com um processo de reconciliação vetorizado, armazena os dados brutos de forma otimizada (deduplicação de conteúdo), e com dbt, os transforma em modelos analíticos para análise e publicação._
+_**Legenda:** O BALIZA orquestra a coleta da API do PNCP com um pipeline `dlt`, que gerencia a extração e o carregamento dos dados diretamente para o DuckDB, prontos para análise e publicação._
 
 ## 🤖 Análise com Inteligência Artificial (Servidor MCP)
 
@@ -158,9 +158,8 @@ O BALIZA é construído sobre uma base de tecnologias modernas e decisões de ar
 
 | Camada | Tecnologias | Propósito | ADRs Relevantes |
 |---|---|---|---|
-| **Coleta** | Python, asyncio, httpx, tenacity, pandas | Extração eficiente, assíncrona e vetorizada. | [ADR-002](docs/adr/002-resilient-extraction.md), [ADR-005](docs/adr/005-modern-python-toolchain.md) |
+| **Coleta e Transformação** | Python, dlt | Extração e transformação de dados em um único pipeline. | [ADR-014](docs/adr/014-dlt-adoption.md) |
 | **Armazenamento**| DuckDB | Banco de dados analítico local, rápido e sem servidor, com arquitetura de tabelas divididas para deduplicação. | [ADR-001](docs/adr/001-adopt-duckdb.md), [ADR-008](docs/adr/008-split-psa-table-architecture.md) |
-| **Transformação**| dbt (Data Build Tool) | Transforma dados brutos em modelos de dados limpos e confiáveis (Arquitetura Medallion). | [ADR-003](docs/adr/003-medallion-architecture.md) |
 | **Interface** | Typer, Rich | CLI amigável, informativa e com ótima usabilidade. | [ADR-005](docs/adr/005-modern-python-toolchain.md) |
 | **Dependências**| uv | Gerenciamento de pacotes e ambientes virtuais de alta performance. | [ADR-005](docs/adr/005-modern-python-toolchain.md) |
 | **Publicação** | Internet Archive | Hospedagem pública e permanente dos dados. | [ADR-006](docs/adr/006-internet-archive.md) |

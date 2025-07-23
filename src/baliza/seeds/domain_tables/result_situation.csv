@@ -1,0 +1,10 @@
+id,nome
+1,Adjudicado
+2,Homologado
+3,Anulado
+4,Revogado
+5,Fracassado
+6,Deserto
+7,Suspenso
+8,Cancelado
+-1,Não Informado
