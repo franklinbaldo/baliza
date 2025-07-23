@@ -5,12 +5,12 @@
 
   {% set results = run_query(query) %}
 
-  {% if execute %}
+  {% if execute and results %}
     {% set enum_values = results.columns[0].values() %}
 
     CREATE TYPE IF NOT EXISTS {{ seed_name }}_enum AS ENUM (
       {% for value in enum_values %}
-        '{{ value }}'
+        '{{ value | replace("'", "''") }}'
         {% if not loop.last %},{% endif %}
       {% endfor %}
     );

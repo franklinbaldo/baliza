@@ -8,6 +8,17 @@ models:
         tests:
           - unique
           - not_null
+      - name: anoContratacao
+        tests:
+          - not_null
+      - name: cnpjOrgao
+        tests:
+          - not_null
+      - name: modalidadeId
+        tests:
+          - not_null
+          - test_enum_drift:
+              seed_name: 'modalidade_contratacao'
   - name: silver_pncp_orgaos_entidades
     description: "Cleaned and validated PNCP orgaos e entidades data"
     columns:
@@ -15,6 +26,9 @@ models:
         tests:
           - unique
           - not_null
+      - name: cnpjOrgao
+        tests:
+          - test_cnpj_format
   - name: silver_pncp_contratos
     description: "Cleaned and validated PNCP contratos data"
     columns:
@@ -27,8 +41,3 @@ models:
           - relationships:
               to: ref('silver_pncp_contratacoes')
               field: numeroControlePNCP
-  - name: silver_pncp_orgaos_entidades
-    columns:
-      - name: cnpjOrgao
-        tests:
-          - test_cnpj_format
