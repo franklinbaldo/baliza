@@ -262,11 +262,32 @@ A Fase 3 foi **completamente implementada** e testada com sucesso. Os principais
   - [ ] Persistir apenas respostas que falharam no parsing
   - [ ] Sistema de retry para reprocessar erros
 
+- [ ] **F3B.3B** Validações Pydantic Avançadas
+  - [ ] Validador custom para CNPJ: dígitos verificadores + formato
+  - [ ] Validador custom para CPF: dígitos verificadores + formato  
+  - [ ] Validação de datas: não futuras, ranges válidos
+  - [ ] Validação de valores: não negativos para preços
+  - [ ] Validação de códigos: existem nos ENUMs oficiais
+  - [ ] Validação de consistência: datas início < fim
+  - [ ] Transformadores: normalizar strings (upper/lower case)
+  - [ ] Coerção segura: strings vazias → None
+
 ### 📊 Benefícios Esperados
 - **-90% storage usage**: Eliminar duplicação de dados
 - **+5x parsing speed**: Processamento direto sem intermediários
 - **+10x query performance**: Dados já estruturados
+- **100% data quality**: Validação Pydantic antes da inserção
+- **Type safety**: Garantia de tipos corretos no banco
 - **Debugging capability**: Erros preservados para análise
+
+### 🛡️ Validação Pydantic (Data Quality)
+- **Validação de tipos**: Automática para dates, decimals, integers, booleans
+- **Validação de formato**: CNPJ (14 dígitos), UF (2 chars), emails, URLs
+- **Validação de obrigatórios**: Campos NOT NULL validados antes da inserção
+- **Sanitização automática**: Strip whitespace, normalização de strings
+- **Transformação segura**: Conversão de tipos com fallback para None
+- **Mensagens de erro claras**: Debugging preciso quando dados não batem
+- **Documentação viva**: Schemas servem como spec da estrutura de dados
 
 ### ⚡ Refatoração dos Modelos dbt
 

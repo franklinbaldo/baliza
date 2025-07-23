@@ -33,6 +33,7 @@ from rich.progress import BarColumn, Progress, TextColumn, TimeElapsedColumn
 
 from baliza.pncp_client import PNCPClient
 from baliza.pncp_writer import PNCPWriter
+from baliza.pncp_parser import PNCPDirectParser
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -51,6 +52,7 @@ class AsyncPNCPExtractor:
         self.run_id = str(uuid.uuid4())
         self.writer = None
         self.client = None
+        self.parser = None
         self.write_queue = None
         self.writer_task = None
 
@@ -60,6 +62,7 @@ class AsyncPNCPExtractor:
         await self.writer.__aenter__()
         self.client = PNCPClient(concurrency=self.concurrency)
         await self.client.__aenter__()
+        self.parser = PNCPDirectParser(self.writer.conn)
 
         # Initialize write queue and start writer worker
         self.write_queue = asyncio.Queue()
@@ -150,7 +153,7 @@ class AsyncPNCPExtractor:
                     WHEN json_extract(request_parameters, '$.modalidade') IS NULL THEN NULL
                     ELSE CAST(json_extract(request_parameters, '$.modalidade') AS VARCHAR)
                 END as modalidade
-            FROM psa.pncp_raw_responses
+            FROM psa.bronze_pncp_requests
             WHERE current_page = 1
                 -- Qualquer response_code é válido (200, 404, etc.) - já foi processado
                 -- Para o mês atual, ignorar dados existentes (forçar refresh)
@@ -257,20 +260,59 @@ class AsyncPNCPExtractor:
                 status_code = response.get("status_code")
                 response_content = response.get("content", "") if status_code and 200 <= status_code < 300 else ""
 
+                # PHASE 3B: Direct-to-table parsing instead of raw content storage
+                page_num = row.pagina if not is_discovery_pass else 1 
+                parse_status = "success"
+                records_parsed = 0
+                
+                try:
+                    if status_code and 200 <= status_code < 300 and response_content:
+                        # Parse directly to bronze tables using our new parser
+                        import json
+                        api_data = json.loads(response_content) if isinstance(response_content, str) else response_content
+                        
+                        if isinstance(api_data, dict) and "data" in api_data:
+                            records_parsed = self.parser.parse_and_insert(
+                                endpoint_name=row.endpoint_name,
+                                api_response=api_data,
+                                request_metadata={
+                                    "data_date": row.data_date,
+                                    "run_id": self.run_id,
+                                    "page_num": page_num,
+                                    "endpoint_url": endpoint_path,
+                                    "request_parameters": params
+                                }
+                            )
+                            logger.info(f"✅ Parsed {records_parsed} records from {row.endpoint_name} page {page_num}")
+                        else:
+                            parse_status = "no_data"
+                            logger.warning(f"⚠️ No data field in response from {row.endpoint_name} page {page_num}")
+                    else:
+                        parse_status = "failed"
+                        logger.warning(f"❌ Failed response from {row.endpoint_name} page {page_num}: {status_code}")
+                        
+                except Exception as e:
+                    parse_status = "error"
+                    logger.error(f"❌ Parse error for {row.endpoint_name} page {page_num}: {e}")
+
+                # Update requests tracking table with metadata (no raw content)
                 writer_data = {
                     "extracted_at": None,
                     "endpoint_url": endpoint_path,
                     "endpoint_name": row.endpoint_name,
                     "request_parameters": params,
                     "response_code": status_code,
-                    "response_content": response_content,
                     "response_headers": response.get("headers", {}),
                     "data_date": row.data_date,
                     "run_id": self.run_id,
                     "total_records": response.get("total_records", 0),
                     "total_pages": response.get("total_pages", 1),
-                    "current_page": row.pagina if not is_discovery_pass else 1,
-                    "page_size": params.get("tamanhoPagina", 500)
+                    "current_page": page_num,
+                    "page_size": params.get("tamanhoPagina", 500),
+                    # Phase 3B fields
+                    "month": f"{row.data_date.year}-{row.data_date.month:02d}",
+                    "parse_status": parse_status,
+                    "records_parsed": records_parsed
                 }
 
                 await self.write_queue.put(writer_data)
@@ -366,7 +408,7 @@ class AsyncPNCPExtractor:
                     ELSE CAST(json_extract(request_parameters, '$.modalidade') AS VARCHAR)
                 END as modalidade,
                 total_pages
-            FROM psa.pncp_raw_responses 
+            FROM psa.bronze_pncp_requests 
             WHERE current_page = 1 
                 AND total_pages > 1 
                 AND response_code = 200
@@ -417,7 +459,7 @@ class AsyncPNCPExtractor:
                     ELSE CAST(json_extract(request_parameters, '$.modalidade') AS VARCHAR)
                 END as modalidade,
                 current_page as pagina
-            FROM psa.pncp_raw_responses 
+            FROM psa.bronze_pncp_requests 
             WHERE response_code = 200
                 AND data_date >= ?
                 AND data_date <= ?

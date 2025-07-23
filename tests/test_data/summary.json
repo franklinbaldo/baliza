@@ -1,0 +1,38 @@
+{
+  "fetch_date": "2025-07-23",
+  "date_range": "20240701 to 20240731",
+  "date_format": "YYYYMMDD (API format)",
+  "endpoints": 6,
+  "results": {
+    "contratos_publicacao": {
+      "status": "success",
+      "records": 10,
+      "total_records": 107709
+    },
+    "contratos_atualizacao": {
+      "status": "success",
+      "records": 10,
+      "total_records": 99052
+    },
+    "contratacoes_publicacao": {
+      "status": "success",
+      "records": 10,
+      "total_records": 108
+    },
+    "contratacoes_atualizacao": {
+      "status": "success",
+      "records": 10,
+      "total_records": 90
+    },
+    "atas_periodo": {
+      "status": "success",
+      "records": 10,
+      "total_records": 180518
+    },
+    "atas_atualizacao": {
+      "status": "success",
+      "records": 10,
+      "total_records": 30735
+    }
+  }
+}

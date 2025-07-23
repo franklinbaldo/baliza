@@ -300,10 +300,10 @@ def stats(
 
     # Overall stats
     total_responses = conn.execute(
-        "SELECT COUNT(*) FROM psa.pncp_raw_responses"
+        "SELECT COUNT(*) FROM psa.bronze_pncp_requests"
     ).fetchone()[0]
     success_responses = conn.execute(
-        "SELECT COUNT(*) FROM psa.pncp_raw_responses WHERE response_code = 200"
+        "SELECT COUNT(*) FROM psa.bronze_pncp_requests WHERE response_code = 200"
     ).fetchone()[0]
 
     console.print(f"=== Total Responses: {total_responses:,} ===")
@@ -316,8 +316,8 @@ def stats(
     # Endpoint breakdown
     endpoint_stats = conn.execute(
         """
-        SELECT endpoint_name, COUNT(*) as responses, SUM(total_records) as total_records
-        FROM psa.pncp_raw_responses
+        SELECT endpoint_name, COUNT(*) as responses, SUM(total_records) as total_records, SUM(records_parsed) as records_parsed
+        FROM psa.bronze_pncp_requests
         WHERE response_code = 200
         GROUP BY endpoint_name
         ORDER BY total_records DESC
@@ -325,8 +325,8 @@ def stats(
     ).fetchall()
 
     console.print("\n=== Endpoint Statistics ===")
-    for name, responses, records in endpoint_stats:
-        console.print(f"  {name}: {responses:,} responses, {records:,} records")
+    for name, responses, records, parsed in endpoint_stats:
+        console.print(f"  {name}: {responses:,} responses, {records:,} API records, {parsed or 0:,} parsed to bronze")
 
     conn.close()
 
@@ -380,16 +380,22 @@ def explore():
             console.print(header)
 
             # Basic stats
-            total_records = conn.execute(
-                "SELECT COUNT(*) FROM psa.pncp_requests"
+            total_requests = conn.execute(
+                "SELECT COUNT(*) FROM psa.bronze_pncp_requests"
             ).fetchone()[0]
-            unique_content = conn.execute(
-                "SELECT COUNT(*) FROM psa.pncp_content"
+            total_contracts = conn.execute(
+                "SELECT COUNT(*) FROM psa.bronze_contratos"
+            ).fetchone()[0]
+            total_procurements = conn.execute(
+                "SELECT COUNT(*) FROM psa.bronze_contratacoes" 
+            ).fetchone()[0]
+            total_atas = conn.execute(
+                "SELECT COUNT(*) FROM psa.bronze_atas"
             ).fetchone()[0]
 
             # Date range
             date_range_result = conn.execute(
-                "SELECT MIN(extracted_at), MAX(extracted_at) FROM psa.pncp_requests"
+                "SELECT MIN(data_date), MAX(data_date) FROM psa.bronze_pncp_requests"
             ).fetchone()
 
             if date_range_result and date_range_result[0]:
@@ -399,8 +405,10 @@ def explore():
                 date_range = "No data"
 
             console.print(f"\n📊 [bold]Database Statistics:[/bold]")
-            console.print(f"   Total Records: [number]{total_records:,}[/number]")
-            console.print(f"   Unique Content: [number]{unique_content:,}[/number]")
+            console.print(f"   API Requests: [number]{total_requests:,}[/number]")
+            console.print(f"   Contratos: [number]{total_contracts:,}[/number]") 
+            console.print(f"   Contratações: [number]{total_procurements:,}[/number]")
+            console.print(f"   Atas: [number]{total_atas:,}[/number]")
             console.print(f"   Date Range: {date_range}")
 
     except Exception as e:

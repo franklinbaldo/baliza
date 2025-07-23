@@ -158,21 +158,306 @@ class PNCPWriter:
         # Table 2: Request metadata with foreign key to content
         self.conn.execute(
             """
-            CREATE TABLE IF NOT EXISTS psa.pncp_requests (
+            CREATE TABLE IF NOT EXISTS psa.bronze_pncp_requests (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 extracted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                
+                -- Identificação da Requisição
                 endpoint_url VARCHAR NOT NULL,
                 endpoint_name VARCHAR NOT NULL,
-                request_parameters JSON,
+                
+                -- Parâmetros da Requisição
+                month VARCHAR(7), -- YYYY-MM format, NULL para endpoints sem range de datas
+                request_parameters JSON, -- Todos os outros parâmetros
+                
+                -- Metadados da Resposta
                 response_code INTEGER NOT NULL,
                 response_headers JSON,
-                data_date DATE,
-                run_id VARCHAR,
-                total_records INTEGER,
-                total_pages INTEGER,
-                current_page INTEGER,
-                page_size INTEGER,
-                content_id UUID REFERENCES psa.pncp_content(id) -- Foreign key to content
+                total_records INTEGER, -- Total de registros disponíveis na API
+                total_pages INTEGER,   -- Total de páginas disponíveis na API
+                current_page INTEGER,  -- Página atual desta requisição
+                page_size INTEGER,     -- Tamanho da página usado
+                
+                -- Controle de Execução
+                run_id VARCHAR,        -- ID da execução/batch
+                data_date DATE,        -- Data de referência dos dados
+                
+                -- Status de Processamento
+                parse_status VARCHAR DEFAULT 'pending', -- pending, success, failed
+                parse_error_message TEXT,
+                records_parsed INTEGER DEFAULT 0, -- Quantos registros foram parseados com sucesso
+                
+                -- Timestamps
+                parsed_at TIMESTAMP -- Quando o parsing foi concluído
+            ) WITH (compression = "zstd")
+        """
+        )
+
+        # Table 3: Parse errors for debugging
+        self.conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS psa.pncp_parse_errors (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                
+                -- Request Info
+                endpoint_name VARCHAR NOT NULL,
+                endpoint_url VARCHAR NOT NULL,
+                http_status_code INTEGER,
+                
+                -- Response Data
+                response_raw JSON, -- Raw response que falhou no parsing
+                response_headers JSON,
+                
+                -- Error Info
+                error_message TEXT NOT NULL,
+                error_type VARCHAR, -- parse_error, validation_error, etc.
+                stack_trace TEXT,
+                
+                -- Retry Control
+                retry_count INTEGER DEFAULT 0,
+                max_retries INTEGER DEFAULT 3,
+                next_retry_at TIMESTAMP,
+                
+                -- Timestamps
+                extracted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) WITH (compression = "zstd")
+        """
+        )
+
+        # Table 4: Bronze Contratos - Direct mapping from /v1/contratos endpoints
+        self.conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS psa.bronze_contratos (
+                -- Identificadores
+                numero_controle_pncp_compra VARCHAR,
+                numero_controle_pncp VARCHAR,
+                ano_contrato INTEGER,
+                sequencial_contrato INTEGER,
+                numero_contrato_empenho VARCHAR,
+                
+                -- Datas
+                data_assinatura DATE,
+                data_vigencia_inicio DATE,
+                data_vigencia_fim DATE,
+                data_publicacao_pncp TIMESTAMP,
+                data_atualizacao TIMESTAMP,
+                data_atualizacao_global TIMESTAMP,
+                
+                -- Fornecedor
+                ni_fornecedor VARCHAR,
+                tipo_pessoa VARCHAR(2), -- PJ, PF, PE
+                nome_razao_social_fornecedor VARCHAR,
+                codigo_pais_fornecedor VARCHAR,
+                
+                -- Subcontratação
+                ni_fornecedor_subcontratado VARCHAR,
+                nome_fornecedor_subcontratado VARCHAR,
+                tipo_pessoa_subcontratada VARCHAR(2),
+                
+                -- Orgão/Entidade
+                orgao_cnpj VARCHAR(14),
+                orgao_razao_social VARCHAR,
+                orgao_poder_id VARCHAR,
+                orgao_esfera_id VARCHAR,
+                
+                -- Unidade
+                unidade_codigo VARCHAR,
+                unidade_nome VARCHAR,
+                unidade_uf_sigla VARCHAR(2),
+                unidade_uf_nome VARCHAR,
+                unidade_municipio_nome VARCHAR,
+                unidade_codigo_ibge VARCHAR,
+                
+                -- Subrogação
+                orgao_subrogado_cnpj VARCHAR(14),
+                orgao_subrogado_razao_social VARCHAR,
+                unidade_subrogada_codigo VARCHAR,
+                unidade_subrogada_nome VARCHAR,
+                
+                -- Tipo e Categoria
+                tipo_contrato_id INTEGER,
+                tipo_contrato_nome VARCHAR,
+                categoria_processo_id INTEGER,
+                categoria_processo_nome VARCHAR,
+                
+                -- Valores
+                valor_inicial DECIMAL(15,4),
+                valor_parcela DECIMAL(15,4),
+                valor_global DECIMAL(15,4),
+                valor_acumulado DECIMAL(15,4),
+                
+                -- Parcelas e Controle
+                numero_parcelas INTEGER,
+                numero_retificacao INTEGER,
+                receita BOOLEAN,
+                
+                -- Texto e Observações
+                objeto_contrato TEXT,
+                informacao_complementar TEXT,
+                processo VARCHAR,
+                
+                -- CIPI
+                identificador_cipi VARCHAR,
+                url_cipi VARCHAR,
+                
+                -- Metadados
+                usuario_nome VARCHAR,
+                extracted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                
+                PRIMARY KEY (numero_controle_pncp, ano_contrato, sequencial_contrato)
+            ) WITH (compression = "zstd")
+        """
+        )
+
+        # Table 5: Bronze Contratacoes - Direct mapping from /v1/contratacoes/* endpoints
+        self.conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS psa.bronze_contratacoes (
+                -- Identificadores
+                numero_controle_pncp VARCHAR,
+                ano_compra INTEGER,
+                sequencial_compra INTEGER,
+                numero_compra VARCHAR,
+                processo VARCHAR,
+                
+                -- Datas
+                data_inclusao TIMESTAMP,
+                data_publicacao_pncp TIMESTAMP,
+                data_atualizacao TIMESTAMP,
+                data_atualizacao_global TIMESTAMP,
+                data_abertura_proposta TIMESTAMP,
+                data_encerramento_proposta TIMESTAMP,
+                
+                -- Orgão/Entidade
+                orgao_cnpj VARCHAR(14),
+                orgao_razao_social VARCHAR,
+                orgao_poder_id VARCHAR,
+                orgao_esfera_id VARCHAR,
+                
+                -- Unidade
+                unidade_codigo VARCHAR,
+                unidade_nome VARCHAR,
+                unidade_uf_sigla VARCHAR(2),
+                unidade_uf_nome VARCHAR,
+                unidade_municipio_nome VARCHAR,
+                unidade_codigo_ibge VARCHAR,
+                
+                -- Subrogação
+                orgao_subrogado_cnpj VARCHAR(14),
+                orgao_subrogado_razao_social VARCHAR,
+                unidade_subrogada_codigo VARCHAR,
+                unidade_subrogada_nome VARCHAR,
+                
+                -- Modalidade e Disputa
+                modalidade_id INTEGER,
+                modalidade_nome VARCHAR,
+                modo_disputa_id INTEGER,
+                modo_disputa_nome VARCHAR,
+                
+                -- Instrumento Convocatório
+                tipo_instrumento_convocatorio_codigo INTEGER,
+                tipo_instrumento_convocatorio_nome VARCHAR,
+                
+                -- Amparo Legal
+                amparo_legal_codigo INTEGER,
+                amparo_legal_nome VARCHAR,
+                amparo_legal_descricao TEXT,
+                
+                -- Valores
+                valor_total_estimado DECIMAL(15,4),
+                valor_total_homologado DECIMAL(15,4),
+                
+                -- Situação
+                situacao_compra_id VARCHAR, -- ENUM: 1,2,3,4
+                situacao_compra_nome VARCHAR,
+                
+                -- Flags
+                srp BOOLEAN, -- Sistema de Registro de Preços
+                
+                -- Texto
+                objeto_compra TEXT,
+                informacao_complementar TEXT,
+                justificativa_presencial TEXT,
+                
+                -- Links
+                link_sistema_origem VARCHAR,
+                link_processo_eletronico VARCHAR,
+                
+                -- Metadados
+                usuario_nome VARCHAR,
+                extracted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                
+                PRIMARY KEY (numero_controle_pncp)
+            ) WITH (compression = "zstd")
+        """
+        )
+
+        # Table 6: Bronze Atas - Direct mapping from /v1/atas/* endpoints
+        self.conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS psa.bronze_atas (
+                -- Identificadores
+                numero_controle_pncp_ata VARCHAR,
+                numero_ata_registro_preco VARCHAR,
+                ano_ata INTEGER,
+                numero_controle_pncp_compra VARCHAR, -- FK para contratação
+                
+                -- Controle
+                cancelado BOOLEAN,
+                data_cancelamento TIMESTAMP,
+                
+                -- Datas
+                data_assinatura TIMESTAMP,
+                vigencia_inicio TIMESTAMP,
+                vigencia_fim TIMESTAMP,
+                data_publicacao_pncp TIMESTAMP,
+                data_inclusao TIMESTAMP,
+                data_atualizacao TIMESTAMP,
+                data_atualizacao_global TIMESTAMP,
+                
+                -- Orgão Principal
+                cnpj_orgao VARCHAR(14),
+                nome_orgao VARCHAR,
+                codigo_unidade_orgao VARCHAR,
+                nome_unidade_orgao VARCHAR,
+                
+                -- Orgão Subrogado
+                cnpj_orgao_subrogado VARCHAR(14),
+                nome_orgao_subrogado VARCHAR,
+                codigo_unidade_orgao_subrogado VARCHAR,
+                nome_unidade_orgao_subrogado VARCHAR,
+                
+                -- Objeto
+                objeto_contratacao TEXT,
+                
+                -- Metadados
+                usuario VARCHAR,
+                extracted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                
+                PRIMARY KEY (numero_controle_pncp_ata)
+            ) WITH (compression = "zstd")
+        """
+        )
+
+        # Table 7: Bronze Fontes Orcamentarias - Child table of contratacoes
+        self.conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS psa.bronze_fontes_orcamentarias (
+                -- Relacionamento
+                contratacao_numero_controle_pncp VARCHAR NOT NULL, -- FK para bronze_contratacoes
+                
+                -- Dados da Fonte
+                codigo INTEGER,
+                nome VARCHAR,
+                descricao TEXT,
+                data_inclusao TIMESTAMP,
+                
+                -- Metadados
+                extracted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                
+                PRIMARY KEY (contratacao_numero_controle_pncp, codigo)
             ) WITH (compression = "zstd")
         """
         )
@@ -226,9 +511,35 @@ class PNCPWriter:
         """Create indexes for split table architecture."""
         indexes_to_create = {
             # Indexes for new split tables
-            "idx_requests_endpoint_date_page": "CREATE INDEX IF NOT EXISTS idx_requests_endpoint_date_page ON psa.pncp_requests(endpoint_name, data_date, current_page)",
-            "idx_requests_response_code": "CREATE INDEX IF NOT EXISTS idx_requests_response_code ON psa.pncp_requests(response_code)",
-            "idx_requests_content_id": "CREATE INDEX IF NOT EXISTS idx_requests_content_id ON psa.pncp_requests(content_id)",
+            # Indexes for bronze_pncp_requests
+            "idx_requests_endpoint_month": "CREATE INDEX IF NOT EXISTS idx_requests_endpoint_month ON psa.bronze_pncp_requests(endpoint_name, month)",
+            "idx_requests_status": "CREATE INDEX IF NOT EXISTS idx_requests_status ON psa.bronze_pncp_requests(parse_status)",
+            "idx_requests_date": "CREATE INDEX IF NOT EXISTS idx_requests_date ON psa.bronze_pncp_requests(extracted_at)",
+            "idx_requests_run_id": "CREATE INDEX IF NOT EXISTS idx_requests_run_id ON psa.bronze_pncp_requests(run_id)",
+            
+            # Indexes for bronze_contratos
+            "idx_contratos_pncp": "CREATE INDEX IF NOT EXISTS idx_contratos_pncp ON psa.bronze_contratos(numero_controle_pncp)",
+            "idx_contratos_orgao": "CREATE INDEX IF NOT EXISTS idx_contratos_orgao ON psa.bronze_contratos(orgao_cnpj)",
+            "idx_contratos_fornecedor": "CREATE INDEX IF NOT EXISTS idx_contratos_fornecedor ON psa.bronze_contratos(ni_fornecedor)",
+            "idx_contratos_data": "CREATE INDEX IF NOT EXISTS idx_contratos_data ON psa.bronze_contratos(data_publicacao_pncp)",
+            
+            # Indexes for bronze_contratacoes
+            "idx_contratacoes_pncp": "CREATE INDEX IF NOT EXISTS idx_contratacoes_pncp ON psa.bronze_contratacoes(numero_controle_pncp)",
+            "idx_contratacoes_orgao": "CREATE INDEX IF NOT EXISTS idx_contratacoes_orgao ON psa.bronze_contratacoes(orgao_cnpj)",
+            "idx_contratacoes_modalidade": "CREATE INDEX IF NOT EXISTS idx_contratacoes_modalidade ON psa.bronze_contratacoes(modalidade_id)",
+            "idx_contratacoes_data": "CREATE INDEX IF NOT EXISTS idx_contratacoes_data ON psa.bronze_contratacoes(data_publicacao_pncp)",
+            
+            # Indexes for bronze_atas
+            "idx_atas_pncp": "CREATE INDEX IF NOT EXISTS idx_atas_pncp ON psa.bronze_atas(numero_controle_pncp_ata)",
+            "idx_atas_compra": "CREATE INDEX IF NOT EXISTS idx_atas_compra ON psa.bronze_atas(numero_controle_pncp_compra)",
+            "idx_atas_orgao": "CREATE INDEX IF NOT EXISTS idx_atas_orgao ON psa.bronze_atas(cnpj_orgao)",
+            
+            # Indexes for bronze_fontes_orcamentarias
+            "idx_fontes_contratacao": "CREATE INDEX IF NOT EXISTS idx_fontes_contratacao ON psa.bronze_fontes_orcamentarias(contratacao_numero_controle_pncp)",
+            
+            # Indexes for pncp_parse_errors
+            "idx_parse_errors_endpoint": "CREATE INDEX IF NOT EXISTS idx_parse_errors_endpoint ON psa.pncp_parse_errors(endpoint_name)",
+            "idx_parse_errors_retry": "CREATE INDEX IF NOT EXISTS idx_parse_errors_retry ON psa.pncp_parse_errors(retry_count, next_retry_at)",
             "idx_content_hash": "CREATE INDEX IF NOT EXISTS idx_content_hash ON psa.pncp_content(content_sha256)",
             "idx_content_first_seen": "CREATE INDEX IF NOT EXISTS idx_content_first_seen ON psa.pncp_content(first_seen_at)",
             # Legacy table indexes for backwards compatibility

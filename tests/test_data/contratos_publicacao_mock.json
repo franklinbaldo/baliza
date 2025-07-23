@@ -1,0 +1,114 @@
+{
+  "endpoint_name": "contratos_publicacao",
+  "url": "https://pncp.gov.br/api/consulta/v1/contratos",
+  "status_code": 200,
+  "data": {
+    "data": [
+      {
+        "numeroControlePncpCompra": "00014-2024-000001",
+        "numeroControlePNCP": "00014-2024-000001-001",
+        "anoContrato": 2024,
+        "sequencialContrato": 1,
+        "numeroContratoEmpenho": "2024/001",
+        "dataAssinatura": "2024-07-15",
+        "dataVigenciaInicio": "2024-07-16",
+        "dataVigenciaFim": "2025-07-15",
+        "dataPublicacaoPncp": "2024-07-16T10:30:00",
+        "dataAtualizacao": "2024-07-16T10:30:00",
+        "dataAtualizacaoGlobal": "2024-07-16T10:30:00",
+        "niFornecedor": "12345678000195",
+        "tipoPessoa": "PJ",
+        "nomeRazaoSocialFornecedor": "EMPRESA EXEMPLO LTDA",
+        "codigoPaisFornecedor": "076",
+        "orgaoEntidade": {
+          "cnpj": "00394460000187",
+          "razaoSocial": "MINISTERIO DA EDUCACAO",
+          "poderId": "1",
+          "esferaId": "1"
+        },
+        "unidadeOrgao": {
+          "codigoUnidade": "160316",
+          "nomeUnidade": "UNIVERSIDADE FEDERAL DE BRASILIA",
+          "ufSigla": "DF",
+          "ufNome": "DISTRITO FEDERAL",
+          "municipioNome": "BRASILIA",
+          "codigoIbge": "5300108"
+        },
+        "tipoContrato": {
+          "id": 1,
+          "nome": "COMPRA"
+        },
+        "categoriaProcesso": {
+          "id": 1,
+          "nome": "BENS"
+        },
+        "valorInicial": 50000.00,
+        "valorGlobal": 50000.00,
+        "numeroParcelas": 1,
+        "receita": false,
+        "objetoContrato": "Aquisição de equipamentos de informática para o laboratório de ciências",
+        "informacaoComplementar": "Entrega parcelada conforme cronograma",
+        "processo": "23106.123456/2024-12",
+        "usuarioNome": "USUARIO.TESTE"
+      },
+      {
+        "numeroControlePncpCompra": "00014-2024-000002",
+        "numeroControlePNCP": "00014-2024-000002-001",
+        "anoContrato": 2024,
+        "sequencialContrato": 1,
+        "numeroContratoEmpenho": "2024/002",
+        "dataAssinatura": "2024-07-20",
+        "dataVigenciaInicio": "2024-07-21",
+        "dataVigenciaFim": "2024-12-20",
+        "dataPublicacaoPncp": "2024-07-21T14:15:00",
+        "dataAtualizacao": "2024-07-21T14:15:00",
+        "dataAtualizacaoGlobal": "2024-07-21T14:15:00",
+        "niFornecedor": "98765432000156",
+        "tipoPessoa": "PJ",
+        "nomeRazaoSocialFornecedor": "FORNECEDOR EXEMPLO S.A.",
+        "orgaoEntidade": {
+          "cnpj": "00394460000187",
+          "razaoSocial": "MINISTERIO DA EDUCACAO",
+          "poderId": "1",
+          "esferaId": "1"
+        },
+        "unidadeOrgao": {
+          "codigoUnidade": "160316",
+          "nomeUnidade": "UNIVERSIDADE FEDERAL DE BRASILIA",
+          "ufSigla": "DF",
+          "ufNome": "DISTRITO FEDERAL",
+          "municipioNome": "BRASILIA",
+          "codigoIbge": "5300108"
+        },
+        "tipoContrato": {
+          "id": 2,
+          "nome": "SERVICO"
+        },
+        "categoriaProcesso": {
+          "id": 2,
+          "nome": "SERVICOS"
+        },
+        "valorInicial": 125000.50,
+        "valorParcela": 25000.10,
+        "valorGlobal": 125000.50,
+        "numeroParcelas": 5,
+        "receita": false,
+        "objetoContrato": "Prestação de serviços de manutenção predial",
+        "processo": "23106.654321/2024-87",
+        "usuarioNome": "ADMIN.SISTEMA"
+      }
+    ],
+    "totalRegistros": 15420,
+    "totalPaginas": 1542,
+    "numeroPagina": 1,
+    "paginasRestantes": 1541,
+    "empty": false
+  },
+  "fetch_date": "2025-07-23",
+  "params": {
+    "dataInicial": "2024-07-01",
+    "dataFinal": "2024-07-31",
+    "pagina": 1,
+    "tamanhoPagina": 10
+  }
+}

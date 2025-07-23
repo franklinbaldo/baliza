@@ -18,7 +18,9 @@
       "Bash(mkdir:*)",
       "Bash(del:*)",
       "Bash(powershell:*)",
-      "Bash(tasklist:*)"
+      "Bash(tasklist:*)",
+      "Bash(dir data)",
+      "Bash(export PYTHONIOENCODING=utf-8)"
     ],
     "deny": []
   }
