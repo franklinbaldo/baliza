@@ -1,0 +1,8 @@
+version: 2
+
+sources:
+  - name: bronze
+    schema: main
+    tables:
+      - name: pncp_content
+      - name: pncp_requests

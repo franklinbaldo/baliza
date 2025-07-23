@@ -495,6 +495,15 @@ def tutorial():
     )
     console.print(next_steps_panel)
 
+@app.command()
+def run_pipeline(pipeline: str = typer.Option(None, help="Name of the pipeline to run.")):
+    """Run the Kedro pipeline."""
+    from kedro.framework.session import KedroSession
+    from kedro.framework.startup import bootstrap_project
+
+    metadata = bootstrap_project(".")
+    with KedroSession.create(metadata.package_name) as session:
+        session.run(pipeline_name=pipeline)
 
 if __name__ == "__main__":
     # Configure streams for UTF-8

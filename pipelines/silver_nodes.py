@@ -8,30 +8,30 @@ def create_silver_atas(bronze_pncp_raw: ibis.Table) -> ibis.Table:
         )
     )
     return source.filter(_.rn == 1).select(
-        id="response_id",
-        extracted_at="extracted_at",
-        endpoint_name="endpoint_name",
-        endpoint_url="endpoint_url",
-        data_date="data_date",
-        run_id="run_id",
-        total_records="total_records",
-        total_pages="total_pages",
-        current_page="current_page",
-        numero_controle_pncp=_.response_json.json_extract("$.numeroControlePNCP").cast("string"),
-        numero_ata=_.response_json.json_extract("$.numeroAta").cast("string"),
-        ano_ata=_.response_json.json_extract("$.anoAta").cast("integer"),
-        data_assinatura=_.response_json.json_extract("$.dataAssinatura").cast("date"),
-        data_vigencia_inicio=_.response_json.json_extract("$.dataVigenciaInicio").cast("date"),
-        data_vigencia_fim=_.response_json.json_extract("$.dataVigenciaFim").cast("date"),
-        data_publicacao_pncp=_.response_json.json_extract("$.dataPublicacaoPncp").cast("timestamp"),
-        data_atualizacao=_.response_json.json_extract("$.dataAtualizacao").cast("timestamp"),
-        ni_fornecedor=_.response_json.json_extract("$.niFornecedor").cast("string"),
-        nome_razao_social_fornecedor=_.response_json.json_extract("$.nomeRazaoSocialFornecedor").cast("string"),
-        objeto_ata=_.response_json.json_extract("$.objetoAta").cast("string"),
-        informacao_complementar=_.response_json.json_extract("$.informacaoComplementar").cast("string"),
-        numero_retificacao=_.response_json.json_extract("$.numeroRetificacao").cast("integer"),
-        orgao_entidade_json=_.response_json.json_extract("$.orgaoEntidade"),
-        unidade_orgao_json=_.response_json.json_extract("$.unidadeOrgao"),
+        "response_id",
+        "extracted_at",
+        "endpoint_name",
+        "endpoint_url",
+        "data_date",
+        "run_id",
+        "total_records",
+        "total_pages",
+        "current_page",
+        "numero_controle_pncp",
+        "numero_ata",
+        "ano_ata",
+        "data_assinatura",
+        "data_vigencia_inicio",
+        "data_vigencia_fim",
+        "data_publicacao_pncp",
+        "data_atualizacao",
+        "ni_fornecedor",
+        "nome_razao_social_fornecedor",
+        "objeto_ata",
+        "informacao_complementar",
+        "numero_retificacao",
+        "orgao_entidade_json",
+        "unidade_orgao_json",
     )
 
 def create_silver_contratacoes(bronze_pncp_raw: ibis.Table) -> ibis.Table:
@@ -160,16 +160,17 @@ def create_silver_documentos(
     )
     document_sources = contratacoes_docs.union(atas_docs).union(contratos_docs)
     return document_sources.select(
+        "numero_controle_pncp",
+        "tipo_referencia",
+        "data_inclusao_referencia",
+    ).mutate(
         documento_key=ibis.literal("doc_") + document_sources.numero_controle_pncp + ibis.literal("_") + document_sources.doc_data.json_extract("$.id").cast("string"),
-        numero_controle_pncp="numero_controle_pncp",
-        tipo_referencia="tipo_referencia",
-        data_inclusao_referencia="data_inclusao_referencia",
-        titulo=_.doc_data.json_extract("$.titulo").cast("string"),
-        url=_.doc_data.json_extract("$.url").cast("string"),
-        data_documento=_.doc_data.json_extract("$.data").cast("timestamp"),
-        data_inclusao=_.doc_data.json_extract("$.dataInclusao").cast("timestamp"),
-        data_atualizacao=_.doc_data.json_extract("$.dataAtualizacao").cast("timestamp"),
-        tipo_documento_nome=_.doc_data.json_extract("$.tipoDocumentoNome").cast("string"),
+        titulo=document_sources.doc_data.json_extract("$.titulo").cast("string"),
+        url=document_sources.doc_data.json_extract("$.url").cast("string"),
+        data_documento=document_sources.doc_data.json_extract("$.data").cast("timestamp"),
+        data_inclusao=document_sources.doc_data.json_extract("$.dataInclusao").cast("timestamp"),
+        data_atualizacao=document_sources.doc_data.json_extract("$.dataAtualizacao").cast("timestamp"),
+        tipo_documento_nome=document_sources.doc_data.json_extract("$.tipoDocumentoNome").cast("string"),
     )
 
 
@@ -186,7 +187,6 @@ def create_silver_fact_contratacoes(
         (silver_contratacoes.codigoUnidade == silver_dim_unidades_orgao.codigoUnidade)
         & (silver_contratacoes.cnpjOrgao == silver_dim_unidades_orgao.cnpjOrgao),
     ).select(
-        procurement_key=ibis.literal("proc_") + silver_contratacoes.numeroControlePNCP,
         "numeroControlePNCP",
         "dataPublicacaoPNCP",
         "valorTotalEstimado",
@@ -194,16 +194,18 @@ def create_silver_fact_contratacoes(
         "modalidadeNome",
         "nomeSituacaoContratacao",
         "org_key",
-        unit_key=ibis.literal("unit_") + silver_dim_unidades_orgao.codigoUnidade,
         "dataAtualizacaoPNCP",
+    ).mutate(
+        procurement_key=ibis.literal("proc_") + silver_contratacoes.numeroControlePNCP,
+        unit_key=ibis.literal("unit_") + silver_dim_unidades_orgao.codigoUnidade,
         duracao_proposta_dias=(
             silver_contratacoes.dataVigenciaFim
             - silver_contratacoes.dataVigenciaInicio
         ).days(),
         faixa_valor_estimado=ibis.case()
-        .when(_.valorTotalEstimado <= 10000, "Até 10k")
-        .when(_.valorTotalEstimado <= 50000, "10k-50k")
-        .when(_.valorTotalEstimado <= 100000, "50k-100k")
+        .when(silver_contratacoes.valorTotalEstimado <= 10000, "Até 10k")
+        .when(silver_contratacoes.valorTotalEstimado <= 50000, "10k-50k")
+        .when(silver_contratacoes.valorTotalEstimado <= 100000, "50k-100k")
         .else_("Acima de 100k")
         .end(),
     )
@@ -222,7 +224,6 @@ def create_silver_fact_contratos(
         (silver_contratos.codigoUnidade == silver_dim_unidades_orgao.codigoUnidade)
         & (silver_contratos.cnpjOrgao == silver_dim_unidades_orgao.cnpjOrgao),
     ).select(
-        contract_key=ibis.literal("contract_") + silver_contratos.numeroControlePNCP,
         "numeroControlePNCP",
         "dataAssinatura",
         "dataVigenciaInicio",
@@ -232,8 +233,10 @@ def create_silver_fact_contratos(
         "nomeRazaoSocialFornecedor",
         "objetoContrato",
         "org_key",
-        unit_key=ibis.literal("unit_") + silver_dim_unidades_orgao.codigoUnidade,
         "dataAtualizacao",
+    ).mutate(
+        contract_key=ibis.literal("contract_") + silver_contratos.numeroControlePNCP,
+        unit_key=ibis.literal("unit_") + silver_dim_unidades_orgao.codigoUnidade,
         duracao_vigencia_dias=(
             silver_contratos.dataVigenciaFim - silver_contratos.dataVigenciaInicio
         ).days(),
@@ -258,18 +261,19 @@ def create_silver_itens_contratacao(bronze_pncp_raw: ibis.Table) -> ibis.Table:
         item_data=ibis.unnest(_.response_json.json_extract("$.itens")),
     )
     return itens.select(
+        "numero_controle_pncp",
+    ).mutate(
         item_key=ibis.literal("item_") + itens.numero_controle_pncp + ibis.literal("_") + itens.item_data.json_extract("$.numeroItem").cast("string"),
-        numero_controle_pncp="numero_controle_pncp",
-        numero_item=_.item_data.json_extract("$.numeroItem").cast("integer"),
-        descricao_item=_.item_data.json_extract("$.descricao").cast("string"),
-        quantidade=_.item_data.json_extract("$.quantidade").cast("double"),
-        valor_unitario_estimado=_.item_data.json_extract("$.valorUnitarioEstimado").cast("double"),
-        valor_total=_.item_data.json_extract("$.valorTotal").cast("double"),
-        unidade_medida=_.item_data.json_extract("$.unidadeMedida").cast("string"),
-        tipo_beneficio_nome=_.item_data.json_extract("$.tipoBeneficioNome").cast("string"),
-        situacao_compra_item_nome=_.item_data.json_extract("$.situacaoCompraItemNome").cast("string"),
-        data_inclusao=_.item_data.json_extract("$.dataInclusao").cast("timestamp"),
-        data_atualizacao=_.item_data.json_extract("$.dataAtualizacao").cast("timestamp"),
+        numero_item=itens.item_data.json_extract("$.numeroItem").cast("integer"),
+        descricao_item=itens.item_data.json_extract("$.descricao").cast("string"),
+        quantidade=itens.item_data.json_extract("$.quantidade").cast("double"),
+        valor_unitario_estimado=itens.item_data.json_extract("$.valorUnitarioEstimado").cast("double"),
+        valor_total=itens.item_data.json_extract("$.valorTotal").cast("double"),
+        unidade_medida=itens.item_data.json_extract("$.unidadeMedida").cast("string"),
+        tipo_beneficio_nome=itens.item_data.json_extract("$.tipoBeneficioNome").cast("string"),
+        situacao_compra_item_nome=itens.item_data.json_extract("$.situacaoCompraItemNome").cast("string"),
+        data_inclusao=itens.item_data.json_extract("$.dataInclusao").cast("timestamp"),
+        data_atualizacao=itens.item_data.json_extract("$.dataAtualizacao").cast("timestamp"),
     )
 
 

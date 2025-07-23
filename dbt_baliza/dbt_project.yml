@@ -1,0 +1,94 @@
+name: 'dbt_baliza'
+version: '1.0.0'
+config-version: 2
+
+# This setting configures which "profile" dbt uses for this project.
+profile: 'dbt_baliza'
+
+# These configurations specify where dbt should look for different types of files.
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+# Configuring models
+models:
+  dbt_baliza:
+    # Planning layer - Task planning for dbt-driven extraction
+    planning:
+      +materialized: table
+      +schema: planning
+
+    # Runtime layer - Execution tracking (read-only from dbt perspective)
+    runtime:
+      +materialized: view
+      +schema: runtime
+
+    # Analytics layer - Monitoring and reporting views
+    analytics:
+      +materialized: view
+      +schema: analytics
+
+    # Bronze layer - Incremental by default for performance
+    bronze:
+      +materialized: incremental
+      +schema: bronze
+      +config:
+        options:
+          default_compression: 'zstd'
+
+    # Silver layer - Incremental by default for performance
+    silver:
+      +materialized: incremental
+      +schema: silver
+
+    # Gold layer - Incremental for faster rebuilds on large datasets
+    gold:
+      +materialized: table
+      +schema: gold
+
+# Variables
+vars:
+  data_dir: ../data
+  # Schema for raw data
+  psa_schema: 'psa'
+
+  # Date range for processing (can be overridden at runtime)
+  start_date: '2024-01-01'
+  end_date: '2024-12-31'
+
+  # Task status values for testing
+  task_status_values: ['PENDING', 'CLAIMED', 'EXECUTING', 'COMPLETED', 'FAILED']
+
+  # Environment values for testing
+  environment_values: ['dev', 'staging', 'prod']
+
+  # Endpoint configurations
+  endpoints:
+    contratos_publicacao: 'contratos_publicacao'
+    contratos_atualizacao: 'contratos_atualizacao'
+    contratacoes_publicacao: 'contratacoes_publicacao'
+    contratacoes_atualizacao: 'contratacoes_atualizacao'
+    contratacoes_proposta: 'contratacoes_proposta'
+    atas_periodo: 'atas_periodo'
+    atas_atualizacao: 'atas_atualizacao'
+    instrumentos_cobranca: 'instrumentos_cobranca'
+    pca_atualizacao: 'pca_atualizacao'
+
+# Tests
+tests:
+  +schema: tests
+
+# Snapshots
+snapshots:
+  +schema: snapshots
+
+# Seeds
+seeds:
+  +schema: psa
