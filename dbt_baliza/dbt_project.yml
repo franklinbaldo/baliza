@@ -18,12 +18,6 @@ clean-targets:
   - "dbt_packages"
 
 # Configuring models
-on-run-start:
-  - "{{ create_enum_from_seed('modalidade_contratacao') }}"
-  - "{{ create_enum_from_seed('situacao_contratacao') }}"
-  - "{{ create_enum_from_seed('uf_brasil') }}"
-  - "{{ create_enum_from_seed('natureza_juridica') }}"
-
 models:
   dbt_baliza:
     # Planning layer - Task planning for dbt-driven extraction
@@ -45,6 +39,9 @@ models:
     bronze:
       +materialized: incremental
       +schema: bronze
+      +config:
+        options:
+          default_compression: 'zstd'
     
     # Silver layer - Incremental by default for performance
     silver:
@@ -53,7 +50,7 @@ models:
     
     # Gold layer - Incremental for faster rebuilds on large datasets
     gold:
-      +materialized: incremental
+      +materialized: table
       +schema: gold
 
 # Variables

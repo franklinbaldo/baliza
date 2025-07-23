@@ -1,9 +1,7 @@
 {{
   config(
-    materialized='table',
-    options={
-      'default_compression': 'zstd'
-    }
+    materialized='incremental',
+    unique_key='numeroControlePNCP'
   )
 }}
 
@@ -46,3 +44,7 @@ SELECT
   "justificativa",
   "fundamentacaoLegal"
 FROM {{ source('bronze', 'pncp_content') }}
+
+{% if is_incremental() %}
+WHERE "dataAtualizacaoPNCP" > (SELECT max("dataAtualizacaoPNCP") FROM {{ this }})
+{% endif %}
