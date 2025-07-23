@@ -108,99 +108,99 @@ mkdir -p sql/{ddl,dml/{inserts,updates,deletes},analytics,maintenance,migrations
 ### 🔥 Setup dbt
 **Referência**: ADR-013, Plano Seção 3
 
-- [ ] **F3.1** Configurar projeto dbt
-  - [ ] Executar `dbt init dbt_baliza` 
-  - [ ] Configurar `dbt_project.yml` com target DuckDB
-  - [ ] Setup profiles em `~/.dbt/profiles.yml`
-  - [ ] Testar conexão: `dbt debug`
+- [x] **F3.1** Configurar projeto dbt
+  - [x] Executar `dbt init dbt_baliza`
+  - [x] Configurar `dbt_project.yml` com target DuckDB
+  - [x] Setup profiles em `~/.dbt/profiles.yml`
+  - [x] Testar conexão: `dbt debug`
 
-- [ ] **F3.2** Estrutura do projeto dbt
-  - [ ] Criar diretórios `models/{bronze,silver,gold,marts}/`
-  - [ ] Criar `macros/{compression,validation,optimization}/`
-  - [ ] Configurar `schema.yml` para cada layer
-  - [ ] Setup `packages.yml` com dbt-utils
+- [x] **F3.2** Estrutura do projeto dbt
+  - [x] Criar diretórios `models/{bronze,silver,gold,marts}/`
+  - [x] Criar `macros/{compression,validation,optimization}/`
+  - [x] Configurar `schema.yml` para cada layer
+  - [x] Setup `packages.yml` com dbt-utils
 
 ### ⚡ Implementar ENUMs Oficiais
 **Referência**: ADR-011
 
-- [ ] **F3.3** Criar ENUMs como seeds
-  - [ ] `seeds/modalidade_contratacao.csv` (13 valores oficiais)
-  - [ ] `seeds/situacao_contratacao.csv` (4 valores oficiais)
-  - [ ] `seeds/uf_brasil.csv` (27 estados)
-  - [ ] `seeds/natureza_juridica.csv` (47 códigos)
-  - [ ] Todos os 17 domain tables do manual PNCP
+- [x] **F3.3** Criar ENUMs como seeds
+  - [x] `seeds/modalidade_contratacao.csv` (13 valores oficiais)
+  - [x] `seeds/situacao_contratacao.csv` (4 valores oficiais)
+  - [x] `seeds/uf_brasil.csv` (27 estados)
+  - [x] `seeds/natureza_juridica.csv` (47 códigos)
+  - [x] Todos os 17 domain tables do manual PNCP
 
-- [ ] **F3.4** Gerar CREATE TYPE statements
-  - [ ] Macro `create_enum_from_seed()` 
-  - [ ] SQL: `CREATE TYPE modalidade_contratacao AS ENUM (...)`
-  - [ ] Aplicar em hook `on-run-start`
-  - [ ] Validation que enum values existem nos seeds
+- [x] **F3.4** Gerar CREATE TYPE statements
+  - [x] Macro `create_enum_from_seed()`
+  - [x] SQL: `CREATE TYPE modalidade_contratacao AS ENUM (...)`
+  - [x] Aplicar em hook `on-run-start`
+  - [x] Validation que enum values existem nos seeds
 
 ### ⚡ Bronze Layer (Raw Data)
 **Referência**: ADR-013, ADR-010 (compression)
 
-- [ ] **F3.5** Modelo bronze_pncp_raw
-  - [ ] Schema identical to current pncp_content table
-  - [ ] `materialized: table`
-  - [ ] Global ZSTD compression: `SET default_compression='zstd'`
-  - [ ] Sem transformações, apenas staging
+- [x] **F3.5** Modelo bronze_pncp_raw
+  - [x] Schema identical to current pncp_content table
+  - [x] `materialized: table`
+  - [x] Global ZSTD compression: `SET default_compression='zstd'`
+  - [x] Sem transformações, apenas staging
 
-- [ ] **F3.6** Modelo bronze_pncp_requests  
-  - [ ] Schema para tabela de requests/metadata
-  - [ ] Campos: url_path, response_time, extracted_at, etc.
-  - [ ] Mesma estratégia de compressão
+- [x] **F3.6** Modelo bronze_pncp_requests
+  - [x] Schema para tabela de requests/metadata
+  - [x] Campos: url_path, response_time, extracted_at, etc.
+  - [x] Mesma estratégia de compressão
 
 ### ⚡ Silver Layer (Cleaned & Validated)
 **Referência**: ADR-011 (schema compliance), ADR-013
 
-- [ ] **F3.7** Modelo silver_pncp_contratacoes
-  - [ ] Aplicar ENUMs oficiais: `modalidade_contratacao::modalidade_contratacao_enum`
-  - [ ] Campos com tipos precisos: `DECIMAL(15,4)` para valores
-  - [ ] `VARCHAR(14)` para CNPJs, `VARCHAR(11)` para CPFs
-  - [ ] Data validation tests
+- [x] **F3.7** Modelo silver_pncp_contratacoes
+  - [x] Aplicar ENUMs oficiais: `modalidade_contratacao::modalidade_contratacao_enum`
+  - [x] Campos com tipos precisos: `DECIMAL(15,4)` para valores
+  - [x] `VARCHAR(14)` para CNPJs, `VARCHAR(11)` para CPFs
+  - [x] Data validation tests
 
-- [ ] **F3.8** Modelo silver_pncp_orgaos_entidades
-  - [ ] Hierarquia oficial: Órgão → Unidade Administrativa
-  - [ ] Campos: CNPJ, razaoSocial, poderId, esferaId
-  - [ ] Normalização de dados de entidades
+- [x] **F3.8** Modelo silver_pncp_orgaos_entidades
+  - [x] Hierarquia oficial: Órgão → Unidade Administrativa
+  - [x] Campos: CNPJ, razaoSocial, poderId, esferaId
+  - [x] Normalização de dados de entidades
 
-- [ ] **F3.9** Modelo silver_pncp_contratos
-  - [ ] Contratos/Atas vinculados a Contratações
-  - [ ] numeroControlePNCPContrato, valores, datas
-  - [ ] Foreign keys para integridade referencial
+- [x] **F3.9** Modelo silver_pncp_contratos
+  - [x] Contratos/Atas vinculados a Contratações
+  - [x] numeroControlePNCPContrato, valores, datas
+  - [x] Foreign keys para integridade referencial
 
 ### 📊 Gold Layer (Business Logic)
 **Referência**: ADR-013
 
-- [ ] **F3.10** Modelo gold_contratacoes_analytics
-  - [ ] Agregações por período, modalidade, órgão
-  - [ ] Métricas: total_valores, quantidade_contratos, média_por_modalidade
-  - [ ] Views otimizadas para dashboard
+- [x] **F3.10** Modelo gold_contratacoes_analytics
+  - [x] Agregações por período, modalidade, órgão
+  - [x] Métricas: total_valores, quantidade_contratos, média_por_modalidade
+  - [x] Views otimizadas para dashboard
 
-- [ ] **F3.11** Modelo gold_deduplication_efficiency
-  - [ ] Análise de conteúdo duplicado
-  - [ ] Storage savings, compression ratios
-  - [ ] Métricas para otimização
+- [x] **F3.11** Modelo gold_deduplication_efficiency
+  - [x] Análise de conteúdo duplicado
+  - [x] Storage savings, compression ratios
+  - [x] Métricas para otimização
 
 ### 📊 Macros dbt
 **Referência**: ADR-010 (heuristics), ADR-011 (enum drift)
 
-- [ ] **F3.12** Macro enum_drift_detection
-  - [ ] Comparar ENUMs atuais vs seeds oficiais  
-  - [ ] `SELECT enum_range() EXCEPT SELECT code FROM seed`
-  - [ ] Alert quando novos valores aparecem na API
-  - [ ] Auto-add com `ADD VALUE IF NOT EXISTS`
+- [x] **F3.12** Macro enum_drift_detection
+  - [x] Comparar ENUMs atuais vs seeds oficiais
+  - [x] `SELECT enum_range() EXCEPT SELECT code FROM seed`
+  - [x] Alert quando novos valores aparecem na API
+  - [x] Auto-add com `ADD VALUE IF NOT EXISTS`
 
-- [ ] **F3.13** Macro compression_config
-  - [ ] Aplicar `SET default_compression='zstd'` globalmente
-  - [ ] Evitar --strict em hot tables
-  - [ ] `CHECKPOINT` after bulk operations
+- [x] **F3.13** Macro compression_config
+  - [x] Aplicar `SET default_compression='zstd'` globalmente
+  - [x] Evitar --strict em hot tables
+  - [x] `CHECKPOINT` after bulk operations
 
-- [ ] **F3.14** Macro data_quality_tests
-  - [ ] CNPJ format validation (14 digits)
-  - [ ] CPF format validation (11 digits)
-  - [ ] Required fields não-nulos
-  - [ ] Foreign key integrity
+- [x] **F3.14** Macro data_quality_tests
+  - [x] CNPJ format validation (14 digits)
+  - [x] CPF format validation (11 digits)
+  - [x] Required fields não-nulos
+  - [x] Foreign key integrity
 
 ---
 

@@ -1,3 +1,6 @@
+-- Depends on the ENUM types being created.
+{{ ref('stg_create_enums') }}
+
 {{
   config(
     materialized='incremental',
