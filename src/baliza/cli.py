@@ -178,27 +178,47 @@ def extract(
 
 
 @app.command()
-def transform():
-    """Transform raw data into analytics-ready tables with dbt."""
-    # This command remains largely the same
+def transform(
+    use_dbt: bool = typer.Option(False, "--dbt", help="Use dbt for transformation instead of Ibis.")
+):
+    """Transform raw data into analytics-ready tables."""
     from .ui import create_header, get_theme
 
     theme = get_theme()
-    header = create_header(
-        "Transforming Data with dbt",
-        "Raw data → Analytics-ready tables",
-        theme.ICONS["transform"],
-    )
-    console.print(header)
 
-    try:
-        services = get_cli_services()
-        transformer = services.get_transformer()
-        transformer.transform()
-        console.print("✅ [bold green]Transformation complete![/bold green]")
-    except Exception as e:
-        error_handler.handle_database_error(e, "transform")
-        raise
+    if use_dbt:
+        header = create_header(
+            "Transforming Data with dbt",
+            "Raw data → Analytics-ready tables",
+            theme.ICONS["transform"],
+        )
+        console.print(header)
+
+        try:
+            services = get_cli_services()
+            transformer = services.get_transformer()
+            transformer.transform()
+            console.print("✅ [bold green]dbt transformation complete![/bold green]")
+        except Exception as e:
+            error_handler.handle_database_error(e, "transform")
+            raise
+    else:
+        header = create_header(
+            "Transforming Data with Ibis",
+            "Raw data → Analytics-ready tables",
+            "🦜",
+        )
+        console.print(header)
+        try:
+            import ibis
+            from pipelines.ibis_pipeline import run_ibis_pipeline
+
+            con = ibis.connect(f"duckdb://{BALIZA_DB_PATH}")
+            run_ibis_pipeline(con)
+            console.print("✅ [bold green]Ibis transformation complete![/bold green]")
+        except Exception as e:
+            error_handler.handle_database_error(e, "transform")
+            raise
 
 
 @app.command()
