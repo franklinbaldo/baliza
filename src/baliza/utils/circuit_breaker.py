@@ -129,34 +129,16 @@ class AdaptiveRateLimiter:
             wait_time = 60 - (now - oldest_request).total_seconds()
 
             if wait_time > 0:
-                # Add jitter to avoid thundering herd
-                jitter = random.uniform(0, min(wait_time * 0.1, 1.0))
-                await self._sleep(wait_time + jitter)
+                await self._sleep(wait_time)
 
         self.request_times.append(datetime.now())
 
     def adapt_rate(self, response_time: float, status_code: int):
         """Adapt rate based on server response"""
-        now = datetime.now()
-
-        # Only adjust every 30 seconds to avoid oscillation
-        if (now - self.last_adaptive_check).total_seconds() < 30:
-            return
-
-        self.last_adaptive_check = now
-
-        # Reduce rate if server is struggling
-        if status_code >= 500 or response_time > 10.0:
-            self.adaptive_factor = max(0.5, self.adaptive_factor * 0.8)
-            logger.warning(
-                f"Reducing request rate to {self.adaptive_factor:.2f} due to server issues"
-            )
-
-        # Gradually increase rate if server is responding well
+        if status_code >= 500 or response_time > 10.0 or status_code == 429:
+            self.adaptive_factor = 0.8
         elif status_code == 200 and response_time < 2.0:
-            self.adaptive_factor = min(1.0, self.adaptive_factor * 1.05)
-            if self.adaptive_factor > 0.95:
-                logger.info("Request rate back to normal")
+            self.adaptive_factor = 1.0
 
     async def _sleep(self, seconds: float):
         """Sleep function - can be overridden for testing"""

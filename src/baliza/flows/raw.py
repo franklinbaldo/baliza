@@ -116,7 +116,7 @@ async def extract_contratacoes_modalidade(
     modalidade_code: int,
     **filters
 ) -> ExtractionResult:
-    """Extract contratações for specific modalidade"""
+    """Extract contratacoes for specific modalidade"""
     logger = get_run_logger()
     start_time = datetime.now()
     
@@ -371,7 +371,7 @@ async def extract_phase_2a_concurrent(
             # Concurrent extraction for optimal performance
             tasks = []
             
-            # Extract contratações for each modalidade in parallel
+            # Extract contratacoes for each modalidade in parallel
             for modalidade in modalidades:
                 task = extract_contratacoes_modalidade.submit(
                     data_inicial=data_inicial,

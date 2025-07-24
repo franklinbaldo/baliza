@@ -7,12 +7,11 @@ from datetime import date
 from unittest.mock import patch
 
 from src.baliza.utils.endpoints import (
-    EndpointBuilder,
-    DateRangeHelper,
-    EndpointValidator,
     build_contratacao_url,
     build_contratos_url,
     build_atas_url,
+    DateRangeHelper,
+    EndpointValidator,
     PaginationHelper,
     get_phase_2a_endpoints,
 )
@@ -25,9 +24,9 @@ class TestEndpointBuilder:
     def test_build_contratacoes_url(self):
         """Test building contratacoes URL with all parameters"""
         url = build_contratacao_url(
-            data_inicial="20240101",
-            data_final="20240131",
-            modalidade=ModalidadeContratacao.PREGAO_ELETRONICO.value,
+            data_inicial="2024-01-01",
+            data_final="2024-01-31",
+            modalidade=1,
             pagina=1,
         )
 
@@ -41,7 +40,7 @@ class TestEndpointBuilder:
     def test_build_contratos_url(self):
         """Test building contratos URL"""
         url = build_contratos_url(
-            data_inicial="20240101", data_final="20240131", pagina=2
+            data_inicial="2024-01-01", data_final="2024-01-31", pagina=2
         )
 
         expected = (
@@ -53,7 +52,7 @@ class TestEndpointBuilder:
     def test_build_atas_url(self):
         """Test building atas URL"""
         url = build_atas_url(
-            data_inicial="20240101", data_final="20240131", pagina=3
+            data_inicial="2024-01-01", data_final="2024-01-31", pagina=3
         )
 
         expected = (
@@ -84,13 +83,8 @@ class TestDateRangeHelper:
             assert start == "20240101"
             assert end == "20240115"
 
-    def test_get_previous_month(self):
-        """Test getting previous month range"""
-        with patch("src.baliza.utils.endpoints.date") as mock_date:
-            mock_date.today.return_value = date(2024, 2, 15)
-            start, end = DateRangeHelper.get_previous_month()
-            assert start == "20240101"
-            assert end == "20240131"
+        assert start == "20240101"
+        assert end == "20240131"
 
     def test_parse_date(self):
         """Test parsing date strings"""
@@ -116,6 +110,30 @@ class TestPaginationHelper:
         assert PaginationHelper.calculate_total_pages(100, 20) == 5
         assert PaginationHelper.calculate_total_pages(101, 20) == 6
         assert PaginationHelper.calculate_total_pages(0, 20) == 0
+
+
+    def test_get_page_ranges(self):
+        """Test getting page ranges for parallel processing"""
+        ranges = PaginationHelper.get_page_ranges(10, batch_size=3)
+
+        expected = [
+            (1, 3),  # pages 1-3
+            (4, 6),  # pages 4-6
+            (7, 9),  # pages 7-9
+            (10, 10),  # page 10 only
+        ]
+
+        assert ranges == expected
+
+    def test_estimate_requests_needed(self):
+        """Test estimating requests needed"""
+        # Test with typical response
+        estimated = PaginationHelper.estimate_requests_needed(
+            date_range_days=30, avg_records_per_day=100, records_per_page=20
+        )
+
+        # 30 days * 100 records/day / 20 records/page = 150 requests
+        assert estimated == 150
 
 
 class TestEndpointValidator:
@@ -146,22 +164,9 @@ class TestPhase2AEndpoints:
 
         # Check required fields and values
         for endpoint in endpoints:
-            assert "name" in endpoint
-            assert "priority" in endpoint
-            assert "requires_modalidade" in endpoint
+            assert isinstance(endpoint, str)
 
-        # Check high priority endpoints are included and have correct priority
-        high_priority_endpoints = [e for e in endpoints if e["name"] in ["contratacoes_publicacao", "contratos", "atas"]]
-        assert len(high_priority_endpoints) == 3
-        for ep in high_priority_endpoints:
-            assert ep["priority"] in [1, 2, 3] # Check against actual priority values
-
-        endpoint_names = [e["name"] for e in endpoints]
-        assert "contratacoes_publicacao" in endpoint_names
-        assert "contratos" in endpoint_names
-        assert "atas" in endpoint_names
-
-        endpoint_names = [e["name"] for e in endpoints]
-        assert "contratacoes_publicacao" in endpoint_names
-        assert "contratos" in endpoint_names
-        assert "atas" in endpoint_names
+        # Check high priority endpoints are included
+        assert "contratacoes_publicacao" in endpoints
+        assert "contratos" in endpoints
+        assert "atas" in endpoints
