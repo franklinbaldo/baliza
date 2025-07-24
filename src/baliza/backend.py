@@ -48,6 +48,7 @@ def connect() -> Backend:
     # Optimize DuckDB settings
     con.raw_sql("PRAGMA threads=8;")
     con.raw_sql("PRAGMA memory_limit='4GB';")
+    # TODO: Make temp_directory configurable instead of hardcoded path
     con.raw_sql("PRAGMA temp_directory='data/tmp';")
     con.raw_sql("PRAGMA enable_progress_bar=true;")
 

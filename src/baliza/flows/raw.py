@@ -157,6 +157,9 @@ async def extract_contratacoes_modalidade(
             total_bytes += api_request.payload_size
 
             # Store in database (this will be executed sequentially by Prefect)
+            # FIXME: Sequential storage creates performance bottleneck
+            # TODO: Implement batch storage pattern for better performance
+            # TODO: Consider implementing raw.hot_payloads table for deduplication
             store_api_request.submit(api_request)
 
         await extractor.close()

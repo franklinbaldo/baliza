@@ -234,21 +234,37 @@ def transform(
 def ui():
     """Inicia a interface web do Prefect."""
     console.print("Iniciando a UI do Prefect...")
-    # Lógica para iniciar o servidor do Prefect aqui
+    # TODO: Import and start Prefect server subprocess
+    # TODO: Check if Prefect server is already running (port 4200)
+    # TODO: Open browser automatically to http://localhost:4200
+    # TODO: Handle server startup errors and port conflicts
+    # FIXME: This command is currently a stub with no functionality
 
 
 @app.command()
 def query(sql: str):
     """Executa uma consulta SQL diretamente no banco de dados."""
     console.print(f"Executando a query: {sql}")
-    # Lógica da query aqui
+    # TODO: Connect to DuckDB using backend.connect()
+    # TODO: Execute SQL query and handle errors gracefully
+    # TODO: Format results in a readable table using Rich
+    # TODO: Support for parameterized queries to prevent SQL injection
+    # TODO: Add query timeout and memory limits
+    # TODO: Support for exporting query results to CSV/JSON
+    # FIXME: This command is currently a stub with no functionality
 
 
 @app.command()
 def dump_catalog():
     """Exporta o esquema das tabelas para um arquivo YAML."""
     console.print("Exportando catálogo...")
-    # Lógica de dump_catalog aqui
+    # TODO: Query DuckDB information_schema for all tables and views
+    # TODO: Export schema definitions including column types and constraints
+    # TODO: Include table row counts and approximate sizes
+    # TODO: Generate YAML format with proper structure
+    # TODO: Save to data/catalog.yml with timestamp
+    # TODO: Include data lineage information (raw -> staging -> marts)
+    # FIXME: This command is currently a stub with no functionality
 
 
 @app.command()
@@ -264,7 +280,13 @@ def reset(
         ):
             raise typer.Abort()
     console.print("Resetando o banco de dados...")
-    # Lógica de reset aqui
+    # TODO: Close all active DuckDB connections first
+    # TODO: Delete the actual database file (data/baliza.duckdb)
+    # TODO: Clear any temporary files (data/tmp/*)
+    # TODO: Reset any cached data or state files
+    # TODO: Provide feedback on what was deleted and file sizes
+    # TODO: Offer option to backup before reset
+    # FIXME: This command is currently a stub with no functionality
 
 
 @app.command()
@@ -283,7 +305,14 @@ def verify(
 ):
     """Dispara a rotina de verificação de integridade."""
     console.print("Iniciando verificação de integridade...")
-    # Lógica de verify aqui
+    # TODO: Implement data integrity verification flow
+    # TODO: Re-fetch sample of stored payloads from PNCP API
+    # TODO: Compare SHA-256 hashes to detect data drift/corruption
+    # TODO: Check for missing dates or gaps in raw.api_requests
+    # TODO: Validate that all referenced payload hashes exist in storage
+    # TODO: Generate integrity report with divergences found
+    # TODO: Log verification results to meta.divergence_log
+    # FIXME: This command is currently a stub with no functionality
 
 
 @app.command()
@@ -292,7 +321,13 @@ def fetch_payload(
 ):
     """Baixa o payload bruto associado a um sha256_payload específico."""
     console.print(f"Buscando payload para hash: {sha256_hash}")
-    # Lógica de fetch_payload aqui
+    # TODO: Validate SHA-256 hash format (64 hex characters)
+    # TODO: Query raw.hot_payloads table for matching hash
+    # TODO: Decompress payload if found and display as formatted JSON
+    # TODO: Handle case where hash is not found in local storage
+    # TODO: Offer option to save payload to file
+    # TODO: Show metadata (original API endpoint, collection date, etc.)
+    # FIXME: This command is currently a stub with no functionality
 
 
 def _display_extraction_results(result: dict) -> None:
