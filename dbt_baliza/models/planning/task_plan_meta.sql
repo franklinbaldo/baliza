@@ -26,7 +26,7 @@ task_count AS (
   GROUP BY plan_fingerprint
 )
 
-SELECT 
+SELECT
   pm.plan_fingerprint,
   pm.environment,
   pm.date_range_start,

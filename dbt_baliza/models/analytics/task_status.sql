@@ -9,7 +9,7 @@
 
 WITH current_claims AS (
   -- Get current active claims per task
-  SELECT 
+  SELECT
     task_id,
     MAX(claimed_at) AS latest_claim_at,
     COUNT(*) AS claim_count
@@ -21,7 +21,7 @@ WITH current_claims AS (
 
 task_completion AS (
   -- Determine completion status from results
-  SELECT 
+  SELECT
     tr.task_id,
     COUNT(*) AS completed_tasks,
     MAX(tr.completed_at) AS last_completed_at,
@@ -32,33 +32,33 @@ task_completion AS (
 ),
 
 task_status_summary AS (
-  SELECT 
+  SELECT
     tp.task_id,
     tp.endpoint_name,
     tp.data_date,
     tp.modalidade,
     tp.plan_fingerprint,
     tp.created_at AS task_created_at,
-    
+
     -- Determine current status
-    CASE 
+    CASE
       WHEN tc.completed_tasks > 0 THEN 'COMPLETED'
       WHEN cc.task_id IS NOT NULL THEN 'CLAIMED'
       ELSE 'PENDING'
     END AS current_status,
-    
+
     -- Metrics
     COALESCE(tc.completed_tasks, 0) AS completed_tasks,
     COALESCE(tc.total_records, 0) AS total_records,
     cc.claim_count,
     tc.last_completed_at,
     cc.latest_claim_at,
-    
+
     -- Calculate duration if completed
-    CASE 
-      WHEN tc.last_completed_at IS NOT NULL 
+    CASE
+      WHEN tc.last_completed_at IS NOT NULL
       THEN EXTRACT(EPOCH FROM (tc.last_completed_at - tp.created_at)) / 3600.0
-      ELSE NULL 
+      ELSE NULL
     END AS completion_hours
 
   FROM {{ ref('task_plan') }} tp
@@ -66,7 +66,7 @@ task_status_summary AS (
   LEFT JOIN task_completion tc ON tp.task_id = tc.task_id
 )
 
-SELECT 
+SELECT
   task_id,
   endpoint_name,
   data_date,

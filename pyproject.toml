@@ -26,6 +26,9 @@ dependencies = [
     "dbt-core>=1.7.0", # Medallion architecture transformation - ADR-003
     "dbt-duckdb>=1.7.0", # DuckDB adapter for dbt - ADR-001, ADR-003
     "prance[osv]>=23.6.21.0",
+    "ibis-framework[duckdb]",
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.1.0",
 ]
 
 [project.scripts]
@@ -275,3 +278,9 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 include = ["baliza*"]
 exclude = ["tests*"]
+
+[tool.kedro]
+package_name = "baliza"
+project_name = "baliza"
+kedro_init_version = "1.0.0"
+pipeline_registry = "src.settings.register_pipelines"

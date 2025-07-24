@@ -28,18 +28,18 @@ SELECT
     SUM(reference_count) as total_references,
     SUM(content_size_bytes) as actual_storage_bytes,
     SUM(content_size_bytes * reference_count) as theoretical_storage_bytes,
-    
+
     -- Deduplication metrics
     COUNT(CASE WHEN reference_count > 1 THEN 1 END) as deduplicated_content_count,
     (COUNT(CASE WHEN reference_count > 1 THEN 1 END)::FLOAT / COUNT(*)) * 100 as deduplication_rate_percent,
-    
+
     -- Storage savings
     (SUM(content_size_bytes * reference_count) - SUM(content_size_bytes)) as storage_savings_bytes,
     ((SUM(content_size_bytes * reference_count) - SUM(content_size_bytes))::FLOAT / SUM(content_size_bytes * reference_count)) * 100 as storage_savings_percent,
-    
+
     -- Compression metrics
     (SUM(content_size_bytes)::FLOAT / SUM(content_size_bytes * reference_count)) as compression_ratio,
-    
+
     -- Analysis timestamp
     CURRENT_TIMESTAMP as analysis_timestamp
 

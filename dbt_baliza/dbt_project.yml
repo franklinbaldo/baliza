@@ -24,17 +24,17 @@ models:
     planning:
       +materialized: table
       +schema: planning
-    
+
     # Runtime layer - Execution tracking (read-only from dbt perspective)
     runtime:
       +materialized: view
       +schema: runtime
-    
+
     # Analytics layer - Monitoring and reporting views
     analytics:
       +materialized: view
       +schema: analytics
-    
+
     # Bronze layer - Incremental by default for performance
     bronze:
       +materialized: incremental
@@ -42,12 +42,12 @@ models:
       +config:
         options:
           default_compression: 'zstd'
-    
+
     # Silver layer - Incremental by default for performance
     silver:
       +materialized: incremental
       +schema: silver
-    
+
     # Gold layer - Incremental for faster rebuilds on large datasets
     gold:
       +materialized: table
@@ -58,17 +58,17 @@ vars:
   data_dir: ../data
   # Schema for raw data
   psa_schema: 'psa'
-  
+
   # Date range for processing (can be overridden at runtime)
   start_date: '2024-01-01'
   end_date: '2024-12-31'
-  
+
   # Task status values for testing
   task_status_values: ['PENDING', 'CLAIMED', 'EXECUTING', 'COMPLETED', 'FAILED']
-  
+
   # Environment values for testing
   environment_values: ['dev', 'staging', 'prod']
-  
+
   # Endpoint configurations
   endpoints:
     contratos_publicacao: 'contratos_publicacao'

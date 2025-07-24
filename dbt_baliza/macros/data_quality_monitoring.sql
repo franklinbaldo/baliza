@@ -28,20 +28,20 @@
     COUNT(*) AS total_records,
     COUNT(DISTINCT numero_controle_pncp) AS unique_contracts,
     COUNT(*) - COUNT(DISTINCT numero_controle_pncp) AS duplicate_records,
-    
+
     -- Value distribution for transparency
     COUNT(CASE WHEN valor_inicial = 0 THEN 1 END) AS zero_value_contracts,
     COUNT(CASE WHEN valor_inicial < 0 THEN 1 END) AS negative_value_contracts,
     COUNT(CASE WHEN valor_inicial > 1000000 THEN 1 END) AS high_value_contracts,
-    
+
     -- Date quality for transparency
     COUNT(CASE WHEN data_assinatura IS NULL THEN 1 END) AS missing_signature_dates,
     COUNT(CASE WHEN data_vigencia_fim < data_vigencia_inicio THEN 1 END) AS invalid_date_ranges,
-    
+
     -- Supplier information completeness
     COUNT(CASE WHEN ni_fornecedor IS NULL THEN 1 END) AS missing_supplier_ids,
     COUNT(CASE WHEN nome_razao_social_fornecedor IS NULL THEN 1 END) AS missing_supplier_names,
-    
+
     CURRENT_TIMESTAMP AS report_generated_at
   FROM {{ ref(model_name) }}
 {% endmacro %}
