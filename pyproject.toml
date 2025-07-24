@@ -14,7 +14,8 @@ dependencies = [
     "pydantic",
     "httpx",
     "typer",
-    "rich"
+    "rich",
+    "ruff>=0.12.5",
 ]
 
 [project.optional-dependencies]
