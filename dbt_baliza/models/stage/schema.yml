@@ -1,7 +1,7 @@
 version: 2
 
 models:
-  - name: silver_contratacoes
+  - name: stage_contratacoes
     description: "Cleaned and validated PNCP contratacoes data"
     columns:
       - name: numeroControlePNCP
@@ -19,7 +19,7 @@ models:
           - not_null
           - test_enum_drift:
               seed_name: 'modalidade_contratacao'
-  - name: silver_orgaos_entidades
+  - name: stage_orgaos_entidades
     description: "Cleaned and validated PNCP orgaos e entidades data"
     columns:
       - name: sequencialOrgao
@@ -29,7 +29,7 @@ models:
       - name: cnpjOrgao
         tests:
           - test_cnpj_format
-  - name: silver_contratos
+  - name: stage_contratos
     description: "Cleaned and validated PNCP contratos data"
     columns:
       - name: numeroControlePNCPContrato
@@ -39,5 +39,5 @@ models:
       - name: numeroControlePNCP
         tests:
           - relationships:
-              to: ref('silver_contratacoes')
+              to: ref('stage_contratacoes')
               field: numeroControlePNCP

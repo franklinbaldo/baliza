@@ -46,7 +46,7 @@ SELECT
   "numeroControlePNCPContrato",
   "justificativa",
   "fundamentacaoLegal"
-FROM {{ ref('bronze_pncp_raw') }}
+FROM {{ ref('raw_pncp_data') }}
 
 {% if is_incremental() %}
 WHERE "dataAtualizacaoPNCP" > (SELECT max("dataAtualizacaoPNCP") FROM {{ this }})

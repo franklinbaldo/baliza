@@ -49,25 +49,25 @@ def load_domain_tables(con: ibis.BaseBackend) -> Dict[str, ibis.Table]:
     
     return domain_tables
 
-def enrich_with_domain_data(silver_table: ibis.Table, con: ibis.BaseBackend) -> ibis.Table:
+def enrich_with_domain_data(stage_table: ibis.Table, con: ibis.BaseBackend) -> ibis.Table:
     """
-    Enrich silver tables with human-readable domain descriptions.
+    Enrich stage tables with human-readable domain descriptions.
     
     Args:
-        silver_table: The silver table to enrich
+        stage_table: The stage table to enrich
         con: Ibis backend connection
         
     Returns:
         Enriched table with additional descriptive columns
     """
-    enriched = silver_table
+    enriched = stage_table
     
     try:
         # Get list of available domain tables
         available_tables = con.list_tables()
         
         # Enrich with modalidade names
-        if "dim_modalidade_contratacao" in available_tables and "modalidadeId" in silver_table.columns:
+        if "dim_modalidade_contratacao" in available_tables and "modalidadeId" in stage_table.columns:
             modalidade_dim = con.table("dim_modalidade_contratacao")
             enriched = enriched.join(
                 modalidade_dim,
@@ -117,7 +117,7 @@ def enrich_with_domain_data(silver_table: ibis.Table, con: ibis.BaseBackend) -> 
     except Exception as e:
         print(f"Warning: Error during domain enrichment: {e}")
         # Return original table if enrichment fails
-        return silver_table
+        return stage_table
     
     return enriched
 

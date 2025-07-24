@@ -192,7 +192,7 @@ O BALIZA é construído sobre uma base de tecnologias modernas e decisões de ar
 |---|---|---|---|
 | **Coleta** | Python, asyncio, httpx, tenacity, pandas | Extração eficiente, assíncrona e vetorizada. | [ADR-002](docs/adr/002-resilient-extraction.md), [ADR-005](docs/adr/005-modern-python-toolchain.md) |
 | **Armazenamento**| DuckDB | Banco de dados analítico local, rápido e sem servidor, com arquitetura de tabelas divididas para deduplicação. | [ADR-001](docs/adr/001-adopt-duckdb.md), [ADR-008](docs/adr/008-split-psa-table-architecture.md) |
-| **Transformação**| Ibis + dbt (Data Build Tool) | Transforma dados brutos em modelos de dados limpos e confiáveis (Arquitetura Medallion) usando Ibis (padrão) com enriquecimento de domínio ou dbt tradicional. | [ADR-003](docs/adr/003-medallion-architecture.md), [ADR-014](docs/adr/014-ibis-pipeline-adoption.md) |
+| **Transformação**| Ibis + dbt (Data Build Tool) | Transforma dados usando arquitetura Raw → Stage → Mart (Medallion) com Ibis (padrão) e enriquecimento de domínio ou dbt tradicional. | [ADR-003](docs/adr/003-medallion-architecture.md), [ADR-014](docs/adr/014-ibis-pipeline-adoption.md) |
 | **Interface** | Typer, Rich | CLI amigável, informativa e com ótima usabilidade. | [ADR-005](docs/adr/005-modern-python-toolchain.md) |
 | **Dependências**| uv | Gerenciamento de pacotes e ambientes virtuais de alta performance. | [ADR-005](docs/adr/005-modern-python-toolchain.md) |
 | **Publicação** | Internet Archive | Hospedagem pública e permanente dos dados. | [ADR-006](docs/adr/006-internet-archive.md) |

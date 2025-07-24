@@ -2,9 +2,9 @@ import ibis
 import time
 from typing import Dict, Any
 from pipelines.ibis_nodes import (
-    transform_silver_contratacoes,
-    transform_silver_dim_unidades_orgao,
-    create_gold_contratacoes_analytics,
+    transform_stage_contratacoes,
+    transform_stage_dim_unidades_orgao,
+    create_mart_contratacoes_analytics,
 )
 from pipelines.domain_nodes import (
     load_domain_tables,
@@ -15,6 +15,7 @@ from pipelines.domain_nodes import (
 def run_ibis_pipeline(con: ibis.BaseBackend, enable_domain_enrichment: bool = True) -> Dict[str, Any]:
     """
     Runs the enhanced Ibis transformation pipeline with domain table integration.
+    Uses the Raw → Stage → Mart medallion architecture.
     
     Args:
         con: Ibis backend connection
@@ -26,7 +27,7 @@ def run_ibis_pipeline(con: ibis.BaseBackend, enable_domain_enrichment: bool = Tr
     start_time = time.time()
     step_times = {}
     
-    print("🦜 Starting Enhanced Ibis Pipeline")
+    print("🦜 Starting Enhanced Ibis Pipeline (Raw → Stage → Mart)")
     
     # 1. Load domain reference tables (if enabled)
     domain_tables = {}
@@ -37,38 +38,38 @@ def run_ibis_pipeline(con: ibis.BaseBackend, enable_domain_enrichment: bool = Tr
         step_times["domain_loading"] = time.time() - step_start
         print(f"✅ Domain tables loaded: {len(domain_tables)} tables ({step_times['domain_loading']:.2f}s)")
     
-    # 2. Silver layer transformations
+    # 2. Stage layer transformations
     step_start = time.time()
-    print("🥈 Processing Silver layer...")
+    print("🔄 Processing Stage layer...")
     
-    silver_contratacoes = transform_silver_contratacoes(con)
+    stage_contratacoes = transform_stage_contratacoes(con)
     
     # Enrich with domain data if enabled
     if enable_domain_enrichment and domain_tables:
-        silver_contratacoes_enriched = enrich_with_domain_data(silver_contratacoes, con)
-        con.create_table("silver_contratacoes", silver_contratacoes_enriched, overwrite=True)
+        stage_contratacoes_enriched = enrich_with_domain_data(stage_contratacoes, con)
+        con.create_table("stage_contratacoes", stage_contratacoes_enriched, overwrite=True)
     else:
-        con.create_table("silver_contratacoes", silver_contratacoes, overwrite=True)
+        con.create_table("stage_contratacoes", stage_contratacoes, overwrite=True)
 
-    silver_dim_unidades_orgao = transform_silver_dim_unidades_orgao(con)
-    con.create_table("silver_dim_unidades_orgao", silver_dim_unidades_orgao, overwrite=True)
+    stage_dim_unidades_orgao = transform_stage_dim_unidades_orgao(con)
+    con.create_table("stage_dim_unidades_orgao", stage_dim_unidades_orgao, overwrite=True)
     
-    step_times["silver_layer"] = time.time() - step_start
-    print(f"✅ Silver layer complete ({step_times['silver_layer']:.2f}s)")
+    step_times["stage_layer"] = time.time() - step_start
+    print(f"✅ Stage layer complete ({step_times['stage_layer']:.2f}s)")
 
-    # 3. Gold layer analytics
+    # 3. Mart layer analytics
     step_start = time.time()
-    print("🥇 Processing Gold layer...")
+    print("📊 Processing Mart layer...")
     
-    # Use enriched silver table for gold layer
-    final_silver_contratacoes = con.table("silver_contratacoes")
-    gold_contratacoes_analytics = create_gold_contratacoes_analytics(
-        final_silver_contratacoes, silver_dim_unidades_orgao
+    # Use enriched stage table for mart layer
+    final_stage_contratacoes = con.table("stage_contratacoes")
+    mart_contratacoes_analytics = create_mart_contratacoes_analytics(
+        final_stage_contratacoes, stage_dim_unidades_orgao
     )
-    con.create_table("gold_contratacoes_analytics", gold_contratacoes_analytics, overwrite=True)
+    con.create_table("mart_contratacoes_analytics", mart_contratacoes_analytics, overwrite=True)
     
-    step_times["gold_layer"] = time.time() - step_start
-    print(f"✅ Gold layer complete ({step_times['gold_layer']:.2f}s)")
+    step_times["mart_layer"] = time.time() - step_start
+    print(f"✅ Mart layer complete ({step_times['mart_layer']:.2f}s)")
     
     # 4. Generate metrics
     total_time = time.time() - start_time

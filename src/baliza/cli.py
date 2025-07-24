@@ -205,7 +205,7 @@ def transform(
     else:
         header = create_header(
             "Transforming Data with Ibis",
-            "Raw data → Analytics-ready tables",
+            "Raw → Stage → Mart pipeline",
             "🦜",
         )
         console.print(header)
@@ -401,21 +401,21 @@ def explore():
 
             # Basic stats
             total_requests = conn.execute(
-                "SELECT COUNT(*) FROM psa.bronze_pncp_requests"
+                "SELECT COUNT(*) FROM psa.raw_pncp_requests"
             ).fetchone()[0]
             total_contracts = conn.execute(
-                "SELECT COUNT(*) FROM psa.bronze_contratos"
+                "SELECT COUNT(*) FROM psa.raw_contratos"
             ).fetchone()[0]
             total_procurements = conn.execute(
-                "SELECT COUNT(*) FROM psa.bronze_contratacoes" 
+                "SELECT COUNT(*) FROM psa.raw_contratacoes" 
             ).fetchone()[0]
             total_atas = conn.execute(
-                "SELECT COUNT(*) FROM psa.bronze_atas"
+                "SELECT COUNT(*) FROM psa.raw_atas"
             ).fetchone()[0]
 
             # Date range
             date_range_result = conn.execute(
-                "SELECT MIN(data_date), MAX(data_date) FROM psa.bronze_pncp_requests"
+                "SELECT MIN(data_date), MAX(data_date) FROM psa.raw_pncp_requests"
             ).fetchone()
 
             if date_range_result and date_range_result[0]:

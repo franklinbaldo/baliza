@@ -158,7 +158,7 @@ class PNCPWriter:
         # Table 2: Request metadata with foreign key to content
         self.conn.execute(
             """
-            CREATE TABLE IF NOT EXISTS psa.bronze_pncp_requests (
+            CREATE TABLE IF NOT EXISTS psa.raw_pncp_requests (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 extracted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 
@@ -229,7 +229,7 @@ class PNCPWriter:
         # Table 4: Bronze Contratos - Direct mapping from /v1/contratos endpoints
         self.conn.execute(
             """
-            CREATE TABLE IF NOT EXISTS psa.bronze_contratos (
+            CREATE TABLE IF NOT EXISTS psa.raw_contratos (
                 -- Identificadores
                 numero_controle_pncp_compra VARCHAR,
                 numero_controle_pncp VARCHAR,
@@ -314,7 +314,7 @@ class PNCPWriter:
         # Table 5: Bronze Contratacoes - Direct mapping from /v1/contratacoes/* endpoints
         self.conn.execute(
             """
-            CREATE TABLE IF NOT EXISTS psa.bronze_contratacoes (
+            CREATE TABLE IF NOT EXISTS psa.raw_contratacoes (
                 -- Identificadores
                 numero_controle_pncp VARCHAR,
                 ano_compra INTEGER,
@@ -397,7 +397,7 @@ class PNCPWriter:
         # Table 6: Bronze Atas - Direct mapping from /v1/atas/* endpoints
         self.conn.execute(
             """
-            CREATE TABLE IF NOT EXISTS psa.bronze_atas (
+            CREATE TABLE IF NOT EXISTS psa.raw_atas (
                 -- Identificadores
                 numero_controle_pncp_ata VARCHAR,
                 numero_ata_registro_preco VARCHAR,
@@ -444,9 +444,9 @@ class PNCPWriter:
         # Table 7: Bronze Fontes Orcamentarias - Child table of contratacoes
         self.conn.execute(
             """
-            CREATE TABLE IF NOT EXISTS psa.bronze_fontes_orcamentarias (
+            CREATE TABLE IF NOT EXISTS psa.raw_fontes_orcamentarias (
                 -- Relacionamento
-                contratacao_numero_controle_pncp VARCHAR NOT NULL, -- FK para bronze_contratacoes
+                contratacao_numero_controle_pncp VARCHAR NOT NULL, -- FK para raw_contratacoes
                 
                 -- Dados da Fonte
                 codigo INTEGER,
@@ -511,31 +511,31 @@ class PNCPWriter:
         """Create indexes for split table architecture."""
         indexes_to_create = {
             # Indexes for new split tables
-            # Indexes for bronze_pncp_requests
-            "idx_requests_endpoint_month": "CREATE INDEX IF NOT EXISTS idx_requests_endpoint_month ON psa.bronze_pncp_requests(endpoint_name, month)",
-            "idx_requests_status": "CREATE INDEX IF NOT EXISTS idx_requests_status ON psa.bronze_pncp_requests(parse_status)",
-            "idx_requests_date": "CREATE INDEX IF NOT EXISTS idx_requests_date ON psa.bronze_pncp_requests(extracted_at)",
-            "idx_requests_run_id": "CREATE INDEX IF NOT EXISTS idx_requests_run_id ON psa.bronze_pncp_requests(run_id)",
+            # Indexes for raw_pncp_requests
+            "idx_requests_endpoint_month": "CREATE INDEX IF NOT EXISTS idx_requests_endpoint_month ON psa.raw_pncp_requests(endpoint_name, month)",
+            "idx_requests_status": "CREATE INDEX IF NOT EXISTS idx_requests_status ON psa.raw_pncp_requests(parse_status)",
+            "idx_requests_date": "CREATE INDEX IF NOT EXISTS idx_requests_date ON psa.raw_pncp_requests(extracted_at)",
+            "idx_requests_run_id": "CREATE INDEX IF NOT EXISTS idx_requests_run_id ON psa.raw_pncp_requests(run_id)",
             
-            # Indexes for bronze_contratos
-            "idx_contratos_pncp": "CREATE INDEX IF NOT EXISTS idx_contratos_pncp ON psa.bronze_contratos(numero_controle_pncp)",
-            "idx_contratos_orgao": "CREATE INDEX IF NOT EXISTS idx_contratos_orgao ON psa.bronze_contratos(orgao_cnpj)",
-            "idx_contratos_fornecedor": "CREATE INDEX IF NOT EXISTS idx_contratos_fornecedor ON psa.bronze_contratos(ni_fornecedor)",
-            "idx_contratos_data": "CREATE INDEX IF NOT EXISTS idx_contratos_data ON psa.bronze_contratos(data_publicacao_pncp)",
+            # Indexes for raw_contratos
+            "idx_contratos_pncp": "CREATE INDEX IF NOT EXISTS idx_contratos_pncp ON psa.raw_contratos(numero_controle_pncp)",
+            "idx_contratos_orgao": "CREATE INDEX IF NOT EXISTS idx_contratos_orgao ON psa.raw_contratos(orgao_cnpj)",
+            "idx_contratos_fornecedor": "CREATE INDEX IF NOT EXISTS idx_contratos_fornecedor ON psa.raw_contratos(ni_fornecedor)",
+            "idx_contratos_data": "CREATE INDEX IF NOT EXISTS idx_contratos_data ON psa.raw_contratos(data_publicacao_pncp)",
             
-            # Indexes for bronze_contratacoes
-            "idx_contratacoes_pncp": "CREATE INDEX IF NOT EXISTS idx_contratacoes_pncp ON psa.bronze_contratacoes(numero_controle_pncp)",
-            "idx_contratacoes_orgao": "CREATE INDEX IF NOT EXISTS idx_contratacoes_orgao ON psa.bronze_contratacoes(orgao_cnpj)",
-            "idx_contratacoes_modalidade": "CREATE INDEX IF NOT EXISTS idx_contratacoes_modalidade ON psa.bronze_contratacoes(modalidade_id)",
-            "idx_contratacoes_data": "CREATE INDEX IF NOT EXISTS idx_contratacoes_data ON psa.bronze_contratacoes(data_publicacao_pncp)",
+            # Indexes for raw_contratacoes
+            "idx_contratacoes_pncp": "CREATE INDEX IF NOT EXISTS idx_contratacoes_pncp ON psa.raw_contratacoes(numero_controle_pncp)",
+            "idx_contratacoes_orgao": "CREATE INDEX IF NOT EXISTS idx_contratacoes_orgao ON psa.raw_contratacoes(orgao_cnpj)",
+            "idx_contratacoes_modalidade": "CREATE INDEX IF NOT EXISTS idx_contratacoes_modalidade ON psa.raw_contratacoes(modalidade_id)",
+            "idx_contratacoes_data": "CREATE INDEX IF NOT EXISTS idx_contratacoes_data ON psa.raw_contratacoes(data_publicacao_pncp)",
             
-            # Indexes for bronze_atas
-            "idx_atas_pncp": "CREATE INDEX IF NOT EXISTS idx_atas_pncp ON psa.bronze_atas(numero_controle_pncp_ata)",
-            "idx_atas_compra": "CREATE INDEX IF NOT EXISTS idx_atas_compra ON psa.bronze_atas(numero_controle_pncp_compra)",
-            "idx_atas_orgao": "CREATE INDEX IF NOT EXISTS idx_atas_orgao ON psa.bronze_atas(cnpj_orgao)",
+            # Indexes for raw_atas
+            "idx_atas_pncp": "CREATE INDEX IF NOT EXISTS idx_atas_pncp ON psa.raw_atas(numero_controle_pncp_ata)",
+            "idx_atas_compra": "CREATE INDEX IF NOT EXISTS idx_atas_compra ON psa.raw_atas(numero_controle_pncp_compra)",
+            "idx_atas_orgao": "CREATE INDEX IF NOT EXISTS idx_atas_orgao ON psa.raw_atas(cnpj_orgao)",
             
-            # Indexes for bronze_fontes_orcamentarias
-            "idx_fontes_contratacao": "CREATE INDEX IF NOT EXISTS idx_fontes_contratacao ON psa.bronze_fontes_orcamentarias(contratacao_numero_controle_pncp)",
+            # Indexes for raw_fontes_orcamentarias
+            "idx_fontes_contratacao": "CREATE INDEX IF NOT EXISTS idx_fontes_contratacao ON psa.raw_fontes_orcamentarias(contratacao_numero_controle_pncp)",
             
             # Indexes for pncp_parse_errors
             "idx_parse_errors_endpoint": "CREATE INDEX IF NOT EXISTS idx_parse_errors_endpoint ON psa.pncp_parse_errors(endpoint_name)",

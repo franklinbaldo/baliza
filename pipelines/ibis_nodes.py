@@ -1,13 +1,13 @@
 import ibis
 from ibis import _
 
-def transform_silver_contratacoes(con: ibis.BaseBackend) -> ibis.Table:
+def transform_stage_contratacoes(con: ibis.BaseBackend) -> ibis.Table:
     """
-    Transforms raw PNCP data into the silver_contratacoes table.
+    Transforms raw PNCP data into the stage_contratacoes table.
     """
-    bronze_pncp_raw = con.table("bronze_pncp_raw")
+    raw_pncp_data = con.table("raw_pncp_data")
 
-    silver_contratacoes = bronze_pncp_raw.mutate(
+    stage_contratacoes = raw_pncp_data.mutate(
         dataPublicacaoPNCP=_.dataPublicacaoPNCP.cast("date"),
         dataAtualizacaoPNCP=_.dataAtualizacaoPNCP.cast("date"),
         cnpjOrgao=_.cnpjOrgao.cast("string"),
@@ -20,15 +20,15 @@ def transform_silver_contratacoes(con: ibis.BaseBackend) -> ibis.Table:
         dataVigenciaFim=_.dataVigenciaFim.cast("date"),
     )
 
-    return silver_contratacoes
+    return stage_contratacoes
 
-def transform_silver_dim_unidades_orgao(con: ibis.BaseBackend) -> ibis.Table:
+def transform_stage_dim_unidades_orgao(con: ibis.BaseBackend) -> ibis.Table:
     """
     Creates a dimension table for organizational units.
     """
-    bronze_pncp_raw = con.table("bronze_pncp_raw")
+    raw_pncp_data = con.table("raw_pncp_data")
 
-    silver_dim_unidades_orgao = bronze_pncp_raw[
+    stage_dim_unidades_orgao = raw_pncp_data[
         "sequencialOrgao",
         "cnpjOrgao",
         "siglaOrgao",
@@ -40,39 +40,39 @@ def transform_silver_dim_unidades_orgao(con: ibis.BaseBackend) -> ibis.Table:
         "uf",
     ].distinct()
 
-    return silver_dim_unidades_orgao
+    return stage_dim_unidades_orgao
 
 
-def create_gold_contratacoes_analytics(
-    silver_contratacoes: ibis.Table, silver_dim_unidades_orgao: ibis.Table
+def create_mart_contratacoes_analytics(
+    stage_contratacoes: ibis.Table, stage_dim_unidades_orgao: ibis.Table
 ) -> ibis.Table:
     """
-    Creates an analytical view of contratacoes.
+    Creates an analytical mart view of contratacoes.
     """
     # Use modalidade_nome if available (enriched), otherwise modalidadeId
     modalidade_column = (
-        silver_contratacoes.modalidade_nome 
-        if "modalidade_nome" in silver_contratacoes.columns
-        else silver_contratacoes.modalidadeId
+        stage_contratacoes.modalidade_nome 
+        if "modalidade_nome" in stage_contratacoes.columns
+        else stage_contratacoes.modalidadeId
     )
     
-    gold_analytics = (
-        silver_contratacoes.join(
-            silver_dim_unidades_orgao,
-            silver_contratacoes.sequencialOrgao == silver_dim_unidades_orgao.sequencialOrgao,
+    mart_analytics = (
+        stage_contratacoes.join(
+            stage_dim_unidades_orgao,
+            stage_contratacoes.sequencialOrgao == stage_dim_unidades_orgao.sequencialOrgao,
             how="left",
         )
         .group_by(
             [
-                silver_contratacoes.anoContratacao,
+                stage_contratacoes.anoContratacao,
                 modalidade_column.name("modalidadeNome"),
-                silver_dim_unidades_orgao.nomeOrgao,
+                stage_dim_unidades_orgao.nomeOrgao,
             ]
         )
         .aggregate(
-            quantidade_contratacoes=silver_contratacoes.numeroControlePNCP.count(),
-            valor_total_estimado=silver_contratacoes.valorTotalEstimado.sum(),
+            quantidade_contratacoes=stage_contratacoes.numeroControlePNCP.count(),
+            valor_total_estimado=stage_contratacoes.valorTotalEstimado.sum(),
         )
     )
 
-    return gold_analytics
+    return mart_analytics
