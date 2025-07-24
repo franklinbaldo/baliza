@@ -41,9 +41,12 @@ def store_api_request(api_request: APIRequest) -> bool:
         con = connect()
 
         # Use prepared statement for security
+        # TODO: Replace raw SQL insert with Ibis table.insert() method
+        # FIXME: Should use Ibis DataFrame operations for type safety and better performance
         insert_sql = load_sql_file("insert_api_request.sql")
 
         # Convert UUID to string for DuckDB
+        # TODO: Consider using Ibis to_pandas() -> insert pattern for bulk operations
         params = [
             str(api_request.request_id),
             api_request.ingestion_date,
@@ -87,6 +90,8 @@ def log_extraction_execution(
     try:
         con = connect()
 
+        # TODO: Replace raw SQL logging with Ibis operations for consistency
+        # FIXME: Should use Ibis table.insert() for execution logging
         log_sql = load_sql_file("log_execution.sql")
 
         params = [

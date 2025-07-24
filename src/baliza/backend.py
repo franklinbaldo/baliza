@@ -74,6 +74,8 @@ def get_table_stats(con: Backend = None) -> List[Dict[str, Any]]:
         con = connect()
 
     try:
+        # TODO: Replace raw SQL with Ibis information_schema queries
+        # FIXME: Should use Ibis table introspection methods for better portability
         result = con.raw_sql(load_sql_file("get_table_stats.sql")).fetchall()
         return [dict(row) for row in result] if result else []
     except Exception as e:
@@ -88,6 +90,8 @@ def cleanup_old_data(con: Backend = None, days_to_keep: int = 90) -> None:
         con = connect()
 
     logger.info(f"Cleaning up data older than {days_to_keep} days...")
+    # TODO: Replace SQL file with Ibis delete expressions for type safety
+    # FIXME: Should use Ibis filtering and delete operations instead of raw SQL
     execute_sql_file(con, "cleanup_old_data.sql", {"days_to_keep": days_to_keep})
     logger.info("Data cleanup completed")
 
@@ -99,6 +103,8 @@ def vacuum_database(con: Backend = None) -> None:
         con = connect()
 
     logger.info("Running database optimization...")
+    # TODO: Check if Ibis provides database maintenance operations
+    # NOTE: VACUUM and ANALYZE are DuckDB-specific, might need raw SQL
     con.raw_sql("VACUUM;")
     con.raw_sql("ANALYZE;")
     logger.info("Database optimization completed")

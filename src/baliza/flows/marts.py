@@ -19,6 +19,7 @@ def create_marts_schema() -> bool:
         con = connect()
 
         # Create marts schema if not exists
+        # TODO: Consider using Ibis schema management for consistency
         con.raw_sql("CREATE SCHEMA IF NOT EXISTS marts")
 
         logger.info("Created marts schema")
@@ -38,6 +39,8 @@ def create_summary_table() -> bool:
         con = connect()
 
         # Create summary table using external SQL file
+        # TODO: Replace SQL file with Ibis CTAS (CREATE TABLE AS SELECT) expression
+        # FIXME: Should use Ibis aggregation expressions instead of raw SQL
         con.raw_sql(load_sql_file("marts_extraction_summary.sql"))
         logger.info("Created marts.extraction_summary table")
 
@@ -57,6 +60,8 @@ def create_data_quality_table() -> bool:
         con = connect()
 
         # Create data quality table using external SQL file
+        # TODO: Replace SQL file with Ibis expressions for data quality metrics
+        # FIXME: Should use Ibis statistical functions and aggregations
         con.raw_sql(load_sql_file("marts_data_quality.sql"))
         logger.info("Created marts.data_quality table")
 
@@ -87,9 +92,12 @@ def marts_creation() -> Dict[str, Any]:
 
         # Get mart table counts for verification
         con = connect()
+        # TODO: Replace raw SQL with Ibis table expressions for type safety
+        # FIXME: Should use con.table("marts.extraction_summary").count().execute()
         summary_count = con.raw_sql(
             "SELECT COUNT(*) as cnt FROM marts.extraction_summary"
         ).fetchone()[0]
+        # TODO: Use Ibis: con.table("marts.data_quality").count().execute()
         quality_count = con.raw_sql(
             "SELECT COUNT(*) as cnt FROM marts.data_quality"
         ).fetchone()[0]

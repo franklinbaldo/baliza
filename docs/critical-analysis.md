@@ -245,20 +245,116 @@ Add proper error recovery, user-friendly error messages, and graceful degradatio
 - Add architectural decision records (ADRs)
 - Create operational runbooks
 
+## 6. 🔧 **Underutilized Ibis Capabilities** (MEDIUM PRIORITY)
+
+**Issue**: Extensive use of raw SQL instead of Ibis expressions throughout the codebase
+
+**Problems Identified:**
+
+The project extensively uses `con.raw_sql()` and external SQL files instead of leveraging Ibis's powerful query building capabilities. This creates several issues:
+
+### Current Raw SQL Usage Patterns:
+
+**File: `flows/staging.py`**
+```python
+# CURRENT: Raw SQL with manual fetchone()
+contratacoes_count = con.raw_sql("SELECT COUNT(*) as cnt FROM staging.contratacoes").fetchone()[0]
+
+# SHOULD BE: Ibis table expressions
+contratacoes_count = con.table("staging.contratacoes").count().execute()
+```
+
+**File: `flows/marts.py`**
+```python
+# CURRENT: External SQL files for table creation
+con.raw_sql(load_sql_file("marts_extraction_summary.sql"))
+
+# SHOULD BE: Ibis CTAS expressions
+extraction_summary = api_requests.group_by(['date', 'endpoint']).aggregate([...])
+con.create_table("marts.extraction_summary", extraction_summary, overwrite=True)
+```
+
+**File: `flows/raw.py`**
+```python
+# CURRENT: Manual INSERT with parameter binding
+con.raw_sql(insert_sql, params)
+
+# SHOULD BE: Ibis bulk operations with pandas
+df = pd.DataFrame(api_requests_data)
+con.table("raw.api_requests").insert(df)
+```
+
+### Specific Missed Opportunities:
+
+1. **Table Counting Operations** (15+ occurrences)
+   - Current: `con.raw_sql("SELECT COUNT(*) FROM table").fetchone()[0]`
+   - Ibis: `con.table("table").count().execute()`
+
+2. **Aggregation Queries** (5+ occurrences)
+   - Current: External SQL files with GROUP BY, SUM, etc.
+   - Ibis: `.group_by().aggregate()` with type-safe expressions
+
+3. **Data Quality Metrics** 
+   - Current: Manual SQL calculations
+   - Ibis: Built-in statistical functions (`.mean()`, `.std()`, `.quantile()`)
+
+4. **View Creation**
+   - Current: `CREATE OR REPLACE VIEW` in SQL files
+   - Ibis: `.create_view()` with composable expressions
+
+5. **Bulk Insert Operations**
+   - Current: Individual INSERT statements in loops
+   - Ibis: Pandas DataFrame integration for bulk operations
+
+6. **JSON Processing**
+   - Current: Python `json.loads()` + `zlib.decompress()`
+   - Ibis: DuckDB native JSON functions via expressions
+
+### Impact Assessment:
+
+- **Type Safety**: Raw SQL lacks compile-time validation
+- **Portability**: SQL files tie code to specific database dialect
+- **Composability**: Cannot reuse or modify query logic programmatically
+- **Performance**: Missing bulk operation optimizations
+- **Maintainability**: SQL scattered across external files
+- **Testing**: Harder to unit test raw SQL queries
+
+### Implementation Examples:
+
+See `examples/ibis_examples.py` for comprehensive examples of:
+- Current vs Ibis comparison patterns
+- Staging view creation with Ibis
+- Data quality metrics using Ibis statistical functions
+- Bulk operations with pandas integration
+
+**Files Requiring Ibis Migration:**
+- `flows/staging.py`: 6 raw SQL operations
+- `flows/marts.py`: 5 raw SQL operations  
+- `flows/raw.py`: 4 raw SQL operations
+- `backend.py`: 3 raw SQL operations
+- SQL files: 10 files that should be Ibis expressions
+
+**Recommended Migration Priority:**
+1. **High**: Table counting and basic aggregations (easy wins)
+2. **Medium**: View creation and CTAS operations  
+3. **Medium**: Bulk insert optimization
+4. **Low**: Complex analytics queries (if working correctly)
+
 ## 🎉 Conclusion
 
-Baliza demonstrates excellent foundational architecture and engineering practices. The core ETL pipeline is well-designed with proper separation of concerns, resilience patterns, and modern tooling. However, the project requires significant investment in completing the CLI interface and addressing performance bottlenecks to reach production readiness.
+Baliza demonstrates excellent foundational architecture and engineering practices. The core ETL pipeline is well-designed with proper separation of concerns, resilience patterns, and modern tooling. However, the project requires significant investment in completing the CLI interface, addressing performance bottlenecks, and better utilizing Ibis capabilities to reach production readiness.
 
-The technical debt is manageable and mostly concentrated in the CLI layer. With focused effort over 3-4 weeks, Baliza can evolve from a solid proof-of-concept to a production-ready ETL system.
+The technical debt is manageable and mostly concentrated in the CLI layer and underutilized Ibis patterns. With focused effort over 3-4 weeks, Baliza can evolve from a solid proof-of-concept to a production-ready ETL system.
 
 **Recommended Next Steps:**
 1. Complete CLI command implementations (highest priority)
-2. Optimize data storage patterns  
-3. Implement comprehensive testing
-4. Add security controls
-5. Enhance monitoring and observability
+2. Migrate raw SQL operations to Ibis expressions (medium priority)
+3. Optimize data storage patterns  
+4. Implement comprehensive testing
+5. Add security controls
+6. Enhance monitoring and observability
 
-**Project Maturity Level:** 70% - Strong foundation requiring completion of key features
+**Project Maturity Level:** 70% - Strong foundation requiring completion of key features and better utilization of chosen technologies
 
 ---
 
