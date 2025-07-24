@@ -872,18 +872,22 @@ class ParseError(BaseModel):
         validate_assignment=True
     )
     
+    error_id: str = Field(default_factory=lambda: str(uuid4())) # UUID para o erro
+    
     # Request Info
     endpoint_name: str
     endpoint_url: str
     http_status_code: Optional[int] = None
     
     # Response Data
-    response_raw: Optional[dict] = None  # Raw response que falhou no parsing
+    raw_data_sample: Optional[dict] = None  # Amostra do JSON bruto que falhou no parsing
     response_headers: Optional[dict] = None
     
     # Error Info
     error_message: str
     error_type: Optional[str] = None  # parse_error, validation_error, etc.
+    field_name: Optional[str] = None # Campo que causou o erro (se aplicável)
+    record_identifier: Optional[str] = None # Identificador do registro (e.g., numeroControlePNCP)
     stack_trace: Optional[str] = None
     
     # Retry Control

@@ -1,6 +1,0 @@
-dbt_baliza:
-  target: dev
-  outputs:
-    dev:
-      type: duckdb
-      path: 'baliza.db'
