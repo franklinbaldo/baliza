@@ -7,6 +7,7 @@ name = "baliza"
 version = "0.1.0"
 description = "A modern, production-ready data pipeline for PNCP data using Prefect, Ibis, and DuckDB."
 authors = [{ name = "Gemini", email = "gemini@google.com" }]
+requires-python = ">=3.11"
 
 dependencies = [
     "prefect",
@@ -15,7 +16,7 @@ dependencies = [
     "httpx",
     "typer",
     "rich",
-    "ruff>=0.12.5",
+    "ruff",
 ]
 
 [project.optional-dependencies]
@@ -27,3 +28,8 @@ test = [
 
 [project.scripts]
 baliza = "baliza.cli:app"
+
+[dependency-groups]
+dev = [
+    "pre-commit",
+]
