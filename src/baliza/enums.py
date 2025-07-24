@@ -5,13 +5,23 @@ PNCP Enum Utilities - Centralized enum management for BALIZA
 from enum import Enum
 
 
-class InstrumentoConvocatorio(Enum):
+class InstrumentoConvocatorio(int, Enum):
+    """
+    Representa os tipos de instrumento convocatório.
+    Baseado na Tabela de Domínio: Instrumento Convocatório (seção 5.1)
+    """
+
     EDITAL = 1
-    AVISO_CONTRATACAO_DIRETA = 2
+    AVISO_DE_CONTRATACAO_DIRETA = 2
     ATO_QUE_AUTORIZA_CONTRATACAO_DIRETA = 3
 
 
-class ModalidadeContratacao(Enum):
+class ModalidadeContratacao(int, Enum):
+    """
+    Representa as modalidades de contratação.
+    Baseado na Tabela de Domínio: Modalidade de Contratação (seção 5.2)
+    """
+
     LEILAO_ELETRONICO = 1
     DIALOGO_COMPETITIVO = 2
     CONCURSO = 3
@@ -27,7 +37,12 @@ class ModalidadeContratacao(Enum):
     LEILAO_PRESENCIAL = 13
 
 
-class ModoDisputa(Enum):
+class ModoDisputa(int, Enum):
+    """
+    Representa os modos de disputa.
+    Baseado na Tabela de Domínio: Modo de Disputa (seção 5.3)
+    """
+
     ABERTO = 1
     FECHADO = 2
     ABERTO_FECHADO = 3
@@ -36,7 +51,12 @@ class ModoDisputa(Enum):
     FECHADO_ABERTO = 6
 
 
-class CriterioJulgamento(Enum):
+class CriterioJulgamento(int, Enum):
+    """
+    Representa os critérios de julgamento.
+    Baseado na Tabela de Domínio: Critério de Julgamento (seção 5.4)
+    """
+
     MENOR_PRECO = 1
     MAIOR_DESCONTO = 2
     TECNICA_E_PRECO = 4
@@ -47,14 +67,24 @@ class CriterioJulgamento(Enum):
     CONTEUDO_ARTISTICO = 9
 
 
-class SituacaoContratacao(Enum):
+class SituacaoContratacao(int, Enum):
+    """
+    Representa a situação da contratação.
+    Baseado na Tabela de Domínio: Situação da Contratação (seção 5.5)
+    """
+
     DIVULGADA_NO_PNCP = 1
     REVOGADA = 2
     ANULADA = 3
     SUSPENSA = 4
 
 
-class SituacaoItemContratacao(Enum):
+class SituacaoItemContratacao(int, Enum):
+    """
+    Representa a situação do item da contratação.
+    Baseado na Tabela de Domínio: Situação do Item da Contratação (seção 5.6)
+    """
+
     EM_ANDAMENTO = 1
     HOMOLOGADO = 2
     ANULADO_REVOGADO_CANCELADO = 3
@@ -62,7 +92,12 @@ class SituacaoItemContratacao(Enum):
     FRACASSADO = 5
 
 
-class TipoBeneficio(Enum):
+class TipoBeneficio(int, Enum):
+    """
+    Representa os tipos de benefício.
+    Baseado na Tabela de Domínio: Tipo de Benefício (seção 5.7)
+    """
+
     PARTICIPACAO_EXCLUSIVA_ME_EPP = 1
     SUBCONTRATACAO_PARA_ME_EPP = 2
     COTA_RESERVADA_PARA_ME_EPP = 3
@@ -70,13 +105,23 @@ class TipoBeneficio(Enum):
     NAO_SE_APLICA = 5
 
 
-class SituacaoResultadoItemContratacao(Enum):
+class SituacaoResultadoItemContratacao(int, Enum):
+    """
+    Representa a situação do resultado do item da contratação.
+    Baseado na Tabela de Domínio: Situação do Resultado do Item da Contratação (seção 5.8)
+    """
+
     INFORMADO = 1
     CANCELADO = 2
 
 
-class TipoContrato(Enum):
-    CONTRATO = 1
+class TipoContrato(int, Enum):
+    """
+    Representa os tipos de contrato.
+    Baseado na Tabela de Domínio: Tipo de Contrato (seção 5.9)
+    """
+
+    CONTRATO_TERMO_INICIAL = 1
     COMODATO = 2
     ARRENDAMENTO = 3
     CONCESSAO = 4
@@ -90,13 +135,23 @@ class TipoContrato(Enum):
     CARTA_CONTRATO = 12
 
 
-class TipoTermoContrato(Enum):
+class TipoTermoContrato(int, Enum):
+    """
+    Representa os tipos de termo de contrato.
+    Baseado na Tabela de Domínio: Tipo de Termo de Contrato (seção 5.10)
+    """
+
     TERMO_DE_RESCISAO = 1
     TERMO_ADITIVO = 2
-    TERMO_DE_APOSTILamento = 3
+    TERMO_DE_APOSTILAMENTO = 3
 
 
-class CategoriaProcesso(Enum):
+class CategoriaProcesso(int, Enum):
+    """
+    Representa as categorias de processo.
+    Baseado na Tabela de Domínio: Categoria do Processo (seção 5.11)
+    """
+
     CESSAO = 1
     COMPRAS = 2
     INFORMATICA_TIC = 3
@@ -110,68 +165,83 @@ class CategoriaProcesso(Enum):
     ALIENACAO_DE_BENS_MOVEIS_IMOVEIS = 11
 
 
-class TipoDocumento(Enum):
-    AVISO_CONTRATACAO_DIRETA = 1
+class TipoDocumento(int, Enum):
+    """
+    Representa os tipos de documento.
+    Baseado na Tabela de Domínio: Tipo de Documento (seção 5.12)
+    """
+
+    AVISO_DE_CONTRATACAO_DIRETA = 1
     EDITAL = 2
-    MINUTA_CONTRATO = 3
-    TERMO_REFERENCIA = 4
+    MINUTA_DO_CONTRATO = 3
+    TERMO_DE_REFERENCIA = 4
     ANTEPROJETO = 5
     PROJETO_BASICO = 6
     ESTUDO_TECNICO_PRELIMINAR = 7
     PROJETO_EXECUTIVO = 8
-    MAPA_RISCOS = 9
+    MAPA_DE_RISCOS = 9
     DFD = 10
-    ATA_REGISTRO_PRECO = 11
+    ATA_DE_REGISTRO_DE_PRECO = 11
     CONTRATO = 12
-    TERMO_RESCISAO = 13
+    TERMO_DE_RESCISAO = 13
     TERMO_ADITIVO = 14
-    TERMO_APOSTILAMENTO = 15
-    OUTROS = 16
-    NOTA_EMPENHO = 17
-    RELATORIO_FINAL_CONTRATO = 18
+    TERMO_DE_APOSTILAMENTO = 15
+    OUTROS_DOCUMENTOS_PROCESSO = 16
+    NOTA_DE_EMPENHO = 17
+    RELATORIO_FINAL_DE_CONTRATO = 18
 
 
-class NaturezaJuridica(Enum):
-    NAO_INFORMADA = 0
-    ORGAO_PUBLICO_EXECUTIVO_FEDERAL = 1015
-    ORGAO_PUBLICO_EXECUTIVO_ESTADUAL_DF = 1023
-    ORGAO_PUBLICO_EXECUTIVO_MUNICIPAL = 1031
-    ORGAO_PUBLICO_LEGISLATIVO_FEDERAL = 1040
-    ORGAO_PUBLICO_LEGISLATIVO_ESTADUAL_DF = 1058
-    ORGAO_PUBLICO_LEGISLATIVO_MUNICIPAL = 1066
-    ORGAO_PUBLICO_JUDICIARIO_FEDERAL = 1074
-    ORGAO_PUBLICO_JUDICIARIO_ESTADUAL = 1082
-    AUTARQUIA_FEDERAL = 1104
-    AUTARQUIA_ESTADUAL_DF = 1112
-    AUTARQUIA_MUNICIPAL = 1120
-    FUNDACAO_PUBLICA_DIREITO_PUBLICO_FEDERAL = 1139
-    FUNDACAO_PUBLICA_DIREITO_PUBLICO_ESTADUAL_DF = 1147
-    FUNDACAO_PUBLICA_DIREITO_PUBLICO_MUNICIPAL = 1155
-    ORGAO_PUBLICO_AUTONOMO_FEDERAL = 1163
-    ORGAO_PUBLICO_AUTONOMO_ESTADUAL_DF = 1171
-    ORGAO_PUBLICO_AUTONOMO_MUNICIPAL = 1180
-    COMISSAO_POLINACIONAL = 1198
-    CONSORCIO_PUBLICO_DIREITO_PUBLICO = 1210
-    CONSORCIO_PUBLICO_DIREITO_PRIVADO = 1228
-    ESTADO_DF = 1236
-    MUNICIPIO = 1244
-    FUNDACAO_PUBLICA_DIREITO_PRIVADO_FEDERAL = 1252
-    FUNDACAO_PUBLICA_DIREITO_PRIVADO_ESTADUAL_DF = 1260
-    FUNDACAO_PUBLICA_DIREITO_PRIVADO_MUNICIPAL = 1279
-    FUNDO_PUBLICO_ADMINISTRACAO_INDIRETA_FEDERAL = 1287
-    FUNDO_PUBLICO_ADMINISTRACAO_INDIRETA_ESTADUAL_DF = 1295
-    FUNDO_PUBLICO_ADMINISTRACAO_INDIRETA_MUNICIPAL = 1309
-    FUNDO_PUBLICO_ADMINISTRACAO_DIRETA_FEDERAL = 1317
-    FUNDO_PUBLICO_ADMINISTRACAO_DIRETA_ESTADUAL_DF = 1325
-    FUNDO_PUBLICO_ADMINISTRACAO_DIRETA_MUNICIPAL = 1333
-    UNIAO = 1341
-    EMPRESA_PUBLICA = 2011
-    SOCIEDADE_ECONOMIA_MISTA = 2038
-    SOCIEDADE_ANONIMA_ABERTA = 2046
-    SOCIEDADE_ANONIMA_FECHADA = 2054
+class NaturezaJuridica(str, Enum):
+    """
+    Representa as naturezas jurídicas.
+    Baseado na Tabela de Domínio: Natureza Jurídica (seção 5.13)
+    """
+
+    NATUREZA_JURIDICA_NAO_INFORMADA = "0000"
+    ORGAO_PUBLICO_PODER_EXECUTIVO_FEDERAL = "1015"
+    ORGAO_PUBLICO_PODER_EXECUTIVO_ESTADUAL_OU_DISTRITO_FEDERAL = "1023"
+    ORGAO_PUBLICO_PODER_EXECUTIVO_MUNICIPAL = "1031"
+    ORGAO_PUBLICO_PODER_LEGISLATIVO_FEDERAL = "1040"
+    ORGAO_PUBLICO_PODER_LEGISLATIVO_ESTADUAL_OU_DISTRITO_FEDERAL = "1058"
+    ORGAO_PUBLICO_PODER_LEGISLATIVO_MUNICIPAL = "1066"
+    ORGAO_PUBLICO_PODER_JUDICIARIO_FEDERAL = "1074"
+    ORGAO_PUBLICO_PODER_JUDICIARIO_ESTADUAL = "1082"
+    AUTARQUIA_FEDERAL = "1104"
+    AUTARQUIA_ESTADUAL_OU_DISTRITO_FEDERAL = "1112"
+    AUTARQUIA_MUNICIPAL = "1120"
+    FUNDACAO_PUBLICA_DE_DIREITO_PUBLICO_FEDERAL = "1139"
+    FUNDACAO_PUBLICA_DE_DIREITO_PUBLICO_ESTADUAL_OU_DISTRITO_FEDERAL = "1147"
+    FUNDACAO_PUBLICA_DE_DIREITO_PUBLICO_MUNICIPAL = "1155"
+    ORGAO_PUBLICO_AUTONOMO_FEDERAL = "1163"
+    ORGAO_PUBLICO_AUTONOMO_ESTADUAL_OU_DISTRITO_FEDERAL = "1171"
+    ORGAO_PUBLICO_AUTONOMO_MUNICIPAL = "1180"
+    COMISSAO_POLINACIONAL = "1198"
+    CONSÓRCIO_PUBLICO_DE_DIREITO_PUBLICO = "1210"
+    CONSÓRCIO_PUBLICO_DE_DIREITO_PRIVADO = "1228"
+    ESTADO_OU_DISTRITO_FEDERAL = "1236"
+    MUNICIPIO = "1244"
+    FUNDACAO_PUBLICA_DE_DIREITO_PRIVADO_FEDERAL = "1252"
+    FUNDACAO_PUBLICA_DE_DIREITO_PRIVADO_ESTADUAL_OU_DISTRITO_FEDERAL = "1260"
+    FUNDACAO_PUBLICA_DE_DIREITO_PRIVADO_MUNICIPAL = "1279"
+    FUNDO_PUBLICO_DA_ADMINISTRACAO_INDIRETA_FEDERAL = "1287"
+    FUNDO_PUBLICO_DA_ADMINISTRACAO_INDIRETA_ESTADUAL_OU_DISTRITO_FEDERAL = "1295"
+    FUNDO_PUBLICO_DA_ADMINISTRACAO_INDIRETA_MUNICIPAL = "1309"
+    FUNDO_PUBLICO_DA_ADMINISTRACAO_DIRETA_FEDERAL = "1317"
+    FUNDO_PUBLICO_DA_ADMINISTRACAO_DIRETA_ESTADUAL_OU_DISTRITO_FEDERAL = "1325"
+    FUNDO_PUBLICO_DA_ADMINISTRACAO_DIRETA_MUNICIPAL = "1333"
+    UNIAO = "1341"
+    EMPRESA_PUBLICA = "2011"
+    SOCIEDADE_DE_ECONOMIA_MISTA = "2038"
+    SOCIEDADE_ANONIMA_ABERTA = "2046"
+    SOCIEDADE_ANONIMA_FECHADA = "2054"
 
 
-class PorteEmpresa(Enum):
+class PorteEmpresa(int, Enum):
+    """
+    Representa o porte da empresa.
+    Baseado na Tabela de Domínio: Porte da Empresa (seção 5.14)
+    """
+
     ME = 1
     EPP = 2
     DEMAIS = 3
@@ -179,7 +249,12 @@ class PorteEmpresa(Enum):
     NAO_INFORMADO = 5
 
 
-class AmparoLegal(Enum):
+class AmparoLegal(int, Enum):
+    """
+    Representa os amparos legais.
+    Baseado na Tabela de Domínio: Amparo Legal (seção 5.15)
+    """
+
     LEI_14133_ART_28_I = 1
     LEI_14133_ART_28_II = 2
     LEI_14133_ART_28_III = 3
@@ -210,7 +285,12 @@ class AmparoLegal(Enum):
     LEI_14133_ART_75_IV_G = 28
 
 
-class CategoriaItemPlanoContratacoes(Enum):
+class CategoriaItemPlanoContratacoes(int, Enum):
+    """
+    Representa a categoria do item do Plano de Contratações.
+    Baseado na Tabela de Domínio: Categoria do Item do Plano de Contratações (seção 5.16)
+    """
+
     MATERIAL = 1
     SERVICO = 2
     OBRAS = 3
@@ -222,12 +302,22 @@ class CategoriaItemPlanoContratacoes(Enum):
 
 
 class PoderId(str, Enum):
+    """
+    Representa o poder ao qual um órgão/entidade pertence.
+    Baseado na seção 5.13 - Natureza Jurídica, campo 'poderId'.
+    """
+
     LEGISLATIVO = "L"
     EXECUTIVO = "E"
     JUDICIARIO = "J"
 
 
 class EsferaId(str, Enum):
+    """
+    Representa a esfera à qual um órgão/entidade pertence.
+    Baseado na seção 5.13 - Natureza Jurídica, campo 'esferaId'.
+    """
+
     FEDERAL = "F"
     ESTADUAL = "E"
     MUNICIPAL = "M"
@@ -235,17 +325,51 @@ class EsferaId(str, Enum):
 
 
 class TipoPessoa(str, Enum):
+    """
+    Representa o tipo de pessoa (física, jurídica ou estrangeira).
+    Baseado no manual e Pydantic Field Enum.
+    """
+
     PESSOA_JURIDICA = "PJ"
     PESSOA_FISICA = "PF"
     PESSOA_ESTRANGEIRA = "PE"
 
 
 class ClassificacaoCatalogo(int, Enum):
+    """
+    Representa a classificação se um item é Material ou Serviço.
+    Baseado na seção 6.1 e 6.2 do manual.
+    """
+
     MATERIAL = 1
     SERVICO = 2
 
 
-# Enum utilities
+class SituacaoCompra(str, Enum):
+    """
+    Representa a situação da compra/contratação.
+    Baseado na seção 6.3 e 6.4 do manual, que lista códigos de situação.
+    Conforme OpenAPI, são strings: "1", "2", "3", "4".
+    """
+
+    DIVULGADA_NO_PNCP = "1"
+    REVOGADA = "2"
+    ANULADA = "3"
+    SUSPENSA = "4"
+
+
+class IndicadorOrcamentoSigiloso(str, Enum):
+    """
+    Representa o indicador de orçamento sigiloso.
+    Baseado no OpenAPI, para o campo indicadorOrcamentoSigiloso.
+    """
+
+    COMPRA_SEM_SIGILO = "COMPRA_SEM_SIGILO"
+    COMPRA_PARCIALMENTE_SIGILOSA = "COMPRA_PARCIALMENTE_SIGILOSA"
+    COMPRA_TOTALMENTE_SIGILOSA = "COMPRA_TOTALMENTE_SIGILOSA"
+
+
+# Enum utilities (mantidas para possíveis usos futuros ou compatibilidade)
 def get_enum_by_value(enum_class: type[Enum], value: int | str) -> Enum | None:
     """Get enum member by value, returning None if not found."""
     try:
@@ -265,12 +389,12 @@ def validate_enum_value(enum_class: type[Enum], value: int | str) -> bool:
     return get_enum_by_value(enum_class, value) is not None
 
 
-def get_enum_values(enum_class: type[Enum]) -> list[int]:
+def get_enum_values(enum_class: type[Enum]) -> list[int | str]:
     """Get all values from an enum class."""
     return [member.value for member in enum_class]
 
 
-def get_enum_choices(enum_class: type[Enum]) -> dict[int, str]:
+def get_enum_choices(enum_class: type[Enum]) -> dict[int | str, str]:
     """Get all enum values with their names as a dictionary."""
     return {member.value: member.name for member in enum_class}
 
@@ -308,6 +432,8 @@ ENUM_REGISTRY = {
     "EsferaId": EsferaId,
     "TipoPessoa": TipoPessoa,
     "ClassificacaoCatalogo": ClassificacaoCatalogo,
+    "SituacaoCompra": SituacaoCompra,
+    "IndicadorOrcamentoSigiloso": IndicadorOrcamentoSigiloso,
 }
 
 

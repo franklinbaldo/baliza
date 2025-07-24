@@ -215,9 +215,12 @@ class PNCPClient:
         """Create APIRequest model from response data"""
 
         # Serialize and compress payload
+        # TODO: Consider MessagePack for serialization (see analysis/msgpack_evaluation.py)
+        # NOTE: Analysis shows JSON+zlib is actually more efficient for PNCP data patterns
+        # DECISION: Keep current approach - MessagePack offers no significant benefits here
         payload_bytes = json.dumps(
             payload_json, ensure_ascii=False, separators=(",", ":")
-        ).encode("utf-8")
+        ).encode("utf-8")  
         payload_compressed = zlib.compress(payload_bytes, level=6)
 
         # Calculate SHA-256 hash
