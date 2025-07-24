@@ -99,13 +99,13 @@ class TestDateRangeHelper:
     def test_validate_date_range(self):
         """Test date range validation"""
         # Valid range
-        assert DateRangeHelper.validate_date_range("2024-01-01", "2024-01-31") == True
+        assert DateRangeHelper.validate_date_range("2024-01-01", "2024-01-31")
 
         # Invalid range (start > end)
-        assert DateRangeHelper.validate_date_range("2024-01-31", "2024-01-01") == False
+        assert not DateRangeHelper.validate_date_range("2024-01-31", "2024-01-01")
 
         # Invalid date format
-        assert DateRangeHelper.validate_date_range("invalid", "2024-01-31") == False
+        assert not DateRangeHelper.validate_date_range("invalid", "2024-01-31")
 
 
 class TestPaginationHelper:
@@ -149,37 +149,37 @@ class TestEndpointValidator:
         validator = EndpointValidator()
 
         # Valid modalidade
-        assert validator.validate_modalidade(1) == True
+        assert validator.validate_modalidade(1)
 
         # Invalid modalidade
-        assert validator.validate_modalidade(999) == False
-        assert validator.validate_modalidade(None) == False
+        assert not validator.validate_modalidade(999)
+        assert not validator.validate_modalidade(None)
 
     def test_validate_date_format(self):
         """Test date format validation"""
         validator = EndpointValidator()
 
         # Valid formats
-        assert validator.validate_date_format("2024-01-01") == True
-        assert validator.validate_date_format("2024-12-31") == True
+        assert validator.validate_date_format("2024-01-01")
+        assert validator.validate_date_format("2024-12-31")
 
         # Invalid formats
-        assert validator.validate_date_format("24-01-01") == False
-        assert validator.validate_date_format("2024/01/01") == False
-        assert validator.validate_date_format("invalid") == False
+        assert not validator.validate_date_format("24-01-01")
+        assert not validator.validate_date_format("2024/01/01")
+        assert not validator.validate_date_format("invalid")
 
     def test_validate_pagination_params(self):
         """Test pagination parameter validation"""
         validator = EndpointValidator()
 
         # Valid params
-        assert validator.validate_pagination_params(1, 20) == True
-        assert validator.validate_pagination_params(100, 50) == True
+        assert validator.validate_pagination_params(1, 20)
+        assert validator.validate_pagination_params(100, 50)
 
         # Invalid params
-        assert validator.validate_pagination_params(0, 20) == False  # page < 1
-        assert validator.validate_pagination_params(1, 0) == False  # size < 1
-        assert validator.validate_pagination_params(1, 101) == False  # size > 100
+        assert not validator.validate_pagination_params(0, 20)  # page < 1
+        assert not validator.validate_pagination_params(1, 0)  # size < 1
+        assert not validator.validate_pagination_params(1, 101)  # size > 100
 
     def test_validate_endpoint_params(self):
         """Test complete endpoint parameter validation"""
@@ -196,7 +196,7 @@ class TestEndpointValidator:
         result = validator.validate_endpoint_params(
             "contratacoes_publicacao", valid_params
         )
-        assert result["valid"] == True
+        assert result["valid"]
         assert result["errors"] == []
 
         # Invalid params
@@ -210,7 +210,7 @@ class TestEndpointValidator:
         result = validator.validate_endpoint_params(
             "contratacoes_publicacao", invalid_params
         )
-        assert result["valid"] == False
+        assert not result["valid"]
         assert len(result["errors"]) > 0
 
 
