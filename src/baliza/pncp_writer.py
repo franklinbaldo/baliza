@@ -140,20 +140,16 @@ class PNCPWriter:
 
         # Create the split table architecture (ADR-008)
 
-        # Table 1: Content storage with deduplication
-        self.conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS psa.pncp_content (
-                id UUID PRIMARY KEY, -- UUIDv5 based on content hash
-                response_content TEXT NOT NULL,
-                content_sha256 VARCHAR(64) NOT NULL UNIQUE, -- For integrity verification
-                content_size_bytes INTEGER,
-                first_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                last_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                reference_count INTEGER DEFAULT 1 -- How many requests reference this content
-            ) WITH (compression = "zstd")
-        """
-        )
+        # Carrega e executa todos os DDLs do diretório sql/ddl
+        ddl_path = Path.cwd() / "sql" / "ddl"
+        if ddl_path.exists():
+            for ddl_file in sorted(ddl_path.glob("*.sql")):
+                try:
+                    ddl_sql = ddl_file.read_text(encoding="utf-8")
+                    self.conn.execute(ddl_sql)
+                    logger.info(f"Executado DDL: {ddl_file.name}")
+                except Exception as e:
+                    logger.error(f"Erro ao executar DDL {ddl_file.name}: {e}")
 
         # Table 2: Request metadata with foreign key to content
         self.conn.execute(
@@ -593,59 +589,6 @@ class PNCPWriter:
             logger.exception(f"Batch store failed: {e}")
             raise
 
-    def _ensure_content_exists(self, content: str) -> str:
-        """Ensure content exists in psa.pncp_content table and return content_id.
-
-        Uses content deduplication logic from ADR-008.
-
-        Args:
-            content: Response content string
-
-        Returns:
-            UUID string of the content record
-        """
-        if is_empty_response(content):
-            # For empty responses, create a special empty content record
-            content = ""
-
-        # Analyze content to get ID and hash
-        content_id, content_hash, content_size = analyze_content(content)
-
-        try:
-            # Try to find existing content by hash
-            existing = self.conn.execute(
-                "SELECT id, reference_count FROM psa.pncp_content WHERE content_sha256 = ?",
-                [content_hash],
-            ).fetchone()
-
-            if existing:
-                # Content exists - increment reference count and update last_seen_at
-                self.conn.execute(
-                    """
-                    UPDATE psa.pncp_content
-                    SET reference_count = reference_count + 1,
-                        last_seen_at = CURRENT_TIMESTAMP
-                    WHERE content_sha256 = ?
-                    """,
-                    [content_hash],
-                )
-                logger.debug(
-                    f"Content deduplicated: {content_id} (new ref count: {existing[1] + 1})"
-                )
-                return existing[0]  # Return existing content_id
-            else:
-                # New content - insert new record
-                insert_sql = SQL_LOADER.load("dml/inserts/pncp_content.sql")
-                self.conn.execute(
-                    insert_sql,
-                    [content_id, content, content_hash, content_size],
-                )
-                logger.debug(f"New content stored: {content_id} ({content_size} bytes)")
-                return content_id
-
-        except duckdb.Error as e:
-            logger.exception(f"Content storage failed for hash {content_hash}: {e}")
-            raise
 
     def _store_request_with_content_id(self, page_data: dict, content_id: str) -> None:
         """Store request metadata with reference to deduplicated content."""
@@ -673,153 +616,87 @@ class PNCPWriter:
             logger.exception(f"Request storage failed: {e}")
             raise
 
-    def _batch_store_split_tables(self, pages: list[dict]) -> None:
-        """Store pages using split table architecture with optimized batch content deduplication."""
-        if not pages:
+    async def write_structured_data(self, endpoint_name: str, validated_data: list[Any]):
+        """Escreve dados estruturados diretamente para tabelas tipadas."""
+        if not validated_data:
             return
 
-        # Step 1: Analyze all content in the batch and check for existing hashes
-        content_map = {}  # content_hash -> (content_id, content, content_size)
-        batch_cache = {}  # For within-batch deduplication
+        table_name = f"psa.raw_{endpoint_name}"
 
-        for page_data in pages:
-            content = page_data.get("response_content", "")
-            if is_empty_response(content):
-                content = ""
-
-            # Check if we've already seen this content in this batch
-            if content in batch_cache:
-                page_data["_content_id"] = batch_cache[content]
-                continue
-
-            content_id, content_hash, content_size = analyze_content(content)
-            content_map[content_hash] = (content_id, content, content_size)
-            batch_cache[content] = content_id
-            page_data["_content_id"] = content_id
-            page_data["_content_hash"] = content_hash
-
-        # Step 2: Batch check for existing content hashes
-        if content_map:
-            placeholders = ",".join("?" * len(content_map))
-            existing_content = self.conn.execute(
-                f"SELECT content_sha256, id, reference_count FROM psa.pncp_content WHERE content_sha256 IN ({placeholders})",
-                list(content_map.keys()),
-            ).fetchall()
-
-            existing_hashes = {
-                content_hash: (content_id, ref_count)
-                for content_hash, content_id, ref_count in existing_content
-            }
-
-            # Step 3: Batch insert new content and update reference counts
-            new_content_records = []
-            update_ref_counts = []
-
-            for content_hash, (
-                content_id,
-                content,
-                content_size,
-            ) in content_map.items():
-                if content_hash in existing_hashes:
-                    # Content exists - mark for reference count update
-                    existing_id, ref_count = existing_hashes[content_hash]
-                    update_ref_counts.append((content_hash, ref_count + 1))
-                    # Update our mapping to use existing content_id
-                    for page_data in pages:
-                        if page_data.get("_content_hash") == content_hash:
-                            page_data["_content_id"] = existing_id
-                else:
-                    # New content - mark for insertion
-                    new_content_records.append(
-                        (content_id, content, content_hash, content_size)
-                    )
-
-            # Batch insert new content
-            if new_content_records:
-                insert_sql = SQL_LOADER.load("dml/inserts/pncp_content.sql")
-                self.conn.executemany(
-                    insert_sql,
-                    new_content_records,
-                )
-                logger.debug(
-                    f"Batch inserted {len(new_content_records)} new content records"
-                )
-
-            # Batch update reference counts
-            if update_ref_counts:
-                self.conn.executemany(
-                    """
-                    UPDATE psa.pncp_content 
-                    SET reference_count = ?, last_seen_at = CURRENT_TIMESTAMP
-                    WHERE content_sha256 = ?
-                    """,
-                    [
-                        (new_count, content_hash)
-                        for content_hash, new_count in update_ref_counts
-                    ],
-                )
-                logger.debug(
-                    f"Batch updated {len(update_ref_counts)} content reference counts"
-                )
-
-        # Step 4: Batch store requests using the resolved content_ids
-        request_records = []
-        for page_data in pages:
-            content_id = page_data["_content_id"]
-            request_records.append(
-                [
-                    page_data.get("extracted_at"),
-                    page_data.get("endpoint_url"),
-                    page_data.get("endpoint_name"),
-                    json.dumps(page_data.get("request_parameters", {})),
-                    page_data.get("response_code"),
-                    json.dumps(page_data.get("response_headers", {})),
-                    page_data.get("data_date"),
-                    page_data.get("run_id"),
-                    page_data.get("total_records"),
-                    page_data.get("total_pages"),
-                    page_data.get("current_page"),
-                    page_data.get("page_size"),
-                    content_id,
-                ]
-            )
-
-        if request_records:
-            insert_sql = SQL_LOADER.load("dml/inserts/pncp_requests.sql")
-            self.conn.executemany(
-                insert_sql,
-                request_records,
-            )
-
-        # Step 5: Also store in legacy table for backwards compatibility
-        for page_data in pages:
-            self._store_legacy_response(page_data)
-
-    def _store_legacy_response(self, page_data: dict) -> None:
-        """Store in legacy pncp_raw_responses table for backwards compatibility."""
+        # Obter colunas da tabela para mapeamento dinâmico
         try:
-            insert_sql = SQL_LOADER.load("dml/inserts/pncp_raw_responses.sql")
+            table_info = self.conn.execute(f"PRAGMA table_info('{table_name}')").fetchall()
+            columns = [col[1] for col in table_info]
+        except duckdb.Error:
+            logger.error(f"Tabela {table_name} não encontrada. Crie a DDL primeiro.")
+            return
+
+        batch_data = []
+        for record in validated_data:
+            record_dict = record.model_dump()
+
+            # Mapeia os dados do Pydantic para as colunas da tabela
+            row_data = []
+            for col in columns:
+                # Converte nomes de colunas (snake_case) para nomes de campos (camelCase)
+                # quando necessário. Ex: numero_controle_pncp -> numeroControlePncp
+                camel_case_key = ''.join(word.capitalize() for word in col.split('_'))
+                camel_case_key = camel_case_key[0].lower() + camel_case_key[1:]
+
+                # Prioriza o nome exato (snake_case), depois tenta camelCase
+                value = record_dict.get(col, record_dict.get(camel_case_key))
+
+                if isinstance(value, (dict, list)):
+                    value = json.dumps(value)
+
+                row_data.append(value)
+
+            batch_data.append(row_data)
+
+        if not batch_data:
+            return
+
+        # Monta a query de insert dinamicamente
+        placeholders = ", ".join(["?"] * len(columns))
+
+        # Usa ON CONFLICT para evitar duplicatas (UPSERT)
+        # A chave primária precisa ser definida na DDL da tabela
+        insert_sql = f"INSERT INTO {table_name} ({', '.join(columns)}) VALUES ({placeholders}) ON CONFLICT DO NOTHING"
+
+        try:
+            self.conn.executemany(insert_sql, batch_data)
+            self.conn.commit()
+            logger.info(f"Inseriu {len(batch_data)} registros em {table_name}")
+        except duckdb.Error as e:
+            logger.error(f"Falha ao inserir dados em {table_name}: {e}")
+            self.conn.rollback()
+
+    async def write_parse_error(self, error_info: dict):
+        """Persiste um erro de parsing para análise posterior."""
+        insert_sql = """
+            INSERT INTO psa.pncp_parse_errors (
+                endpoint_name, endpoint_url, http_status_code, response_raw,
+                error_message, error_type, stack_trace, extracted_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        try:
             self.conn.execute(
                 insert_sql,
                 [
-                    page_data.get("extracted_at"),
-                    page_data.get("endpoint_url"),
-                    page_data.get("endpoint_name"),
-                    json.dumps(page_data.get("request_parameters", {})),
-                    page_data.get("response_code"),
-                    page_data.get("response_content", ""),
-                    json.dumps(page_data.get("response_headers", {})),
-                    page_data.get("data_date"),
-                    page_data.get("run_id"),
-                    page_data.get("total_records"),
-                    page_data.get("total_pages"),
-                    page_data.get("current_page"),
-                    page_data.get("page_size"),
+                    error_info.get("endpoint_name"),
+                    error_info.get("url"),
+                    error_info.get("http_status_code"),
+                    json.dumps(error_info.get("response_raw")),
+                    error_info.get("error_message"),
+                    error_info.get("error_type", "ValidationError"),
+                    error_info.get("stack_trace"),
+                    error_info.get("extracted_at", date.today()),
                 ],
             )
+            self.conn.commit()
         except duckdb.Error as e:
-            logger.exception(f"Legacy response storage failed: {e}")
-            raise
+            logger.error(f"Falha ao registrar erro de parsing: {e}")
+            self.conn.rollback()
 
     async def writer_worker(
         self, page_queue: asyncio.Queue, commit_every: int = 75

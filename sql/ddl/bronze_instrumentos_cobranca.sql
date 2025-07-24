@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS bronze_instrumentos_cobranca (
+    id INTEGER PRIMARY KEY,
+    nome VARCHAR(255) NOT NULL,
+    extracted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

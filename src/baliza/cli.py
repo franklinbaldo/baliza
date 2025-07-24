@@ -177,48 +177,29 @@ def extract(
     asyncio.run(main())
 
 
+class KedroTyperAdapter:
+    """Adapter to run Kedro pipelines from Typer CLI"""
+
+    def __init__(self):
+        from kedro.framework.session import KedroSession
+        self.session_class = KedroSession
+
+    def run_pipeline(self, pipeline_name: str = "default"):
+        """Run Kedro pipeline from Typer command"""
+        from kedro.framework.startup import bootstrap_project
+
+        metadata = bootstrap_project(Path.cwd())
+        with self.session_class.create(metadata.package_name) as session:
+            session.run(pipeline_name=pipeline_name)
+            return session.load_context().catalog
+
 @app.command()
 def transform(
-    use_dbt: bool = typer.Option(False, "--dbt", help="Use dbt for transformation instead of Ibis.")
+    pipeline: str = typer.Option("default", help="Pipeline to run")
 ):
-    """Transform raw data into analytics-ready tables."""
-    from .ui import create_header, get_theme
-
-    theme = get_theme()
-
-    if use_dbt:
-        header = create_header(
-            "Transforming Data with dbt",
-            "Raw data → Analytics-ready tables",
-            theme.ICONS["transform"],
-        )
-        console.print(header)
-
-        try:
-            services = get_cli_services()
-            transformer = services.get_transformer()
-            transformer.transform()
-            console.print("✅ [bold green]dbt transformation complete![/bold green]")
-        except Exception as e:
-            error_handler.handle_database_error(e, "transform")
-            raise
-    else:
-        header = create_header(
-            "Transforming Data with Ibis",
-            "Raw → Stage → Mart pipeline",
-            "🦜",
-        )
-        console.print(header)
-        try:
-            import ibis
-            from pipelines.ibis_pipeline import run_ibis_pipeline
-
-            con = ibis.connect(f"duckdb://{BALIZA_DB_PATH}")
-            run_ibis_pipeline(con)
-            console.print("✅ [bold green]Ibis transformation complete![/bold green]")
-        except Exception as e:
-            error_handler.handle_database_error(e, "transform")
-            raise
+    """Transform data using Kedro pipeline"""
+    adapter = KedroTyperAdapter()
+    adapter.run_pipeline(pipeline)
 
 
 @app.command()

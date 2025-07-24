@@ -9,12 +9,106 @@ import re
 from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 
 
+class BaseValidator:
+    @staticmethod
+    def validate_cnpj(cnpj: str) -> str:
+        """Valida CNPJ com dígitos verificadores"""
+        if not cnpj:
+            return cnpj
+        cnpj = re.sub(r'[^\d]', '', cnpj)
+        if len(cnpj) != 14:
+            raise ValueError(f'CNPJ must have 14 digits, got {len(cnpj)}')
+
+        if cnpj == cnpj[0] * 14:
+            raise ValueError(f'Invalid CNPJ: all digits are the same: {cnpj}')
+
+        def calc_digit(cnpj_digits, weights):
+            s = sum(int(d) * w for d, w in zip(cnpj_digits, weights))
+            rem = s % 11
+            return 0 if rem < 2 else 11 - rem
+
+        d1 = calc_digit(cnpj[:12], [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2])
+        if int(cnpj[12]) != d1:
+            raise ValueError(f'Invalid CNPJ check digit 1: {cnpj}')
+
+        d2 = calc_digit(cnpj[:13], [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2])
+        if int(cnpj[13]) != d2:
+            raise ValueError(f'Invalid CNPJ check digit 2: {cnpj}')
+
+        return cnpj
+
+    @staticmethod
+    def validate_cpf(cpf: str) -> str:
+        """Valida CPF com dígitos verificadores"""
+        if not cpf:
+            return cpf
+        cpf = re.sub(r'[^\d]', '', cpf)
+        if len(cpf) != 11:
+            raise ValueError(f'CPF must have 11 digits, got {len(cpf)}')
+
+        if cpf == cpf[0] * 11:
+            raise ValueError(f'Invalid CPF: all digits are the same: {cpf}')
+
+        def calc_digit(cpf_digits, weights):
+            s = sum(int(d) * w for d, w in zip(cpf_digits, weights))
+            rem = s % 11
+            return 0 if rem < 2 else 11 - rem
+
+        d1 = calc_digit(cpf[:9], range(10, 1, -1))
+        if int(cpf[9]) != d1:
+            raise ValueError(f'Invalid CPF check digit 1: {cpf}')
+
+        d2 = calc_digit(cpf[:10], range(11, 1, -1))
+        if int(cpf[10]) != d2:
+            raise ValueError(f'Invalid CPF check digit 2: {cpf}')
+
+        return cpf
+
+    @staticmethod
+    def validate_date_not_future(d: date) -> date:
+        """Valida que a data não está no futuro"""
+        if d > date.today():
+            raise ValueError(f'Date cannot be in the future: {d}')
+        return d
+
+    @staticmethod
+    def validate_positive_decimal(v: Decimal) -> Decimal:
+        """Valida que o Decimal é não-negativo"""
+        if v is not None and v < 0:
+            raise ValueError(f'Value cannot be negative: {v}')
+        return v
+
+    @staticmethod
+    def validate_uf_code(uf: str) -> str:
+        """Valida se o código da UF é um dos 27 estados brasileiros"""
+        if not uf:
+            return uf
+        valid_ufs = {
+            'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS',
+            'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR',
+            'SC', 'SP', 'SE', 'TO'
+        }
+        if uf.upper() not in valid_ufs:
+            raise ValueError(f'Invalid UF code: {uf}')
+        return uf.upper()
+
+
 class OrgaoEntidadeDTO(BaseModel):
     """Schema for RecuperarOrgaoEntidadeDTO from OpenAPI."""
     cnpj: str
     razao_social: str
     poder_id: str
     esfera_id: str
+
+    @field_validator('cnpj')
+    def validate_cnpj_field(cls, v):
+        return BaseValidator.validate_cnpj(v)
+
+    @field_validator('razao_social')
+    def validate_razao_social(cls, v):
+        if not v or len(v.strip()) == 0:
+            raise ValueError('razao_social cannot be empty')
+        return v.strip().upper()
 
 
 class UnidadeOrgaoDTO(BaseModel):
@@ -52,6 +146,63 @@ class FonteOrcamentariaDTO(BaseModel):
     nome: str
     descricao: str
     data_inclusao: datetime
+
+
+# === RESPONSE SCHEMAS ===
+
+class ContratacaoResponseSchema(BaseModel):
+    """Mapeamento direto do endpoint /contratacoes"""
+    numeroControlePNCP: str
+    anoContratacao: int = Field(ge=2000, le=2050)
+    dataPublicacaoPNCP: date
+    modalidadeId: int
+    valorTotalEstimado: Optional[Decimal] = Field(None, decimal_places=4)
+    orgaoEntidade: OrgaoEntidadeDTO
+    unidadeOrgao: UnidadeOrgaoDTO
+
+    @field_validator('numeroControlePNCP')
+    def validate_controle_pncp(cls, v):
+        if not v or len(v.strip()) == 0:
+            raise ValueError('numeroControlePNCP cannot be empty')
+        return v.strip()
+
+    @field_validator('modalidadeId')
+    def validate_modalidade(cls, v):
+        from .enums import ModalidadeContratacao
+        valid_ids = [m.value for m in ModalidadeContratacao]
+        if v not in valid_ids:
+            raise ValueError(f'Invalid modalidadeId: {v}. Must be one of {valid_ids}')
+        return v
+
+class ContratosResponseSchema(BaseModel):
+    """Mapeamento direto do endpoint /contratos"""
+    numeroControlePNCP: str
+    dataAssinatura: date
+    valorGlobal: Optional[Decimal] = Field(None, decimal_places=4)
+    orgaoEntidade: OrgaoEntidadeDTO
+
+class AtasResponseSchema(BaseModel):
+    """Mapeamento direto do endpoint /atas"""
+    numeroControlePNCPAta: str
+    dataAssinatura: date
+    vigenciaInicio: date
+    vigenciaFim: date
+    orgaoEntidade: OrgaoEntidadeDTO
+
+class FontesOrcamentariasResponseSchema(BaseModel):
+    codigo: int
+    nome: str
+    descricao: Optional[str] = None
+
+class InstrumentosCobrancaResponseSchema(BaseModel):
+    id: int
+    nome: str
+
+class PlanosContratacaoResponseSchema(BaseModel):
+    numeroControlePNCP: str
+    anoPCA: int
+    valorTotal: Optional[Decimal] = Field(None, decimal_places=4)
+    orgaoEntidade: OrgaoEntidadeDTO
 
 
 # === BRONZE TABLE MODELS ===
@@ -466,28 +617,32 @@ class BronzeContratacao(BaseModel):
             raise ValueError(f"CNPJ inválido: {v}")
         return digits_only
 
-    @field_validator('modalidade_id')
+    @field_validator('modalidade_id', mode='before')
     @classmethod
-    def validate_modalidade(cls, v: Optional[int]) -> Optional[int]:
-        """Valida se modalidade existe nos ENUMs oficiais PNCP."""
+    def validate_modalidade_id(cls, v: Optional[int]) -> Optional[int]:
+        """Valida modalidadeId contra o Enum ModalidadeContratacao."""
         if v is None:
             return v
-        # IDs válidos de modalidade conforme PNCP OpenAPI
-        valid_modalidades = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}
-        if v not in valid_modalidades:
-            raise ValueError(f"Modalidade inválida: {v}. Deve ser uma de: {sorted(valid_modalidades)}")
+        from .enums import ModalidadeContratacao, validate_enum_value
+        if not validate_enum_value(ModalidadeContratacao, v):
+            raise ValueError(f"modalidadeId inválido: {v}")
         return v
 
-    @field_validator('situacao_compra_id')
-    @classmethod  
-    def validate_situacao(cls, v: Optional[str]) -> Optional[str]:
-        """Valida se situação existe nos ENUMs oficiais PNCP."""
+    @field_validator('situacao_compra_id', mode='before')
+    @classmethod
+    def validate_situacao_compra_id(cls, v: Optional[str]) -> Optional[str]:
+        """Valida situacaoCompraId contra o Enum SituacaoContratacao."""
         if v is None:
             return v
-        # Situações válidas conforme PNCP OpenAPI
-        valid_situacoes = {"1", "2", "3", "4"}
-        if v not in valid_situacoes:
-            raise ValueError(f"Situação inválida: {v}. Deve ser uma de: {sorted(valid_situacoes)}")
+        from .enums import SituacaoContratacao, validate_enum_value
+        # O enum usa inteiros, mas a API retorna strings
+        try:
+            v_int = int(v)
+        except (ValueError, TypeError):
+            raise ValueError(f"situacao_compra_id deve ser um inteiro: {v}")
+
+        if not validate_enum_value(SituacaoContratacao, v_int):
+            raise ValueError(f"situacao_compra_id inválido: {v}")
         return v
 
     @field_validator('valor_total_estimado', 'valor_total_homologado')

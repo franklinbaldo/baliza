@@ -199,135 +199,55 @@ class AsyncPNCPExtractor:
 
         return merged_df[merged_df['_merge'] == 'left_only'].drop(columns=['_merge'])
 
-    async def _process_page_queue(self, page_queue: asyncio.Queue, total_tasks: int, is_discovery_pass: bool):
+    async def extract_and_validate(self, request_info):
         """
-        Helper function to process the page queue for both discovery and execution passes.
+        Extrai, valida e persiste os dados em um único passo.
         """
-        completed_count = 0
-        last_reported = 0
-        report_interval = max(1, total_tasks // 20)
+        endpoint_path = f"/v1/{request_info.endpoint_name}"
+        params = request_info.params
 
-        while not self.shutdown_event.is_set():
-            try:
-                row = await page_queue.get()
-                if row is None or self.shutdown_event.is_set():
-                    break
+        try:
+            response = await self.client.fetch_with_backpressure(endpoint_path, params)
+            response_text = response.get("content", "")
+            status_code = response.get("status_code")
 
-                params = {
-                    "dataInicial": row.data_date.strftime('%Y%m%d'),
-                    "dataFinal": row.data_date.strftime('%Y%m%d'),
-                    "pagina": 1 if is_discovery_pass else row.pagina,
-                    "tamanhoPagina": 500,
-                }
-                if row.modalidade is not None:
-                    params['modalidade'] = row.modalidade
-
-                endpoint_path = f"/v1/{row.endpoint_name}"
-                try:
-                    response = await self.client.fetch_with_backpressure(endpoint_path, params)
-
-                    actual_requests_made = (self._completed_requests - getattr(self, '_skipped_requests', 0)) + 1
-                    self._completed_requests = getattr(self, '_skipped_requests', 0) + actual_requests_made
-
-                    elapsed = time.time() - self._request_start_time
-                    rate = actual_requests_made / elapsed if elapsed > 0 else 0
-                    if hasattr(self, '_progress') and self._progress_task is not None:
-                        http_total = self._progress.tasks[0].fields.get('http_total', 1)
-                        http_percentage = (self._completed_requests / max(1, http_total)) * 100
-                        self._progress.update(
-                            self._progress_task,
-                            http_completed=self._completed_requests,
-                            http_percentage=http_percentage,
-                            rate=rate
-                        )
-                except Exception as e:
-                    base_url = "https://pncp.gov.br/api/consulta"
-                    full_url = f"{base_url}{endpoint_path}"
-                    if params:
-                        param_str = "&".join([f"{k}={v}" for k, v in params.items() if v is not None])
-                        full_url = f"{full_url}?{param_str}"
-
-                    console.print("\n❌ [bold red]Request Error Details:[/bold red]")
-                    console.print(f"   🔗 Full URL: {full_url}")
-                    console.print(f"   📅 Date: {row.data_date}")
-                    console.print(f"   🏷️  Modalidade: {row.modalidade}")
-                    if not is_discovery_pass:
-                        console.print(f"   📌 Page: {row.pagina}")
-                    console.print(f"   ⚠️  Error: {e}!s")
-                    console.print()
-                    raise
-
-                status_code = response.get("status_code")
-                response_content = response.get("content", "") if status_code and 200 <= status_code < 300 else ""
-
-                # PHASE 3B: Direct-to-table parsing instead of raw content storage
-                page_num = row.pagina if not is_discovery_pass else 1 
-                parse_status = "success"
-                records_parsed = 0
+            if status_code and 200 <= status_code < 300 and response_text:
+                # Validação com Pydantic
+                validated_records = self.parser.parse_endpoint_response(
+                    endpoint_name=request_info.endpoint_name,
+                    response_text=response_text
+                )
                 
-                try:
-                    if status_code and 200 <= status_code < 300 and response_content:
-                        # Parse directly to bronze tables using our new parser
-                        import json
-                        api_data = json.loads(response_content) if isinstance(response_content, str) else response_content
-                        
-                        if isinstance(api_data, dict) and "data" in api_data:
-                            records_parsed = self.parser.parse_and_insert(
-                                endpoint_name=row.endpoint_name,
-                                api_response=api_data,
-                                request_metadata={
-                                    "data_date": row.data_date,
-                                    "run_id": self.run_id,
-                                    "page_num": page_num,
-                                    "endpoint_url": endpoint_path,
-                                    "request_parameters": params
-                                }
-                            )
-                            logger.info(f"✅ Parsed {records_parsed} records from {row.endpoint_name} page {page_num}")
-                        else:
-                            parse_status = "no_data"
-                            logger.warning(f"⚠️ No data field in response from {row.endpoint_name} page {page_num}")
-                    else:
-                        parse_status = "failed"
-                        logger.warning(f"❌ Failed response from {row.endpoint_name} page {page_num}: {status_code}")
-                        
-                except Exception as e:
-                    parse_status = "error"
-                    logger.error(f"❌ Parse error for {row.endpoint_name} page {page_num}: {e}")
+                # Escrita direta para tabela tipada
+                await self.writer.write_structured_data(
+                    endpoint_name=request_info.endpoint_name,
+                    validated_data=validated_records
+                )
 
-                # Update requests tracking table with metadata (no raw content)
-                writer_data = {
-                    "extracted_at": None,
-                    "endpoint_url": endpoint_path,
-                    "endpoint_name": row.endpoint_name,
-                    "request_parameters": params,
-                    "response_code": status_code,
-                    "response_headers": response.get("headers", {}),
-                    "data_date": row.data_date,
-                    "run_id": self.run_id,
-                    "total_records": response.get("total_records", 0),
-                    "total_pages": response.get("total_pages", 1),
-                    "current_page": page_num,
-                    "page_size": params.get("tamanhoPagina", 500),
-                    # Phase 3B fields
-                    "month": f"{row.data_date.year}-{row.data_date.month:02d}",
-                    "parse_status": parse_status,
-                    "records_parsed": records_parsed
-                }
+                # Log de sucesso (sem armazenar o conteúdo bruto)
+                # Esta função precisaria ser criada ou adaptada em `pncp_writer`
+                # await self.writer.log_request_success(request_info, len(validated_records))
 
-                await self.write_queue.put(writer_data)
+            else:
+                # Log de erro de requisição
+                await self.writer.write_parse_error({
+                    'url': f"{self.client.base_url}{endpoint_path}",
+                    'endpoint_name': request_info.endpoint_name,
+                    'error_message': f"HTTP Error: {status_code}",
+                    'response_raw': response_text,
+                    'http_status_code': status_code
+                })
 
-                completed_count += 1
-
-                if completed_count - last_reported >= report_interval:
-                    percentage = (completed_count / total_tasks) * 100
-                    console.print(f"⏳ Progress: {completed_count:,}/{total_tasks:,} ({percentage:.1f}%)")
-                    last_reported = completed_count
-
-                logger.info(f"Fetched page {row.pagina if not is_discovery_pass else 1} for {row.endpoint_name}, got {len(response.get('data', []))} items")
-
-            finally:
-                page_queue.task_done()
+        except Exception as e:
+            # Log de erro de validação ou outro erro inesperado
+            await self.writer.write_parse_error({
+                'url': f"{self.client.base_url}{endpoint_path}",
+                'endpoint_name': request_info.endpoint_name,
+                'error_message': str(e),
+                'response_raw': response.get("content", "") if 'response' in locals() else "No response",
+                'http_status_code': response.get("status_code") if 'response' in locals() else None,
+                'error_type': type(e).__name__
+            })
 
     async def _discover_total_pages_concurrently(self, initial_plan_df: pd.DataFrame):
         """
