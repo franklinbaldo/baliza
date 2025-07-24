@@ -103,7 +103,7 @@ uv run baliza extract --month 2024-01
 | Comando | Descrição |
 |---|---|
 | `baliza extract --month YYYY-MM` | **Workflow principal.** Extrai, arquiva e limpa dados para um mês específico. |
-| `baliza transform` | Executa os modelos de transformação do dbt para criar as camadas Silver e Gold. |
+| `baliza transform` | Executa transformações de dados usando Ibis (padrão) ou dbt (`--dbt`) para criar as camadas Silver e Gold. |
 | `baliza mcp` | Inicia o servidor de análise com IA (Model Context Protocol). |
 | `baliza status` | Mostra um painel detalhado sobre a saúde e o estado do sistema. |
 | `baliza explore` | Inicia um explorador de dados interativo no terminal. |
@@ -152,6 +152,38 @@ O servidor expõe as seguintes capacidades ao LLM:
 
 Para saber mais sobre a arquitetura, leia nosso [**Guia Teórico do MCP**](./docs/mcp_guide.md).
 
+## 🦜 Pipeline Ibis: Transformação de Dados Modernizada
+
+O BALIZA inclui um pipeline de transformação de dados moderno baseado em **Ibis**, que oferece vantagens significativas sobre o processo tradicional de dbt:
+
+**Principais Benefícios:**
+- 🐍 **Python Nativo:** Transformações escritas em Python puro com tipagem forte
+- 🗂️ **Enriquecimento Automático:** Integração com 13 tabelas de domínio do PNCP para descrições legíveis
+- 🧪 **Testabilidade:** Testes E2E usando dados reais do PNCP em vez de mocks
+- ⚡ **Performance:** Processamento otimizado com lazy evaluation do Ibis
+- 🔄 **Compatibilidade:** Funciona lado a lado com dbt existente
+
+**Uso do Pipeline Ibis:**
+```bash
+# Transformação padrão com Ibis (recomendado)
+uv run baliza transform
+
+# Transformação tradicional com dbt
+uv run baliza transform --dbt
+
+# Verificar estatísticas de enriquecimento de domínio
+uv run baliza status
+```
+
+**Enriquecimento de Domínio:**
+O pipeline Ibis automaticamente enriquece os dados com descrições legíveis usando as tabelas de referência oficiais do PNCP:
+- **Modalidades:** "1" → "LEILÃO"
+- **UF:** "SP" → "São Paulo" 
+- **Situações:** "1" → "Divulgada"
+- **E mais:** 13 tabelas de domínio com 174+ valores de referência
+
+📋 **Saiba Mais:** Consulte o [**Plano de Implementação do Pipeline Ibis**](./docs/ibis-pipeline-enhancement-plan.md) para detalhes técnicos completos.
+
 ## 🏗️ Arquitetura e Decisões Técnicas
 
 O BALIZA é construído sobre uma base de tecnologias modernas e decisões de arquitetura bem documentadas (ADRs).
@@ -160,7 +192,7 @@ O BALIZA é construído sobre uma base de tecnologias modernas e decisões de ar
 |---|---|---|---|
 | **Coleta** | Python, asyncio, httpx, tenacity, pandas | Extração eficiente, assíncrona e vetorizada. | [ADR-002](docs/adr/002-resilient-extraction.md), [ADR-005](docs/adr/005-modern-python-toolchain.md) |
 | **Armazenamento**| DuckDB | Banco de dados analítico local, rápido e sem servidor, com arquitetura de tabelas divididas para deduplicação. | [ADR-001](docs/adr/001-adopt-duckdb.md), [ADR-008](docs/adr/008-split-psa-table-architecture.md) |
-| **Transformação**| dbt (Data Build Tool) | Transforma dados brutos em modelos de dados limpos e confiáveis (Arquitetura Medallion). | [ADR-003](docs/adr/003-medallion-architecture.md) |
+| **Transformação**| Ibis + dbt (Data Build Tool) | Transforma dados brutos em modelos de dados limpos e confiáveis (Arquitetura Medallion) usando Ibis (padrão) com enriquecimento de domínio ou dbt tradicional. | [ADR-003](docs/adr/003-medallion-architecture.md), [ADR-014](docs/adr/014-ibis-pipeline-adoption.md) |
 | **Interface** | Typer, Rich | CLI amigável, informativa e com ótima usabilidade. | [ADR-005](docs/adr/005-modern-python-toolchain.md) |
 | **Dependências**| uv | Gerenciamento de pacotes e ambientes virtuais de alta performance. | [ADR-005](docs/adr/005-modern-python-toolchain.md) |
 | **Publicação** | Internet Archive | Hospedagem pública e permanente dos dados. | [ADR-006](docs/adr/006-internet-archive.md) |
