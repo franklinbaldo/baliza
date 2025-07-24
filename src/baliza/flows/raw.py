@@ -393,7 +393,7 @@ async def extract_phase_2a_concurrent(
             tasks.extend([contratos_task, atas_task])
             
             # Wait for all tasks to complete
-            results = [await task for task in tasks]
+            results = [task.result() for task in tasks]
             
         else:
             # Sequential extraction (fallback)

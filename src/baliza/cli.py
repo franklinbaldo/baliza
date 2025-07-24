@@ -6,6 +6,8 @@ from rich.table import Table
 
 from .backend import init_database_schema, connect
 from .flows.raw import extract_phase_2a_concurrent
+from .flows.staging import staging_transformation
+from .flows.marts import marts_creation
 from .config import settings
 
 app = typer.Typer()
@@ -25,8 +27,69 @@ def run(
     ),
 ):
     """Executa o pipeline de ETL completo (raw -> staging -> marts)."""
-    console.print("Executando o pipeline completo...")
-    # Lógica do pipeline aqui
+    console.print("🚀 Executando o pipeline completo...")
+
+    try:
+        # Step 1: Raw Layer - Extract data
+        console.print("📥 Etapa 1: Extração (Raw Layer)")
+        
+        if latest:
+            # Extract data for the last 30 days for latest month
+            days = 30
+        elif mes:
+            # TODO: Calculate days for specific month
+            days = 30
+        elif dia:
+            # Extract for single day
+            days = 1
+        else:
+            # Default: last 7 days
+            days = 7
+
+        console.print(f"📅 Extraindo dados dos últimos {days} dias...")
+        
+        # Run extraction flow
+        result = asyncio.run(
+            extract_phase_2a_concurrent(
+                date_range_days=days,
+                modalidades=settings.HIGH_PRIORITY_MODALIDADES,
+                concurrent=True
+            )
+        )
+        
+        console.print("✅ Etapa 1 concluída: Dados extraídos com sucesso")
+        console.print(f"📊 Total: {result['total_records']} registros, {result['total_mb']} MB")
+
+        # Step 2: Staging Layer - Transform data  
+        console.print("🔄 Etapa 2: Transformação (Staging Layer)")
+        
+        staging_result = staging_transformation()
+        
+        if staging_result["status"] == "success":
+            console.print("✅ Etapa 2 concluída: Staging views criadas com sucesso")
+            console.print(f"📊 Total: {staging_result['total_staging_records']} registros staging")
+        else:
+            console.print(f"❌ Erro na etapa 2: {staging_result.get('error_message', 'Unknown error')}")
+            raise typer.Exit(1)
+        
+        # Step 3: Marts Layer - Create analytics tables
+        console.print("📈 Etapa 3: Marts (Analytics Layer)")
+        
+        marts_result = marts_creation()
+        
+        if marts_result["status"] == "success":
+            console.print("✅ Etapa 3 concluída: Marts criados com sucesso")
+            console.print(f"📊 Total: {marts_result['total_mart_records']} marts gerados")
+        else:
+            console.print(f"❌ Erro na etapa 3: {marts_result.get('error_message', 'Unknown error')}")
+            raise typer.Exit(1)
+
+        console.print("🎉 Pipeline completo executado com sucesso!")
+        console.print("✅ Todas as camadas processadas: Raw → Staging → Marts")
+
+    except Exception as e:
+        console.print(f"❌ Erro no pipeline: {e}")
+        raise typer.Exit(1)
 
 
 @app.command()
@@ -117,8 +180,38 @@ def transform(
     ),
 ):
     """Executa as etapas de transformação e carga (staging e marts)."""
-    console.print("Executando a transformação...")
-    # Lógica de transformação aqui
+    console.print("🔄 Executando transformação (Staging + Marts)...")
+
+    try:
+        # Step 1: Staging Layer
+        console.print("📋 Etapa 1: Criando views de staging...")
+        
+        staging_result = staging_transformation()
+        
+        if staging_result["status"] == "success":
+            console.print("✅ Staging concluído com sucesso")
+            console.print(f"📊 {staging_result['total_staging_records']} registros processados")
+        else:
+            console.print(f"❌ Erro no staging: {staging_result.get('error_message')}")
+            raise typer.Exit(1)
+
+        # Step 2: Marts Layer  
+        console.print("📈 Etapa 2: Criando tabelas de marts...")
+        
+        marts_result = marts_creation()
+        
+        if marts_result["status"] == "success":
+            console.print("✅ Marts concluído com sucesso")
+            console.print(f"📊 {marts_result['total_mart_records']} marts criados")
+        else:
+            console.print(f"❌ Erro nos marts: {marts_result.get('error_message')}")
+            raise typer.Exit(1)
+
+        console.print("🎉 Transformação completa executada com sucesso!")
+
+    except Exception as e:
+        console.print(f"❌ Erro na transformação: {e}")
+        raise typer.Exit(1)
 
 
 @app.command()
