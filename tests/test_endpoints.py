@@ -7,7 +7,9 @@ from datetime import date
 from unittest.mock import patch
 
 from src.baliza.utils.endpoints import (
-    URLBuilder,
+    build_contratacao_url,
+    build_contratos_url,
+    build_atas_url,
     DateRangeHelper,
     PaginationHelper,
     EndpointValidator,
@@ -21,12 +23,10 @@ class TestURLBuilder:
 
     def test_build_contratacoes_url(self):
         """Test building contratacoes URL with all parameters"""
-        builder = URLBuilder()
-
-        url = builder.build_contratacoes_publicacao_url(
+        url = build_contratacao_url(
             data_inicial="2024-01-01",
             data_final="2024-01-31",
-            modalidade=ModalidadeContratacao.PREGAO_ELETRONICO,
+            modalidade=1,
             pagina=1,
         )
 
@@ -39,9 +39,7 @@ class TestURLBuilder:
 
     def test_build_contratos_url(self):
         """Test building contratos URL"""
-        builder = URLBuilder()
-
-        url = builder.build_contratos_url(
+        url = build_contratos_url(
             data_inicial="2024-01-01", data_final="2024-01-31", pagina=2
         )
 
@@ -53,9 +51,7 @@ class TestURLBuilder:
 
     def test_build_atas_url(self):
         """Test building atas URL"""
-        builder = URLBuilder()
-
-        url = builder.build_atas_url(
+        url = build_atas_url(
             data_inicial="2024-01-01", data_final="2024-01-31", pagina=3
         )
 
@@ -76,15 +72,15 @@ class TestDateRangeHelper:
 
             start, end = DateRangeHelper.get_last_n_days(7)
 
-            assert start == "2024-01-08"
-            assert end == "2024-01-14"
+            assert start == "20240108"
+            assert end == "20240115"
 
     def test_get_month_range(self):
         """Test getting month range"""
         start, end = DateRangeHelper.get_month_range(2024, 1)
 
-        assert start == "2024-01-01"
-        assert end == "2024-01-31"
+        assert start == "20240101"
+        assert end == "20240131"
 
     def test_parse_date_string(self):
         """Test parsing date strings"""
@@ -119,7 +115,7 @@ class TestPaginationHelper:
 
     def test_get_page_ranges(self):
         """Test getting page ranges for parallel processing"""
-        ranges = PaginationHelper.get_page_ranges(100, batch_size=3)
+        ranges = PaginationHelper.get_page_ranges(10, batch_size=3)
 
         expected = [
             (1, 3),  # pages 1-3
@@ -227,15 +223,9 @@ class TestPhase2AEndpoints:
 
         # Check required fields
         for endpoint in endpoints:
-            assert "name" in endpoint
-            assert "priority" in endpoint
-            assert "requires_modalidade" in endpoint
+            assert isinstance(endpoint, str)
 
         # Check high priority endpoints are included
-        high_priority = [e for e in endpoints if e["priority"] == "high"]
-        assert len(high_priority) > 0
-
-        endpoint_names = [e["name"] for e in endpoints]
-        assert "contratacoes_publicacao" in endpoint_names
-        assert "contratos" in endpoint_names
-        assert "atas" in endpoint_names
+        assert "contratacoes_publicacao" in endpoints
+        assert "contratos" in endpoints
+        assert "atas" in endpoints

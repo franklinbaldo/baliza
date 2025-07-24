@@ -139,7 +139,7 @@ class PNCPClient:
     ) -> APIRequest:
         """Make HTTP request with circuit breaker protection"""
 
-        return self.circuit_breaker.call(self._make_http_request, url, metadata)
+        return await self.circuit_breaker.call(self._make_http_request, url, metadata)
 
     async def _make_http_request(
         self, url: str, metadata: RequestMetadata
