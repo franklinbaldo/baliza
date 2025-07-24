@@ -1,0 +1,13 @@
+# DuckDB database
+/data/baliza.duckdb
+
+# Python virtual environment
+.venv/
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# IDE-specific files
+.idea/
+.vscode/
