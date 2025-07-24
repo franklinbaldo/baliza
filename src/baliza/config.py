@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     # Schema Validation
     VALIDATE_SCHEMA: bool = True
     SCHEMA_FINGERPRINT_CHECK: bool = True
+    
+    # TODO: Add configuration for data retention policies
+    # TODO: Add configuration for security settings (encryption, auth)
+    # TODO: Add configuration for monitoring and alerting thresholds
 
     class Config:
         env_file = ".env"

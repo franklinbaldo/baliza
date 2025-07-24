@@ -37,7 +37,8 @@ def run(
             # Extract data for the last 30 days for latest month
             days = 30
         elif mes:
-            # TODO: Calculate days for specific month
+            # TODO: Calculate actual days for specific month (handle different month lengths)
+            # FIXME: Currently hardcoded to 30 days regardless of actual month
             days = 30
         elif dia:
             # Extract for single day
