@@ -1,11 +1,15 @@
 import ibis
-from ibis.backends.duckdb.Backend import Backend
+from ibis.backends.duckdb import Backend
 from prefect import get_run_logger
 from pathlib import Path
 from typing import Dict, Any, List
+import logging
 from .config import settings
 
-logger = get_run_logger()
+try:
+    logger = get_run_logger()
+except Exception:  # pragma: no cover - outside flow context
+    logger = logging.getLogger(__name__)
 
 
 def load_sql_file(filename: str) -> str:
