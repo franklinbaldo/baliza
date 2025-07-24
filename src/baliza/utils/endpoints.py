@@ -9,7 +9,7 @@ from urllib.parse import urlencode
 from ..config import ENDPOINT_CONFIG, MODALIDADE_CONTRATACAO, settings
 
 
-class EndpointBuilder:
+class URLBuilder:
     """Builds PNCP API endpoint URLs with proper parameters"""
 
     def __init__(self, base_url: str = None):
@@ -87,6 +87,16 @@ class DateRangeHelper:
         return cls.format_date(start_date), cls.format_date(end_date)
 
     @classmethod
+    def get_month_range(cls, year: int, month: int) -> Tuple[str, str]:
+        """Get date range for a specific month"""
+        import calendar
+
+        _, num_days = calendar.monthrange(year, month)
+        start_date = date(year, month, 1)
+        end_date = date(year, month, num_days)
+        return cls.format_date(start_date), cls.format_date(end_date)
+
+    @classmethod
     def chunk_date_range(
         cls, start_date: str, end_date: str, chunk_days: int
     ) -> List[Tuple[str, str]]:
@@ -103,6 +113,21 @@ class DateRangeHelper:
             current = chunk_end + timedelta(days=1)
 
         return chunks
+
+    @staticmethod
+    def parse_date_string(date_str: str) -> date:
+        """Parse YYYY-MM-DD string to date object"""
+        return datetime.strptime(date_str, "%Y-%m-%d").date()
+
+    @staticmethod
+    def validate_date_range(start_date: str, end_date: str) -> bool:
+        """Validate date range parameters"""
+        try:
+            start = DateRangeHelper.parse_date_string(start_date)
+            end = DateRangeHelper.parse_date_string(end_date)
+            return start <= end
+        except ValueError:
+            return False
 
 
 class ModalidadeHelper:
@@ -163,6 +188,24 @@ class PaginationHelper:
         """Check if there are more pages to fetch"""
         return current_page < total_pages
 
+    @staticmethod
+    def get_page_ranges(total_pages: int, batch_size: int) -> List[Tuple[int, int]]:
+        """Get page ranges for parallel processing"""
+        ranges = []
+        for i in range(1, total_pages + 1, batch_size):
+            start_page = i
+            end_page = min(i + batch_size - 1, total_pages)
+            ranges.append((start_page, end_page))
+        return ranges
+
+    @staticmethod
+    def estimate_requests_needed(
+        date_range_days: int, avg_records_per_day: int, records_per_page: int
+    ) -> int:
+        """Estimate requests needed for a given date range"""
+        total_records = date_range_days * avg_records_per_day
+        return (total_records + records_per_page - 1) // records_per_page
+
 
 class EndpointValidator:
     """Validates endpoint requests and responses"""
@@ -185,13 +228,25 @@ class EndpointValidator:
             raise ValueError(f"Date range too large. Maximum {max_days} days allowed")
 
     @staticmethod
-    def validate_modalidade(modalidade: int) -> None:
+    def validate_modalidade(modalidade: int) -> bool:
         """Validate modalidade code"""
-        if modalidade not in MODALIDADE_CONTRATACAO:
-            valid_codes = list(MODALIDADE_CONTRATACAO.keys())
-            raise ValueError(
-                f"Invalid modalidade {modalidade}. Valid codes: {valid_codes}"
-            )
+        if modalidade is None:
+            return False
+        return modalidade in MODALIDADE_CONTRATACAO
+
+    @staticmethod
+    def validate_date_format(date_str: str) -> bool:
+        """Validate date format"""
+        try:
+            datetime.strptime(date_str, "%Y-%m-%d")
+            return True
+        except ValueError:
+            return False
+
+    @staticmethod
+    def validate_pagination_params(page: int, page_size: int) -> bool:
+        """Validate pagination parameters"""
+        return page >= 1 and 1 <= page_size <= 100
 
     @staticmethod
     def validate_pagination(page: int, page_size: int, endpoint_name: str) -> None:
@@ -207,13 +262,26 @@ class EndpointValidator:
                 f"Page size must be between {limits['min']} and {limits['max']}"
             )
 
+    def validate_endpoint_params(self, endpoint_name: str, params: dict) -> dict:
+        """Validate endpoint parameters"""
+        errors = []
+        if not self.validate_date_format(params.get("data_inicial")):
+            errors.append("Invalid data_inicial")
+        if not self.validate_date_format(params.get("data_final")):
+            errors.append("Invalid data_final")
+        if not self.validate_modalidade(params.get("modalidade")):
+            errors.append("Invalid modalidade")
+        if not self.validate_pagination_params(params.get("pagina"), 50):
+            errors.append("Invalid pagina")
+        return {"valid": not errors, "errors": errors}
+
 
 # Convenience functions for common operations
 def build_contratacao_url(
     data_inicial: str, data_final: str, modalidade: int, pagina: int = 1, **kwargs
 ) -> str:
     """Build URL for contratações/publicação endpoint"""
-    builder = EndpointBuilder()
+    builder = URLBuilder()
     params = {
         "dataInicial": data_inicial,
         "dataFinal": data_final,
@@ -228,7 +296,7 @@ def build_contratos_url(
     data_inicial: str, data_final: str, pagina: int = 1, **kwargs
 ) -> str:
     """Build URL for contratos endpoint"""
-    builder = EndpointBuilder()
+    builder = URLBuilder()
     params = {
         "dataInicial": data_inicial,
         "dataFinal": data_final,
@@ -242,7 +310,7 @@ def build_atas_url(
     data_inicial: str, data_final: str, pagina: int = 1, **kwargs
 ) -> str:
     """Build URL for atas endpoint"""
-    builder = EndpointBuilder()
+    builder = URLBuilder()
     params = {
         "dataInicial": data_inicial,
         "dataFinal": data_final,
