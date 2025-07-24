@@ -1,3 +1,4 @@
 {
+  "cloud_run_deploy": {},
   "secrets_manager": {}
 }
