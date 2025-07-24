@@ -3,7 +3,7 @@ Endpoint utilities for PNCP API integration
 """
 
 from datetime import datetime, timedelta, date
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from urllib.parse import urlencode
 
 from ..config import ENDPOINT_CONFIG, MODALIDADE_CONTRATACAO, settings
@@ -252,6 +252,8 @@ def build_atas_url(
     return builder.build_url("atas", **params)
 
 
-def get_phase_2a_endpoints() -> List[str]:
-    """Get list of Phase 2A priority endpoints"""
-    return settings.PHASE_2A_ENDPOINTS
+def get_phase_2a_endpoints() -> List[Dict[str, Any]]:
+    """Get list of Phase 2A priority endpoints with their full configuration"""
+    return [
+        {**ENDPOINT_CONFIG[ep], "name": ep} for ep in settings.PHASE_2A_ENDPOINTS
+    ]

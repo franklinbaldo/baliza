@@ -43,7 +43,7 @@ class CircuitBreaker:
         self.last_failure_time: Optional[datetime] = None
         self.last_success_time: Optional[datetime] = None
 
-    def call(self, func: Callable, *args, **kwargs) -> Any:
+    async def call(self, func: Callable, *args, **kwargs) -> Any:
         """Execute function with circuit breaker protection"""
 
         if self.state == CircuitState.OPEN:
@@ -56,7 +56,7 @@ class CircuitBreaker:
                 )
 
         try:
-            result = func(*args, **kwargs)
+            result = await func(*args, **kwargs)
             self._on_success()
             return result
 
@@ -117,7 +117,8 @@ class AdaptiveRateLimiter:
 
         # Clean old request times (older than 1 minute)
         cutoff = now - timedelta(minutes=1)
-        self.request_times = [t for t in self.request_times if t > cutoff]
+        cutoff = now - timedelta(minutes=1)
+        self.request_times = [t for t in self.request_times if t.timestamp() > cutoff.timestamp()]
 
         # Calculate current rate limit with adaptive factor
         current_limit = int(self.requests_per_minute * self.adaptive_factor)

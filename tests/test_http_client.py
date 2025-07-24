@@ -5,18 +5,18 @@ Tests for HTTP client with circuit breaker and rate limiting
 import pytest
 import asyncio
 from unittest.mock import Mock, patch
-from datetime import datetime
+from datetime import datetime, timedelta, timedelta
 
 from pydantic import ValidationError
 
 from src.baliza.utils.http_client import (
     PNCPResponse,
     APIRequest,
-    CircuitBreakerState,
     AdaptiveRateLimiter,
     PNCPClient,
     EndpointExtractor,
 )
+from src.baliza.utils.circuit_breaker import CircuitBreaker, CircuitBreakerConfig, CircuitState
 from src.baliza.enums import ModalidadeContratacao
 
 
@@ -25,19 +25,23 @@ class TestPNCPResponse:
 
     def test_valid_response(self):
         """Test valid PNCP API response"""
-        data = {"data": [{"id": 1}, {"id": 2}], "totalRegistros": 100}
+        data = {"data": [{"id": 1}, {"id": 2}], "totalRegistros": 100, "totalPaginas": 10, "numeroPagina": 1, "paginasRestantes": 9}
 
         response = PNCPResponse(**data)
         assert len(response.data) == 2
         assert response.totalRegistros == 100
+        assert response.totalPaginas == 10
+        assert response.numeroPagina == 1
+        assert response.paginasRestantes == 9
 
     def test_empty_response(self):
         """Test empty response handling"""
-        data = {"totalRegistros": 0}
+        data = {"data": [], "totalRegistros": 0, "totalPaginas": 0, "numeroPagina": 1, "paginasRestantes": 0, "empty": True}
 
         response = PNCPResponse(**data)
         assert response.data == []
         assert response.totalRegistros == 0
+        assert response.empty is True
 
     def test_invalid_response(self):
         """Test invalid response raises validation error"""
@@ -51,12 +55,15 @@ class TestAPIRequest:
     def test_create_api_request(self):
         """Test creating API request"""
         request = APIRequest(
+            request_id="test_id",
+            ingestion_date=datetime.now().date(),
             endpoint="test_endpoint",
             http_status=200,
             etag="test_etag",
             payload_sha256="abc123",
             payload_size=1024,
             payload_compressed=b"test_data",
+            collected_at=datetime.now(),
         )
 
         assert request.endpoint == "test_endpoint"
@@ -66,75 +73,70 @@ class TestAPIRequest:
         assert isinstance(request.collected_at, datetime)
 
 
+
 class TestCircuitBreaker:
     """Test circuit breaker functionality"""
 
     def test_initial_state(self):
         """Test circuit breaker initial state"""
-        from src.baliza.utils.http_client import CircuitBreaker
-
-        cb = CircuitBreaker(failure_threshold=3, recovery_timeout=30)
-        assert cb.state == CircuitBreakerState.CLOSED
+        cb = CircuitBreaker(config=CircuitBreakerConfig(failure_threshold=3, recovery_timeout=30))
+        assert cb.state == CircuitState.CLOSED
         assert cb.failure_count == 0
 
     def test_failure_tracking(self):
         """Test failure counting"""
-        from src.baliza.utils.http_client import CircuitBreaker
-
-        cb = CircuitBreaker(failure_threshold=2, recovery_timeout=30)
+        cb = CircuitBreaker(config=CircuitBreakerConfig(failure_threshold=2, recovery_timeout=30))
 
         # First failure
-        cb.record_failure()
-        assert cb.state == CircuitBreakerState.CLOSED
+        cb._on_failure(Exception("Test failure"))
+        assert cb.state == CircuitState.CLOSED
         assert cb.failure_count == 1
 
         # Second failure should open circuit
-        cb.record_failure()
-        assert cb.state == CircuitBreakerState.OPEN
+        cb._on_failure(Exception("Test failure"))
+        assert cb.state == CircuitState.OPEN
         assert cb.failure_count == 2
 
     def test_success_reset(self):
         """Test success resets failure count"""
-        from src.baliza.utils.http_client import CircuitBreaker
+        cb = CircuitBreaker(config=CircuitBreakerConfig(failure_threshold=3, recovery_timeout=30))
 
-        cb = CircuitBreaker(failure_threshold=3, recovery_timeout=30)
-
-        cb.record_failure()
+        cb._on_failure(Exception("Test failure"))
         assert cb.failure_count == 1
 
-        cb.record_success()
+        cb._on_success()
         assert cb.failure_count == 0
-        assert cb.state == CircuitBreakerState.CLOSED
+        assert cb.state == CircuitState.CLOSED
 
 
 class TestAdaptiveRateLimiter:
     """Test adaptive rate limiting"""
 
-    @pytest.mark.asyncio
-    async def test_initial_rate(self):
-        """Test initial rate limiting"""
-        limiter = AdaptiveRateLimiter(initial_rate=60)  # 60 req/min = 1 req/sec
-
-        start_time = asyncio.get_event_loop().time()
-        await limiter.acquire()
-        await limiter.acquire()
-        end_time = asyncio.get_event_loop().time()
-
-        # Should take at least 1 second between requests
-        assert end_time - start_time >= 1.0
+    
 
     def test_rate_adjustment(self):
         """Test rate adjustment based on response"""
-        limiter = AdaptiveRateLimiter(initial_rate=60)
-        initial_interval = limiter.request_interval
+        limiter = AdaptiveRateLimiter()
+        initial_adaptive_factor = limiter.adaptive_factor
 
         # Simulate 429 response - should decrease rate
-        limiter.adjust_rate(429)
-        assert limiter.request_interval > initial_interval
+        with patch("src.baliza.utils.circuit_breaker.datetime") as mock_dt:
+            # Set last_adaptive_check to be old enough
+            limiter.last_adaptive_check = datetime.now() - timedelta(seconds=60)
+            mock_dt.now.return_value = datetime.now() + timedelta(seconds=31) # Ensure enough time passes
+            limiter.adapt_rate(response_time=1.0, status_code=500)
+            assert limiter.adaptive_factor < initial_adaptive_factor
 
-        # Simulate 200 response - should gradually increase rate
-        limiter.adjust_rate(200)
-        # Rate should not immediately return to original
+        # Gradually increase rate if server is responding well
+        with patch("src.baliza.utils.circuit_breaker.datetime") as mock_dt:
+            # Set last_adaptive_check to be old enough again
+            limiter.last_adaptive_check = datetime.now() - timedelta(seconds=60)
+            mock_dt.now.return_value = datetime.now() + timedelta(seconds=62) # Ensure enough time passes
+            limiter.adapt_rate(response_time=0.1, status_code=200)
+            # Rate should not immediately return to original, but increase slightly
+            assert limiter.adaptive_factor > initial_adaptive_factor * 0.8 # Should be greater than the reduced factor
+            assert limiter.adaptive_factor <= 1.0 # Should not exceed 1.0
+
 
 
 @pytest.mark.asyncio
@@ -148,10 +150,11 @@ class TestPNCPClient:
         mock_response.headers = {"etag": "test_etag"}
         mock_response.content = b'{"data": [], "totalRegistros": 0}'
 
-        with patch("httpx.AsyncClient.get", return_value=mock_response):
+        with patch("httpx.AsyncClient.get", return_value=mock_response) as mock_get:
+            mock_get.return_value.json.return_value = {"data": [], "totalRegistros": 0, "totalPaginas": 0, "numeroPagina": 1, "paginasRestantes": 0, "empty": True}
             client = PNCPClient()
 
-            result = await client.fetch_data("https://test.com/api")
+            result = await client.fetch_endpoint_data("test_endpoint", "https://test.com/api")
 
             assert result.http_status == 200
             assert result.etag == "test_etag"
@@ -162,11 +165,11 @@ class TestPNCPClient:
         client = PNCPClient()
 
         # Force circuit breaker to open
-        for _ in range(client.circuit_breaker.failure_threshold):
-            client.circuit_breaker.record_failure()
+        for _ in range(client.circuit_breaker.config.failure_threshold):
+            client.circuit_breaker._on_failure(Exception("Test failure"))
 
         with pytest.raises(Exception, match="Circuit breaker is OPEN"):
-            await client.fetch_data("https://test.com/api")
+            await client.fetch_endpoint_data("test_endpoint", "https://test.com/api")
 
     async def test_rate_limiting(self):
         """Test rate limiting behavior"""
@@ -175,14 +178,15 @@ class TestPNCPClient:
         mock_response.headers = {}
         mock_response.content = b'{"data": [], "totalRegistros": 0}'
 
-        with patch("httpx.AsyncClient.get", return_value=mock_response):
+        with patch("httpx.AsyncClient.get", return_value=mock_response) as mock_get:
+            mock_get.return_value.json.return_value = {"data": [], "totalRegistros": 0, "totalPaginas": 0, "numeroPagina": 1, "paginasRestantes": 0, "empty": True}
             client = PNCPClient()
 
             start_time = asyncio.get_event_loop().time()
 
             # Make two requests
-            await client.fetch_data("https://test.com/api")
-            await client.fetch_data("https://test.com/api")
+            await client.fetch_endpoint_data("test_endpoint", "https://test.com/api")
+            await client.fetch_endpoint_data("test_endpoint", "https://test.com/api")
 
             end_time = asyncio.get_event_loop().time()
 

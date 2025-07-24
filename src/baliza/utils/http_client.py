@@ -9,7 +9,9 @@ from datetime import datetime, date
 from typing import Dict, Any, Optional, List
 from pydantic import BaseModel, Field, validator
 import httpx
+import logging
 from prefect import get_run_logger
+from prefect.exceptions import MissingContextError
 
 from ..config import settings
 from ..enums import ModalidadeContratacao, get_enum_by_value
@@ -88,7 +90,11 @@ class PNCPClient:
             backoff_factor=settings.RETRY_BACKOFF_FACTOR,
             backoff_max=settings.RETRY_BACKOFF_MAX,
         )
-        self.logger = get_run_logger()
+        try:
+            self.logger = get_run_logger()
+        except MissingContextError:
+            self.logger = logging.getLogger("PNCPClient")
+            logging.basicConfig(level=logging.INFO)
 
         # HTTP client configuration
         self.client_config = {
@@ -139,7 +145,7 @@ class PNCPClient:
     ) -> APIRequest:
         """Make HTTP request with circuit breaker protection"""
 
-        return self.circuit_breaker.call(self._make_http_request, url, metadata)
+        return await self.circuit_breaker.call(self._make_http_request, url, metadata)
 
     async def _make_http_request(
         self, url: str, metadata: RequestMetadata
@@ -252,7 +258,11 @@ class EndpointExtractor:
 
     def __init__(self, client: PNCPClient = None):
         self.client = client or PNCPClient()
-        self.logger = get_run_logger()
+        try:
+            self.logger = get_run_logger()
+        except MissingContextError:
+            self.logger = logging.getLogger("EndpointExtractor")
+            logging.basicConfig(level=logging.INFO)
 
     async def extract_contratacoes_publicacao(
         self,

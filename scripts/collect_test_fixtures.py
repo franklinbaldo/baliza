@@ -18,7 +18,7 @@ sys.path.insert(0, str(project_root / "src"))
 os.environ["PYTHONPATH"] = str(project_root / "src")
 
 from baliza.utils.http_client import PNCPClient
-from baliza.utils.endpoints import URLBuilder, DateRangeHelper
+from baliza.utils.endpoints import EndpointBuilder, DateRangeHelper
 from baliza.enums import ModalidadeContratacao, get_enum_by_value
 from baliza.config import settings
 
@@ -28,7 +28,7 @@ async def collect_contratacoes_publicacao_fixture():
     print("🔍 Coletando fixture: contratacoes/publicacao...")
 
     client = PNCPClient()
-    builder = URLBuilder()
+    builder = EndpointBuilder()
 
     # Get recent date range (last 30 days to ensure data)
     data_inicial, data_final = DateRangeHelper.get_last_n_days(30)
@@ -38,15 +38,16 @@ async def collect_contratacoes_publicacao_fixture():
         ModalidadeContratacao, settings.HIGH_PRIORITY_MODALIDADES[0]
     )
 
-    url = builder.build_contratacoes_publicacao_url(
+    from baliza.utils.endpoints import build_contratacao_url
+    url = build_contratacao_url(
         data_inicial=data_inicial,
         data_final=data_final,
-        modalidade=modalidade,
+        modalidade=modalidade.value,
         pagina=1,
     )
 
     try:
-        api_request = await client.fetch_data(url, endpoint="contratacoes_publicacao")
+        api_request = await client.fetch_endpoint_data("contratacoes_publicacao", url)
 
         # Decompress and parse response
         import zlib
@@ -83,17 +84,18 @@ async def collect_contratos_fixture():
     print("🔍 Coletando fixture: contratos...")
 
     client = PNCPClient()
-    builder = URLBuilder()
+    builder = EndpointBuilder()
 
     # Get recent date range
     data_inicial, data_final = DateRangeHelper.get_last_n_days(30)
 
-    url = builder.build_contratos_url(
+    from baliza.utils.endpoints import build_contratos_url
+    url = build_contratos_url(
         data_inicial=data_inicial, data_final=data_final, pagina=1
     )
 
     try:
-        api_request = await client.fetch_data(url, endpoint="contratos")
+        api_request = await client.fetch_endpoint_data("contratos", url)
 
         # Decompress and parse response
         import zlib
@@ -128,17 +130,18 @@ async def collect_atas_fixture():
     print("🔍 Coletando fixture: atas...")
 
     client = PNCPClient()
-    builder = URLBuilder()
+    builder = EndpointBuilder()
 
     # Get recent date range
     data_inicial, data_final = DateRangeHelper.get_last_n_days(30)
 
-    url = builder.build_atas_url(
+    from baliza.utils.endpoints import build_atas_url
+    url = build_atas_url(
         data_inicial=data_inicial, data_final=data_final, pagina=1
     )
 
     try:
-        api_request = await client.fetch_data(url, endpoint="atas")
+        api_request = await client.fetch_endpoint_data("atas", url)
 
         # Decompress and parse response
         import zlib
@@ -178,7 +181,7 @@ async def collect_orgaos_fixture():
     url = "https://pncp.gov.br/api/consulta/v1/orgaos?pagina=1"
 
     try:
-        api_request = await client.fetch_data(url, endpoint="orgaos")
+        api_request = await client.fetch_endpoint_data("orgaos", url)
 
         # Decompress and parse response
         import zlib
