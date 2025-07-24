@@ -11,3 +11,5 @@ __pycache__/
 # IDE-specific files
 .idea/
 .vscode/
+src/baliza.egg-info/
+uv.lock

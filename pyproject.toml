@@ -13,11 +13,8 @@ dependencies = [
     "ibis-framework[duckdb]",
     "pydantic",
     "httpx",
-    "typer[all]",
-    "rich",
-    "pyarrow",
-    "fastparquet",
-    "pyyaml"
+    "typer",
+    "rich"
 ]
 
 [project.optional-dependencies]
