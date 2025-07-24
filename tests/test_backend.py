@@ -1,5 +1,4 @@
 import pytest
-from unittest import mock
 from src.baliza import backend
 from src.baliza.config import settings
 

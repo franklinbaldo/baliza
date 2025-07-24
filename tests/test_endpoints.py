@@ -15,7 +15,6 @@ from src.baliza.utils.endpoints import (
     EndpointValidator,
     get_phase_2a_endpoints,
 )
-from src.baliza.enums import ModalidadeContratacao
 
 
 class TestURLBuilder:

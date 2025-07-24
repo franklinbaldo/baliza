@@ -2,10 +2,9 @@
 Raw data extraction flows using Prefect
 """
 
-import asyncio
 import json
 import zlib
-from datetime import datetime, date
+from datetime import datetime
 from typing import List, Dict, Any, Optional
 from uuid import uuid4
 
@@ -15,8 +14,8 @@ from pydantic import BaseModel
 from ..backend import connect, load_sql_file
 from ..config import settings
 from ..enums import ModalidadeContratacao, get_enum_by_value
-from ..utils.http_client import PNCPClient, EndpointExtractor, APIRequest
-from ..utils.endpoints import DateRangeHelper, get_phase_2a_endpoints
+from ..utils.http_client import EndpointExtractor, APIRequest
+from ..utils.endpoints import DateRangeHelper
 
 
 class ExtractionResult(BaseModel):
