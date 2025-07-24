@@ -136,3 +136,18 @@ baliza extract --concurrent --modalidades 6,7,8 --max-workers 12
 - Adaptive concurrency (12 endpoints simultaneously, 120 req/min)
 
 The project follows modern data engineering patterns with emphasis on data lineage, observability, and defensive programming practices.
+
+## Best Practices
+
+- Avoid mixing SQL with Python code
+  - Externalize SQL queries to .sql files
+
+## Development Memories
+
+- Put as much code as possible inside `src/` instead of the root directory
+  - The `sql/` folder should be located inside `src/` as well
+- Use as biblicatas já escolhidas sempre que adequado: pydantic, ibis, duckdb, prefect 2.0 etc
+
+## Testing Practices
+
+- PARA TESTES USE ARQUIVOS .JSON COM DADOS REAIS EXTRAIDOS DE EXMPLO DE CADA ENDPOINT

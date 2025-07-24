@@ -1,0 +1,79 @@
+{
+  "data": [
+    {
+      "numeroControlePNCP": "00001.123456/2024-01",
+      "linkSistemaOrigem": "https://sistema.gov.br/licitacao/123456",
+      "dataPublicacao": "2024-01-15T10:30:00.000Z",
+      "dataVigenciaInicio": "2024-02-01T00:00:00.000Z",
+      "dataVigenciaFim": "2024-12-31T23:59:59.000Z",
+      "modalidadeContratacao": 1,
+      "modalidadeContratacaoTexto": "Pregão Eletrônico",
+      "situacaoContratacao": 3,
+      "situacaoContratacaoTexto": "Homologada",
+      "objetoContrato": "Aquisição de equipamentos de informática para modernização do parque tecnológico",
+      "valorInicialEstimado": 150000.50,
+      "valorFinalHomologado": 142500.75,
+      "contratante": {
+        "cnpj": "12345678000195",
+        "razaoSocial": "Ministério da Educação",
+        "poderId": 1,
+        "poderTexto": "Executivo Federal",
+        "esferaId": 1,
+        "esferaTexto": "Federal"
+      },
+      "fornecedores": [
+        {
+          "nome": "TechSolutions Ltda",
+          "cpfCnpj": "98765432000156",
+          "tipo": "PJ"
+        }
+      ],
+      "itensContrato": [
+        {
+          "numeroItem": 1,
+          "descricaoItem": "Computador Desktop Core i5",
+          "unidade": "UN",
+          "quantidade": 50,
+          "valorUnitario": 2850.15,
+          "valorTotal": 142507.50
+        }
+      ]
+    },
+    {
+      "numeroControlePNCP": "00002.789012/2024-01",
+      "linkSistemaOrigem": "https://compras.gov.br/processo/789012",
+      "dataPublicacao": "2024-01-16T14:20:00.000Z",
+      "dataVigenciaInicio": "2024-02-15T00:00:00.000Z",
+      "dataVigenciaFim": "2024-08-15T23:59:59.000Z",
+      "modalidadeContratacao": 2,
+      "modalidadeContratacaoTexto": "Concorrência",
+      "situacaoContratacao": 2,
+      "situacaoContratacaoTexto": "Em Andamento",
+      "objetoContrato": "Prestação de serviços de limpeza e conservação predial",
+      "valorInicialEstimado": 280000.00,
+      "valorFinalHomologado": null,
+      "contratante": {
+        "cnpj": "11223344000187",
+        "razaoSocial": "Tribunal Regional Federal da 1ª Região",
+        "poderId": 3,
+        "poderTexto": "Judiciário Federal",
+        "esferaId": 1,
+        "esferaTexto": "Federal"
+      },
+      "fornecedores": [],
+      "itensContrato": [
+        {
+          "numeroItem": 1,
+          "descricaoItem": "Serviços de limpeza predial",
+          "unidade": "MES",
+          "quantidade": 6,
+          "valorUnitario": 46666.67,
+          "valorTotal": 280000.02
+        }
+      ]
+    }
+  ],
+  "totalRegistros": 1547,
+  "paginaAtual": 1,
+  "totalPaginas": 78
+}
