@@ -221,6 +221,30 @@ class CategoriaItemPlanoContratacoes(Enum):
     OBRAS_E_SERVICOS_DE_ENGENHARIA = 8
 
 
+class PoderId(str, Enum):
+    LEGISLATIVO = "L"
+    EXECUTIVO = "E"
+    JUDICIARIO = "J"
+
+
+class EsferaId(str, Enum):
+    FEDERAL = "F"
+    ESTADUAL = "E"
+    MUNICIPAL = "M"
+    DISTRITAL = "D"
+
+
+class TipoPessoa(str, Enum):
+    PESSOA_JURIDICA = "PJ"
+    PESSOA_FISICA = "PF"
+    PESSOA_ESTRANGEIRA = "PE"
+
+
+class ClassificacaoCatalogo(int, Enum):
+    MATERIAL = 1
+    SERVICO = 2
+
+
 # Enum utilities
 def get_enum_by_value(enum_class: type[Enum], value: int | str) -> Enum | None:
     """Get enum member by value, returning None if not found."""
@@ -280,6 +304,10 @@ ENUM_REGISTRY = {
     "PorteEmpresa": PorteEmpresa,
     "AmparoLegal": AmparoLegal,
     "CategoriaItemPlanoContratacoes": CategoriaItemPlanoContratacoes,
+    "PoderId": PoderId,
+    "EsferaId": EsferaId,
+    "TipoPessoa": TipoPessoa,
+    "ClassificacaoCatalogo": ClassificacaoCatalogo,
 }
 
 
