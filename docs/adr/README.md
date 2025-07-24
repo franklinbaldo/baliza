@@ -11,7 +11,7 @@ This directory contains the architectural decision records for the BALIZA projec
    - Four-phase extraction process with fault tolerance and progress tracking
 
 3. [**ADR-003: Adopt dbt and the Medallion Architecture (Bronze/Silver/Gold)**](003-medallion-architecture.md)
-   - Data transformation framework using dbt with Bronze/Silver/Gold layers
+   - Data transformation framework using Medallion layers (implementation via Ibis)
 
 4. [**ADR-004: End-to-End (E2E) Only Testing Strategy**](004-e2e-testing.md)
    - E2E-first testing approach with no unit tests or mocks
@@ -25,8 +25,11 @@ This directory contains the architectural decision records for the BALIZA projec
 7. [**ADR-007: Implement an MCP Server for AI-Powered Analysis**](007-mcp-server.md)
    - AI-powered data analysis using Model Context Protocol
 
-8. [**ADR-014: Adopt Ibis Pipeline for Data Transformation**](014-ibis-pipeline-adoption.md)
-   - Modern Python-native data transformation with domain enrichment
+8. [**ADR-013: dbt Integration for DDL Management**](013-dbt-integration-for-ddl.md) ❌ **SUPERSEDED**
+   - dbt integration (abandoned due to complexity)
+
+9. [**ADR-014: Adopt Ibis Pipeline for Data Transformation**](014-ibis-pipeline-adoption.md) ✅ **ACTIVE**
+   - Modern Python-native data transformation replacing dbt
 
 ## ADR Summary
 
@@ -34,7 +37,7 @@ These architectural decisions form the foundation of BALIZA's design philosophy:
 
 - **DuckDB-centric** data architecture for portability and performance
 - **Resilient, task-driven** extraction with fault tolerance
-- **Medallion architecture** with Ibis (primary) and dbt for data transformation
+- **Medallion architecture** implemented via Ibis pipeline (dbt abandoned)
 - **E2E-only testing** strategy for maximum confidence
 - **Modern Python toolchain** for developer experience and performance
 - **Internet Archive** for open data publishing

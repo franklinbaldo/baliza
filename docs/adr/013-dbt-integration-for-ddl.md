@@ -1,7 +1,13 @@
 # ADR-013: dbt Integration for DDL Management
 
 ## Status
-Accepted
+❌ **SUPERSEDED** by ADR-014 (Ibis Pipeline Adoption)
+
+## ⚠️ Deprecation Notice
+**Date**: July 2025  
+**Reason**: dbt was **completely abandoned** due to excessive complexity  
+**Replacement**: Ibis + Kedro pipeline architecture  
+**Impact**: All dbt infrastructure removed from project
 
 ## Context
 Database schema management in BALIZA currently lacks:

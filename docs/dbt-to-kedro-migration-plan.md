@@ -2,7 +2,19 @@
 
 **Strategic Data Pipeline Modernization**  
 **Date**: July 24, 2025  
-**Status**: Proposed Architecture Overhaul
+**Status**: ⚠️ DEFERRED - Focusing on Ibis Pipeline First
+
+## ⚠️ Current Status Update
+
+**Migration Status**: The Kedro migration has been **temporarily deferred** due to CLI compatibility issues. Current focus is on:
+
+1. **✅ PRIMARY**: Ibis pipeline (ADR-014) - **Currently working and stable**
+2. **❌ REMOVED**: dbt completely abandoned - too complex, replaced by Ibis
+3. **🚧 FUTURE**: Kedro + Ibis integration when CLI refactoring is complete
+
+**Architecture Decision**: **dbt → Ibis + Kedro migration** eliminates dbt complexity while gaining production-ready orchestration.
+**Performance Strategy**: **Ibis-native** processing (no pandas needed), optional **Polars** for specific use cases.
+**Technical Blocker**: Kedro (Click) vs BALIZA (Typer) CLI incompatibility requires resolution first.
 
 ## Executive Summary
 

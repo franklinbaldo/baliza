@@ -1,7 +1,0 @@
-version: 2
-
-models:
-  - name: mart_contratacoes_analytics
-    description: "Aggregated data for business intelligence"
-  - name: mart_deduplication_efficiency
-    description: "Metrics about deduplication and compression efficiency"

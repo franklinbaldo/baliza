@@ -1,7 +1,0 @@
-version: 2
-
-models:
-  - name: raw_pncp_data
-    description: "Raw data from PNCP API"
-  - name: raw_pncp_requests
-    description: "Metadata about requests made to PNCP API"

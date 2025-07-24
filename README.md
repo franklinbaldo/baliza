@@ -103,7 +103,7 @@ uv run baliza extract --month 2024-01
 | Comando | Descrição |
 |---|---|
 | `baliza extract --month YYYY-MM` | **Workflow principal.** Extrai, arquiva e limpa dados para um mês específico. |
-| `baliza transform` | Executa transformações de dados usando Ibis (padrão) ou dbt (`--dbt`) para criar as camadas Silver e Gold. |
+| `baliza transform` | Executa transformações de dados usando **Ibis pipeline** para criar as camadas Silver e Gold. |
 | `baliza mcp` | Inicia o servidor de análise com IA (Model Context Protocol). |
 | `baliza status` | Mostra um painel detalhado sobre a saúde e o estado do sistema. |
 | `baliza explore` | Inicia um explorador de dados interativo no terminal. |
@@ -117,13 +117,13 @@ flowchart TD
     A[API do PNCP] -->|1. Requisições| B{BALIZA};
     subgraph BALIZA [Motor de Extração Vetorizado]
         direction LR
-        B1(Descoberta Concorrente) --> B2(Reconciliação Vetorizada) --> B3(Execução em Lote);
+        B1(Descoberta Concorrente) --> B2(Reconciliação Vetorizada) --> B3(Validação Pydantic);
     end
-    B -->|2. Armazenamento Otimizado| C[DuckDB Local (Split Tables)];
-    C -->|3. Transformação (dbt)| D[Camadas Silver & Gold];
+    B -->|2. Direct-to-Structured| C[DuckDB Local (Typed Tables)];
+    C -->|3. Transformação (Ibis)| D[Camadas Silver & Gold];
     D -->|4. Análise & Publicação| E(Análise Local, Internet Archive, Servidor IA);
 ```
-_**Legenda:** O BALIZA orquestra a coleta da API do PNCP com um processo de reconciliação vetorizado, armazena os dados brutos de forma otimizada (deduplicação de conteúdo), e com dbt, os transforma em modelos analíticos para análise e publicação._
+_**Legenda:** O BALIZA orquestra a coleta da API do PNCP com um processo de reconciliação vetorizado, aplica validação Pydantic, e armazena dados direto em tabelas tipadas. As transformações Ibis criam modelos analíticos para análise e publicação._
 
 ## 🤖 Análise com Inteligência Artificial (Servidor MCP)
 
@@ -161,18 +161,17 @@ O BALIZA inclui um pipeline de transformação de dados moderno baseado em **Ibi
 - 🗂️ **Enriquecimento Automático:** Integração com 13 tabelas de domínio do PNCP para descrições legíveis
 - 🧪 **Testabilidade:** Testes E2E usando dados reais do PNCP em vez de mocks
 - ⚡ **Performance:** Processamento otimizado com lazy evaluation do Ibis
-- 🔄 **Compatibilidade:** Funciona lado a lado com dbt existente
+- 🔄 **Futuro:** Integração planejada com Kedro para orquestração de produção
 
 **Uso do Pipeline Ibis:**
 ```bash
-# Transformação padrão com Ibis (recomendado)
+# Transformação com Ibis (único método disponível)
 uv run baliza transform
-
-# Transformação tradicional com dbt
-uv run baliza transform --dbt
 
 # Verificar estatísticas de enriquecimento de domínio
 uv run baliza status
+
+# Nota: dbt foi completamente removido devido à complexidade excessiva
 ```
 
 **Enriquecimento de Domínio:**
@@ -191,8 +190,8 @@ O BALIZA é construído sobre uma base de tecnologias modernas e decisões de ar
 | Camada | Tecnologias | Propósito | ADRs Relevantes |
 |---|---|---|---|
 | **Coleta** | Python, asyncio, httpx, tenacity, pandas | Extração eficiente, assíncrona e vetorizada. | [ADR-002](docs/adr/002-resilient-extraction.md), [ADR-005](docs/adr/005-modern-python-toolchain.md) |
-| **Armazenamento**| DuckDB | Banco de dados analítico local, rápido e sem servidor, com arquitetura de tabelas divididas para deduplicação. | [ADR-001](docs/adr/001-adopt-duckdb.md), [ADR-008](docs/adr/008-split-psa-table-architecture.md) |
-| **Transformação**| Ibis + dbt (Data Build Tool) | Transforma dados usando arquitetura Raw → Stage → Mart (Medallion) com Ibis (padrão) e enriquecimento de domínio ou dbt tradicional. | [ADR-003](docs/adr/003-medallion-architecture.md), [ADR-014](docs/adr/014-ibis-pipeline-adoption.md) |
+| **Armazenamento**| DuckDB | Banco de dados analítico local, rápido e sem servidor, com tabelas tipadas e direct-to-structured parsing. | [ADR-001](docs/adr/001-adopt-duckdb.md), [ADR-008](docs/adr/008-split-psa-table-architecture.md) |
+| **Transformação**| Ibis (+ Kedro futuro) | Transforma dados usando arquitetura Raw → Stage → Mart (Medallion) com Python nativo e enriquecimento de domínio. | [ADR-003](docs/adr/003-medallion-architecture.md), [ADR-014](docs/adr/014-ibis-pipeline-adoption.md) |
 | **Interface** | Typer, Rich | CLI amigável, informativa e com ótima usabilidade. | [ADR-005](docs/adr/005-modern-python-toolchain.md) |
 | **Dependências**| uv | Gerenciamento de pacotes e ambientes virtuais de alta performance. | [ADR-005](docs/adr/005-modern-python-toolchain.md) |
 | **Publicação** | Internet Archive | Hospedagem pública e permanente dos dados. | [ADR-006](docs/adr/006-internet-archive.md) |

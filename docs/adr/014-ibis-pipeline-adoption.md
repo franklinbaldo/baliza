@@ -17,7 +17,7 @@ O BALIZA utiliza dbt (Data Build Tool) para transformações de dados desde sua 
 
 ## Decisão
 
-**Adotamos Ibis como o pipeline de transformação padrão**, mantendo dbt como opção alternativa para compatibilidade.
+**Adotamos Ibis como o pipeline de transformação padrão**, **substituindo completamente o dbt** que foi abandonado devido à sua complexidade excessiva.
 
 ### Arquitetura do Pipeline Ibis
 
@@ -85,11 +85,11 @@ metrics = run_ibis_pipeline(con)
 
 ### Fase 2: CLI Integration ✅
 ```bash
-# Novo (padrão)
-baliza transform           # Usa Ibis
+# Padrão e único método
+baliza transform           # Usa Ibis pipeline
 
-# Tradicional (compatibilidade)
-baliza transform --dbt     # Usa dbt
+# dbt foi completamente removido
+# Não há mais suporte a --dbt flag
 ```
 
 ### Fase 3: Domain Integration ✅
@@ -114,7 +114,7 @@ baliza transform --dbt     # Usa dbt
 | **Domain Enrichment** | Manual | Automático (13 tabelas) |
 | **Performance** | SQL engine | Lazy evaluation + Python |
 | **Debugging** | Difícil | Python debugging |
-| **Compatibilidade** | Mantida | Nova implementação |
+| **Status** | ❌ **ABANDONADO** | ✅ **ATIVO** |
 
 ## Resultados de Performance
 

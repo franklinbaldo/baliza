@@ -1,33 +1,41 @@
 # Comprehensive Project Cleanup Analysis - July 2024
 
 **Post-Ibis Integration Cleanup Report**  
-**Date**: July 24, 2024  
-**Status**: Recommended cleanup after successful Ibis pipeline merge
+**Date**: July 24, 2024 (Updated: July 24, 2025)  
+**Status**: ⚠️ SUPERSEDED - Architecture direction changed to Kedro+Ibis
+
+## ⚠️ Important Notice
+
+**This analysis is now OUTDATED.** The original recommendation to remove Kedro has been superseded by:
+- **ADR-014**: Ibis Pipeline Adoption (July 2025) - Ibis as primary transformation engine
+- **Strategic Direction**: Kedro + Ibis integration for production-ready pipelines
+- **dbt-to-kedro-migration-plan.md**: Future architecture roadmap
 
 ## Executive Summary
 
-After the successful implementation and merge of the Ibis pipeline system, this analysis identifies comprehensive cleanup opportunities that can **reduce project size by ~40%** and eliminate legacy technical debt. The cleanup focuses on removing the now-obsolete Kedro framework and associated infrastructure.
+~~After the successful implementation and merge of the Ibis pipeline system, this analysis identifies comprehensive cleanup opportunities that can **reduce project size by ~40%** and eliminate legacy technical debt. The cleanup focuses on removing the now-obsolete Kedro framework and associated infrastructure.~~
+
+**CORRECTED SUMMARY**: This document originally recommended removing Kedro, but current architecture direction shows **Kedro + Ibis as the target state**. The cleanup should focus on **dbt legacy artifacts** instead.
 
 ## Cleanup Categories
 
-### 🔥 Complete System Removal - Kedro Framework
+### ❌ ~~Complete System Removal - Kedro Framework~~ **CANCELLED**
 
-**Impact**: Major simplification, ~30% size reduction
+~~**Impact**: Major simplification, ~30% size reduction~~
+
+**CURRENT STATUS**: **DO NOT REMOVE KEDRO** - It's the target architecture!
 
 ```bash
-# Remove entire Kedro pipeline system
-rm -rf pipelines/
-rm -rf conf/
-rm src/settings.py
+# ❌ DO NOT RUN THESE COMMANDS ❌
+# rm -rf pipelines/  # KEEP - Target architecture
+# rm -rf conf/       # KEEP - Kedro configuration
+# rm src/settings.py # KEEP - Kedro settings
 
-# Remove Kedro CLI integration
-# Edit src/baliza/cli.py to remove run_pipeline command (lines 518-526)
-
-# Remove from pyproject.toml
-# Remove [tool.kedro] section (lines 282-286)
+# ❌ DO NOT REMOVE from pyproject.toml
+# [tool.kedro] section is needed for future migration
 ```
 
-**Justification**: Kedro is completely replaced by the new Ibis pipeline system. The parallel infrastructure creates confusion and maintenance overhead.
+**New Justification**: Kedro + Ibis is the **strategic direction**. Kedro provides production-ready pipeline orchestration while Ibis provides backend-agnostic transformations.
 
 ### 📂 Directory Structure Cleanup
 
