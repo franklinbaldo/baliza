@@ -88,17 +88,27 @@ class TestCircuitBreaker:
 
     def test_initial_state(self):
         """Test circuit breaker initial state"""
-        from src.baliza.utils.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
+        from src.baliza.utils.circuit_breaker import (
+            CircuitBreaker,
+            CircuitBreakerConfig,
+        )
 
-        cb = CircuitBreaker(CircuitBreakerConfig(failure_threshold=3, recovery_timeout=30))
+        cb = CircuitBreaker(
+            CircuitBreakerConfig(failure_threshold=3, recovery_timeout=30)
+        )
         assert cb.state == CircuitState.CLOSED
         assert cb.failure_count == 0
 
     def test_failure_tracking(self):
         """Test failure counting"""
-        from src.baliza.utils.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
+        from src.baliza.utils.circuit_breaker import (
+            CircuitBreaker,
+            CircuitBreakerConfig,
+        )
 
-        cb = CircuitBreaker(CircuitBreakerConfig(failure_threshold=2, recovery_timeout=30))
+        cb = CircuitBreaker(
+            CircuitBreakerConfig(failure_threshold=2, recovery_timeout=30)
+        )
 
         # First failure
         cb._on_failure(Exception())
@@ -112,9 +122,14 @@ class TestCircuitBreaker:
 
     def test_success_reset(self):
         """Test success resets failure count"""
-        from src.baliza.utils.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
+        from src.baliza.utils.circuit_breaker import (
+            CircuitBreaker,
+            CircuitBreakerConfig,
+        )
 
-        cb = CircuitBreaker(CircuitBreakerConfig(failure_threshold=3, recovery_timeout=30))
+        cb = CircuitBreaker(
+            CircuitBreakerConfig(failure_threshold=3, recovery_timeout=30)
+        )
 
         cb._on_failure(Exception())
         assert cb.failure_count == 1
@@ -163,7 +178,13 @@ class TestPNCPClient:
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.headers = {"etag": "test_etag"}
-        mock_response.json.return_value = {"data": [], "totalRegistros": 0, "totalPaginas": 1, "numeroPagina": 1, "paginasRestantes": 0}
+        mock_response.json.return_value = {
+            "data": [],
+            "totalRegistros": 0,
+            "totalPaginas": 1,
+            "numeroPagina": 1,
+            "paginasRestantes": 0,
+        }
 
         with patch("httpx.AsyncClient.get", return_value=mock_response):
             client = PNCPClient()
@@ -192,7 +213,13 @@ class TestPNCPClient:
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.headers = {}
-        mock_response.json.return_value = {"data": [], "totalRegistros": 0, "totalPaginas": 1, "numeroPagina": 1, "paginasRestantes": 0}
+        mock_response.json.return_value = {
+            "data": [],
+            "totalRegistros": 0,
+            "totalPaginas": 1,
+            "numeroPagina": 1,
+            "paginasRestantes": 0,
+        }
 
         with patch("httpx.AsyncClient.get", return_value=mock_response):
             client = PNCPClient()
@@ -220,7 +247,13 @@ class TestEndpointExtractor:
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.headers = {}
-        mock_response.json.return_value = {"data": [{"id": 1}], "totalRegistros": 1, "totalPaginas": 1, "numeroPagina": 1, "paginasRestantes": 0}
+        mock_response.json.return_value = {
+            "data": [{"id": 1}],
+            "totalRegistros": 1,
+            "totalPaginas": 1,
+            "numeroPagina": 1,
+            "paginasRestantes": 0,
+        }
 
         with patch("httpx.AsyncClient.get", return_value=mock_response):
             extractor = EndpointExtractor()
@@ -241,7 +274,13 @@ class TestEndpointExtractor:
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.headers = {}
-        mock_response.json.return_value = {"data": [{"id": 1}], "totalRegistros": 1, "totalPaginas": 1, "numeroPagina": 1, "paginasRestantes": 0}
+        mock_response.json.return_value = {
+            "data": [{"id": 1}],
+            "totalRegistros": 1,
+            "totalPaginas": 1,
+            "numeroPagina": 1,
+            "paginasRestantes": 0,
+        }
 
         with patch("httpx.AsyncClient.get", return_value=mock_response):
             extractor = EndpointExtractor()
@@ -261,13 +300,25 @@ class TestEndpointExtractor:
         mock_response_1 = Mock()
         mock_response_1.status_code = 200
         mock_response_1.headers = {}
-        mock_response_1.json.return_value = {"data": [{"id": 1}], "totalRegistros": 25, "totalPaginas": 2, "numeroPagina": 1, "paginasRestantes": 1}
+        mock_response_1.json.return_value = {
+            "data": [{"id": 1}],
+            "totalRegistros": 25,
+            "totalPaginas": 2,
+            "numeroPagina": 1,
+            "paginasRestantes": 1,
+        }
 
         # Mock second page
         mock_response_2 = Mock()
         mock_response_2.status_code = 200
         mock_response_2.headers = {}
-        mock_response_2.json.return_value = {"data": [{"id": 2}], "totalRegistros": 25, "totalPaginas": 2, "numeroPagina": 2, "paginasRestantes": 0}
+        mock_response_2.json.return_value = {
+            "data": [{"id": 2}],
+            "totalRegistros": 25,
+            "totalPaginas": 2,
+            "numeroPagina": 2,
+            "paginasRestantes": 0,
+        }
 
         with patch(
             "httpx.AsyncClient.get", side_effect=[mock_response_1, mock_response_2]

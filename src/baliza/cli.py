@@ -32,7 +32,7 @@ def run(
     try:
         # Step 1: Raw Layer - Extract data
         console.print("📥 Etapa 1: Extração (Raw Layer)")
-        
+
         if latest:
             # Extract data for the last 30 days for latest month
             days = 30
@@ -47,41 +47,51 @@ def run(
             days = 7
 
         console.print(f"📅 Extraindo dados dos últimos {days} dias...")
-        
+
         # Run extraction flow
         result = asyncio.run(
             extract_phase_2a_concurrent(
                 date_range_days=days,
                 modalidades=settings.HIGH_PRIORITY_MODALIDADES,
-                concurrent=True
+                concurrent=True,
             )
         )
-        
-        console.print("✅ Etapa 1 concluída: Dados extraídos com sucesso")
-        console.print(f"📊 Total: {result['total_records']} registros, {result['total_mb']} MB")
 
-        # Step 2: Staging Layer - Transform data  
+        console.print("✅ Etapa 1 concluída: Dados extraídos com sucesso")
+        console.print(
+            f"📊 Total: {result['total_records']} registros, {result['total_mb']} MB"
+        )
+
+        # Step 2: Staging Layer - Transform data
         console.print("🔄 Etapa 2: Transformação (Staging Layer)")
-        
+
         staging_result = staging_transformation()
-        
+
         if staging_result["status"] == "success":
             console.print("✅ Etapa 2 concluída: Staging views criadas com sucesso")
-            console.print(f"📊 Total: {staging_result['total_staging_records']} registros staging")
+            console.print(
+                f"📊 Total: {staging_result['total_staging_records']} registros staging"
+            )
         else:
-            console.print(f"❌ Erro na etapa 2: {staging_result.get('error_message', 'Unknown error')}")
+            console.print(
+                f"❌ Erro na etapa 2: {staging_result.get('error_message', 'Unknown error')}"
+            )
             raise typer.Exit(1)
-        
+
         # Step 3: Marts Layer - Create analytics tables
         console.print("📈 Etapa 3: Marts (Analytics Layer)")
-        
+
         marts_result = marts_creation()
-        
+
         if marts_result["status"] == "success":
             console.print("✅ Etapa 3 concluída: Marts criados com sucesso")
-            console.print(f"📊 Total: {marts_result['total_mart_records']} marts gerados")
+            console.print(
+                f"📊 Total: {marts_result['total_mart_records']} marts gerados"
+            )
         else:
-            console.print(f"❌ Erro na etapa 3: {marts_result.get('error_message', 'Unknown error')}")
+            console.print(
+                f"❌ Erro na etapa 3: {marts_result.get('error_message', 'Unknown error')}"
+            )
             raise typer.Exit(1)
 
         console.print("🎉 Pipeline completo executado com sucesso!")
@@ -118,7 +128,11 @@ def init():
 def doctor():
     """Checa dependências, permissões e conectividade com a API."""
     console.print("Executando diagnóstico...")
-    # Lógica do doctor aqui
+    # TODO: Implement system health checks
+    # TODO: Check API connectivity and version compatibility
+    # TODO: Validate database schema version
+    # TODO: Check available disk space and memory
+    # FIXME: This command is currently a stub with no functionality
 
 
 @app.command()
@@ -185,21 +199,23 @@ def transform(
     try:
         # Step 1: Staging Layer
         console.print("📋 Etapa 1: Criando views de staging...")
-        
+
         staging_result = staging_transformation()
-        
+
         if staging_result["status"] == "success":
             console.print("✅ Staging concluído com sucesso")
-            console.print(f"📊 {staging_result['total_staging_records']} registros processados")
+            console.print(
+                f"📊 {staging_result['total_staging_records']} registros processados"
+            )
         else:
             console.print(f"❌ Erro no staging: {staging_result.get('error_message')}")
             raise typer.Exit(1)
 
-        # Step 2: Marts Layer  
+        # Step 2: Marts Layer
         console.print("📈 Etapa 2: Criando tabelas de marts...")
-        
+
         marts_result = marts_creation()
-        
+
         if marts_result["status"] == "success":
             console.print("✅ Marts concluído com sucesso")
             console.print(f"📊 {marts_result['total_mart_records']} marts criados")
