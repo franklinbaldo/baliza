@@ -5,7 +5,7 @@ from pipelines.ibis_pipeline import run_ibis_pipeline
 @pytest.fixture(scope="module")
 def con():
     """In-memory DuckDB connection for testing."""
-    return ibis.connect("duckdb:///:memory:")
+    return ibis.connect("duckdb://")
 
 @pytest.fixture(scope="module")
 def setup_data(con):

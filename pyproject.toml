@@ -27,6 +27,8 @@ dependencies = [
     "dbt-duckdb>=1.7.0", # DuckDB adapter for dbt - ADR-001, ADR-003
     "prance[osv]>=23.6.21.0",
     "ibis-framework[duckdb]",
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.1.0",
 ]
 
 [project.scripts]

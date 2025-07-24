@@ -49,6 +49,13 @@ def create_gold_contratacoes_analytics(
     """
     Creates an analytical view of contratacoes.
     """
+    # Use modalidade_nome if available (enriched), otherwise modalidadeId
+    modalidade_column = (
+        silver_contratacoes.modalidade_nome 
+        if "modalidade_nome" in silver_contratacoes.columns
+        else silver_contratacoes.modalidadeId
+    )
+    
     gold_analytics = (
         silver_contratacoes.join(
             silver_dim_unidades_orgao,
@@ -58,7 +65,7 @@ def create_gold_contratacoes_analytics(
         .group_by(
             [
                 silver_contratacoes.anoContratacao,
-                silver_contratacoes.modalidadeNome,
+                modalidade_column.name("modalidadeNome"),
                 silver_dim_unidades_orgao.nomeOrgao,
             ]
         )
