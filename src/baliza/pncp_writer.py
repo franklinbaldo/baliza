@@ -724,7 +724,7 @@ class PNCPWriter:
 
                 # Flush buffer every commit_every pages
                 if counter % commit_every == 0 and batch_buffer:
-                    self._batch_store_split_tables(
+                    self._batch_store_responses(
                         batch_buffer
                     )  # Use new split table logic
                     self.conn.commit()
@@ -740,7 +740,7 @@ class PNCPWriter:
 
         # Flush any remaining items
         if batch_buffer:
-            self._batch_store_split_tables(batch_buffer)  # Use new split table logic
+            self._batch_store_responses(batch_buffer)  # Use new split table logic
             self.conn.commit()
 
         self.writer_running = False

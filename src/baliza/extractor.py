@@ -224,10 +224,6 @@ class AsyncPNCPExtractor:
                     validated_data=validated_records
                 )
 
-                # Log de sucesso (sem armazenar o conteúdo bruto)
-                # Esta função precisaria ser criada ou adaptada em `pncp_writer`
-                # await self.writer.log_request_success(request_info, len(validated_records))
-
             else:
                 # Log de erro de requisição
                 await self.writer.write_parse_error({

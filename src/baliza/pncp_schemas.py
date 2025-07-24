@@ -190,15 +190,18 @@ class AtasResponseSchema(BaseModel):
     orgaoEntidade: OrgaoEntidadeDTO
 
 class FontesOrcamentariasResponseSchema(BaseModel):
+    """Mapeamento direto do endpoint /fontes-orcamentarias"""
     codigo: int
     nome: str
     descricao: Optional[str] = None
 
 class InstrumentosCobrancaResponseSchema(BaseModel):
+    """Mapeamento direto do endpoint /instrumentos-cobranca"""
     id: int
     nome: str
 
 class PlanosContratacaoResponseSchema(BaseModel):
+    """Mapeamento direto do endpoint /planos-contratacao"""
     numeroControlePNCP: str
     anoPCA: int
     valorTotal: Optional[Decimal] = Field(None, decimal_places=4)
