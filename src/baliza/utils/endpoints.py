@@ -320,6 +320,127 @@ def build_atas_url(
     return builder.build_url("atas", **params)
 
 
+# URL builders for missing endpoints
+
+def build_contratacoes_atualizacao_url(
+    data_inicial: str, data_final: str, modalidade: int, pagina: int = 1, **kwargs
+) -> str:
+    """Build URL for contratações/atualizacao endpoint"""
+    builder = URLBuilder()
+    params = {
+        "dataInicial": data_inicial,
+        "dataFinal": data_final,
+        "codigoModalidadeContratacao": modalidade,
+        "pagina": pagina,
+        **kwargs,
+    }
+    return builder.build_url("contratacoes_atualizacao", **params)
+
+
+def build_contratacoes_proposta_url(
+    data_final: str, pagina: int = 1, modalidade: int = None, **kwargs
+) -> str:
+    """Build URL for contratações/proposta endpoint"""
+    builder = URLBuilder()
+    params = {
+        "dataFinal": data_final,
+        "pagina": pagina,
+        **kwargs,
+    }
+    if modalidade:
+        params["codigoModalidadeContratacao"] = modalidade
+    return builder.build_url("contratacoes_proposta", **params)
+
+
+def build_contratos_atualizacao_url(
+    data_inicial: str, data_final: str, pagina: int = 1, **kwargs
+) -> str:
+    """Build URL for contratos/atualizacao endpoint"""
+    builder = URLBuilder()
+    params = {
+        "dataInicial": data_inicial,
+        "dataFinal": data_final,
+        "pagina": pagina,
+        **kwargs,
+    }
+    return builder.build_url("contratos_atualizacao", **params)
+
+
+def build_atas_atualizacao_url(
+    data_inicial: str, data_final: str, pagina: int = 1, **kwargs
+) -> str:
+    """Build URL for atas/atualizacao endpoint"""
+    builder = URLBuilder()
+    params = {
+        "dataInicial": data_inicial,
+        "dataFinal": data_final,
+        "pagina": pagina,
+        **kwargs,
+    }
+    return builder.build_url("atas_atualizacao", **params)
+
+
+def build_instrumentos_cobranca_url(
+    data_inicial: str, data_final: str, pagina: int = 1, **kwargs
+) -> str:
+    """Build URL for instrumentoscobranca/inclusao endpoint"""
+    builder = URLBuilder()
+    params = {
+        "dataInicial": data_inicial,
+        "dataFinal": data_final,
+        "pagina": pagina,
+        **kwargs,
+    }
+    return builder.build_url("instrumentoscobranca_inclusao", **params)
+
+
+def build_pca_url(
+    ano_pca: int, codigo_classificacao: str, pagina: int = 1, **kwargs
+) -> str:
+    """Build URL for pca endpoint"""
+    builder = URLBuilder()
+    params = {
+        "anoPca": ano_pca,
+        "codigoClassificacaoSuperior": codigo_classificacao,
+        "pagina": pagina,
+        **kwargs,
+    }
+    return builder.build_url("pca", **params)
+
+
+def build_pca_usuario_url(
+    ano_pca: int, id_usuario: int, pagina: int = 1, **kwargs
+) -> str:
+    """Build URL for pca/usuario endpoint"""
+    builder = URLBuilder()
+    params = {
+        "anoPca": ano_pca,
+        "idUsuario": id_usuario,
+        "pagina": pagina,
+        **kwargs,
+    }
+    return builder.build_url("pca_usuario", **params)
+
+
+def build_pca_atualizacao_url(
+    data_inicio: str, data_fim: str, pagina: int = 1, **kwargs
+) -> str:
+    """Build URL for pca/atualizacao endpoint"""
+    builder = URLBuilder()
+    params = {
+        "dataInicio": data_inicio,
+        "dataFim": data_fim,
+        "pagina": pagina,
+        **kwargs,
+    }
+    return builder.build_url("pca_atualizacao", **params)
+
+
 def get_phase_2a_endpoints() -> List[str]:
     """Get list of Phase 2A priority endpoints"""
     return settings.PHASE_2A_ENDPOINTS
+
+
+def get_all_pncp_endpoints() -> List[str]:
+    """Get list of ALL PNCP endpoints for 100% coverage"""
+    return settings.ALL_PNCP_ENDPOINTS

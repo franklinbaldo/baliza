@@ -383,6 +383,336 @@ class EndpointExtractor:
         self.logger.info(f"Completed extraction: {len(requests)} pages")
         return requests
 
+    # MISSING ENDPOINT IMPLEMENTATIONS FOR 100% COVERAGE
+    
+    async def extract_contratacoes_atualizacao(
+        self,
+        data_inicial: str,
+        data_final: str,
+        modalidade: ModalidadeContratacao,
+        **filters,
+    ) -> List[APIRequest]:
+        """Extract contratações by atualizacao date and modalidade"""
+
+        from .endpoints import build_contratacoes_atualizacao_url
+
+        requests = []
+        pagina = 1
+
+        self.logger.info(
+            f"Starting extraction: contratacoes_atualizacao "
+            f"({data_inicial} to {data_final}, modalidade {modalidade.value})"
+        )
+
+        while True:
+            url = build_contratacoes_atualizacao_url(
+                data_inicial=data_inicial,
+                data_final=data_final,
+                modalidade=modalidade.value,
+                pagina=pagina,
+                **filters,
+            )
+
+            api_request = await self.client.fetch_endpoint_data(
+                "contratacoes_atualizacao", url
+            )
+
+            requests.append(api_request)
+
+            # Parse response to check pagination
+            payload_json = json.loads(
+                zlib.decompress(api_request.payload_compressed).decode("utf-8")
+            )
+            pncp_response = PNCPResponse(**payload_json)
+
+            if pncp_response.paginasRestantes == 0 or pncp_response.empty:
+                break
+
+            pagina += 1
+
+        self.logger.info(
+            f"Completed extraction: {len(requests)} pages, modalidade {modalidade.name}"
+        )
+
+        return requests
+
+    async def extract_contratacoes_proposta(
+        self, data_final: str, modalidade: ModalidadeContratacao = None, **filters
+    ) -> List[APIRequest]:
+        """Extract contratações with open proposal period"""
+
+        from .endpoints import build_contratacoes_proposta_url
+
+        requests = []
+        pagina = 1
+
+        self.logger.info(
+            f"Starting extraction: contratacoes_proposta "
+            f"(up to {data_final})"
+        )
+
+        while True:
+            url = build_contratacoes_proposta_url(
+                data_final=data_final,
+                pagina=pagina,
+                modalidade=modalidade.value if modalidade else None,
+                **filters,
+            )
+
+            api_request = await self.client.fetch_endpoint_data(
+                "contratacoes_proposta", url
+            )
+
+            requests.append(api_request)
+
+            # Parse response to check pagination
+            payload_json = json.loads(
+                zlib.decompress(api_request.payload_compressed).decode("utf-8")
+            )
+            pncp_response = PNCPResponse(**payload_json)
+
+            if pncp_response.paginasRestantes == 0 or pncp_response.empty:
+                break
+
+            pagina += 1
+
+        self.logger.info(f"Completed extraction: {len(requests)} pages")
+        return requests
+
+    async def extract_contratos_atualizacao(
+        self, data_inicial: str, data_final: str, **filters
+    ) -> List[APIRequest]:
+        """Extract contratos by update date"""
+
+        from .endpoints import build_contratos_atualizacao_url
+
+        requests = []
+        pagina = 1
+
+        self.logger.info(
+            f"Starting extraction: contratos_atualizacao ({data_inicial} to {data_final})"
+        )
+
+        while True:
+            url = build_contratos_atualizacao_url(
+                data_inicial=data_inicial,
+                data_final=data_final,
+                pagina=pagina,
+                **filters,
+            )
+
+            api_request = await self.client.fetch_endpoint_data("contratos_atualizacao", url)
+
+            requests.append(api_request)
+
+            # Parse response to check pagination
+            payload_json = json.loads(
+                zlib.decompress(api_request.payload_compressed).decode("utf-8")
+            )
+            pncp_response = PNCPResponse(**payload_json)
+
+            if pncp_response.paginasRestantes == 0 or pncp_response.empty:
+                break
+
+            pagina += 1
+
+        self.logger.info(f"Completed extraction: {len(requests)} pages")
+        return requests
+
+    async def extract_atas_atualizacao(
+        self, data_inicial: str, data_final: str, **filters
+    ) -> List[APIRequest]:
+        """Extract atas by update date"""
+
+        from .endpoints import build_atas_atualizacao_url
+
+        requests = []
+        pagina = 1
+
+        self.logger.info(f"Starting extraction: atas_atualizacao ({data_inicial} to {data_final})")
+
+        while True:
+            url = build_atas_atualizacao_url(
+                data_inicial=data_inicial,
+                data_final=data_final,
+                pagina=pagina,
+                **filters,
+            )
+
+            api_request = await self.client.fetch_endpoint_data("atas_atualizacao", url)
+
+            requests.append(api_request)
+
+            # Parse response to check pagination
+            payload_json = json.loads(
+                zlib.decompress(api_request.payload_compressed).decode("utf-8")
+            )
+            pncp_response = PNCPResponse(**payload_json)
+
+            if pncp_response.paginasRestantes == 0 or pncp_response.empty:
+                break
+
+            pagina += 1
+
+        self.logger.info(f"Completed extraction: {len(requests)} pages")
+        return requests
+
+    async def extract_instrumentos_cobranca(
+        self, data_inicial: str, data_final: str, **filters
+    ) -> List[APIRequest]:
+        """Extract instrumentos de cobrança by inclusion date"""
+
+        from .endpoints import build_instrumentos_cobranca_url
+
+        requests = []
+        pagina = 1
+
+        self.logger.info(
+            f"Starting extraction: instrumentos_cobranca ({data_inicial} to {data_final})"
+        )
+
+        while True:
+            url = build_instrumentos_cobranca_url(
+                data_inicial=data_inicial,
+                data_final=data_final,
+                pagina=pagina,
+                **filters,
+            )
+
+            api_request = await self.client.fetch_endpoint_data(
+                "instrumentoscobranca_inclusao", url
+            )
+
+            requests.append(api_request)
+
+            # Parse response to check pagination
+            payload_json = json.loads(
+                zlib.decompress(api_request.payload_compressed).decode("utf-8")
+            )
+            pncp_response = PNCPResponse(**payload_json)
+
+            if pncp_response.paginasRestantes == 0 or pncp_response.empty:
+                break
+
+            pagina += 1
+
+        self.logger.info(f"Completed extraction: {len(requests)} pages")
+        return requests
+
+    async def extract_pca(
+        self, ano_pca: int, codigo_classificacao: str, **filters
+    ) -> List[APIRequest]:
+        """Extract PCA (Plano de Contratações Anuais) data"""
+
+        from .endpoints import build_pca_url
+
+        requests = []
+        pagina = 1
+
+        self.logger.info(f"Starting extraction: pca (year {ano_pca})")
+
+        while True:
+            url = build_pca_url(
+                ano_pca=ano_pca,
+                codigo_classificacao=codigo_classificacao,
+                pagina=pagina,
+                **filters,
+            )
+
+            api_request = await self.client.fetch_endpoint_data("pca", url)
+
+            requests.append(api_request)
+
+            # Parse response to check pagination
+            payload_json = json.loads(
+                zlib.decompress(api_request.payload_compressed).decode("utf-8")
+            )
+            pncp_response = PNCPResponse(**payload_json)
+
+            if pncp_response.paginasRestantes == 0 or pncp_response.empty:
+                break
+
+            pagina += 1
+
+        self.logger.info(f"Completed extraction: {len(requests)} pages")
+        return requests
+
+    async def extract_pca_usuario(
+        self, ano_pca: int, id_usuario: int, **filters
+    ) -> List[APIRequest]:
+        """Extract PCA data by user"""
+
+        from .endpoints import build_pca_usuario_url
+
+        requests = []
+        pagina = 1
+
+        self.logger.info(f"Starting extraction: pca_usuario (year {ano_pca}, user {id_usuario})")
+
+        while True:
+            url = build_pca_usuario_url(
+                ano_pca=ano_pca,
+                id_usuario=id_usuario,
+                pagina=pagina,
+                **filters,
+            )
+
+            api_request = await self.client.fetch_endpoint_data("pca_usuario", url)
+
+            requests.append(api_request)
+
+            # Parse response to check pagination
+            payload_json = json.loads(
+                zlib.decompress(api_request.payload_compressed).decode("utf-8")
+            )
+            pncp_response = PNCPResponse(**payload_json)
+
+            if pncp_response.paginasRestantes == 0 or pncp_response.empty:
+                break
+
+            pagina += 1
+
+        self.logger.info(f"Completed extraction: {len(requests)} pages")
+        return requests
+
+    async def extract_pca_atualizacao(
+        self, data_inicio: str, data_fim: str, **filters
+    ) -> List[APIRequest]:
+        """Extract PCA data by update date"""
+
+        from .endpoints import build_pca_atualizacao_url
+
+        requests = []
+        pagina = 1
+
+        self.logger.info(f"Starting extraction: pca_atualizacao ({data_inicio} to {data_fim})")
+
+        while True:
+            url = build_pca_atualizacao_url(
+                data_inicio=data_inicio,
+                data_fim=data_fim,
+                pagina=pagina,
+                **filters,
+            )
+
+            api_request = await self.client.fetch_endpoint_data("pca_atualizacao", url)
+
+            requests.append(api_request)
+
+            # Parse response to check pagination
+            payload_json = json.loads(
+                zlib.decompress(api_request.payload_compressed).decode("utf-8")
+            )
+            pncp_response = PNCPResponse(**payload_json)
+
+            if pncp_response.paginasRestantes == 0 or pncp_response.empty:
+                break
+
+            pagina += 1
+
+        self.logger.info(f"Completed extraction: {len(requests)} pages")
+        return requests
+
     async def close(self):
         """Cleanup resources"""
         await self.client.close()

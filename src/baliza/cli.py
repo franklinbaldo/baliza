@@ -8,6 +8,7 @@ from .backend import init_database_schema, connect
 from .flows.raw import extract_phase_2a_concurrent
 from .flows.staging import staging_transformation
 from .flows.marts import marts_creation
+from .flows.complete_extraction import extract_all_pncp_endpoints
 from .config import settings
 
 app = typer.Typer()
@@ -182,6 +183,60 @@ def extract(
 
     except Exception as e:
         console.print(f"❌ Erro na extração: {e}")
+        raise typer.Exit(1)
+
+
+@app.command()
+def extract_all(
+    days: int = typer.Option(
+        7, "--days", help="Número de dias para extrair (padrão: 7 dias)"
+    ),
+    modalidades: str = typer.Option(
+        None,
+        "--modalidades",
+        help="Modalidades específicas separadas por vírgula (ex: 1,2,3)",
+    ),
+    include_pca: bool = typer.Option(
+        False, "--include-pca", help="Incluir endpoints de PCA (Plano de Contratações)"
+    ),
+    sequential: bool = typer.Option(
+        False, "--sequential", help="Executa em modo sequencial ao invés de concorrente"
+    ),
+):
+    """Executa extração de TODOS os endpoints PNCP (100% de cobertura)."""
+    console.print("🚀 Iniciando extração COMPLETA do PNCP (100% cobertura)...")
+
+    try:
+        # Parse modalidades if provided
+        modalidades_list = None
+        if modalidades:
+            modalidades_list = [int(m.strip()) for m in modalidades.split(",")]
+            console.print(f"📋 Modalidades específicas: {modalidades_list}")
+        else:
+            modalidades_list = settings.HIGH_PRIORITY_MODALIDADES
+            console.print(
+                f"📋 Usando modalidades de alta prioridade: {modalidades_list}"
+            )
+
+        console.print(f"📅 Extraindo últimos {days} dias")
+        console.print(f"📊 Incluir PCA: {'Sim' if include_pca else 'Não'}")
+        console.print(f"⚡ Modo: {'Sequencial' if sequential else 'Concorrente'}")
+
+        # Run complete extraction flow
+        result = asyncio.run(
+            extract_all_pncp_endpoints(
+                date_range_days=days,
+                modalidades=modalidades_list,
+                include_pca=include_pca,
+                concurrent=not sequential,
+            )
+        )
+
+        # Display comprehensive results
+        _display_complete_extraction_results(result)
+
+    except Exception as e:
+        console.print(f"❌ Erro na extração completa: {e}")
         raise typer.Exit(1)
 
 
@@ -391,6 +446,76 @@ def _display_extraction_results(result: dict) -> None:
     else:
         console.print(
             f"⚠️  Extração concluída com {result['failed_extractions']} falhas"
+        )
+
+
+def _display_complete_extraction_results(result: dict) -> None:
+    """Display complete extraction results with coverage metrics"""
+
+    # Coverage summary table
+    coverage_table = Table(title="📊 Cobertura de Endpoints PNCP")
+    coverage_table.add_column("Métrica", style="cyan")
+    coverage_table.add_column("Valor", style="green")
+
+    coverage_table.add_row("ID da Execução", result["execution_id"])
+    coverage_table.add_row("Período", result["date_range"])
+    coverage_table.add_row("Duração", f"{result['duration_seconds']:.2f}s")
+    coverage_table.add_row("Endpoints Extraídos", str(result["unique_endpoints_extracted"]))
+    coverage_table.add_row("Endpoints Disponíveis", str(result["total_endpoints_available"]))
+    coverage_table.add_row("Cobertura PNCP", f"{result['coverage_percentage']}%")
+    coverage_table.add_row("Total de Requisições", str(result["total_requests"]))
+    coverage_table.add_row("Total de Registros", str(result["total_records"]))
+    coverage_table.add_row("Total de Dados", f"{result['total_mb']:.2f} MB")
+    coverage_table.add_row(
+        "Throughput", f"{result['throughput_records_per_second']:.2f} records/s"
+    )
+    coverage_table.add_row(
+        "Extrações Bem-sucedidas", str(result["successful_extractions"])
+    )
+    coverage_table.add_row("Extrações Falharam", str(result["failed_extractions"]))
+
+    console.print(coverage_table)
+
+    # Results per endpoint
+    if result["results"]:
+        results_table = Table(title="📋 Resultados por Endpoint")
+        results_table.add_column("Endpoint", style="cyan")
+        results_table.add_column("Modalidade", style="blue")
+        results_table.add_column("Status", style="green")
+        results_table.add_column("Registros", style="yellow")
+        results_table.add_column("Dados (MB)", style="magenta")
+        results_table.add_column("Duração (s)", style="white")
+
+        for res in result["results"]:
+            status = "✅ OK" if res.success else "❌ ERRO"
+            modalidade = str(res.modalidade) if res.modalidade else "-"
+            mb = (
+                f"{res.total_bytes / 1024 / 1024:.2f}"
+                if res.total_bytes > 0
+                else "0.00"
+            )
+
+            results_table.add_row(
+                res.endpoint,
+                modalidade,
+                status,
+                str(res.total_records),
+                mb,
+                f"{res.duration_seconds:.2f}",
+            )
+
+        console.print(results_table)
+
+    # Coverage achievement message
+    if result["coverage_percentage"] == 100.0:
+        console.print("🎉 COBERTURA COMPLETA ATINGIDA! Todos os endpoints PNCP foram extraídos!")
+    elif result["coverage_percentage"] >= 90.0:
+        console.print(f"🎯 Excelente cobertura! {result['coverage_percentage']}% dos endpoints extraídos")
+    elif result["failed_extractions"] == 0:
+        console.print("🎉 Extração completa sem falhas!")
+    else:
+        console.print(
+            f"⚠️  Extração completa com {result['failed_extractions']} falhas"
         )
 
 

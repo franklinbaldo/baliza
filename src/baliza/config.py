@@ -29,8 +29,17 @@ class Settings(BaseSettings):
     DEFAULT_DATE_RANGE_DAYS: int = 7
     MAX_DATE_RANGE_DAYS: int = 30
 
-    # Phase 2A Priority Endpoints
+    # Phase 2A Priority Endpoints (currently implemented)
     PHASE_2A_ENDPOINTS: List[str] = ["contratacoes_publicacao", "contratos", "atas"]
+    
+    # ALL PNCP Endpoints for 100% coverage
+    ALL_PNCP_ENDPOINTS: List[str] = [
+        "contratacoes_publicacao", "contratacoes_atualizacao", "contratacoes_proposta",
+        "contratos", "contratos_atualizacao", 
+        "atas", "atas_atualizacao",
+        "instrumentoscobranca_inclusao",
+        "pca", "pca_usuario", "pca_atualizacao"
+    ]
 
     # High Priority Modalidades (Pregão, Dispensa, Concorrência)
     HIGH_PRIORITY_MODALIDADES: List[int] = [6, 7, 8, 4, 5]
@@ -153,6 +162,76 @@ ENDPOINT_CONFIG = {
         "page_size_limits": {"min": 10, "max": 500},
         "default_page_size": 500,
         "priority": 6,
+        "requires_modalidade": False,
+        "sync_type": "incremental",
+    },
+    "contratacoes_proposta": {
+        "path": "/v1/contratacoes/proposta",
+        "required_params": ["dataFinal", "pagina"],
+        "optional_params": [
+            "codigoModalidadeContratacao",
+            "uf",
+            "codigoMunicipioIbge", 
+            "cnpj",
+            "codigoUnidadeAdministrativa",
+            "idUsuario",
+            "tamanhoPagina",
+        ],
+        "page_size_limits": {"min": 10, "max": 50},
+        "default_page_size": 50,
+        "priority": 7,
+        "requires_modalidade": False,
+        "sync_type": "snapshot",
+    },
+    "instrumentoscobranca_inclusao": {
+        "path": "/v1/instrumentoscobranca/inclusao",
+        "required_params": ["dataInicial", "dataFinal", "pagina"],
+        "optional_params": [
+            "tipoInstrumentoCobranca",
+            "cnpjOrgao",
+            "tamanhoPagina",
+        ],
+        "page_size_limits": {"min": 10, "max": 100},
+        "default_page_size": 100,
+        "priority": 8,
+        "requires_modalidade": False,
+        "sync_type": "incremental",
+    },
+    "pca": {
+        "path": "/v1/pca/",
+        "required_params": ["anoPca", "codigoClassificacaoSuperior", "pagina"],
+        "optional_params": ["tamanhoPagina"],
+        "page_size_limits": {"min": 10, "max": 500},
+        "default_page_size": 500,
+        "priority": 9,
+        "requires_modalidade": False,
+        "sync_type": "annual",
+    },
+    "pca_usuario": {
+        "path": "/v1/pca/usuario",
+        "required_params": ["anoPca", "idUsuario", "pagina"],
+        "optional_params": [
+            "codigoClassificacaoSuperior",
+            "cnpj",
+            "tamanhoPagina",
+        ],
+        "page_size_limits": {"min": 10, "max": 500},
+        "default_page_size": 500,
+        "priority": 10,
+        "requires_modalidade": False,
+        "sync_type": "annual",
+    },
+    "pca_atualizacao": {
+        "path": "/v1/pca/atualizacao",
+        "required_params": ["dataInicio", "dataFim", "pagina"],
+        "optional_params": [
+            "cnpj",
+            "codigoUnidade",
+            "tamanhoPagina",
+        ],
+        "page_size_limits": {"min": 10, "max": 500},
+        "default_page_size": 500,
+        "priority": 11,
         "requires_modalidade": False,
         "sync_type": "incremental",
     },

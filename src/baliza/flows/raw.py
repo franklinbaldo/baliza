@@ -493,3 +493,227 @@ async def extract_phase_2a_concurrent(
         )
 
         raise
+
+
+# MISSING ENDPOINT TASKS FOR 100% COVERAGE
+
+@task(name="extract_contratacoes_atualizacao_modalidade", timeout_seconds=3600)
+async def extract_contratacoes_atualizacao_modalidade(
+    data_inicial: str, data_final: str, modalidade_code: int, **filters
+) -> ExtractionResult:
+    """Extract contratacoes by update date for specific modalidade"""
+    logger = get_run_logger()
+    start_time = datetime.now()
+
+    # Validate modalidade using enum
+    modalidade = get_enum_by_value(ModalidadeContratacao, modalidade_code)
+    if not modalidade:
+        raise ValueError(f"Invalid modalidade code: {modalidade_code}")
+
+    logger.info(
+        f"Starting extraction: contratacoes_atualizacao "
+        f"({data_inicial} to {data_final}, {modalidade.name})"
+    )
+
+    try:
+        extractor = EndpointExtractor()
+
+        # Extract data from API
+        api_requests = await extractor.extract_contratacoes_atualizacao(
+            data_inicial=data_inicial,
+            data_final=data_final,
+            modalidade=modalidade,
+            **filters,
+        )
+
+        # Store each request in database
+        total_records = 0
+        total_bytes = 0
+
+        for api_request in api_requests:
+            # Count records in this page
+            payload_json = json.loads(
+                zlib.decompress(api_request.payload_compressed).decode("utf-8")
+            )
+            if "data" in payload_json:
+                total_records += len(payload_json["data"])
+
+            total_bytes += api_request.payload_size
+            store_api_request.submit(api_request)
+
+        await extractor.close()
+
+        duration = (datetime.now() - start_time).total_seconds()
+
+        result = ExtractionResult(
+            endpoint="contratacoes_atualizacao",
+            modalidade=modalidade_code,
+            date_range=f"{data_inicial}:{data_final}",
+            total_requests=len(api_requests),
+            total_records=total_records,
+            total_bytes=total_bytes,
+            duration_seconds=duration,
+            success=True,
+        )
+
+        logger.info(
+            f"Completed extraction: {modalidade.name} - "
+            f"{result.total_requests} requests, {result.total_records} records, "
+            f"{result.total_bytes / 1024 / 1024:.2f} MB in {duration:.2f}s"
+        )
+
+        return result
+
+    except Exception as e:
+        duration = (datetime.now() - start_time).total_seconds()
+        logger.error(f"Extraction failed for {modalidade.name}: {e}")
+
+        return ExtractionResult(
+            endpoint="contratacoes_atualizacao",
+            modalidade=modalidade_code,
+            date_range=f"{data_inicial}:{data_final}",
+            total_requests=0,
+            total_records=0,
+            total_bytes=0,
+            duration_seconds=duration,
+            success=False,
+            error_message=str(e),
+        )
+
+
+@task(name="extract_contratos_atualizacao", timeout_seconds=3600)
+async def extract_contratos_atualizacao(
+    data_inicial: str, data_final: str, **filters
+) -> ExtractionResult:
+    """Extract contratos by update date"""
+    logger = get_run_logger()
+    start_time = datetime.now()
+
+    logger.info(f"Starting extraction: contratos_atualizacao ({data_inicial} to {data_final})")
+
+    try:
+        extractor = EndpointExtractor()
+
+        # Extract data from API
+        api_requests = await extractor.extract_contratos_atualizacao(
+            data_inicial=data_inicial, data_final=data_final, **filters
+        )
+
+        # Store and count data
+        total_records = 0
+        total_bytes = 0
+
+        for api_request in api_requests:
+            payload_json = json.loads(
+                zlib.decompress(api_request.payload_compressed).decode("utf-8")
+            )
+            if "data" in payload_json:
+                total_records += len(payload_json["data"])
+
+            total_bytes += api_request.payload_size
+            store_api_request.submit(api_request)
+
+        await extractor.close()
+
+        duration = (datetime.now() - start_time).total_seconds()
+
+        result = ExtractionResult(
+            endpoint="contratos_atualizacao",
+            date_range=f"{data_inicial}:{data_final}",
+            total_requests=len(api_requests),
+            total_records=total_records,
+            total_bytes=total_bytes,
+            duration_seconds=duration,
+            success=True,
+        )
+
+        logger.info(
+            f"Completed extraction: contratos_atualizacao - "
+            f"{result.total_requests} requests, {result.total_records} records"
+        )
+
+        return result
+
+    except Exception as e:
+        duration = (datetime.now() - start_time).total_seconds()
+        logger.error(f"Extraction failed for contratos_atualizacao: {e}")
+
+        return ExtractionResult(
+            endpoint="contratos_atualizacao",
+            date_range=f"{data_inicial}:{data_final}",
+            total_requests=0,
+            total_records=0,
+            total_bytes=0,
+            duration_seconds=duration,
+            success=False,
+            error_message=str(e),
+        )
+
+
+@task(name="extract_atas_atualizacao", timeout_seconds=3600)
+async def extract_atas_atualizacao(
+    data_inicial: str, data_final: str, **filters
+) -> ExtractionResult:
+    """Extract atas by update date"""
+    logger = get_run_logger()
+    start_time = datetime.now()
+
+    logger.info(f"Starting extraction: atas_atualizacao ({data_inicial} to {data_final})")
+
+    try:
+        extractor = EndpointExtractor()
+
+        # Extract data from API
+        api_requests = await extractor.extract_atas_atualizacao(
+            data_inicial=data_inicial, data_final=data_final, **filters
+        )
+
+        # Store and count data
+        total_records = 0
+        total_bytes = 0
+
+        for api_request in api_requests:
+            payload_json = json.loads(
+                zlib.decompress(api_request.payload_compressed).decode("utf-8")
+            )
+            if "data" in payload_json:
+                total_records += len(payload_json["data"])
+
+            total_bytes += api_request.payload_size
+            store_api_request.submit(api_request)
+
+        await extractor.close()
+
+        duration = (datetime.now() - start_time).total_seconds()
+
+        result = ExtractionResult(
+            endpoint="atas_atualizacao",
+            date_range=f"{data_inicial}:{data_final}",
+            total_requests=len(api_requests),
+            total_records=total_records,
+            total_bytes=total_bytes,
+            duration_seconds=duration,
+            success=True,
+        )
+
+        logger.info(
+            f"Completed extraction: atas_atualizacao - "
+            f"{result.total_requests} requests, {result.total_records} records"
+        )
+
+        return result
+
+    except Exception as e:
+        duration = (datetime.now() - start_time).total_seconds()
+        logger.error(f"Extraction failed for atas_atualizacao: {e}")
+
+        return ExtractionResult(
+            endpoint="atas_atualizacao",
+            date_range=f"{data_inicial}:{data_final}",
+            total_requests=0,
+            total_records=0,
+            total_bytes=0,
+            duration_seconds=duration,
+            success=False,
+            error_message=str(e),
+        )
