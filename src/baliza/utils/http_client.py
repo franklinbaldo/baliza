@@ -7,7 +7,7 @@ import hashlib
 import zlib
 from datetime import datetime, date
 from typing import Dict, Any, Optional, List
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field
 import httpx
 from prefect import get_run_logger
 
@@ -22,6 +22,10 @@ from .circuit_breaker import (
 )
 
 
+from pydantic import field_validator
+from pydantic import ConfigDict
+
+
 class PNCPResponse(BaseModel):
     """Pydantic model for PNCP API responses"""
 
@@ -32,8 +36,7 @@ class PNCPResponse(BaseModel):
     paginasRestantes: int = Field(alias="paginasRestantes")
     empty: bool = Field(default=False)
 
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class RequestMetadata(BaseModel):
@@ -47,7 +50,7 @@ class RequestMetadata(BaseModel):
     modalidade: Optional[int] = None
     date_range: Optional[str] = None
 
-    @validator("modalidade")
+    @field_validator("modalidade")
     def validate_modalidade(cls, v):
         if v is not None and not get_enum_by_value(ModalidadeContratacao, v):
             raise ValueError(f"Invalid modalidade: {v}")
@@ -64,11 +67,9 @@ class APIRequest(BaseModel):
     etag: Optional[str] = None
     payload_sha256: str
     payload_size: int
-    payload_compressed: bytes
     collected_at: datetime
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class PNCPClient:
@@ -104,7 +105,7 @@ class PNCPClient:
 
     async def fetch_endpoint_data(
         self, endpoint_name: str, url: str, params: Dict[str, Any] = None
-    ) -> APIRequest:
+    ) -> (APIRequest, bytes):
         """Fetch data from PNCP endpoint with resilience patterns"""
 
         request_metadata = RequestMetadata(
@@ -124,7 +125,7 @@ class PNCPClient:
         await self.rate_limiter.acquire()
 
         # Use circuit breaker and retry
-        response_data = await retry_with_backoff(
+        api_request, payload_compressed = await retry_with_backoff(
             self._make_request_with_circuit_breaker,
             self.retry_config,
             retryable_exceptions=(httpx.HTTPStatusError, httpx.TimeoutException),
@@ -132,18 +133,18 @@ class PNCPClient:
             metadata=request_metadata,
         )
 
-        return response_data
+        return api_request, payload_compressed
 
     async def _make_request_with_circuit_breaker(
         self, url: str, metadata: RequestMetadata
-    ) -> APIRequest:
+    ) -> (APIRequest, bytes):
         """Make HTTP request with circuit breaker protection"""
 
         return await self.circuit_breaker.call(self._make_http_request, url, metadata)
 
     async def _make_http_request(
         self, url: str, metadata: RequestMetadata
-    ) -> APIRequest:
+    ) -> (APIRequest, bytes):
         """Make actual HTTP request"""
 
         start_time = datetime.now()
@@ -211,7 +212,7 @@ class PNCPClient:
         response: httpx.Response,
         payload_json: Dict[str, Any],
         pncp_response: PNCPResponse,
-    ) -> APIRequest:
+    ) -> (APIRequest, bytes):
         """Create APIRequest model from response data"""
 
         # Serialize and compress payload
@@ -220,13 +221,13 @@ class PNCPClient:
         # DECISION: Keep current approach - MessagePack offers no significant benefits here
         payload_bytes = json.dumps(
             payload_json, ensure_ascii=False, separators=(",", ":")
-        ).encode("utf-8")  
+        ).encode("utf-8")
         payload_compressed = zlib.compress(payload_bytes, level=6)
 
         # Calculate SHA-256 hash
         payload_sha256 = hashlib.sha256(payload_bytes).hexdigest()
 
-        return APIRequest(
+        api_request = APIRequest(
             request_id=metadata.request_id,
             ingestion_date=metadata.timestamp.date(),
             endpoint=metadata.endpoint,
@@ -234,9 +235,9 @@ class PNCPClient:
             etag=response.headers.get("etag"),
             payload_sha256=payload_sha256,
             payload_size=len(payload_bytes),
-            payload_compressed=payload_compressed,
             collected_at=metadata.timestamp,
         )
+        return api_request, payload_compressed
 
     def _generate_request_id(self, url: str) -> str:
         """Generate unique request ID"""
@@ -387,7 +388,7 @@ class EndpointExtractor:
         return requests
 
     # MISSING ENDPOINT IMPLEMENTATIONS FOR 100% COVERAGE
-    
+
     async def extract_contratacoes_atualizacao(
         self,
         data_inicial: str,
@@ -450,8 +451,7 @@ class EndpointExtractor:
         pagina = 1
 
         self.logger.info(
-            f"Starting extraction: contratacoes_proposta "
-            f"(up to {data_final})"
+            f"Starting extraction: contratacoes_proposta (up to {data_final})"
         )
 
         while True:
@@ -504,7 +504,9 @@ class EndpointExtractor:
                 **filters,
             )
 
-            api_request = await self.client.fetch_endpoint_data("contratos_atualizacao", url)
+            api_request = await self.client.fetch_endpoint_data(
+                "contratos_atualizacao", url
+            )
 
             requests.append(api_request)
 
@@ -532,7 +534,9 @@ class EndpointExtractor:
         requests = []
         pagina = 1
 
-        self.logger.info(f"Starting extraction: atas_atualizacao ({data_inicial} to {data_final})")
+        self.logger.info(
+            f"Starting extraction: atas_atualizacao ({data_inicial} to {data_final})"
+        )
 
         while True:
             url = build_atas_atualizacao_url(
@@ -650,7 +654,9 @@ class EndpointExtractor:
         requests = []
         pagina = 1
 
-        self.logger.info(f"Starting extraction: pca_usuario (year {ano_pca}, user {id_usuario})")
+        self.logger.info(
+            f"Starting extraction: pca_usuario (year {ano_pca}, user {id_usuario})"
+        )
 
         while True:
             url = build_pca_usuario_url(
@@ -688,7 +694,9 @@ class EndpointExtractor:
         requests = []
         pagina = 1
 
-        self.logger.info(f"Starting extraction: pca_atualizacao ({data_inicio} to {data_fim})")
+        self.logger.info(
+            f"Starting extraction: pca_atualizacao ({data_inicio} to {data_fim})"
+        )
 
         while True:
             url = build_pca_atualizacao_url(
@@ -698,13 +706,15 @@ class EndpointExtractor:
                 **filters,
             )
 
-            api_request = await self.client.fetch_endpoint_data("pca_atualizacao", url)
+            api_request, payload_compressed = await self.client.fetch_endpoint_data(
+                "pca_atualizacao", url
+            )
 
-            requests.append(api_request)
+            requests.append((api_request, payload_compressed))
 
             # Parse response to check pagination
             payload_json = json.loads(
-                zlib.decompress(api_request.payload_compressed).decode("utf-8")
+                zlib.decompress(payload_compressed).decode("utf-8")
             )
             pncp_response = PNCPResponse(**payload_json)
 

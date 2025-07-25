@@ -32,34 +32,34 @@ class ExtractionResult(BaseModel):
     error_message: Optional[str] = None
 
 
+import pandas as pd
+
+
 @task(name="store_api_request", retries=2)
-def store_api_request(api_request: APIRequest) -> bool:
+def store_api_request(api_request: APIRequest, payload_compressed: bytes) -> bool:
     """Store API request data in DuckDB"""
     logger = get_run_logger()
 
     try:
         con = connect()
 
-        # Use prepared statement for security
-        # TODO: Replace raw SQL insert with Ibis table.insert() method
-        # FIXME: Should use Ibis DataFrame operations for type safety and better performance
-        insert_sql = load_sql_file("insert_api_request.sql")
+        # Store payload in hot_payloads
+        hot_payloads_table = con.table("raw.hot_payloads")
+        hot_payloads_df = pd.DataFrame(
+            [
+                {
+                    "payload_sha256": api_request.payload_sha256,
+                    "payload_compressed": payload_compressed,
+                    "first_seen_at": api_request.collected_at,
+                }
+            ]
+        )
+        hot_payloads_table.insert(hot_payloads_df, overwrite=True)
 
-        # Convert UUID to string for DuckDB
-        # TODO: Consider using Ibis to_pandas() -> insert pattern for bulk operations
-        params = [
-            str(api_request.request_id),
-            api_request.ingestion_date,
-            api_request.endpoint,
-            api_request.http_status,
-            api_request.etag,
-            api_request.payload_sha256,
-            api_request.payload_size,
-            api_request.payload_compressed,
-            api_request.collected_at,
-        ]
-
-        con.raw_sql(insert_sql, params)
+        # Store request metadata in api_requests
+        api_requests_table = con.table("raw.api_requests")
+        api_request_df = pd.DataFrame([api_request.dict()])
+        api_requests_table.insert(api_request_df)
 
         logger.info(
             f"Stored API request: {api_request.endpoint} ({api_request.payload_size} bytes)"
@@ -89,25 +89,24 @@ def log_extraction_execution(
 
     try:
         con = connect()
-
-        # TODO: Replace raw SQL logging with Ibis operations for consistency
-        # FIXME: Should use Ibis table.insert() for execution logging
-        log_sql = load_sql_file("log_execution.sql")
-
-        params = [
-            execution_id,
-            flow_name,
-            task_name,
-            start_time,
-            end_time,
-            status,
-            records_processed,
-            bytes_processed,
-            error_message,
-            json.dumps(metadata) if metadata else None,
-        ]
-
-        con.raw_sql(log_sql, params)
+        execution_log_table = con.table("meta.execution_log")
+        df = pd.DataFrame(
+            [
+                {
+                    "execution_id": execution_id,
+                    "flow_name": flow_name,
+                    "task_name": task_name,
+                    "start_time": start_time,
+                    "end_time": end_time,
+                    "status": status,
+                    "records_processed": records_processed,
+                    "bytes_processed": bytes_processed,
+                    "error_message": error_message,
+                    "metadata": json.dumps(metadata) if metadata else None,
+                }
+            ]
+        )
+        execution_log_table.insert(df)
 
         logger.info(f"Logged execution: {flow_name}.{task_name} - {status}")
         return True
@@ -163,8 +162,7 @@ async def extract_contratacoes_modalidade(
             # Store in database (this will be executed sequentially by Prefect)
             # FIXME: Sequential storage creates performance bottleneck
             # TODO: Implement batch storage pattern for better performance
-            # TODO: Consider implementing raw.hot_payloads table for deduplication
-            store_api_request.submit(api_request)
+            store_api_request.submit(api_request, payload_compressed)
 
         await extractor.close()
 
@@ -228,15 +226,15 @@ async def extract_contratos(
         total_records = 0
         total_bytes = 0
 
-        for api_request in api_requests:
+        for api_request, payload_compressed in api_requests:
             payload_json = json.loads(
-                zlib.decompress(api_request.payload_compressed).decode("utf-8")
+                zlib.decompress(payload_compressed).decode("utf-8")
             )
             if "data" in payload_json:
                 total_records += len(payload_json["data"])
 
             total_bytes += api_request.payload_size
-            store_api_request.submit(api_request)
+            store_api_request.submit(api_request, payload_compressed)
 
         await extractor.close()
 
@@ -297,15 +295,15 @@ async def extract_atas(
         total_records = 0
         total_bytes = 0
 
-        for api_request in api_requests:
+        for api_request, payload_compressed in api_requests:
             payload_json = json.loads(
-                zlib.decompress(api_request.payload_compressed).decode("utf-8")
+                zlib.decompress(payload_compressed).decode("utf-8")
             )
             if "data" in payload_json:
                 total_records += len(payload_json["data"])
 
             total_bytes += api_request.payload_size
-            store_api_request.submit(api_request)
+            store_api_request.submit(api_request, payload_compressed)
 
         await extractor.close()
 
@@ -502,6 +500,7 @@ async def extract_phase_2a_concurrent(
 
 # MISSING ENDPOINT TASKS FOR 100% COVERAGE
 
+
 @task(name="extract_contratacoes_atualizacao_modalidade", timeout_seconds=3600)
 async def extract_contratacoes_atualizacao_modalidade(
     data_inicial: str, data_final: str, modalidade_code: int, **filters
@@ -535,16 +534,16 @@ async def extract_contratacoes_atualizacao_modalidade(
         total_records = 0
         total_bytes = 0
 
-        for api_request in api_requests:
+        for api_request, payload_compressed in api_requests:
             # Count records in this page
             payload_json = json.loads(
-                zlib.decompress(api_request.payload_compressed).decode("utf-8")
+                zlib.decompress(payload_compressed).decode("utf-8")
             )
             if "data" in payload_json:
                 total_records += len(payload_json["data"])
 
             total_bytes += api_request.payload_size
-            store_api_request.submit(api_request)
+            store_api_request.submit(api_request, payload_compressed)
 
         await extractor.close()
 
@@ -594,7 +593,9 @@ async def extract_contratos_atualizacao(
     logger = get_run_logger()
     start_time = datetime.now()
 
-    logger.info(f"Starting extraction: contratos_atualizacao ({data_inicial} to {data_final})")
+    logger.info(
+        f"Starting extraction: contratos_atualizacao ({data_inicial} to {data_final})"
+    )
 
     try:
         extractor = EndpointExtractor()
@@ -608,15 +609,15 @@ async def extract_contratos_atualizacao(
         total_records = 0
         total_bytes = 0
 
-        for api_request in api_requests:
+        for api_request, payload_compressed in api_requests:
             payload_json = json.loads(
-                zlib.decompress(api_request.payload_compressed).decode("utf-8")
+                zlib.decompress(payload_compressed).decode("utf-8")
             )
             if "data" in payload_json:
                 total_records += len(payload_json["data"])
 
             total_bytes += api_request.payload_size
-            store_api_request.submit(api_request)
+            store_api_request.submit(api_request, payload_compressed)
 
         await extractor.close()
 
@@ -663,7 +664,9 @@ async def extract_atas_atualizacao(
     logger = get_run_logger()
     start_time = datetime.now()
 
-    logger.info(f"Starting extraction: atas_atualizacao ({data_inicial} to {data_final})")
+    logger.info(
+        f"Starting extraction: atas_atualizacao ({data_inicial} to {data_final})"
+    )
 
     try:
         extractor = EndpointExtractor()
@@ -677,15 +680,15 @@ async def extract_atas_atualizacao(
         total_records = 0
         total_bytes = 0
 
-        for api_request in api_requests:
+        for api_request, payload_compressed in api_requests:
             payload_json = json.loads(
-                zlib.decompress(api_request.payload_compressed).decode("utf-8")
+                zlib.decompress(payload_compressed).decode("utf-8")
             )
             if "data" in payload_json:
                 total_records += len(payload_json["data"])
 
             total_bytes += api_request.payload_size
-            store_api_request.submit(api_request)
+            store_api_request.submit(api_request, payload_compressed)
 
         await extractor.close()
 

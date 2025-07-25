@@ -32,14 +32,20 @@ class Settings(BaseSettings):
 
     # Phase 2A Priority Endpoints (currently implemented)
     PHASE_2A_ENDPOINTS: List[str] = ["contratacoes_publicacao", "contratos", "atas"]
-    
+
     # ALL PNCP Endpoints for 100% coverage
     ALL_PNCP_ENDPOINTS: List[str] = [
-        "contratacoes_publicacao", "contratacoes_atualizacao", "contratacoes_proposta",
-        "contratos", "contratos_atualizacao", 
-        "atas", "atas_atualizacao",
+        "contratacoes_publicacao",
+        "contratacoes_atualizacao",
+        "contratacoes_proposta",
+        "contratos",
+        "contratos_atualizacao",
+        "atas",
+        "atas_atualizacao",
         "instrumentoscobranca_inclusao",
-        "pca", "pca_usuario", "pca_atualizacao"
+        "pca",
+        "pca_usuario",
+        "pca_atualizacao",
     ]
 
     # High Priority Modalidades (Pregão, Dispensa, Concorrência)
@@ -172,7 +178,7 @@ ENDPOINT_CONFIG = {
         "optional_params": [
             "codigoModalidadeContratacao",
             "uf",
-            "codigoMunicipioIbge", 
+            "codigoMunicipioIbge",
             "cnpj",
             "codigoUnidadeAdministrativa",
             "idUsuario",

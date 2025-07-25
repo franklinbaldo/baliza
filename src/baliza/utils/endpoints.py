@@ -322,6 +322,7 @@ def build_atas_url(
 
 # URL builders for missing endpoints
 
+
 def build_contratacoes_atualizacao_url(
     data_inicial: str, data_final: str, modalidade: int, pagina: int = 1, **kwargs
 ) -> str:

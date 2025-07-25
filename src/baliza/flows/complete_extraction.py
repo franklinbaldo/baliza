@@ -2,7 +2,6 @@
 Complete PNCP endpoint extraction flows for 100% API coverage
 """
 
-import asyncio
 import json
 import zlib
 from datetime import datetime
@@ -11,13 +10,12 @@ from uuid import uuid4
 
 from prefect import flow, task, get_run_logger
 
-from ..backend import connect, load_sql_file
 from ..config import settings
 from ..enums import ModalidadeContratacao, get_enum_by_value
-from ..utils.http_client import EndpointExtractor, APIRequest
+from ..utils.http_client import EndpointExtractor
 from ..utils.endpoints import DateRangeHelper, get_all_pncp_endpoints
 from .raw import (
-    ExtractionResult, 
+    ExtractionResult,
     extract_contratacoes_modalidade,
     extract_contratos,
     extract_atas,
@@ -38,7 +36,7 @@ async def extract_all_pncp_endpoints(
 ) -> Dict[str, Any]:
     """
     Extract data from ALL PNCP endpoints for 100% API coverage
-    
+
     Args:
         date_range_days: Number of days to extract
         modalidades: List of modalidade codes to extract
@@ -89,9 +87,7 @@ async def extract_all_pncp_endpoints(
                 tasks.append(task)
 
             # Extract contratacoes_proposta (single endpoint, no modalidade required)
-            proposta_task = extract_contratacoes_proposta.submit(
-                data_final=data_final
-            )
+            proposta_task = extract_contratacoes_proposta.submit(data_final=data_final)
             tasks.append(proposta_task)
 
             # 2. CONTRATOS ENDPOINTS
@@ -125,18 +121,17 @@ async def extract_all_pncp_endpoints(
             # 5. PCA ENDPOINTS (if requested)
             if include_pca:
                 current_year = datetime.now().year
-                
+
                 # Extract PCA for current year (requires classification code)
                 pca_task = extract_pca.submit(
                     ano_pca=current_year,
-                    codigo_classificacao="01"  # Default classification
+                    codigo_classificacao="01",  # Default classification
                 )
                 tasks.append(pca_task)
-                
+
                 # PCA atualizacao
                 pca_atualizacao_task = extract_pca_atualizacao.submit(
-                    data_inicio=data_inicial,
-                    data_fim=data_final
+                    data_inicio=data_inicial, data_fim=data_final
                 )
                 tasks.append(pca_atualizacao_task)
 
@@ -146,7 +141,7 @@ async def extract_all_pncp_endpoints(
         else:
             # Sequential extraction (fallback)
             logger.info("Running sequential extraction (fallback mode)")
-            
+
             # 1. Contratações - publicacao
             for modalidade in modalidades:
                 result = await extract_contratacoes_modalidade(
@@ -200,16 +195,14 @@ async def extract_all_pncp_endpoints(
             # 7. PCA (if requested)
             if include_pca:
                 current_year = datetime.now().year
-                
+
                 result = await extract_pca(
-                    ano_pca=current_year,
-                    codigo_classificacao="01"
+                    ano_pca=current_year, codigo_classificacao="01"
                 )
                 results.append(result)
-                
+
                 result = await extract_pca_atualizacao(
-                    data_inicio=data_inicial,
-                    data_fim=data_final
+                    data_inicio=data_inicial, data_fim=data_final
                 )
                 results.append(result)
 
@@ -254,7 +247,9 @@ async def extract_all_pncp_endpoints(
             "duration_seconds": duration,
             "unique_endpoints_extracted": unique_endpoints,
             "total_endpoints_available": len(get_all_pncp_endpoints()),
-            "coverage_percentage": round((unique_endpoints / len(get_all_pncp_endpoints())) * 100, 1),
+            "coverage_percentage": round(
+                (unique_endpoints / len(get_all_pncp_endpoints())) * 100, 1
+            ),
             "total_requests": total_requests,
             "total_records": total_records,
             "total_bytes": total_bytes,
@@ -388,7 +383,7 @@ async def extract_contratacoes_proposta(
         )
 
 
-@task(name="extract_instrumentos_cobranca", timeout_seconds=3600)  
+@task(name="extract_instrumentos_cobranca", timeout_seconds=3600)
 async def extract_instrumentos_cobranca(
     data_inicial: str, data_final: str, **filters
 ) -> ExtractionResult:
@@ -396,7 +391,9 @@ async def extract_instrumentos_cobranca(
     logger = get_run_logger()
     start_time = datetime.now()
 
-    logger.info(f"Starting extraction: instrumentos_cobranca ({data_inicial} to {data_final})")
+    logger.info(
+        f"Starting extraction: instrumentos_cobranca ({data_inicial} to {data_final})"
+    )
 
     try:
         extractor = EndpointExtractor()
@@ -541,9 +538,7 @@ async def extract_pca_atualizacao(
 
         # Extract data from API
         api_requests = await extractor.extract_pca_atualizacao(
-            data_inicio=data_inicio,
-            data_fim=data_fim,
-            **filters
+            data_inicio=data_inicio, data_fim=data_fim, **filters
         )
 
         # Store and count data

@@ -41,7 +41,6 @@ def run(
             days = 30
         elif mes:
             import calendar
-            from datetime import datetime
 
             try:
                 year, month = map(int, mes.split("-"))
@@ -138,9 +137,11 @@ def init():
 @app.command()
 def doctor():
     """Checa dependências, permissões e conectividade com a API."""
-    console.print("🏥 [bold blue]Executando diagnóstico do sistema Baliza...[/bold blue]")
+    console.print(
+        "🏥 [bold blue]Executando diagnóstico do sistema Baliza...[/bold blue]"
+    )
     console.print()
-    
+
     # Run comprehensive health checks
     try:
         asyncio.run(_run_health_checks())
@@ -314,9 +315,7 @@ def ui(
     # Check if port is already in use
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         if s.connect_ex(("localhost", port)) == 0:
-            console.print(
-                f"⚠️  Prefect UI já está rodando em http://localhost:{port}"
-            )
+            console.print(f"⚠️  Prefect UI já está rodando em http://localhost:{port}")
             if not no_browser:
                 webbrowser.open(f"http://localhost:{port}")
             raise typer.Exit()
@@ -324,12 +323,17 @@ def ui(
     console.print(f"🚀 Iniciando a UI do Prefect na porta {port}...")
     try:
         # Start Prefect server
-        proc = subprocess.Popen(["prefect", "server", "start", "--host", "localhost", "--port", str(port)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        proc = subprocess.Popen(
+            ["prefect", "server", "start", "--host", "localhost", "--port", str(port)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
 
         # Wait for server to start
         time.sleep(5)
 
-        console.print(f"✅ UI do Prefect iniciada com sucesso!")
+        console.print("✅ UI do Prefect iniciada com sucesso!")
         console.print(f"🔗 URL: http://localhost:{port}")
 
         if not no_browser:
@@ -442,9 +446,11 @@ def reset(
     ),
 ):
     """Apaga o banco de dados local para um recomeço limpo."""
-    console.print("🗑️ [bold red]Preparando para resetar o banco de dados Baliza...[/bold red]")
+    console.print(
+        "🗑️ [bold red]Preparando para resetar o banco de dados Baliza...[/bold red]"
+    )
     console.print()
-    
+
     try:
         _perform_database_reset(force, backup)
     except Exception as e:
@@ -454,9 +460,7 @@ def reset(
 
 @app.command()
 def verify(
-    days: int = typer.Option(
-        30, "--days", help="Number of recent days to verify."
-    ),
+    days: int = typer.Option(30, "--days", help="Number of recent days to verify."),
 ):
     """Dispara a rotina de verificação de integridade."""
     console.print("Iniciando verificação de integridade...")
@@ -556,6 +560,7 @@ def fetch_payload(
             console.print(f"✅ Payload saved to {output_path}")
         else:
             from rich.json import JSON
+
             console.print(JSON(json.dumps(payload_json, indent=2, ensure_ascii=False)))
 
     except Exception as e:
@@ -637,8 +642,12 @@ def _display_complete_extraction_results(result: dict) -> None:
     coverage_table.add_row("ID da Execução", result["execution_id"])
     coverage_table.add_row("Período", result["date_range"])
     coverage_table.add_row("Duração", f"{result['duration_seconds']:.2f}s")
-    coverage_table.add_row("Endpoints Extraídos", str(result["unique_endpoints_extracted"]))
-    coverage_table.add_row("Endpoints Disponíveis", str(result["total_endpoints_available"]))
+    coverage_table.add_row(
+        "Endpoints Extraídos", str(result["unique_endpoints_extracted"])
+    )
+    coverage_table.add_row(
+        "Endpoints Disponíveis", str(result["total_endpoints_available"])
+    )
     coverage_table.add_row("Cobertura PNCP", f"{result['coverage_percentage']}%")
     coverage_table.add_row("Total de Requisições", str(result["total_requests"]))
     coverage_table.add_row("Total de Registros", str(result["total_records"]))
@@ -685,15 +694,17 @@ def _display_complete_extraction_results(result: dict) -> None:
 
     # Coverage achievement message
     if result["coverage_percentage"] == 100.0:
-        console.print("🎉 COBERTURA COMPLETA ATINGIDA! Todos os endpoints PNCP foram extraídos!")
+        console.print(
+            "🎉 COBERTURA COMPLETA ATINGIDA! Todos os endpoints PNCP foram extraídos!"
+        )
     elif result["coverage_percentage"] >= 90.0:
-        console.print(f"🎯 Excelente cobertura! {result['coverage_percentage']}% dos endpoints extraídos")
+        console.print(
+            f"🎯 Excelente cobertura! {result['coverage_percentage']}% dos endpoints extraídos"
+        )
     elif result["failed_extractions"] == 0:
         console.print("🎉 Extração completa sem falhas!")
     else:
-        console.print(
-            f"⚠️  Extração completa com {result['failed_extractions']} falhas"
-        )
+        console.print(f"⚠️  Extração completa com {result['failed_extractions']} falhas")
 
 
 def _perform_database_reset(force: bool, backup: bool):
@@ -701,51 +712,53 @@ def _perform_database_reset(force: bool, backup: bool):
     import shutil
     import time
     from datetime import datetime
-    
+
     db_path = Path(settings.DATABASE_PATH)
     db_dir = db_path.parent
-    
+
     # Check if database exists
     if not db_path.exists():
         console.print("ℹ️ Banco de dados não existe. Nada para resetar.")
         return
-    
+
     # Get database size for reporting
     db_size_mb = db_path.stat().st_size / (1024 * 1024)
-    
+
     # Show what will be deleted
     console.print("📋 [yellow]Análise do que será removido:[/yellow]")
     items_to_delete = []
-    
+
     if db_path.exists():
         items_to_delete.append(f"• Banco de dados: {db_path} ({db_size_mb:.2f} MB)")
-    
+
     # Check for temporary files
     temp_patterns = ["*.tmp", "*.log", "*.cache"]
     temp_files = []
     for pattern in temp_patterns:
         temp_files.extend(db_dir.glob(pattern))
-    
+
     if temp_files:
         total_temp_mb = sum(f.stat().st_size for f in temp_files) / (1024 * 1024)
-        items_to_delete.append(f"• {len(temp_files)} arquivos temporários ({total_temp_mb:.2f} MB)")
-    
+        items_to_delete.append(
+            f"• {len(temp_files)} arquivos temporários ({total_temp_mb:.2f} MB)"
+        )
+
     # Check for DuckDB WAL files
     wal_files = list(db_dir.glob("*.wal"))
     if wal_files:
         wal_mb = sum(f.stat().st_size for f in wal_files) / (1024 * 1024)
         items_to_delete.append(f"• {len(wal_files)} arquivos WAL ({wal_mb:.2f} MB)")
-    
+
     for item in items_to_delete:
         console.print(item)
-    
+
     console.print()
-    
+
     # Create backup if requested
     if backup:
         backup_name = f"baliza_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.duckdb"
         backup_path = db_dir / backup_name
-        
+
         console.print(f"💾 Criando backup em: {backup_path}")
         try:
             shutil.copy2(db_path, backup_path)
@@ -757,7 +770,7 @@ def _perform_database_reset(force: bool, backup: bool):
                 if not typer.confirm("Continuar sem backup?"):
                     raise typer.Abort()
         console.print()
-    
+
     # Confirmation check
     if not force:
         console.print("⚠️ [bold yellow]ATENÇÃO: Esta operação irá:")
@@ -766,38 +779,38 @@ def _perform_database_reset(force: bool, backup: bool):
         console.print("  • Limpar TODOS os logs e métricas")
         console.print("  • Esta ação NÃO PODE ser desfeita!")
         console.print()
-        
+
         if not typer.confirm("Você tem CERTEZA que deseja continuar?"):
             console.print("🛑 Operação cancelada pelo usuário.")
             raise typer.Abort()
-        
+
         # Double confirmation for safety
         console.print()
         confirmation_text = "RESETAR TUDO"
         user_input = typer.prompt(
-            f"Digite '{confirmation_text}' para confirmar",
-            type=str
+            f"Digite '{confirmation_text}' para confirmar", type=str
         )
-        
+
         if user_input != confirmation_text:
             console.print("❌ Confirmação incorreta. Operação cancelada.")
             raise typer.Abort()
-    
+
     console.print()
     console.print("🚀 Iniciando reset do banco de dados...")
-    
+
     # Close any active connections first
     try:
         # Import here to avoid circular imports
         import gc
+
         gc.collect()  # Force garbage collection to close connections
         time.sleep(0.5)  # Give time for connections to close
-    except:
+    except Exception:
         pass
-    
+
     deleted_files = []
     total_deleted_mb = 0
-    
+
     # Delete main database
     if db_path.exists():
         try:
@@ -809,7 +822,7 @@ def _perform_database_reset(force: bool, backup: bool):
         except Exception as e:
             console.print(f"❌ Erro ao remover banco: {e}")
             raise
-    
+
     # Delete WAL files
     for wal_file in wal_files:
         try:
@@ -819,7 +832,7 @@ def _perform_database_reset(force: bool, backup: bool):
             total_deleted_mb += size_mb
         except Exception as e:
             console.print(f"⚠️ Erro ao remover {wal_file}: {e}")
-    
+
     # Delete temporary files
     for temp_file in temp_files:
         try:
@@ -829,28 +842,28 @@ def _perform_database_reset(force: bool, backup: bool):
             total_deleted_mb += size_mb
         except Exception as e:
             console.print(f"⚠️ Erro ao remover {temp_file}: {e}")
-    
+
     console.print(f"✅ Arquivos temporários removidos ({len(temp_files)} arquivos)")
-    
+
     # Summary
     console.print()
     console.print("📊 [bold green]Reset completado com sucesso![/bold green]")
     console.print(f"🗑️ Total removido: {total_deleted_mb:.2f} MB")
     console.print(f"📁 Arquivos removidos: {len(deleted_files)}")
-    
+
     if backup:
         console.print(f"💾 Backup disponível em: {backup_path}")
-    
+
     console.print()
-    console.print("💡 [blue]Execute 'baliza init' para inicializar um novo banco de dados.[/blue]")
+    console.print(
+        "💡 [blue]Execute 'baliza init' para inicializar um novo banco de dados.[/blue]"
+    )
 
 
 async def _run_health_checks():
     """Run comprehensive system health checks"""
-    import psutil
-    import httpx
     from rich.progress import Progress
-    
+
     checks = [
         ("💾 Database Connection", _check_database_connectivity),
         ("🌐 PNCP API Accessibility", _check_pncp_api_health),
@@ -861,20 +874,20 @@ async def _run_health_checks():
         ("📁 File Permissions", _check_file_permissions),
         ("🔗 Network Connectivity", _check_network_connectivity),
     ]
-    
+
     passed = 0
     total = len(checks)
     issues = []
-    
+
     # Create health check table
     table = Table(title="🔍 Diagnóstico do Sistema")
     table.add_column("Check", style="cyan", no_wrap=True)
     table.add_column("Status", style="bold", no_wrap=True)
     table.add_column("Details", style="white")
-    
+
     with Progress() as progress:
         task = progress.add_task("Executando checks...", total=total)
-        
+
         for check_name, check_func in checks:
             try:
                 status, details = await check_func()
@@ -887,21 +900,27 @@ async def _run_health_checks():
             except Exception as e:
                 table.add_row(check_name, "⚠️ ERROR", str(e))
                 issues.append(f"{check_name}: Error - {e}")
-            
+
             progress.advance(task)
-    
+
     console.print(table)
     console.print()
-    
+
     # Summary
     if passed == total:
-        console.print("🎉 [bold green]Todos os checks passaram! Sistema está saudável.[/bold green]")
+        console.print(
+            "🎉 [bold green]Todos os checks passaram! Sistema está saudável.[/bold green]"
+        )
     else:
-        console.print(f"⚠️ [bold yellow]{passed}/{total} checks passaram. Problemas encontrados:[/bold yellow]")
+        console.print(
+            f"⚠️ [bold yellow]{passed}/{total} checks passaram. Problemas encontrados:[/bold yellow]"
+        )
         for issue in issues:
             console.print(f"  • {issue}")
         console.print()
-        console.print("💡 [blue]Execute 'baliza init' se o banco de dados não estiver configurado.[/blue]")
+        console.print(
+            "💡 [blue]Execute 'baliza init' se o banco de dados não estiver configurado.[/blue]"
+        )
 
 
 async def _check_database_connectivity():
@@ -920,6 +939,7 @@ async def _check_pncp_api_health():
     """Check PNCP API connectivity and response"""
     try:
         import httpx
+
         timeout = httpx.Timeout(connect=5.0, read=10.0, write=5.0, pool=5.0)
         async with httpx.AsyncClient(timeout=timeout) as client:
             # Try a simple API call
@@ -928,10 +948,10 @@ async def _check_pncp_api_health():
                 "dataInicial": "2024-01-01",
                 "dataFinal": "2024-01-01",
                 "pagina": 1,
-                "tamanhoPagina": 1
+                "tamanhoPagina": 1,
             }
             response = await client.get(test_url, params=params)
-            
+
             if response.status_code == 200:
                 return True, f"API respondendo (status: {response.status_code})"
             else:
@@ -946,21 +966,30 @@ async def _check_available_disk_space():
     """Check available disk space for database operations"""
     try:
         import psutil
-        
+
         # Check disk space where database is located
         db_path = Path(settings.DATABASE_PATH).parent
         disk_usage = psutil.disk_usage(str(db_path))
-        
+
         free_gb = disk_usage.free / (1024**3)
         total_gb = disk_usage.total / (1024**3)
         used_percent = (disk_usage.used / disk_usage.total) * 100
-        
+
         if free_gb < 1.0:  # Less than 1GB free
-            return False, f"Pouco espaço: {free_gb:.1f}GB livre ({used_percent:.1f}% usado)"
+            return (
+                False,
+                f"Pouco espaço: {free_gb:.1f}GB livre ({used_percent:.1f}% usado)",
+            )
         elif free_gb < 5.0:  # Less than 5GB free
-            return True, f"Atenção: {free_gb:.1f}GB livre de {total_gb:.1f}GB ({used_percent:.1f}% usado)"
+            return (
+                True,
+                f"Atenção: {free_gb:.1f}GB livre de {total_gb:.1f}GB ({used_percent:.1f}% usado)",
+            )
         else:
-            return True, f"{free_gb:.1f}GB livre de {total_gb:.1f}GB ({used_percent:.1f}% usado)"
+            return (
+                True,
+                f"{free_gb:.1f}GB livre de {total_gb:.1f}GB ({used_percent:.1f}% usado)",
+            )
     except Exception as e:
         return False, f"Erro ao verificar disco: {str(e)}"
 
@@ -969,18 +998,27 @@ async def _check_memory_utilization():
     """Check system memory usage"""
     try:
         import psutil
-        
+
         memory = psutil.virtual_memory()
         available_gb = memory.available / (1024**3)
         total_gb = memory.total / (1024**3)
         used_percent = memory.percent
-        
+
         if available_gb < 0.5:  # Less than 500MB available
-            return False, f"Pouca memória: {available_gb:.1f}GB livre ({used_percent:.1f}% usado)"
+            return (
+                False,
+                f"Pouca memória: {available_gb:.1f}GB livre ({used_percent:.1f}% usado)",
+            )
         elif available_gb < 2.0:  # Less than 2GB available
-            return True, f"Atenção: {available_gb:.1f}GB livre de {total_gb:.1f}GB ({used_percent:.1f}% usado)"
+            return (
+                True,
+                f"Atenção: {available_gb:.1f}GB livre de {total_gb:.1f}GB ({used_percent:.1f}% usado)",
+            )
         else:
-            return True, f"{available_gb:.1f}GB livre de {total_gb:.1f}GB ({used_percent:.1f}% usado)"
+            return (
+                True,
+                f"{available_gb:.1f}GB livre de {total_gb:.1f}GB ({used_percent:.1f}% usado)",
+            )
     except Exception as e:
         return False, f"Erro ao verificar memória: {str(e)}"
 
@@ -989,23 +1027,20 @@ async def _validate_database_schema():
     """Validate database schema version and required tables"""
     try:
         con = connect()
-        
+
         # Check if required tables exist
-        required_tables = [
-            "raw.api_requests",
-            "meta.metrics_log"
-        ]
-        
+        required_tables = ["raw.api_requests", "meta.metrics_log"]
+
         existing_tables = []
         missing_tables = []
-        
+
         for table in required_tables:
             try:
-                result = con.raw_sql(f"SELECT COUNT(*) FROM {table}").fetchone()
+                con.raw_sql(f"SELECT COUNT(*) FROM {table}").fetchone()
                 existing_tables.append(table)
-            except:
+            except Exception:
                 missing_tables.append(table)
-        
+
         if missing_tables:
             return False, f"Tabelas ausentes: {', '.join(missing_tables)}"
         else:
@@ -1018,20 +1053,26 @@ async def _check_python_dependencies():
     """Check if required Python packages are available"""
     try:
         required_packages = [
-            "prefect", "ibis", "duckdb", "pydantic", 
-            "httpx", "typer", "rich", "psutil"
+            "prefect",
+            "ibis",
+            "duckdb",
+            "pydantic",
+            "httpx",
+            "typer",
+            "rich",
+            "psutil",
         ]
-        
+
         missing = []
         available = []
-        
+
         for package in required_packages:
             try:
                 __import__(package)
                 available.append(package)
             except ImportError:
                 missing.append(package)
-        
+
         if missing:
             return False, f"Pacotes ausentes: {', '.join(missing)}"
         else:
@@ -1046,24 +1087,24 @@ async def _check_file_permissions():
         # Check database directory permissions
         db_path = Path(settings.DATABASE_PATH)
         db_dir = db_path.parent
-        
+
         issues = []
-        
+
         # Check if database directory exists and is writable
         if not db_dir.exists():
             try:
                 db_dir.mkdir(parents=True, exist_ok=True)
             except Exception as e:
                 issues.append(f"Não pode criar diretório DB: {e}")
-        
+
         if not os.access(str(db_dir), os.W_OK):
             issues.append("Diretório DB não é gravável")
-        
+
         # Check temp directory access
         temp_dir = Path("/tmp")
         if not os.access(str(temp_dir), os.W_OK):
             issues.append("Diretório /tmp não é gravável")
-        
+
         if issues:
             return False, "; ".join(issues)
         else:
@@ -1076,6 +1117,7 @@ async def _check_network_connectivity():
     """Check basic internet connectivity"""
     try:
         import httpx
+
         async with httpx.AsyncClient(timeout=5.0) as client:
             # Test with a reliable public service
             response = await client.get("https://httpbin.org/status/200")

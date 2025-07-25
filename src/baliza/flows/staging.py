@@ -19,21 +19,30 @@ def create_staging_views() -> bool:
         con = connect()
 
         # Create staging schema if not exists
-        # TODO: Consider using Ibis schema management instead of raw SQL
         con.raw_sql("CREATE SCHEMA IF NOT EXISTS staging")
 
-        # Create staging views using external SQL files
-        # TODO: Replace SQL files with Ibis view definitions for better maintainability
-        # FIXME: Should use con.create_view() with Ibis expressions instead of raw SQL
-        con.raw_sql(load_sql_file("staging_contratacoes.sql"))
+        # Define Ibis expressions for views
+        api_requests = con.table("raw.api_requests")
+
+        # contratacoes
+        contratacoes_expr = api_requests.filter(
+            api_requests.endpoint == "contratacoes_publicacao"
+        ).filter(api_requests.http_status == 200)
+        con.create_view("staging.contratacoes", contratacoes_expr, overwrite=True)
         logger.info("Created staging.contratacoes view")
 
-        # TODO: Convert to Ibis: con.create_view("staging.contratos", ibis_expr)
-        con.raw_sql(load_sql_file("staging_contratos.sql"))
+        # contratos
+        contratos_expr = api_requests.filter(
+            api_requests.endpoint == "contratos"
+        ).filter(api_requests.http_status == 200)
+        con.create_view("staging.contratos", contratos_expr, overwrite=True)
         logger.info("Created staging.contratos view")
 
-        # TODO: Convert to Ibis: con.create_view("staging.atas", ibis_expr)
-        con.raw_sql(load_sql_file("staging_atas.sql"))
+        # atas
+        atas_expr = api_requests.filter(api_requests.endpoint == "atas").filter(
+            api_requests.http_status == 200
+        )
+        con.create_view("staging.atas", atas_expr, overwrite=True)
         logger.info("Created staging.atas view")
 
         return True
@@ -59,19 +68,9 @@ def staging_transformation() -> Dict[str, Any]:
 
         # Get row counts for verification
         con = connect()
-        # TODO: Replace raw SQL with Ibis expressions for better type safety and composability
-        # FIXME: Should use con.table("staging.contratacoes").count().execute() instead
-        contratacoes_count = con.raw_sql(
-            "SELECT COUNT(*) as cnt FROM staging.contratacoes"
-        ).fetchone()[0]
-        # TODO: Use Ibis table expressions: con.table("staging.contratos").count().execute()
-        contratos_count = con.raw_sql(
-            "SELECT COUNT(*) as cnt FROM staging.contratos"
-        ).fetchone()[0]
-        # TODO: Use Ibis table expressions: con.table("staging.atas").count().execute()
-        atas_count = con.raw_sql("SELECT COUNT(*) as cnt FROM staging.atas").fetchone()[
-            0
-        ]
+        contratacoes_count = con.table("staging.contratacoes").count().execute()
+        contratos_count = con.table("staging.contratos").count().execute()
+        atas_count = con.table("staging.atas").count().execute()
 
         duration = (datetime.now() - start_time).total_seconds()
 
