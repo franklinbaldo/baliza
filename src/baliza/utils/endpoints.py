@@ -97,6 +97,27 @@ class DateRangeHelper:
         return cls.format_date(start_date), cls.format_date(end_date)
 
     @classmethod
+    def get_month_range_from_string(cls, year_month: str) -> Tuple[str, str]:
+        """Get date range for specific month (YYYY-MM format)
+        
+        Args:
+            year_month: Month in YYYY-MM format (e.g., '2021-10')
+            
+        Returns:
+            Tuple of (start_date, end_date) in YYYYMMDD format
+        """
+        import calendar
+        
+        try:
+            year, month = map(int, year_month.split("-"))
+            start_date = date(year, month, 1)
+            last_day = calendar.monthrange(year, month)[1]
+            end_date = date(year, month, last_day)
+            return cls.format_date(start_date), cls.format_date(end_date)
+        except (ValueError, IndexError) as e:
+            raise ValueError(f"Invalid month format '{year_month}'. Use YYYY-MM format.") from e
+
+    @classmethod
     def get_month_range(cls, year: int, month: int) -> Tuple[str, str]:
         """Get date range for a specific month"""
         import calendar

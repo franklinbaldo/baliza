@@ -352,20 +352,37 @@ async def extract_atas(
 
 @flow(name="extract_phase_2a_concurrent", log_prints=True)
 async def extract_phase_2a_concurrent(
-    date_range_days: int = 7,
+    date_range_days: Optional[int] = None,
+    data_inicial: Optional[str] = None,
+    data_final: Optional[str] = None,
     modalidades: Optional[List[ModalidadeContratacao]] = None,
     concurrent: bool = True,
 ) -> Dict[str, Any]:
     """
     Extract data from Phase 2A endpoints with concurrent processing
     This is the main extraction flow for MVP
+    
+    Args:
+        date_range_days: Number of days back from today (deprecated, use data_inicial/data_final)
+        data_inicial: Start date in YYYYMMDD format
+        data_final: End date in YYYYMMDD format
+        modalidades: List of modalidades to extract
+        concurrent: Whether to run extraction concurrently
     """
     logger = get_run_logger()
     execution_id = str(uuid4())
     start_time = datetime.now()
 
-    # Generate date range
-    data_inicial, data_final = DateRangeHelper.get_last_n_days(date_range_days)
+    # Generate date range - prefer specific dates over days back
+    if data_inicial and data_final:
+        # Use specific date range
+        pass
+    elif date_range_days:
+        # Fallback to days back (legacy behavior)
+        data_inicial, data_final = DateRangeHelper.get_last_n_days(date_range_days)
+    else:
+        # Default to last 7 days
+        data_inicial, data_final = DateRangeHelper.get_last_n_days(7)
 
     # Use high priority modalidades if not specified
     if modalidades is None:

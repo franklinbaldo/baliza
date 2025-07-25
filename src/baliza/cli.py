@@ -17,10 +17,15 @@ app = typer.Typer()
 console = Console()
 
 
-def _run_extraction(days: int):
+def _run_extraction(days: int = None, data_inicial: str = None, data_final: str = None):
     """Helper function to run the extraction part of the pipeline."""
     console.print("📥 Etapa 1: Extração (Raw Layer)")
-    console.print(f"📅 Extraindo dados dos últimos {days} dias...")
+    
+    if data_inicial and data_final:
+        console.print(f"📅 Extraindo dados de {data_inicial} a {data_final}...")
+    else:
+        console.print(f"📅 Extraindo dados dos últimos {days} dias...")
+        
     # Use ALL modalidades for complete ETL run
     from .enums import ModalidadeContratacao
     all_modalidades = [modalidade.value for modalidade in ModalidadeContratacao]
@@ -28,6 +33,8 @@ def _run_extraction(days: int):
     result = asyncio.run(
         extract_phase_2a_concurrent(
             date_range_days=days,
+            data_inicial=data_inicial,
+            data_final=data_final,
             modalidades=all_modalidades,
             concurrent=True,
         )
@@ -83,16 +90,17 @@ def run(
     """Executa o pipeline de ETL completo (raw -> staging -> marts)."""
     console.print("🚀 Executando o pipeline completo...")
     try:
-        if latest:
-            days = 30
-        elif mes:
-            days = _get_days_from_month(mes)
+        if mes:
+            # Extract specific month data
+            from .utils.endpoints import DateRangeHelper
+            data_inicial, data_final = DateRangeHelper.get_month_range_from_string(mes)
+            _run_extraction(data_inicial=data_inicial, data_final=data_final)
+        elif latest:
+            _run_extraction(days=30)
         elif dia:
-            days = 1
+            _run_extraction(days=1)
         else:
-            days = 7
-
-        _run_extraction(days)
+            _run_extraction(days=7)
         _run_staging()
         _run_marts()
 
