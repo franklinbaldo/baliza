@@ -6,6 +6,7 @@ import pytest
 from datetime import date
 from unittest.mock import patch
 
+from src.baliza.enums import ModalidadeContratacao
 from src.baliza.utils.endpoints import (
     build_contratacao_url,
     build_contratos_url,
@@ -23,15 +24,15 @@ class TestURLBuilder:
     def test_build_contratacoes_url(self):
         """Test building contratacoes URL with all parameters"""
         url = build_contratacao_url(
-            data_inicial="2024-01-01",
-            data_final="2024-01-31",
-            modalidade=1,
+            data_inicial="20240101",
+            data_final="20240131",
+            modalidade=ModalidadeContratacao.LEILAO_ELETRONICO,
             pagina=1,
         )
 
         expected = (
             "https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao"
-            "?dataInicial=2024-01-01&dataFinal=2024-01-31"
+            "?dataInicial=20240101&dataFinal=20240131"
             "&codigoModalidadeContratacao=1&pagina=1"
         )
         assert url == expected
@@ -39,24 +40,24 @@ class TestURLBuilder:
     def test_build_contratos_url(self):
         """Test building contratos URL"""
         url = build_contratos_url(
-            data_inicial="2024-01-01", data_final="2024-01-31", pagina=2
+            data_inicial="20240101", data_final="20240131", pagina=2
         )
 
         expected = (
             "https://pncp.gov.br/api/consulta/v1/contratos"
-            "?dataInicial=2024-01-01&dataFinal=2024-01-31&pagina=2"
+            "?dataInicial=20240101&dataFinal=20240131&pagina=2"
         )
         assert url == expected
 
     def test_build_atas_url(self):
         """Test building atas URL"""
         url = build_atas_url(
-            data_inicial="2024-01-01", data_final="2024-01-31", pagina=3
+            data_inicial="20240101", data_final="20240131", pagina=3
         )
 
         expected = (
             "https://pncp.gov.br/api/consulta/v1/atas"
-            "?dataInicial=2024-01-01&dataFinal=2024-01-31&pagina=3"
+            "?dataInicial=20240101&dataFinal=20240131&pagina=3"
         )
         assert url == expected
 

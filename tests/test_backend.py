@@ -17,6 +17,6 @@ def test_connect_uses_duckdb_connect(mocker):
     fake_conn = mocker.Mock()
     mocked_connect = mocker.patch("ibis.duckdb.connect", return_value=fake_conn)
     conn = connect()
-    mocked_connect.assert_called_once_with(settings.DATABASE_PATH)
+    mocked_connect.assert_called_once_with(settings.database_path)
     assert conn is fake_conn
     assert fake_conn.raw_sql.call_count >= 4
