@@ -10,6 +10,7 @@ class Settings(BaseSettings):
 
     # Database Configuration
     DATABASE_PATH: str = "data/baliza.duckdb"
+    TEMP_DIRECTORY: str = "data/tmp"
 
     # Rate Limiting (PNCP has no explicit rate limits - using conservative approach)
     REQUESTS_PER_MINUTE: int = 120  # Increased - no explicit limits found
