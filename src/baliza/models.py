@@ -1,12 +1,14 @@
 from pydantic import BaseModel
 from typing import List, Optional
 
+
 class RespostaErroValidacaoDTO(BaseModel):
     message: Optional[str] = None
     path: Optional[str] = None
     timestamp: Optional[str] = None
     status: Optional[str] = None
     error: Optional[str] = None
+
 
 class PlanoContratacaoItemDTO(BaseModel):
     nomeClassificacaoCatalogo: Optional[str] = None
@@ -31,6 +33,7 @@ class PlanoContratacaoItemDTO(BaseModel):
     categoriaItemPcaNome: Optional[str] = None
     classificacaoCatalogoId: Optional[int] = None
 
+
 class PlanoContratacaoComItensDoUsuarioDTO(BaseModel):
     itens: Optional[List[PlanoContratacaoItemDTO]] = None
     codigoUnidade: Optional[str] = None
@@ -42,6 +45,7 @@ class PlanoContratacaoComItensDoUsuarioDTO(BaseModel):
     orgaoEntidadeCnpj: Optional[str] = None
     orgaoEntidadeRazaoSocial: Optional[str] = None
 
+
 class PaginaRetornoPlanoContratacaoComItensDoUsuarioDTO(BaseModel):
     data: Optional[List[PlanoContratacaoComItensDoUsuarioDTO]] = None
     totalRegistros: Optional[int] = None
@@ -50,22 +54,26 @@ class PaginaRetornoPlanoContratacaoComItensDoUsuarioDTO(BaseModel):
     paginasRestantes: Optional[int] = None
     empty: Optional[bool] = None
 
+
 class ContratacaoFonteOrcamentariaDTO(BaseModel):
     codigo: Optional[int] = None
     nome: Optional[str] = None
     descricao: Optional[str] = None
     dataInclusao: Optional[str] = None
 
+
 class RecuperarAmparoLegalDTO(BaseModel):
     descricao: Optional[str] = None
     nome: Optional[str] = None
     codigo: Optional[int] = None
+
 
 class RecuperarOrgaoEntidadeDTO(BaseModel):
     cnpj: Optional[str] = None
     poderId: Optional[str] = None
     esferaId: Optional[str] = None
     razaoSocial: Optional[str] = None
+
 
 class RecuperarUnidadeOrgaoDTO(BaseModel):
     ufNome: Optional[str] = None
@@ -74,6 +82,7 @@ class RecuperarUnidadeOrgaoDTO(BaseModel):
     ufSigla: Optional[str] = None
     municipioNome: Optional[str] = None
     codigoIbge: Optional[str] = None
+
 
 class RecuperarCompraDTO(BaseModel):
     valorTotalEstimado: Optional[float] = None
@@ -115,9 +124,11 @@ class RecuperarCompraDTO(BaseModel):
     dataAtualizacaoGlobal: Optional[str] = None
     usuarioNome: Optional[str] = None
 
+
 class Categoria(BaseModel):
     id: Optional[int] = None
     nome: Optional[str] = None
+
 
 class NotaFiscalEletronicaConsultaDTO(BaseModel):
     instrumentoCobrancaId: Optional[int] = None
@@ -138,8 +149,9 @@ class NotaFiscalEletronicaConsultaDTO(BaseModel):
     dataTipoEventoMaisRecente: Optional[str] = None
     dataInclusao: Optional[str] = None
     dataAtualizacao: Optional[str] = None
-    itens: Optional[List['ItemNotaFiscalConsultaDTO']] = None
-    eventos: Optional[List['EventoNotaFiscalConsultaDTO']] = None
+    itens: Optional[List["ItemNotaFiscalConsultaDTO"]] = None
+    eventos: Optional[List["EventoNotaFiscalConsultaDTO"]] = None
+
 
 class ItemNotaFiscalConsultaDTO(BaseModel):
     numeroItem: Optional[str] = None
@@ -152,11 +164,13 @@ class ItemNotaFiscalConsultaDTO(BaseModel):
     valorUnitario: Optional[str] = None
     valorTotal: Optional[str] = None
 
+
 class EventoNotaFiscalConsultaDTO(BaseModel):
     dataEvento: Optional[str] = None
     tipoEvento: Optional[str] = None
     evento: Optional[str] = None
     motivoEvento: Optional[str] = None
+
 
 class TipoInstrumentoCobrancaDTO(BaseModel):
     id: Optional[int] = None
@@ -165,6 +179,7 @@ class TipoInstrumentoCobrancaDTO(BaseModel):
     dataInclusao: Optional[str] = None
     dataAtualizacao: Optional[str] = None
     statusAtivo: Optional[bool] = None
+
 
 class ConsultarInstrumentoCobrancaDTO(BaseModel):
     cnpj: Optional[str] = None
@@ -183,7 +198,8 @@ class ConsultarInstrumentoCobrancaDTO(BaseModel):
     notaFiscalEletronica: Optional[NotaFiscalEletronicaConsultaDTO] = None
     dataInclusao: Optional[str] = None
     dataAtualizacao: Optional[str] = None
-    recuperarContratoDTO: Optional['RecuperarContratoDTO'] = None
+    recuperarContratoDTO: Optional["RecuperarContratoDTO"] = None
+
 
 class PaginaRetornoConsultarInstrumentoCobrancaDTO(BaseModel):
     data: Optional[List[ConsultarInstrumentoCobrancaDTO]] = None
@@ -193,9 +209,11 @@ class PaginaRetornoConsultarInstrumentoCobrancaDTO(BaseModel):
     paginasRestantes: Optional[int] = None
     empty: Optional[bool] = None
 
+
 class TipoContrato(BaseModel):
     id: Optional[int] = None
     nome: Optional[str] = None
+
 
 class RecuperarContratoDTO(BaseModel):
     codigoPaisFornecedor: Optional[str] = None
@@ -236,6 +254,7 @@ class RecuperarContratoDTO(BaseModel):
     urlCipi: Optional[str] = None
     usuarioNome: Optional[str] = None
 
+
 class PaginaRetornoRecuperarContratoDTO(BaseModel):
     data: Optional[List[RecuperarContratoDTO]] = None
     totalRegistros: Optional[int] = None
@@ -243,6 +262,7 @@ class PaginaRetornoRecuperarContratoDTO(BaseModel):
     numeroPagina: Optional[int] = None
     paginasRestantes: Optional[int] = None
     empty: Optional[bool] = None
+
 
 class RecuperarCompraPublicacaoDTO(BaseModel):
     numeroControlePNCP: Optional[str] = None
@@ -280,6 +300,7 @@ class RecuperarCompraPublicacaoDTO(BaseModel):
     situacaoCompraNome: Optional[str] = None
     usuarioNome: Optional[str] = None
 
+
 class PaginaRetornoRecuperarCompraPublicacaoDTO(BaseModel):
     data: Optional[List[RecuperarCompraPublicacaoDTO]] = None
     totalRegistros: Optional[int] = None
@@ -287,6 +308,7 @@ class PaginaRetornoRecuperarCompraPublicacaoDTO(BaseModel):
     numeroPagina: Optional[int] = None
     paginasRestantes: Optional[int] = None
     empty: Optional[bool] = None
+
 
 class AtaRegistroPrecoPeriodoDTO(BaseModel):
     numeroControlePNCPAta: Optional[str] = None
@@ -312,6 +334,7 @@ class AtaRegistroPrecoPeriodoDTO(BaseModel):
     nomeUnidadeOrgao: Optional[str] = None
     codigoUnidadeOrgaoSubrogado: Optional[str] = None
     nomeUnidadeOrgaoSubrogado: Optional[str] = None
+
 
 class PaginaRetornoAtaRegistroPrecoPeriodoDTO(BaseModel):
     data: Optional[List[AtaRegistroPrecoPeriodoDTO]] = None

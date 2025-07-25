@@ -10,17 +10,17 @@ import sys
 import os
 from pathlib import Path
 
+from baliza.utils.http_client import PNCPClient
+from baliza.utils.endpoints import URLBuilder, DateRangeHelper
+from baliza.enums import ModalidadeContratacao, get_enum_by_value
+from baliza.config import settings
+
 # Add src to path to import our modules
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
 # Set PYTHONPATH for imports
 os.environ["PYTHONPATH"] = str(project_root / "src")
-
-from baliza.utils.http_client import PNCPClient
-from baliza.utils.endpoints import URLBuilder, DateRangeHelper
-from baliza.enums import ModalidadeContratacao, get_enum_by_value
-from baliza.config import settings
 
 
 async def collect_contratacoes_publicacao_fixture():

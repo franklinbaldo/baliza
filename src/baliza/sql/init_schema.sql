@@ -16,13 +16,18 @@ CREATE TABLE IF NOT EXISTS raw.api_requests (
     etag               TEXT,
     payload_sha256     VARCHAR(64) NOT NULL,
     payload_size       INT NOT NULL,
-    payload_compressed BLOB NOT NULL,
     collected_at       TIMESTAMPTZ NOT NULL,
     
     -- Constraints
     UNIQUE(endpoint, collected_at),
     CHECK(http_status >= 100 AND http_status < 600),
     CHECK(payload_size > 0)
+);
+
+CREATE TABLE IF NOT EXISTS raw.hot_payloads (
+    payload_sha256     VARCHAR(64) PRIMARY KEY,
+    payload_compressed BLOB NOT NULL,
+    first_seen_at      TIMESTAMPTZ NOT NULL
 );
 
 -- Indexes for performance

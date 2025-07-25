@@ -73,7 +73,6 @@ class TestAPIRequest:
             etag="test_etag",
             payload_sha256="abc123",
             payload_size=1024,
-            payload_compressed=b"test_data",
         )
 
         assert request.endpoint == "test_endpoint"
@@ -189,11 +188,14 @@ class TestPNCPClient:
         with patch("httpx.AsyncClient.get", return_value=mock_response):
             client = PNCPClient()
 
-            result = await client.fetch_endpoint_data("test", "https://test.com/api")
+            api_request, payload_compressed = await client.fetch_endpoint_data(
+                "test", "https://test.com/api"
+            )
 
-            assert result.http_status == 200
-            assert result.etag == "test_etag"
-            assert result.payload_size > 0
+            assert api_request.http_status == 200
+            assert api_request.etag == "test_etag"
+            assert api_request.payload_size > 0
+            assert payload_compressed is not None
 
     async def test_circuit_breaker_open(self, mock_get_run_logger):
         """Test circuit breaker prevents requests when open"""
@@ -265,8 +267,10 @@ class TestEndpointExtractor:
             )
 
             assert len(results) >= 1
-            assert all(r.endpoint == "contratacoes_publicacao" for r in results)
-            assert all(r.http_status == 200 for r in results)
+            assert all(
+                r[0].endpoint == "contratacoes_publicacao" for r in results
+            )
+            assert all(r[0].http_status == 200 for r in results)
 
     async def test_extract_contratos(self, mock_get_run_logger):
         """Test contratos extraction"""
@@ -290,8 +294,8 @@ class TestEndpointExtractor:
             )
 
             assert len(results) >= 1
-            assert all(r.endpoint == "contratos" for r in results)
-            assert all(r.http_status == 200 for r in results)
+            assert all(r[0].endpoint == "contratos" for r in results)
+            assert all(r[0].http_status == 200 for r in results)
 
     async def test_pagination_handling(self, mock_get_run_logger):
         """Test pagination is handled correctly"""

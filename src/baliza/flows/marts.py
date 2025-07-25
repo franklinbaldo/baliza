@@ -30,6 +30,9 @@ def create_marts_schema() -> bool:
         raise
 
 
+import ibis
+
+
 @task(name="create_summary_table", retries=1)
 def create_summary_table() -> bool:
     """Create extraction summary mart table"""
@@ -37,11 +40,25 @@ def create_summary_table() -> bool:
 
     try:
         con = connect()
+        api_requests = con.table("raw.api_requests")
 
-        # Create summary table using external SQL file
-        # TODO: Replace SQL file with Ibis CTAS (CREATE TABLE AS SELECT) expression
-        # FIXME: Should use Ibis aggregation expressions instead of raw SQL
-        con.raw_sql(load_sql_file("marts_extraction_summary.sql"))
+        extraction_summary = (
+            api_requests.filter(api_requests.http_status == 200)
+            .group_by(["ingestion_date", "endpoint"])
+            .aggregate(
+                request_count=ibis._.count(),
+                total_bytes=ibis._.payload_size.sum(),
+                total_mb=(ibis._.payload_size.sum() / 1024 / 1024).round(2),
+                first_extraction=ibis._.collected_at.min(),
+                last_extraction=ibis._.collected_at.max(),
+                unique_payloads=ibis._.payload_sha256.nunique(),
+            )
+            .order_by([ibis.desc("ingestion_date"), "endpoint"])
+        )
+
+        con.create_table(
+            "marts.extraction_summary", extraction_summary, overwrite=True
+        )
         logger.info("Created marts.extraction_summary table")
 
         return True
@@ -58,11 +75,36 @@ def create_data_quality_table() -> bool:
 
     try:
         con = connect()
+        api_requests = con.table("raw.api_requests")
 
-        # Create data quality table using external SQL file
-        # TODO: Replace SQL file with Ibis expressions for data quality metrics
-        # FIXME: Should use Ibis statistical functions and aggregations
-        con.raw_sql(load_sql_file("marts_data_quality.sql"))
+        data_quality = (
+            api_requests.group_by(
+                date=api_requests.collected_at.truncate("D"), endpoint="endpoint"
+            )
+            .aggregate(
+                total_requests=ibis._.count(),
+                successful_requests=(
+                    ibis.case().when(api_requests.http_status == 200, 1).else_(0)
+                ).sum(),
+                failed_requests=(
+                    ibis.case().when(api_requests.http_status != 200, 1).else_(0)
+                ).sum(),
+                avg_payload_size=ibis._.payload_size.mean(),
+                min_payload_size=ibis._.payload_size.min(),
+                max_payload_size=ibis._.payload_size.max(),
+                unique_payloads=ibis._.payload_sha256.nunique(),
+            )
+            .mutate(
+                success_rate_pct=(
+                    ibis._.successful_requests * 100.0 / ibis._.total_requests
+                ).round(2),
+                duplicate_payloads=ibis._.total_requests
+                - ibis._.unique_payloads,
+            )
+            .order_by([ibis.desc("date"), "endpoint"])
+        )
+
+        con.create_table("marts.data_quality", data_quality, overwrite=True)
         logger.info("Created marts.data_quality table")
 
         return True
@@ -92,15 +134,8 @@ def marts_creation() -> Dict[str, Any]:
 
         # Get mart table counts for verification
         con = connect()
-        # TODO: Replace raw SQL with Ibis table expressions for type safety
-        # FIXME: Should use con.table("marts.extraction_summary").count().execute()
-        summary_count = con.raw_sql(
-            "SELECT COUNT(*) as cnt FROM marts.extraction_summary"
-        ).fetchone()[0]
-        # TODO: Use Ibis: con.table("marts.data_quality").count().execute()
-        quality_count = con.raw_sql(
-            "SELECT COUNT(*) as cnt FROM marts.data_quality"
-        ).fetchone()[0]
+        summary_count = con.table("marts.extraction_summary").count().execute()
+        quality_count = con.table("marts.data_quality").count().execute()
 
         duration = (datetime.now() - start_time).total_seconds()
 
