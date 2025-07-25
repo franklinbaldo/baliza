@@ -1,8 +1,8 @@
 # Baliza Project - Critical Analysis & Recommendations
 
-**Date:** July 24, 2025  
-**Analyst:** Claude Code  
-**Project:** Baliza ETL Pipeline for PNCP Data  
+**Date:** July 24, 2025
+**Analyst:** Claude Code
+**Project:** Baliza ETL Pipeline for PNCP Data
 
 ## Executive Summary
 
@@ -165,7 +165,7 @@ for api_request in api_requests:
 
 ### 1. Implement Missing CLI Commands
 
-**Priority:** HIGH  
+**Priority:** HIGH
 **Effort:** 2-3 days
 
 ```python
@@ -185,7 +185,7 @@ def doctor():
 
 ### 2. Optimize Data Storage Pattern
 
-**Priority:** MEDIUM  
+**Priority:** MEDIUM
 **Effort:** 1-2 days
 
 ```python
@@ -198,14 +198,14 @@ def batch_store_api_requests(api_requests: List[APIRequest]) -> bool:
 
 ### 3. Add Comprehensive Error Handling
 
-**Priority:** HIGH  
+**Priority:** HIGH
 **Effort:** 1 day
 
 Add proper error recovery, user-friendly error messages, and graceful degradation patterns.
 
 ### 4. Implement Security Controls
 
-**Priority:** HIGH  
+**Priority:** HIGH
 **Effort:** 2-3 days
 
 - Input validation and sanitization
@@ -240,7 +240,7 @@ Add proper error recovery, user-friendly error messages, and graceful degradatio
 - Integration tests for database operations
 - Mock PNCP API for testing
 
-### 3. Documentation  
+### 3. Documentation
 - Complete API documentation
 - Add architectural decision records (ADRs)
 - Create operational runbooks
@@ -294,7 +294,7 @@ con.table("raw.api_requests").insert(df)
    - Current: External SQL files with GROUP BY, SUM, etc.
    - Ibis: `.group_by().aggregate()` with type-safe expressions
 
-3. **Data Quality Metrics** 
+3. **Data Quality Metrics**
    - Current: Manual SQL calculations
    - Ibis: Built-in statistical functions (`.mean()`, `.std()`, `.quantile()`)
 
@@ -329,14 +329,14 @@ See `examples/ibis_examples.py` for comprehensive examples of:
 
 **Files Requiring Ibis Migration:**
 - `flows/staging.py`: 6 raw SQL operations
-- `flows/marts.py`: 5 raw SQL operations  
+- `flows/marts.py`: 5 raw SQL operations
 - `flows/raw.py`: 4 raw SQL operations
 - `backend.py`: 3 raw SQL operations
 - SQL files: 10 files that should be Ibis expressions
 
 **Recommended Migration Priority:**
 1. **High**: Table counting and basic aggregations (easy wins)
-2. **Medium**: View creation and CTAS operations  
+2. **Medium**: View creation and CTAS operations
 3. **Medium**: Bulk insert optimization
 4. **Low**: Complex analytics queries (if working correctly)
 
@@ -349,7 +349,7 @@ The technical debt is manageable and mostly concentrated in the CLI layer and un
 **Recommended Next Steps:**
 1. Complete CLI command implementations (highest priority)
 2. Migrate raw SQL operations to Ibis expressions (medium priority)
-3. Optimize data storage patterns  
+3. Optimize data storage patterns
 4. Implement comprehensive testing
 5. Add security controls
 6. Enhance monitoring and observability

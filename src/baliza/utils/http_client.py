@@ -103,8 +103,8 @@ class PNCPClient:
         self.client = httpx.AsyncClient(**client_config)
 
     async def fetch_endpoint_data(
-        self, endpoint_name: str, url: str, params: Dict[str, Any] = None
-    ) -> (APIRequest, bytes):
+        self, endpoint_name: str, url: str, params: Optional[Dict[str, Any]] = None
+    ) -> tuple[APIRequest, bytes]:
         """Fetch data from PNCP endpoint with resilience patterns"""
 
         modalidade_code = params.get("codigoModalidadeContratacao") if params else None
@@ -143,14 +143,14 @@ class PNCPClient:
 
     async def _make_request_with_circuit_breaker(
         self, url: str, metadata: RequestMetadata
-    ) -> (APIRequest, bytes):
+    ) -> tuple[APIRequest, bytes]:
         """Make HTTP request with circuit breaker protection"""
 
         return await self.circuit_breaker.call(self._make_http_request, url, metadata)
 
     async def _make_http_request(
         self, url: str, metadata: RequestMetadata
-    ) -> (APIRequest, bytes):
+    ) -> tuple[APIRequest, bytes]:
         """Make actual HTTP request"""
 
         start_time = datetime.now()
@@ -217,7 +217,7 @@ class PNCPClient:
         response: httpx.Response,
         payload_json: Dict[str, Any],
         pncp_response: PNCPResponse,
-    ) -> (APIRequest, bytes):
+    ) -> tuple[APIRequest, bytes]:
         """Create APIRequest model from response data"""
 
         # Serialize and compress payload
@@ -255,7 +255,7 @@ class PNCPClient:
 class EndpointExtractor:
     """High-level interface for extracting data from PNCP endpoints"""
 
-    def __init__(self, client: PNCPClient = None):
+    def __init__(self, client: Optional[PNCPClient] = None):
         self.client = client or PNCPClient()
         self.logger = get_run_logger()
 

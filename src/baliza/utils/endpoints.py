@@ -13,9 +13,9 @@ from ..enums import ModalidadeContratacao
 class URLBuilder:
     """Builds PNCP API endpoint URLs with proper parameters"""
 
-    _config_cache = None
+    _config_cache: Optional[Dict] = None
 
-    def __init__(self, base_url: str = None):
+    def __init__(self, base_url: Optional[str] = None):
         self.pncp_settings = PNCPAPISettings()
         self.base_url = base_url or self.pncp_settings.base_url
         if URLBuilder._config_cache is None:
@@ -23,6 +23,8 @@ class URLBuilder:
 
     def build_url(self, endpoint_name: str, **params) -> str:
         """Build complete URL for endpoint with parameters"""
+        if URLBuilder._config_cache is None:
+            URLBuilder._config_cache = ENDPOINT_CONFIG
         config = URLBuilder._config_cache.get(endpoint_name)
         if not config:
             raise ValueError(f"Unknown endpoint: {endpoint_name}")
@@ -51,9 +53,11 @@ class URLBuilder:
 
         return url
 
-    def get_endpoint_config(self, endpoint_name: str) -> Dict:
+    def get_endpoint_config(self, endpoint_name: str) -> Optional[Dict]:
         """Get configuration for specific endpoint"""
-        return ENDPOINT_CONFIG.get(endpoint_name, {})
+        if ENDPOINT_CONFIG is None:
+            return None
+        return ENDPOINT_CONFIG.get(endpoint_name)
 
 
 class DateRangeHelper:
@@ -192,7 +196,7 @@ class PaginationHelper:
     @staticmethod
     def get_page_size(endpoint_name: str, requested_size: Optional[int] = None) -> int:
         """Get appropriate page size for endpoint"""
-        config = ENDPOINT_CONFIG.get(endpoint_name, {})
+        config: Dict = ENDPOINT_CONFIG.get(endpoint_name, {})
         limits = config.get("page_size_limits", {"min": 10, "max": 500})
         default_size = config.get("default_page_size", 500)
 
@@ -278,7 +282,7 @@ class EndpointValidator:
         if page < 1:
             raise ValueError("Page number must be >= 1")
 
-        config = ENDPOINT_CONFIG.get(endpoint_name, {})
+        config: Dict = ENDPOINT_CONFIG.get(endpoint_name, {})
         limits = config.get("page_size_limits", {"min": 10, "max": 500})
 
         if page_size < limits["min"] or page_size > limits["max"]:
@@ -302,7 +306,10 @@ class EndpointValidator:
             model(**params)
             return {"valid": True, "errors": []}
         except Exception as e:
-            return {"valid": False, "errors": e.errors()}
+            return {
+                "valid": False,
+                "errors": e.errors() if hasattr(e, "errors") else str(e),
+            }
 
 
 # Convenience functions for common operations

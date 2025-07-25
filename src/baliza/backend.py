@@ -10,8 +10,11 @@ from .utils.io import load_sql_file
 logger = get_logger(__name__)
 
 
+from typing import Optional
+
+
 def execute_sql_file(
-    con: Backend, filename: str, params: Dict[str, Any] = None
+    con: Backend, filename: str, params: Optional[Dict[str, Any]] = None
 ) -> None:
     """Execute SQL file with optional parameter substitution"""
     sql_template = load_sql_file(filename)
@@ -44,7 +47,7 @@ def connect() -> Backend:
     return con
 
 
-def init_database_schema(con: Backend = None) -> None:
+def init_database_schema(con: Optional[Backend] = None) -> None:
     """Initialize database schema using external SQL file"""
 
     if con is None:
@@ -55,7 +58,7 @@ def init_database_schema(con: Backend = None) -> None:
     logger.info("Database schema initialized successfully")
 
 
-def get_table_stats(con: Backend = None) -> List[Dict[str, Any]]:
+def get_table_stats(con: Optional[Backend] = None) -> List[Dict[str, Any]]:
     """Get statistics for all tables using Ibis expressions"""
 
     if con is None:
@@ -89,7 +92,7 @@ def get_table_stats(con: Backend = None) -> List[Dict[str, Any]]:
 
 
 def cleanup_old_data(
-    con: Backend = None, days_to_keep: int = 90, failed_days_to_keep: int = 30
+    con: Optional[Backend] = None, days_to_keep: int = 90, failed_days_to_keep: int = 30
 ) -> None:
     """Cleanup old data based on retention policy using Ibis expressions"""
 
@@ -124,7 +127,7 @@ def cleanup_old_data(
         logger.error(f"Error cleaning up old data: {e}")
 
 
-def vacuum_database(con: Backend = None) -> None:
+def vacuum_database(con: Optional[Backend] = None) -> None:
     """Optimize database by running VACUUM"""
 
     if con is None:

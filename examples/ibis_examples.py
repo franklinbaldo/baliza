@@ -19,17 +19,20 @@ def example_current_vs_ibis_approach():
     ).fetchone()[0]
 
     # 2. Getting table stats (current)
-    raw_stats = con.raw_sql("""
-        SELECT 
+    raw_stats = con.raw_sql(
+        """
+        SELECT
             table_name,
             COUNT(*) as row_count,
             SUM(payload_size) as total_bytes
-        FROM raw.api_requests 
+        FROM raw.api_requests
         GROUP BY table_name
-    """).fetchall()
+    """
+    ).fetchall()
 
     # 3. Creating aggregated table (current)
-    con.raw_sql("""
+    con.raw_sql(
+        """
         CREATE OR REPLACE TABLE marts.extraction_summary AS
         SELECT
             ingestion_date,
@@ -39,7 +42,8 @@ def example_current_vs_ibis_approach():
         FROM raw.api_requests
         WHERE http_status = 200
         GROUP BY ingestion_date, endpoint
-    """)
+    """
+    )
 
     # ===== RECOMMENDED IBIS APPROACH =====
 

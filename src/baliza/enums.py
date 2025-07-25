@@ -369,16 +369,21 @@ class IndicadorOrcamentoSigiloso(str, Enum):
     COMPRA_TOTALMENTE_SIGILOSA = "COMPRA_TOTALMENTE_SIGILOSA"
 
 
+from typing import Type, Any, Dict, List, Union, Optional
+
+
 # Enum utilities (mantidas para possíveis usos futuros ou compatibilidade)
-def get_enum_by_value(enum_class: type[Enum], value: int | str) -> Enum | None:
+def get_enum_by_value(enum_class: Type[Enum], value: Union[int, str]) -> Optional[Enum]:
     """Get enum member by value, returning None if not found."""
     try:
         return enum_class(value)
-    except ValueError:
+    except (ValueError, TypeError):
         return None
 
 
-def get_enum_name_by_value(enum_class: type[Enum], value: int | str) -> str | None:
+def get_enum_name_by_value(
+    enum_class: Type[Enum], value: Union[int, str]
+) -> Optional[str]:
     """Get enum member name by value, returning None if not found."""
     enum_member = get_enum_by_value(enum_class, value)
     return enum_member.name if enum_member else None
@@ -389,12 +394,12 @@ def validate_enum_value(enum_class: type[Enum], value: int | str) -> bool:
     return get_enum_by_value(enum_class, value) is not None
 
 
-def get_enum_values(enum_class: type[Enum]) -> list[int | str]:
+def get_enum_values(enum_class: Type[Enum]) -> List[Union[int, str]]:
     """Get all values from an enum class."""
     return [member.value for member in enum_class]
 
 
-def get_enum_choices(enum_class: type[Enum]) -> dict[int | str, str]:
+def get_enum_choices(enum_class: Type[Enum]) -> Dict[Union[int, str], str]:
     """Get all enum values with their names as a dictionary."""
     return {member.value: member.name for member in enum_class}
 
@@ -453,27 +458,33 @@ class TipoEventoNotaFiscal(str, Enum):
 ENUM_REGISTRY["TipoEventoNotaFiscal"] = TipoEventoNotaFiscal
 
 
-def get_enum_by_name(enum_name: str) -> type[Enum] | None:
+def get_enum_by_name(enum_name: str) -> Optional[Type[Enum]]:
     """Get enum class by name."""
-    return ENUM_REGISTRY.get(enum_name)
+    return ENUM_REGISTRY.get(enum_name)  # type: ignore
 
 
-def get_all_enum_metadata() -> dict[str, dict[str, str | list[dict[str, int | str]]]]:
+def get_all_enum_metadata() -> Dict[str, Dict[str, Any]]:
     """Get metadata for all enums in the registry."""
-    metadata = {}
+    metadata: Dict[str, Dict[str, Any]] = {}
 
     for enum_name, enum_class in ENUM_REGISTRY.items():
-        metadata[enum_name] = {
-            "name": enum_name,
-            "description": f"Enum for {enum_name.replace('_', ' ').lower()}",
-            "values": [
+        values_list: List[Dict[str, Any]] = []
+        for member in enum_class:
+            values_list.append(
                 {
                     "value": member.value,
                     "name": member.name,
-                    "description": get_enum_description(enum_class, member.value),
+                    "description": get_enum_description(
+                        enum_class,
+                        member.value,  # type: ignore
+                    ),
                 }
-                for member in enum_class
-            ],
+            )
+
+        metadata[enum_name] = {
+            "name": enum_name,
+            "description": f"Enum for {enum_name.replace('_', ' ').lower()}",
+            "values": values_list,
         }
 
     return metadata

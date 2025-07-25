@@ -33,10 +33,13 @@ class CircuitBreakerError(Exception):
     pass
 
 
+from typing import List
+
+
 class CircuitBreaker:
     """Circuit breaker with adaptive behavior for PNCP API"""
 
-    def __init__(self, config: CircuitBreakerConfig = None):
+    def __init__(self, config: Optional[CircuitBreakerConfig] = None):
         self.config = config or CircuitBreakerConfig()
         self.state = CircuitState.CLOSED
         self.failure_count = 0
@@ -114,7 +117,7 @@ class AdaptiveRateLimiter:
 
     def __init__(self, requests_per_minute: int = 120):
         self.requests_per_minute = requests_per_minute
-        self.request_times = []
+        self.request_times: List[datetime] = []
         self.adaptive_factor = 1.0  # 1.0 = normal, < 1.0 = reduced rate
         self.last_adaptive_check = datetime.now()
 
@@ -178,7 +181,7 @@ async def retry_with_backoff(
 ):
     """Execute function with exponential backoff retry"""
 
-    last_exception = None
+    last_exception: Optional[Exception] = None
 
     for attempt in range(config.max_attempts):
         try:
@@ -207,4 +210,6 @@ async def retry_with_backoff(
             await asyncio.sleep(delay)
 
     # All attempts failed
-    raise last_exception
+    if last_exception:
+        raise last_exception
+    raise RuntimeError("Retry failed without an exception")

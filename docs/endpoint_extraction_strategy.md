@@ -19,7 +19,7 @@ PHASE_2A_ENDPOINTS = {
     },
     "contratos": {
         "path": "/v1/contratos",
-        "method": "GET", 
+        "method": "GET",
         "priority": 2,
         "schedule": "daily",
         "required_params": ["dataInicial", "dataFinal", "pagina"],
@@ -31,7 +31,7 @@ PHASE_2A_ENDPOINTS = {
     "atas": {
         "path": "/v1/atas",
         "method": "GET",
-        "priority": 3, 
+        "priority": 3,
         "schedule": "daily",
         "required_params": ["dataInicial", "dataFinal", "pagina"],
         "optional_params": ["idUsuario", "cnpj", "codigoUnidadeAdministrativa"],
@@ -63,7 +63,7 @@ PHASE_2B_SYNC_ENDPOINTS = {
         "required_params": ["dataInicial", "dataFinal", "codigoModalidadeContratacao", "pagina"]
     },
     "contratos_atualizacao": {
-        "path": "/v1/contratos/atualizacao", 
+        "path": "/v1/contratos/atualizacao",
         "method": "GET",
         "priority": 5,
         "schedule": "hourly",
@@ -75,7 +75,7 @@ PHASE_2B_SYNC_ENDPOINTS = {
         "path": "/v1/atas/atualizacao",
         "method": "GET",
         "priority": 6,
-        "schedule": "hourly", 
+        "schedule": "hourly",
         "sync_type": "incremental",
         "watermark_field": "dataAtualizacaoGlobal",
         "required_params": ["dataInicial", "dataFinal", "pagina"]
@@ -141,7 +141,7 @@ PHASE_2C_DETAIL_ENDPOINTS = {
     },
     "pca_classificacao": {
         "path": "/v1/pca/",
-        "method": "GET", 
+        "method": "GET",
         "priority": 12,
         "schedule": "monthly",
         "required_params": ["anoPca", "codigoClassificacaoSuperior", "pagina"],
@@ -194,7 +194,7 @@ PROD_CONFIG = {
         "read": 60
     },
     "date_ranges": {
-        "default": "last_30_days", 
+        "default": "last_30_days",
         "max_range": "365_days"
     }
 }
@@ -206,7 +206,7 @@ PROD_CONFIG = {
 ```python
 HIGH_PRIORITY_MODALIDADES = [
     6,   # Pregão Eletrônico
-    7,   # Pregão Presencial  
+    7,   # Pregão Presencial
     8,   # Dispensa de Licitação
     4,   # Concorrência Eletrônica
     5    # Concorrência Presencial
@@ -228,7 +228,7 @@ MEDIUM_PRIORITY_MODALIDADES = [
 LOW_PRIORITY_MODALIDADES = [
     3,   # Concurso
     10,  # Manifestação de Interesse
-    11,  # Pré-qualificação  
+    11,  # Pré-qualificação
     12   # Credenciamento
 ]
 ```
@@ -243,7 +243,7 @@ async def extract_contratacoes_by_modalidade(date_range, modalidades):
     for modalidade in modalidades:
         task = extract_contratacao_modalidade(date_range, modalidade)
         tasks.append(task)
-    
+
     results = await asyncio.gather(*tasks, return_exceptions=True)
     return process_results(results)
 ```
@@ -252,14 +252,14 @@ async def extract_contratacoes_by_modalidade(date_range, modalidades):
 ```python
 def get_optimal_date_chunks(start_date, end_date, endpoint_name):
     """Determina chunks ótimos baseado no endpoint"""
-    
+
     chunk_sizes = {
         "contratacoes_publicacao": 7,    # 7 dias
-        "contratos": 15,                 # 15 dias  
+        "contratos": 15,                 # 15 dias
         "atas": 30,                      # 30 dias
         "instrumentos_cobranca": 30      # 30 dias
     }
-    
+
     chunk_size = chunk_sizes.get(endpoint_name, 7)
     return create_date_chunks(start_date, end_date, chunk_size)
 ```
@@ -282,7 +282,7 @@ endpoint_circuit_breakers = {
 ```python
 ENDPOINT_METRICS = {
     "requests_total": "Counter",
-    "requests_duration": "Histogram", 
+    "requests_duration": "Histogram",
     "requests_errors": "Counter",
     "records_extracted": "Counter",
     "pagination_depth": "Histogram",
@@ -320,7 +320,7 @@ baliza extract --phase 2b --date-range 2024-01-01:2024-12-31
 # Específico por endpoint
 baliza extract --endpoint contratacoes_publicacao --modalidade 6,7,8
 
-# Sincronização incremental  
+# Sincronização incremental
 baliza sync --endpoints contratacoes_atualizacao,contratos_atualizacao
 ```
 
