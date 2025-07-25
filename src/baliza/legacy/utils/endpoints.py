@@ -6,8 +6,8 @@ from datetime import datetime, timedelta, date
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import urlencode
 from pydantic import BaseModel, validator
-from ..config import ENDPOINT_CONFIG, settings, PNCPAPISettings
-from ..enums import ModalidadeContratacao
+from baliza.config import ENDPOINT_CONFIG, settings, PNCPAPISettings
+from baliza.legacy.enums import ModalidadeContratacao
 
 
 class URLBuilder:

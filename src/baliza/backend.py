@@ -5,7 +5,7 @@ from typing import Dict, Any, List
 from jinja2 import Template
 from .config import settings
 from .logger import get_logger
-from .utils.io import load_sql_file
+from .legacy.utils.io import load_sql_file
 
 logger = get_logger(__name__)
 

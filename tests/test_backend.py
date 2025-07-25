@@ -1,5 +1,6 @@
 import pytest
-from src.baliza.backend import connect, load_sql_file
+from src.baliza.legacy.utils.io import load_sql_file
+from src.baliza.backend import connect
 from src.baliza.config import settings
 
 

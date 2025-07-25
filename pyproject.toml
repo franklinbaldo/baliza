@@ -20,6 +20,10 @@ dependencies = [
     "msgpack>=1.1.1",
     "psutil",
     "polars>=1.31.0",
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.1.0",
+    "pytest-mock>=3.14.1",
+    "dlt>=1.14.1",
 ]
 
 [project.optional-dependencies]
@@ -31,6 +35,9 @@ test = [
 
 [project.scripts]
 baliza = "baliza.cli:app"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
 
 [dependency-groups]
 dev = [

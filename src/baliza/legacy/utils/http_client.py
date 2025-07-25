@@ -11,8 +11,8 @@ from pydantic import BaseModel, Field
 import httpx
 from prefect import get_run_logger
 
-from ..config import PNCPAPISettings, settings
-from ..enums import ModalidadeContratacao, get_enum_by_value
+from baliza.config import PNCPAPISettings, settings
+from baliza.legacy.enums import ModalidadeContratacao, get_enum_by_value
 from .circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerConfig,
@@ -150,7 +150,7 @@ class PNCPClient:
     async def _check_existing_request(self, url: str) -> Optional[tuple[APIRequest, bytes]]:
         """Check if we already have a successful request for this URL"""
         try:
-            from ..backend import connect
+            from baliza.backend import connect
             
             con = connect()
             
@@ -421,7 +421,7 @@ class EndpointExtractor:
         """Analyze existing pagination data for an endpoint/date/modalidade combination"""
         
         try:
-            from ..backend import connect
+            from baliza.backend import connect
             from .endpoints import build_contratacao_url, build_contratos_url, build_atas_url
             import re
             

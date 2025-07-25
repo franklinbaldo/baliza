@@ -3,7 +3,7 @@ from typing import Dict, List
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 
-from .enums import ModalidadeContratacao
+from .legacy.enums import ModalidadeContratacao
 
 
 class PNCPAPISettings(BaseSettings):

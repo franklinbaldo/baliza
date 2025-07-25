@@ -3,6 +3,7 @@ PNCP Enum Utilities - Centralized enum management for BALIZA
 """
 
 from enum import Enum
+from typing import Type, Any, Dict, List, Union, Optional
 
 
 class InstrumentoConvocatorio(int, Enum):
@@ -369,9 +370,6 @@ class IndicadorOrcamentoSigiloso(str, Enum):
     COMPRA_TOTALMENTE_SIGILOSA = "COMPRA_TOTALMENTE_SIGILOSA"
 
 
-from typing import Type, Any, Dict, List, Union, Optional
-
-
 # Enum utilities (mantidas para possíveis usos futuros ou compatibilidade)
 def get_enum_by_value(enum_class: Type[Enum], value: Union[int, str]) -> Optional[Enum]:
     """Get enum member by value, returning None if not found."""
@@ -488,3 +486,20 @@ def get_all_enum_metadata() -> Dict[str, Dict[str, Any]]:
         }
 
     return metadata
+
+
+class PncpEndpoint(str, Enum):
+    """Representa os endpoints da API PNCP.
+    Os valores devem corresponder às chaves em ENDPOINT_CONFIG no config.py.
+    """
+    CONTRATACOES_PUBLICACAO = "contratacoes_publicacao"
+    CONTRATOS = "contratos"
+    ATAS = "atas"
+    CONTRATACOES_ATUALIZACAO = "contratacoes_atualizacao"
+    CONTRATOS_ATUALIZACAO = "contratos_atualizacao"
+    ATAS_ATUALIZACAO = "atas_atualizacao"
+    CONTRATACOES_PROPOSTA = "contratacoes_proposta"
+    INSTRUMENTOSCOBRANCA_INCLUSAO = "instrumentoscobranca_inclusao"
+    PCA = "pca"
+    PCA_USUARIO = "pca_usuario"
+    PCA_ATUALIZACAO = "pca_atualizacao"

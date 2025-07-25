@@ -6,8 +6,8 @@ import pytest
 from datetime import date
 from unittest.mock import patch
 
-from src.baliza.enums import ModalidadeContratacao
-from src.baliza.utils.endpoints import (
+from src.baliza.legacy.enums import ModalidadeContratacao
+from src.baliza.legacy.utils.endpoints import (
     build_contratacao_url,
     build_contratos_url,
     build_atas_url,
@@ -33,7 +33,7 @@ class TestURLBuilder:
         expected = (
             "https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao"
             "?dataInicial=20240101&dataFinal=20240131"
-            "&codigoModalidadeContratacao=1&pagina=1"
+            "&codigoModalidadeContratacao=1&pagina=1&tamanhoPagina=50"
         )
         assert url == expected
 
@@ -45,7 +45,7 @@ class TestURLBuilder:
 
         expected = (
             "https://pncp.gov.br/api/consulta/v1/contratos"
-            "?dataInicial=20240101&dataFinal=20240131&pagina=2"
+            "?dataInicial=20240101&dataFinal=20240131&pagina=2&tamanhoPagina=500"
         )
         assert url == expected
 
@@ -55,7 +55,7 @@ class TestURLBuilder:
 
         expected = (
             "https://pncp.gov.br/api/consulta/v1/atas"
-            "?dataInicial=20240101&dataFinal=20240131&pagina=3"
+            "?dataInicial=20240101&dataFinal=20240131&pagina=3&tamanhoPagina=500"
         )
         assert url == expected
 
@@ -65,7 +65,7 @@ class TestDateRangeHelper:
 
     def test_get_last_n_days(self):
         """Test getting last N days range"""
-        with patch("src.baliza.utils.endpoints.date") as mock_date:
+        with patch("src.baliza.legacy.utils.endpoints.date") as mock_date:
             mock_date.today.return_value = date(2024, 1, 15)
 
             start, end = DateRangeHelper.get_last_n_days(7)
