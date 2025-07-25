@@ -7,6 +7,7 @@ from uuid import uuid4
 import re
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
+from .types import Cnpj, Cpf
 
 
 class OrgaoEntidadeDTO(BaseModel):
@@ -97,7 +98,7 @@ class BronzeContrato(BaseModel):
     tipo_pessoa_subcontratada: Optional[str] = Field(None, max_length=2)
 
     # Orgão/Entidade
-    orgao_cnpj: Optional[str] = Field(None, max_length=14)
+    orgao_cnpj: Optional[Cnpj] = None
     orgao_razao_social: Optional[str] = None
     orgao_poder_id: Optional[str] = None
     orgao_esfera_id: Optional[str] = None
@@ -111,7 +112,7 @@ class BronzeContrato(BaseModel):
     unidade_codigo_ibge: Optional[str] = None
 
     # Subrogação
-    orgao_subrogado_cnpj: Optional[str] = Field(None, max_length=14)
+    orgao_subrogado_cnpj: Optional[Cnpj] = None
     orgao_subrogado_razao_social: Optional[str] = None
     unidade_subrogada_codigo: Optional[str] = None
     unidade_subrogada_nome: Optional[str] = None
@@ -146,49 +147,6 @@ class BronzeContrato(BaseModel):
     usuario_nome: Optional[str] = None
     extracted_at: datetime = Field(default_factory=datetime.now)
 
-    # FIXME: The CNPJ and CPF validation logic is repeated in multiple
-    # models. It would be better to create custom Pydantic types for these
-    # fields to reduce code duplication and improve reusability.
-    @field_validator("orgao_cnpj", "orgao_subrogado_cnpj", mode="before")
-    @classmethod
-    def validate_cnpj(cls, v: Optional[str]) -> Optional[str]:
-        """Valida formato e dígitos verificadores de CNPJ."""
-        if v is None or v == "":
-            return None
-
-        # Remove formatação
-        digits_only = re.sub(r"[^\d]", "", str(v))
-
-        if len(digits_only) != 14:
-            raise ValueError(f"CNPJ deve ter 14 dígitos: {v}")
-
-        # Valida dígitos verificadores
-        if not cls._validate_cnpj_digits(digits_only):
-            raise ValueError(f"CNPJ inválido: {v}")
-
-        return digits_only
-
-    @field_validator("ni_fornecedor", "ni_fornecedor_subcontratado", mode="before")
-    @classmethod
-    def validate_ni_fornecedor(cls, v: Optional[str]) -> Optional[str]:
-        """Valida NI (CNPJ ou CPF) do fornecedor."""
-        if v is None or v == "":
-            return None
-
-        # Remove formatação
-        digits_only = re.sub(r"[^\d]", "", str(v))
-
-        # Valida CNPJ (14 dígitos) ou CPF (11 dígitos)
-        if len(digits_only) == 14:
-            if not cls._validate_cnpj_digits(digits_only):
-                raise ValueError(f"CNPJ inválido: {v}")
-        elif len(digits_only) == 11:
-            if not cls._validate_cpf_digits(digits_only):
-                raise ValueError(f"CPF inválido: {v}")
-        else:
-            raise ValueError(f"NI deve ter 11 (CPF) ou 14 (CNPJ) dígitos: {v}")
-
-        return digits_only
 
     @field_validator(
         "valor_inicial", "valor_parcela", "valor_global", "valor_acumulado"
@@ -269,58 +227,6 @@ class BronzeContrato(BaseModel):
 
         return self
 
-    @classmethod
-    def _validate_cnpj_digits(cls, cnpj: str) -> bool:
-        """Valida dígitos verificadores do CNPJ."""
-        # Algoritmo oficial de validação CNPJ
-        if len(cnpj) != 14:
-            return False
-
-        # Verifica se todos os dígitos são iguais
-        if cnpj == cnpj[0] * 14:
-            return False
-
-        # Validação do primeiro dígito verificador
-        weights = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
-        sum1 = sum(int(cnpj[i]) * weights[i] for i in range(12))
-        remainder1 = sum1 % 11
-        digit1 = 0 if remainder1 < 2 else 11 - remainder1
-
-        if int(cnpj[12]) != digit1:
-            return False
-
-        # Validação do segundo dígito verificador
-        weights = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
-        sum2 = sum(int(cnpj[i]) * weights[i] for i in range(13))
-        remainder2 = sum2 % 11
-        digit2 = 0 if remainder2 < 2 else 11 - remainder2
-
-        return int(cnpj[13]) == digit2
-
-    @classmethod
-    def _validate_cpf_digits(cls, cpf: str) -> bool:
-        """Valida dígitos verificadores do CPF."""
-        if len(cpf) != 11:
-            return False
-
-        # Verifica se todos os dígitos são iguais
-        if cpf == cpf[0] * 11:
-            return False
-
-        # Validação do primeiro dígito verificador
-        sum1 = sum(int(cpf[i]) * (10 - i) for i in range(9))
-        remainder1 = sum1 % 11
-        digit1 = 0 if remainder1 < 2 else 11 - remainder1
-
-        if int(cpf[9]) != digit1:
-            return False
-
-        # Validação do segundo dígito verificador
-        sum2 = sum(int(cpf[i]) * (11 - i) for i in range(10))
-        remainder2 = sum2 % 11
-        digit2 = 0 if remainder2 < 2 else 11 - remainder2
-
-        return int(cpf[10]) == digit2
 
     @classmethod
     def from_api_response(cls, contrato_data: dict) -> "BronzeContrato":
@@ -424,7 +330,7 @@ class BronzeContratacao(BaseModel):
     data_encerramento_proposta: Optional[datetime] = None
 
     # Orgão/Entidade
-    orgao_cnpj: Optional[str] = Field(None, max_length=14)
+    orgao_cnpj: Optional[Cnpj] = None
     orgao_razao_social: Optional[str] = None
     orgao_poder_id: Optional[str] = None
     orgao_esfera_id: Optional[str] = None
@@ -438,7 +344,7 @@ class BronzeContratacao(BaseModel):
     unidade_codigo_ibge: Optional[str] = None
 
     # Subrogação
-    orgao_subrogado_cnpj: Optional[str] = Field(None, max_length=14)
+    orgao_subrogado_cnpj: Optional[Cnpj] = None
     orgao_subrogado_razao_social: Optional[str] = None
     unidade_subrogada_codigo: Optional[str] = None
     unidade_subrogada_nome: Optional[str] = None
@@ -482,21 +388,27 @@ class BronzeContratacao(BaseModel):
     usuario_nome: Optional[str] = None
     extracted_at: datetime = Field(default_factory=datetime.now)
 
-    # TODO: Add validation for the `link_sistema_origem` and
-    # `link_processo_eletronico` fields to ensure that they are valid URLs.
-
-    @field_validator("orgao_cnpj", "orgao_subrogado_cnpj", mode="before")
+    @field_validator("link_sistema_origem", "link_processo_eletronico", mode="before")
     @classmethod
-    def validate_cnpj(cls, v: Optional[str]) -> Optional[str]:
-        """Valida formato e dígitos verificadores de CNPJ."""
+    def validate_url(cls, v: Optional[str]) -> Optional[str]:
+        """Validate that the given string is a valid URL."""
         if v is None or v == "":
             return None
-        digits_only = re.sub(r"[^\d]", "", str(v))
-        if len(digits_only) != 14:
-            raise ValueError(f"CNPJ deve ter 14 dígitos: {v}")
-        if not cls._validate_cnpj_digits(digits_only):
-            raise ValueError(f"CNPJ inválido: {v}")
-        return digits_only
+
+        # Simple regex for URL validation
+        url_regex = re.compile(
+            r"^(https?|ftp)://"  # scheme
+            r"([A-Z0-9]([A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?"  # domain...
+            r"(:[0-9]+)?"  # optional port
+            r"(/.*)?$",  # path
+            re.IGNORECASE,
+        )
+
+        if not url_regex.match(v):
+            raise ValueError(f"Invalid URL: {v}")
+
+        return v
+
 
     @field_validator("modalidade_id")
     @classmethod
@@ -596,26 +508,6 @@ class BronzeContratacao(BaseModel):
 
         return self
 
-    @classmethod
-    def _validate_cnpj_digits(cls, cnpj: str) -> bool:
-        """Valida dígitos verificadores do CNPJ."""
-        if len(cnpj) != 14:
-            return False
-        if cnpj == cnpj[0] * 14:
-            return False
-        # Primeiro dígito verificador
-        weights = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
-        sum1 = sum(int(cnpj[i]) * weights[i] for i in range(12))
-        remainder1 = sum1 % 11
-        digit1 = 0 if remainder1 < 2 else 11 - remainder1
-        if int(cnpj[12]) != digit1:
-            return False
-        # Segundo dígito verificador
-        weights = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
-        sum2 = sum(int(cnpj[i]) * weights[i] for i in range(13))
-        remainder2 = sum2 % 11
-        digit2 = 0 if remainder2 < 2 else 11 - remainder2
-        return int(cnpj[13]) == digit2
 
     @classmethod
     def from_api_response(cls, contratacao_data: dict) -> "BronzeContratacao":
@@ -766,13 +658,13 @@ class BronzeAta(BaseModel):
     data_atualizacao_global: Optional[datetime] = None
 
     # Orgão Principal
-    cnpj_orgao: Optional[str] = Field(None, max_length=14)
+    cnpj_orgao: Optional[Cnpj] = None
     nome_orgao: Optional[str] = None
     codigo_unidade_orgao: Optional[str] = None
     nome_unidade_orgao: Optional[str] = None
 
     # Orgão Subrogado
-    cnpj_orgao_subrogado: Optional[str] = Field(None, max_length=14)
+    cnpj_orgao_subrogado: Optional[Cnpj] = None
     nome_orgao_subrogado: Optional[str] = None
     codigo_unidade_orgao_subrogado: Optional[str] = None
     nome_unidade_orgao_subrogado: Optional[str] = None
@@ -784,18 +676,6 @@ class BronzeAta(BaseModel):
     usuario: Optional[str] = None
     extracted_at: datetime = Field(default_factory=datetime.now)
 
-    @field_validator("cnpj_orgao", "cnpj_orgao_subrogado", mode="before")
-    @classmethod
-    def validate_cnpj(cls, v: Optional[str]) -> Optional[str]:
-        """Valida formato e dígitos verificadores de CNPJ."""
-        if v is None or v == "":
-            return None
-        digits_only = re.sub(r"[^\d]", "", str(v))
-        if len(digits_only) != 14:
-            raise ValueError(f"CNPJ deve ter 14 dígitos: {v}")
-        if not cls._validate_cnpj_digits(digits_only):
-            raise ValueError(f"CNPJ inválido: {v}")
-        return digits_only
 
     @model_validator(mode="after")
     def validate_date_consistency(self) -> "BronzeAta":
@@ -836,26 +716,6 @@ class BronzeAta(BaseModel):
 
         return self
 
-    @classmethod
-    def _validate_cnpj_digits(cls, cnpj: str) -> bool:
-        """Valida dígitos verificadores do CNPJ."""
-        if len(cnpj) != 14:
-            return False
-        if cnpj == cnpj[0] * 14:
-            return False
-        # Primeiro dígito verificador
-        weights = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
-        sum1 = sum(int(cnpj[i]) * weights[i] for i in range(12))
-        remainder1 = sum1 % 11
-        digit1 = 0 if remainder1 < 2 else 11 - remainder1
-        if int(cnpj[12]) != digit1:
-            return False
-        # Segundo dígito verificador
-        weights = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
-        sum2 = sum(int(cnpj[i]) * weights[i] for i in range(13))
-        remainder2 = sum2 % 11
-        digit2 = 0 if remainder2 < 2 else 11 - remainder2
-        return int(cnpj[13]) == digit2
 
     @classmethod
     def from_api_response(cls, ata_data: dict) -> "BronzeAta":

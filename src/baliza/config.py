@@ -2,18 +2,22 @@ from pydantic_settings import BaseSettings
 from typing import List
 
 
-class Settings(BaseSettings):
-    # FIXME: Some of these settings are specific to the PNCP API and should
-    # be moved to a separate configuration file or class to improve
-    # modularity.
-    # API Configuration
+class PNCP_API_Settings(BaseSettings):
     PNCP_API_BASE_URL: str = "https://pncp.gov.br/api/consulta"
     SUPPORTED_API_VERSION: str = "1.0"
     API_TIMEOUT_SECONDS: int = 30
+    class Config:
+        env_file = ".env"
+        env_prefix = "PNCP_"
+class Settings(BaseSettings):
+    # API Configuration
 
     # Database Configuration
     DATABASE_PATH: str = "data/baliza.duckdb"
     TEMP_DIRECTORY: str = "data/tmp"
+    DUCKDB_THREADS: int = 8
+    DUCKDB_MEMORY_LIMIT: str = "4GB"
+    DUCKDB_ENABLE_PROGRESS_BAR: bool = True
 
     # Rate Limiting (PNCP has no explicit rate limits - using conservative approach)
     REQUESTS_PER_MINUTE: int = 120  # Increased - no explicit limits found

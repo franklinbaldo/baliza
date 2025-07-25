@@ -6,14 +6,15 @@ from datetime import datetime, timedelta, date
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import urlencode
 
-from ..config import ENDPOINT_CONFIG, MODALIDADE_CONTRATACAO, settings
+from ..config import ENDPOINT_CONFIG, MODALIDADE_CONTRATACAO, settings, PNCP_API_Settings
 
 
 class URLBuilder:
     """Builds PNCP API endpoint URLs with proper parameters"""
 
     def __init__(self, base_url: str = None):
-        self.base_url = base_url or settings.PNCP_API_BASE_URL
+        self.pncp_settings = PNCP_API_Settings()
+        self.base_url = base_url or self.pncp_settings.PNCP_API_BASE_URL
 
     # TODO: The endpoint configuration is loaded from the `ENDPOINT_CONFIG`
     # dictionary every time a URL is built. It would be more efficient to

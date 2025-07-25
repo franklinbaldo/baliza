@@ -14,15 +14,7 @@ except Exception:  # pragma: no cover - outside flow context
     logger = logging.getLogger(__name__)
 
 
-# TODO: Consider moving this to a more generic utils module.
-def load_sql_file(filename: str) -> str:
-    """Load SQL file from src/baliza/sql/ directory"""
-    sql_path = Path(__file__).parent / "sql" / filename
-    try:
-        with open(sql_path, "r", encoding="utf-8") as f:
-            return f.read()
-    except FileNotFoundError:
-        raise FileNotFoundError(f"SQL file not found: {sql_path}")
+from .utils.io import load_sql_file
 
 
 def execute_sql_file(
@@ -53,12 +45,10 @@ def connect() -> Backend:
     temp_path = Path(settings.TEMP_DIRECTORY)
     temp_path.mkdir(parents=True, exist_ok=True)
 
-    # FIXME: These settings are hardcoded. It would be better to make them
-    # configurable, for example, through the settings file.
-    con.raw_sql("PRAGMA threads=8;")
-    con.raw_sql("PRAGMA memory_limit='4GB';")
+    con.raw_sql(f"PRAGMA threads={settings.DUCKDB_THREADS};")
+    con.raw_sql(f"PRAGMA memory_limit='{settings.DUCKDB_MEMORY_LIMIT}';")
     con.raw_sql(f"PRAGMA temp_directory='{settings.TEMP_DIRECTORY}';")
-    con.raw_sql("PRAGMA enable_progress_bar=true;")
+    con.raw_sql(f"PRAGMA enable_progress_bar={'true' if settings.DUCKDB_ENABLE_PROGRESS_BAR else 'false'};")
 
     logger.info(f"Connected to DuckDB at {settings.DATABASE_PATH}")
     return con
@@ -144,8 +134,6 @@ def cleanup_old_data(
     logger.info(f"Cleaning up data older than {days_to_keep} days...")
 
     try:
-        # FIXME: The retention policy is hardcoded. It would be better to
-        # make it configurable, for example, through the settings file.
         # Cleanup execution_log
         execution_log = con.table("execution_log", schema="meta")
         con.delete(

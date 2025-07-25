@@ -2,8 +2,6 @@
 -- Raw Layer: Unified API requests table (from implementation plan v3.0)
 
 -- TODO: Add more constraints to the tables to improve data integrity.
--- For example, we could add foreign key constraints between the
--- `api_requests` and `hot_payloads` tables.
 -- Create schemas
 CREATE SCHEMA IF NOT EXISTS raw;
 CREATE SCHEMA IF NOT EXISTS staging;
@@ -24,7 +22,8 @@ CREATE TABLE IF NOT EXISTS raw.api_requests (
     -- Constraints
     UNIQUE(endpoint, collected_at),
     CHECK(http_status >= 100 AND http_status < 600),
-    CHECK(payload_size > 0)
+    CHECK(payload_size > 0),
+    FOREIGN KEY (payload_sha256) REFERENCES raw.hot_payloads(payload_sha256)
 );
 
 CREATE TABLE IF NOT EXISTS raw.hot_payloads (

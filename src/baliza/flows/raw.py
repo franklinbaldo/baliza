@@ -41,27 +41,24 @@ def store_api_request(api_request: APIRequest, payload_compressed: bytes) -> boo
     try:
         con = connect()
 
-        # FIXME: This task writes to two different tables. This is not
-        # transactional and could lead to data inconsistencies if one of the
-        # writes fails. It would be better to use a transaction to ensure
-        # that both writes succeed or fail together.
-        # Store payload in hot_payloads
-        hot_payloads_table = con.table("raw.hot_payloads")
-        hot_payloads_df = pd.DataFrame(
-            [
-                {
-                    "payload_sha256": api_request.payload_sha256,
-                    "payload_compressed": payload_compressed,
-                    "first_seen_at": api_request.collected_at,
-                }
-            ]
-        )
-        hot_payloads_table.insert(hot_payloads_df, overwrite=True)
+        with con.begin():
+            # Store payload in hot_payloads
+            hot_payloads_table = con.table("raw.hot_payloads")
+            hot_payloads_df = pd.DataFrame(
+                [
+                    {
+                        "payload_sha256": api_request.payload_sha256,
+                        "payload_compressed": payload_compressed,
+                        "first_seen_at": api_request.collected_at,
+                    }
+                ]
+            )
+            hot_payloads_table.insert(hot_payloads_df, overwrite=True)
 
-        # Store request metadata in api_requests
-        api_requests_table = con.table("raw.api_requests")
-        api_request_df = pd.DataFrame([api_request.dict()])
-        api_requests_table.insert(api_request_df)
+            # Store request metadata in api_requests
+            api_requests_table = con.table("raw.api_requests")
+            api_request_df = pd.DataFrame([api_request.dict()])
+            api_requests_table.insert(api_request_df)
 
         logger.info(
             f"Stored API request: {api_request.endpoint} ({api_request.payload_size} bytes)"

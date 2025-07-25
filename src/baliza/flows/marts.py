@@ -42,20 +42,19 @@ def create_summary_table() -> bool:
         con = connect()
         api_requests = con.table("raw.api_requests")
 
-        # FIXME: The logic for calculating the summary is complex and could
-        # be simplified by using more of the features of the Ibis library.
-        extraction_summary = (
-            api_requests.filter(api_requests.http_status == 200)
-            .group_by(["ingestion_date", "endpoint"])
-            .aggregate(
-                request_count=ibis._.count(),
-                total_bytes=ibis._.payload_size.sum(),
-                total_mb=(ibis._.payload_size.sum() / 1024 / 1024).round(2),
-                first_extraction=ibis._.collected_at.min(),
-                last_extraction=ibis._.collected_at.max(),
-                unique_payloads=ibis._.payload_sha256.nunique(),
-            )
-            .order_by([ibis.desc("ingestion_date"), "endpoint"])
+        extraction_summary = api_requests.filter(
+            api_requests.http_status == 200
+        ).summary(
+            [
+                "ingestion_date",
+                "endpoint",
+                "request_count",
+                "total_bytes",
+                "total_mb",
+                "first_extraction",
+                "last_extraction",
+                "unique_payloads",
+            ]
         )
 
         con.create_table("marts.extraction_summary", extraction_summary, overwrite=True)
