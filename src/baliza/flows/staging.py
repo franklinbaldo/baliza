@@ -127,7 +127,7 @@ def create_staging_tables() -> Dict[str, int]:
     
     # Ensure staging schema exists
     con = connect()
-    con.create_schema("staging", if_not_exists=True)
+    con.raw_sql("CREATE SCHEMA IF NOT EXISTS staging")
     
     # Define endpoint patterns and their corresponding table names
     endpoints = {

@@ -18,7 +18,7 @@ def create_marts_layer() -> Dict[str, int]:
 
     try:
         con = connect()
-        con.create_schema("marts", if_not_exists=True)
+        con.raw_sql("CREATE SCHEMA IF NOT EXISTS marts")
         logger.info("Created marts schema")
 
         api_requests = con.table("raw.api_requests")
