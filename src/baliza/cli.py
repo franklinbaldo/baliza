@@ -40,9 +40,16 @@ def run(
             # Extract data for the last 30 days for latest month
             days = 30
         elif mes:
-            # TODO: Calculate actual days for specific month (handle different month lengths)
-            # FIXME: Currently hardcoded to 30 days regardless of actual month
-            days = 30
+            import calendar
+            from datetime import datetime
+
+            try:
+                year, month = map(int, mes.split("-"))
+                _, num_days = calendar.monthrange(year, month)
+                days = num_days
+            except ValueError:
+                console.print("❌ Formato de mês inválido. Use YYYY-MM.")
+                raise typer.Exit(1)
         elif dia:
             # Extract for single day
             days = 1
@@ -292,40 +299,137 @@ def transform(
 
 
 @app.command()
-def ui():
+def ui(
+    port: int = typer.Option(4200, "--port", help="Port to run Prefect UI on."),
+    no_browser: bool = typer.Option(
+        False, "--no-browser", help="Do not open browser automatically."
+    ),
+):
     """Inicia a interface web do Prefect."""
-    console.print("Iniciando a UI do Prefect...")
-    # TODO: Import and start Prefect server subprocess
-    # TODO: Check if Prefect server is already running (port 4200)
-    # TODO: Open browser automatically to http://localhost:4200
-    # TODO: Handle server startup errors and port conflicts
-    # FIXME: This command is currently a stub with no functionality
+    import socket
+    import subprocess
+    import time
+    import webbrowser
+
+    # Check if port is already in use
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        if s.connect_ex(("localhost", port)) == 0:
+            console.print(
+                f"⚠️  Prefect UI já está rodando em http://localhost:{port}"
+            )
+            if not no_browser:
+                webbrowser.open(f"http://localhost:{port}")
+            raise typer.Exit()
+
+    console.print(f"🚀 Iniciando a UI do Prefect na porta {port}...")
+    try:
+        # Start Prefect server
+        proc = subprocess.Popen(["prefect", "server", "start", "--host", "localhost", "--port", str(port)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+        # Wait for server to start
+        time.sleep(5)
+
+        console.print(f"✅ UI do Prefect iniciada com sucesso!")
+        console.print(f"🔗 URL: http://localhost:{port}")
+
+        if not no_browser:
+            webbrowser.open(f"http://localhost:{port}")
+
+        # Keep the command running
+        proc.wait()
+
+    except FileNotFoundError:
+        console.print("❌ Erro: 'prefect' não encontrado. Você instalou o Prefect?")
+        raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"❌ Erro ao iniciar a UI do Prefect: {e}")
+        raise typer.Exit(1)
 
 
 @app.command()
-def query(sql: str):
+def query(
+    sql: str = typer.Argument(..., help="SQL query to execute."),
+    output: str = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Output file path (e.g., results.csv, results.json).",
+    ),
+):
     """Executa uma consulta SQL diretamente no banco de dados."""
-    console.print(f"Executando a query: {sql}")
-    # TODO: Connect to DuckDB using backend.connect()
-    # TODO: Execute SQL query and handle errors gracefully
-    # TODO: Format results in a readable table using Rich
-    # TODO: Support for parameterized queries to prevent SQL injection
-    # TODO: Add query timeout and memory limits
-    # TODO: Support for exporting query results to CSV/JSON
-    # FIXME: This command is currently a stub with no functionality
+    console.print(f"Executing query: {sql}")
+
+    try:
+        con = connect()
+        result = con.raw_sql(sql).fetchall()
+
+        if not result:
+            console.print("✅ Query executed successfully, but returned no results.")
+            return
+
+        if output:
+            import pandas as pd
+
+            df = pd.DataFrame(result, columns=[d[0] for d in con.con.description])
+            if output.endswith(".csv"):
+                df.to_csv(output, index=False)
+                console.print(f"✅ Results saved to {output}")
+            elif output.endswith(".json"):
+                df.to_json(output, orient="records", indent=2)
+                console.print(f"✅ Results saved to {output}")
+            else:
+                console.print(f"❌ Unsupported output format: {output}")
+                raise typer.Exit(1)
+        else:
+            table = Table(title="Query Results")
+            for col in con.con.description:
+                table.add_column(col[0])
+
+            for row in result:
+                table.add_row(*[str(item) for item in row])
+
+            console.print(table)
+
+    except Exception as e:
+        console.print(f"❌ Error executing query: {e}")
+        raise typer.Exit(1)
 
 
-@app.command()
-def dump_catalog():
+@app.command(name="dump-catalog")
+def dump_catalog(
+    output: str = typer.Option(
+        "data/catalog.yml",
+        "--output",
+        "-o",
+        help="Output file path for the catalog.",
+    ),
+):
     """Exporta o esquema das tabelas para um arquivo YAML."""
+    import yaml
+
     console.print("Exportando catálogo...")
-    # TODO: Query DuckDB information_schema for all tables and views
-    # TODO: Export schema definitions including column types and constraints
-    # TODO: Include table row counts and approximate sizes
-    # TODO: Generate YAML format with proper structure
-    # TODO: Save to data/catalog.yml with timestamp
-    # TODO: Include data lineage information (raw -> staging -> marts)
-    # FIXME: This command is currently a stub with no functionality
+
+    try:
+        con = connect()
+        catalog = {}
+
+        tables = con.list_tables()
+        for table_name in tables:
+            schema = con.get_schema(table_name)
+            catalog[table_name] = {
+                "columns": {name: str(dtype) for name, dtype in schema.items()}
+            }
+
+        output_path = Path(output)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(output_path, "w", encoding="utf-8") as f:
+            yaml.dump(catalog, f, default_flow_style=False, sort_keys=False)
+
+        console.print(f"✅ Catálogo exportado para {output_path}")
+
+    except Exception as e:
+        console.print(f"❌ Erro ao exportar o catálogo: {e}")
+        raise typer.Exit(1)
 
 
 @app.command()
@@ -350,43 +454,113 @@ def reset(
 
 @app.command()
 def verify(
-    range: str = typer.Option(
-        None,
-        "--range",
-        help="Intervalo de datas para verificar (formato YYYY-MM-DD:YYYY-MM-DD).",
+    days: int = typer.Option(
+        30, "--days", help="Number of recent days to verify."
     ),
-    sample: float = typer.Option(
-        None,
-        "--sample",
-        help="Percentual da amostra para verificar (ex: 0.1 para 10%).",
-    ),
-    all: bool = typer.Option(False, "--all", help="Verifica todo o histórico."),
 ):
     """Dispara a rotina de verificação de integridade."""
     console.print("Iniciando verificação de integridade...")
-    # TODO: Implement data integrity verification flow
-    # TODO: Re-fetch sample of stored payloads from PNCP API
-    # TODO: Compare SHA-256 hashes to detect data drift/corruption
-    # TODO: Check for missing dates or gaps in raw.api_requests
-    # TODO: Validate that all referenced payload hashes exist in storage
-    # TODO: Generate integrity report with divergences found
-    # TODO: Log verification results to meta.divergence_log
-    # FIXME: This command is currently a stub with no functionality
+
+    try:
+        con = connect()
+
+        # 1. Check for missing dates in raw.api_requests
+        console.print(f"Verificando os últimos {days} dias por datas faltantes...")
+        date_check_sql = f"""
+        WITH date_series AS (
+            SELECT generate_series(
+                CURRENT_DATE - INTERVAL '{days} days',
+                CURRENT_DATE,
+                INTERVAL '1 day'
+            )::DATE AS day
+        )
+        SELECT ds.day
+        FROM date_series ds
+        LEFT JOIN (
+            SELECT DISTINCT ingestion_date FROM raw.api_requests
+        ) ar ON ds.day = ar.ingestion_date
+        WHERE ar.ingestion_date IS NULL;
+        """
+        missing_dates = con.raw_sql(date_check_sql).fetchall()
+
+        if missing_dates:
+            console.print("❌ Datas faltantes encontradas em `raw.api_requests`:")
+            for row in missing_dates:
+                console.print(f"  - {row[0].strftime('%Y-%m-%d')}")
+        else:
+            console.print("✅ Nenhuma data faltando em `raw.api_requests`.")
+
+        # 2. Validate that all referenced payload hashes exist in storage
+        console.print("Verificando a integridade dos hashes de payload...")
+        hash_check_sql = """
+        SELECT ar.sha256_payload
+        FROM raw.api_requests ar
+        LEFT JOIN raw.hot_payloads hp ON ar.sha256_payload = hp.sha256_payload
+        WHERE hp.sha256_payload IS NULL
+        LIMIT 100;
+        """
+        missing_hashes = con.raw_sql(hash_check_sql).fetchall()
+
+        if missing_hashes:
+            console.print("❌ Hashes de payload faltando em `raw.hot_payloads`:")
+            for row in missing_hashes:
+                console.print(f"  - {row[0]}")
+        else:
+            console.print("✅ Todos os hashes de payload referenciados existem.")
+
+        console.print("\n🎉 Verificação de integridade concluída.")
+
+    except Exception as e:
+        console.print(f"❌ Erro durante a verificação de integridade: {e}")
+        raise typer.Exit(1)
 
 
-@app.command()
+@app.command(name="fetch-payload")
 def fetch_payload(
-    sha256_hash: str = typer.Argument(..., help="Hash SHA-256 do payload."),
+    sha256_hash: str = typer.Argument(..., help="Hash SHA-256 of the payload."),
+    output: str = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Output file path to save the payload (e.g., payload.json).",
+    ),
 ):
-    """Baixa o payload bruto associado a um sha256_payload específico."""
-    console.print(f"Buscando payload para hash: {sha256_hash}")
-    # TODO: Validate SHA-256 hash format (64 hex characters)
-    # TODO: Query raw.hot_payloads table for matching hash
-    # TODO: Decompress payload if found and display as formatted JSON
-    # TODO: Handle case where hash is not found in local storage
-    # TODO: Offer option to save payload to file
-    # TODO: Show metadata (original API endpoint, collection date, etc.)
-    # FIXME: This command is currently a stub with no functionality
+    """Fetches and decompresses a raw payload from storage."""
+    import json
+    import zlib
+
+    console.print(f"Fetching payload for hash: {sha256_hash}")
+
+    if len(sha256_hash) != 64:
+        console.print("❌ Invalid SHA-256 hash format.")
+        raise typer.Exit(1)
+
+    try:
+        con = connect()
+        sql = "SELECT payload FROM raw.hot_payloads WHERE sha256_payload = ?;"
+        result = con.con.execute(sql, [sha256_hash]).fetchone()
+
+        if not result:
+            console.print("❌ Payload not found for the given hash.")
+            raise typer.Exit(1)
+
+        compressed_payload = result[0]
+        decompressed_payload = zlib.decompress(compressed_payload)
+        payload_json = json.loads(decompressed_payload)
+
+        if output:
+            output_path = Path(output)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(output_path, "w", encoding="utf-8") as f:
+                json.dump(payload_json, f, indent=2, ensure_ascii=False)
+            console.print(f"✅ Payload saved to {output_path}")
+        else:
+            from rich.json import JSON
+            console.print(JSON(json.dumps(payload_json, indent=2, ensure_ascii=False)))
+
+    except Exception as e:
+        console.print(f"❌ Error fetching payload: {e}")
+        raise typer.Exit(1)
 
 
 def _display_extraction_results(result: dict) -> None:
