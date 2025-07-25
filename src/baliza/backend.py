@@ -9,9 +9,12 @@ from .config import settings
 try:
     logger = get_run_logger()
 except Exception:  # pragma: no cover - outside flow context
+    # FIXME: This is a hacky way to get a logger outside of a flow context.
+    # It would be better to have a more robust logging setup.
     logger = logging.getLogger(__name__)
 
 
+# TODO: Consider moving this to a more generic utils module.
 def load_sql_file(filename: str) -> str:
     """Load SQL file from src/baliza/sql/ directory"""
     sql_path = Path(__file__).parent / "sql" / filename
@@ -28,7 +31,8 @@ def execute_sql_file(
     """Execute SQL file with optional parameter substitution"""
     sql_content = load_sql_file(filename)
 
-    # Simple parameter substitution for ${param} style
+    # TODO: This is a simple implementation. For more complex scenarios,
+    # consider using a more robust templating engine like Jinja2.
     if params:
         for key, value in params.items():
             sql_content = sql_content.replace(f"${{{key}}}", str(value))
@@ -49,7 +53,8 @@ def connect() -> Backend:
     temp_path = Path(settings.TEMP_DIRECTORY)
     temp_path.mkdir(parents=True, exist_ok=True)
 
-    # Optimize DuckDB settings
+    # FIXME: These settings are hardcoded. It would be better to make them
+    # configurable, for example, through the settings file.
     con.raw_sql("PRAGMA threads=8;")
     con.raw_sql("PRAGMA memory_limit='4GB';")
     con.raw_sql(f"PRAGMA temp_directory='{settings.TEMP_DIRECTORY}';")
@@ -77,6 +82,9 @@ def get_table_stats(con: Backend = None) -> List[Dict[str, Any]]:
         con = connect()
 
     try:
+        # TODO: This is not very scalable. If new tables are added, they will
+        # not be included in the stats. It would be better to dynamically
+        # get the list of tables and generate the stats for each one.
         api_requests = con.table("api_requests", schema="raw")
         execution_log = con.table("execution_log", schema="meta")
         failed_requests = con.table("failed_requests", schema="meta")
@@ -136,6 +144,8 @@ def cleanup_old_data(
     logger.info(f"Cleaning up data older than {days_to_keep} days...")
 
     try:
+        # FIXME: The retention policy is hardcoded. It would be better to
+        # make it configurable, for example, through the settings file.
         # Cleanup execution_log
         execution_log = con.table("execution_log", schema="meta")
         con.delete(

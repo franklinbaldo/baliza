@@ -15,6 +15,9 @@ class URLBuilder:
     def __init__(self, base_url: str = None):
         self.base_url = base_url or settings.PNCP_API_BASE_URL
 
+    # TODO: The endpoint configuration is loaded from the `ENDPOINT_CONFIG`
+    # dictionary every time a URL is built. It would be more efficient to
+    # cache this configuration to avoid repeated lookups.
     def build_url(self, endpoint_name: str, **params) -> str:
         """Build complete URL for endpoint with parameters"""
         config = ENDPOINT_CONFIG.get(endpoint_name)
@@ -262,6 +265,10 @@ class EndpointValidator:
                 f"Page size must be between {limits['min']} and {limits['max']}"
             )
 
+    # FIXME: This method is not very robust. It would be better to use a
+    # more powerful validation library like Pydantic to validate the
+    # endpoint parameters. This would make the validation more reliable and
+    # easier to maintain.
     def validate_endpoint_params(self, endpoint_name: str, params: dict) -> dict:
         """Validate endpoint parameters"""
         errors = []

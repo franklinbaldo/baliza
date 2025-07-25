@@ -1,6 +1,9 @@
 -- Initialize database schema for Baliza
 -- Raw Layer: Unified API requests table (from implementation plan v3.0)
 
+-- TODO: Add more constraints to the tables to improve data integrity.
+-- For example, we could add foreign key constraints between the
+-- `api_requests` and `hot_payloads` tables.
 -- Create schemas
 CREATE SCHEMA IF NOT EXISTS raw;
 CREATE SCHEMA IF NOT EXISTS staging;

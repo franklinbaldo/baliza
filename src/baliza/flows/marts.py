@@ -6,8 +6,8 @@ from datetime import datetime
 from typing import Dict, Any
 
 from prefect import flow, task, get_run_logger
-
-from ..backend import connect, load_sql_file
+import ibis
+from ..backend import connect
 
 
 @task(name="create_marts_schema", retries=1)
@@ -18,6 +18,9 @@ def create_marts_schema() -> bool:
     try:
         con = connect()
 
+        # TODO: This task is very simple and could be combined with the
+        # `create_summary_table` and `create_data_quality_table` tasks to
+        # reduce the number of tasks in the flow.
         # Create marts schema if not exists
         # TODO: Consider using Ibis schema management for consistency
         con.raw_sql("CREATE SCHEMA IF NOT EXISTS marts")
@@ -30,9 +33,6 @@ def create_marts_schema() -> bool:
         raise
 
 
-import ibis
-
-
 @task(name="create_summary_table", retries=1)
 def create_summary_table() -> bool:
     """Create extraction summary mart table"""
@@ -42,6 +42,8 @@ def create_summary_table() -> bool:
         con = connect()
         api_requests = con.table("raw.api_requests")
 
+        # FIXME: The logic for calculating the summary is complex and could
+        # be simplified by using more of the features of the Ibis library.
         extraction_summary = (
             api_requests.filter(api_requests.http_status == 200)
             .group_by(["ingestion_date", "endpoint"])
@@ -56,9 +58,7 @@ def create_summary_table() -> bool:
             .order_by([ibis.desc("ingestion_date"), "endpoint"])
         )
 
-        con.create_table(
-            "marts.extraction_summary", extraction_summary, overwrite=True
-        )
+        con.create_table("marts.extraction_summary", extraction_summary, overwrite=True)
         logger.info("Created marts.extraction_summary table")
 
         return True
@@ -98,8 +98,7 @@ def create_data_quality_table() -> bool:
                 success_rate_pct=(
                     ibis._.successful_requests * 100.0 / ibis._.total_requests
                 ).round(2),
-                duplicate_payloads=ibis._.total_requests
-                - ibis._.unique_payloads,
+                duplicate_payloads=ibis._.total_requests - ibis._.unique_payloads,
             )
             .order_by([ibis.desc("date"), "endpoint"])
         )

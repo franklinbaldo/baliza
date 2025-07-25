@@ -35,6 +35,9 @@ class CircuitBreakerError(Exception):
 class CircuitBreaker:
     """Circuit breaker with adaptive behavior for PNCP API"""
 
+    # TODO: This class is not thread-safe. If it is used in a multi-threaded
+    # environment, it could lead to race conditions. It would be better to
+    # add a lock to protect the shared state.
     def __init__(self, config: CircuitBreakerConfig = None):
         self.config = config or CircuitBreakerConfig()
         self.state = CircuitState.CLOSED
@@ -139,6 +142,8 @@ class AdaptiveRateLimiter:
         elif status_code == 200 and response_time < 2.0:
             self.adaptive_factor = 1.0
 
+    # FIXME: The `_sleep` method is defined inside the `acquire` method, which
+    # is not ideal. It should be a standalone method of the class.
     async def _sleep(self, seconds: float):
         """Sleep function - can be overridden for testing"""
         import asyncio

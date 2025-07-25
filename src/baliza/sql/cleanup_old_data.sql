@@ -5,6 +5,9 @@
 DELETE FROM meta.execution_log 
 WHERE start_time < NOW() - INTERVAL '${days_to_keep} days';
 
+-- TODO: The retention period for failed requests is hardcoded to 30 days.
+-- It would be better to make this configurable, for example, by adding a
+-- new parameter to the script.
 -- Keep failed requests for 30 days (shorter retention)
 DELETE FROM meta.failed_requests 
 WHERE failed_at < NOW() - INTERVAL '30 days' AND resolved = true;

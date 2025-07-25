@@ -146,6 +146,9 @@ class BronzeContrato(BaseModel):
     usuario_nome: Optional[str] = None
     extracted_at: datetime = Field(default_factory=datetime.now)
 
+    # FIXME: The CNPJ and CPF validation logic is repeated in multiple
+    # models. It would be better to create custom Pydantic types for these
+    # fields to reduce code duplication and improve reusability.
     @field_validator("orgao_cnpj", "orgao_subrogado_cnpj", mode="before")
     @classmethod
     def validate_cnpj(cls, v: Optional[str]) -> Optional[str]:
@@ -478,6 +481,9 @@ class BronzeContratacao(BaseModel):
     # Metadados
     usuario_nome: Optional[str] = None
     extracted_at: datetime = Field(default_factory=datetime.now)
+
+    # TODO: Add validation for the `link_sistema_origem` and
+    # `link_processo_eletronico` fields to ensure that they are valid URLs.
 
     @field_validator("orgao_cnpj", "orgao_subrogado_cnpj", mode="before")
     @classmethod

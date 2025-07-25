@@ -30,6 +30,8 @@ def run(
     ),
 ):
     """Executa o pipeline de ETL completo (raw -> staging -> marts)."""
+    # TODO: This command is very long. It would be better to break it down
+    # into smaller functions to improve readability and maintainability.
     console.print("🚀 Executando o pipeline completo...")
 
     try:
@@ -42,6 +44,9 @@ def run(
         elif mes:
             import calendar
 
+            # FIXME: This logic for determining the number of days is repeated
+            # in other commands. It would be better to extract it into a
+            # helper function to avoid code duplication.
             try:
                 year, month = map(int, mes.split("-"))
                 _, num_days = calendar.monthrange(year, month)
@@ -115,6 +120,9 @@ def run(
 @app.command()
 def init():
     """Prepara o ambiente para a primeira execução."""
+    # TODO: This command could be more comprehensive. For example, it could
+    # also check for the existence of required directories and create them
+    # if they are missing.
     console.print("Inicializando o ambiente...")
 
     try:
@@ -165,6 +173,8 @@ def extract(
     ),
 ):
     """Executa apenas a etapa de extração (raw)."""
+    # TODO: The `extract` and `extract-all` commands are very similar.
+    # It would be better to refactor them to reduce code duplication.
     console.print("🚀 Iniciando extração de dados...")
 
     try:
@@ -307,6 +317,10 @@ def ui(
     ),
 ):
     """Inicia a interface web do Prefect."""
+    # TODO: This command is highly dependent on the `prefect` command-line
+    # tool. It would be better to use the Prefect Python API to start the
+    # server, as this would make the command more robust and less likely
+    # to break if the `prefect` command-line tool changes.
     import socket
     import subprocess
     import time
@@ -374,6 +388,10 @@ def query(
         if output:
             import pandas as pd
 
+            # FIXME: This is not a very robust way to get the column names.
+            # It would be better to use the ibis API to get the schema of the
+            # result, as this would be more reliable and less likely to break
+            # if the underlying database driver changes.
             df = pd.DataFrame(result, columns=[d[0] for d in con.con.description])
             if output.endswith(".csv"):
                 df.to_csv(output, index=False)

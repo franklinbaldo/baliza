@@ -43,6 +43,9 @@ async def extract_all_pncp_endpoints(
         include_pca: Whether to include PCA endpoints (requires additional params)
         concurrent: Whether to run extractions concurrently
     """
+    # TODO: This flow is very long and complex. It would be better to
+    # break it down into smaller, more manageable sub-flows to improve
+    # readability and maintainability.
     logger = get_run_logger()
     execution_id = str(uuid4())
     start_time = datetime.now()
@@ -122,6 +125,9 @@ async def extract_all_pncp_endpoints(
             if include_pca:
                 current_year = datetime.now().year
 
+                # FIXME: The classification code is hardcoded. It would be
+                # better to make it configurable, for example, through the
+                # settings file or as a parameter to the flow.
                 # Extract PCA for current year (requires classification code)
                 pca_task = extract_pca.submit(
                     ano_pca=current_year,
