@@ -8,7 +8,7 @@ import re
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from .enums import ModalidadeContratacao, SituacaoCompra, TipoPessoa
+from .legacy.enums import ModalidadeContratacao, SituacaoCompra, TipoPessoa
 from .types import Cnpj
 
 

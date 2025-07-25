@@ -14,9 +14,8 @@ from pydantic import BaseModel
 
 from ..backend import connect
 from ..config import settings
-from ..enums import ModalidadeContratacao
-from ..utils.http_client import EndpointExtractor, APIRequest
-from ..utils.endpoints import DateRangeHelper
+from ..legacy.enums import ModalidadeContratacao
+from ..legacy.utils import EndpointExtractor, APIRequest, DateRangeHelper
 
 
 class ExtractionResult(BaseModel):

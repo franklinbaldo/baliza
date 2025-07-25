@@ -10,15 +10,15 @@ from datetime import datetime
 
 from pydantic import ValidationError
 
-from src.baliza.utils.http_client import (
+from baliza.legacy.utils import (
     PNCPResponse,
     APIRequest,
     AdaptiveRateLimiter,
     PNCPClient,
     EndpointExtractor,
+    CircuitState,
 )
-from src.baliza.utils.circuit_breaker import CircuitState
-from src.baliza.enums import ModalidadeContratacao
+from baliza.legacy.enums import ModalidadeContratacao
 
 
 class TestPNCPResponse:
@@ -87,7 +87,7 @@ class TestCircuitBreaker:
 
     def test_initial_state(self):
         """Test circuit breaker initial state"""
-        from src.baliza.utils.circuit_breaker import (
+        from baliza.legacy.utils import (
             CircuitBreaker,
             CircuitBreakerConfig,
         )
@@ -100,7 +100,7 @@ class TestCircuitBreaker:
 
     def test_failure_tracking(self):
         """Test failure counting"""
-        from src.baliza.utils.circuit_breaker import (
+        from baliza.legacy.utils import (
             CircuitBreaker,
             CircuitBreakerConfig,
         )
@@ -121,7 +121,7 @@ class TestCircuitBreaker:
 
     def test_success_reset(self):
         """Test success resets failure count"""
-        from src.baliza.utils.circuit_breaker import (
+        from baliza.legacy.utils import (
             CircuitBreaker,
             CircuitBreakerConfig,
         )
@@ -167,7 +167,7 @@ class TestAdaptiveRateLimiter:
 
 
 @pytest.mark.asyncio
-@patch("src.baliza.utils.http_client.get_run_logger")
+@patch("baliza.legacy.utils.get_run_logger")
 class TestPNCPClient:
     """Test PNCP HTTP client"""
 
@@ -239,7 +239,7 @@ class TestPNCPClient:
 
 
 @pytest.mark.asyncio
-@patch("src.baliza.utils.http_client.get_run_logger")
+@patch("baliza.legacy.utils.get_run_logger")
 class TestEndpointExtractor:
     """Test endpoint-specific extraction logic"""
 

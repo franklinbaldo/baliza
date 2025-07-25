@@ -458,6 +458,24 @@ class TipoEventoNotaFiscal(str, Enum):
 ENUM_REGISTRY["TipoEventoNotaFiscal"] = TipoEventoNotaFiscal
 
 
+class PncpEndpoint(str, Enum):
+    """
+    Represents the PNCP API endpoints.
+    """
+    CONTRATACOES_PUBLICACAO = "contratacoes_publicacao"
+    CONTRATOS = "contratos"
+    ATAS = "atas"
+    CONTRATACOES_ATUALIZACAO = "contratacoes_atualizacao"
+    CONTRATOS_ATUALIZACAO = "contratos_atualizacao"
+    ATAS_ATUALIZACAO = "atas_atualizacao"
+    CONTRATACOES_PROPOSTA = "contratacoes_proposta"
+    INSTRUMENTOSCOBRANCA_INCLUSAO = "instrumentoscobranca_inclusao"
+    PCA = "pca"
+    PCA_USUARIO = "pca_usuario"
+    PCA_ATUALIZACAO = "pca_atualizacao"
+    LICITACOES = "licitacoes" # Adicionado para corresponder ao teste
+
+
 def get_enum_by_name(enum_name: str) -> Optional[Type[Enum]]:
     """Get enum class by name."""
     return ENUM_REGISTRY.get(enum_name)  # type: ignore

@@ -2,7 +2,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
-from .enums import (
+from ..legacy.enums import (
     IndicadorOrcamentoSigiloso,
     SituacaoCompra,
     TipoEventoNotaFiscal,

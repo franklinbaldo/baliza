@@ -28,7 +28,7 @@ def _run_extraction(days: int = None, data_inicial: str = None, data_final: str 
         console.print(f"📅 Extraindo dados dos últimos {days} dias...")
         
     # Use ALL modalidades for complete ETL run
-    from .enums import ModalidadeContratacao
+    from .legacy.enums import ModalidadeContratacao
     all_modalidades = [modalidade.value for modalidade in ModalidadeContratacao]
     
     result = asyncio.run(
@@ -93,7 +93,7 @@ def run(
     try:
         if mes:
             # Extract specific month data
-            from .utils.endpoints import DateRangeHelper
+            from .legacy.utils import DateRangeHelper
             data_inicial, data_final = DateRangeHelper.get_month_range_from_string(mes)
             _run_extraction(data_inicial=data_inicial, data_final=data_final)
         elif latest:
@@ -634,7 +634,7 @@ def _parse_modalidades(modalidades: str) -> list[int]:
     """Parse a comma-separated string of modalidades into a list of integers."""
     if not modalidades:
         # Use ALL modalidades by default for complete coverage
-        from .enums import ModalidadeContratacao
+        from .legacy.enums import ModalidadeContratacao
         return [modalidade.value for modalidade in ModalidadeContratacao]
     try:
         return [int(m.strip()) for m in modalidades.split(",")]

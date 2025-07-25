@@ -11,9 +11,8 @@ from uuid import uuid4
 from prefect import flow, task, get_run_logger
 
 from ..config import settings
-from ..enums import ModalidadeContratacao
-from ..utils.http_client import EndpointExtractor
-from ..utils.endpoints import DateRangeHelper, get_all_pncp_endpoints
+from ..legacy.enums import ModalidadeContratacao
+from ..legacy.utils import EndpointExtractor, DateRangeHelper, get_all_pncp_endpoints
 from .raw import (
     ExtractionResult,
     extract_contratacoes_modalidade,
