@@ -43,7 +43,16 @@ def store_dataframe(df: pd.DataFrame, table_name: str, overwrite: bool = False) 
 
     try:
         con = connect()
-        con.insert(table_name, df, overwrite=overwrite)
+        
+        # Check if table exists and handle accordingly
+        try:
+            con.table(table_name)
+            # Table exists, insert data
+            con.insert(table_name, df, overwrite=overwrite)
+        except Exception:
+            # Table doesn't exist, create it from the dataframe
+            con.create_table(table_name, df, overwrite=overwrite)
+            
         logger.info(f"Stored {len(df)} rows in table {table_name}.")
         return True
     except Exception as e:
@@ -53,27 +62,50 @@ def store_dataframe(df: pd.DataFrame, table_name: str, overwrite: bool = False) 
 
 @task(name="store_api_requests_batch", retries=2)
 def store_api_requests_batch(api_requests: List[APIRequest]) -> bool:
-    """Store a batch of API request data in DuckDB"""
+    """Store a batch of API request data in DuckDB with deduplication"""
     if not api_requests:
         return True
 
-    # Store payloads in hot_payloads
-    hot_payloads_df = pd.DataFrame(
-        [
-            {
+    logger = get_run_logger()
+    con = connect()
+    
+    # Get existing payload hashes to avoid duplicates using Ibis
+    try:
+        hot_payloads = con.table("raw.hot_payloads")
+        existing_hashes_df = hot_payloads.select(hot_payloads.payload_sha256).execute()
+        existing_hashes = set(existing_hashes_df["payload_sha256"].tolist())
+    except Exception:
+        # Table doesn't exist yet, no existing hashes
+        existing_hashes = set()
+    
+    # Filter out requests with payloads we already have
+    new_payloads = []
+    new_requests = []
+    
+    for req in api_requests:
+        if req.payload_sha256 not in existing_hashes:
+            new_payloads.append({
                 "payload_sha256": req.payload_sha256,
                 "payload_compressed": req.payload_compressed,
                 "first_seen_at": req.collected_at,
-            }
-            for req in api_requests
-        ]
-    )
-    store_dataframe.submit(hot_payloads_df, "raw.hot_payloads", overwrite=True)
+            })
+            existing_hashes.add(req.payload_sha256)  # Track to avoid duplicates within this batch
+        
+        # Always store request metadata (since same payload can be requested at different times)
+        new_requests.append(req.dict(exclude={"payload_compressed"}))
+    
+    # Store new payloads only
+    if new_payloads:
+        hot_payloads_df = pd.DataFrame(new_payloads)
+        store_dataframe(hot_payloads_df, "raw.hot_payloads", overwrite=False)
+        logger.info(f"Stored {len(new_payloads)} new unique payloads (skipped {len(api_requests) - len(new_payloads)} duplicates)")
+    else:
+        logger.info(f"All {len(api_requests)} payloads were duplicates, skipped payload storage")
 
-    # Store request metadata in api_requests
-    requests_for_df = [req.dict(exclude={"payload_compressed"}) for req in api_requests]
-    api_request_df = pd.DataFrame(requests_for_df)
-    store_dataframe.submit(api_request_df, "raw.api_requests")
+    # Store all request metadata (even for duplicate payloads, to track API calls)
+    if new_requests:
+        api_request_df = pd.DataFrame(new_requests)
+        store_dataframe(api_request_df, "raw.api_requests", overwrite=False)
 
     return True
 
@@ -155,7 +187,7 @@ async def extract_contratacoes_modalidade(
 
         # Store the batch of requests
         if batch_requests:
-            store_api_requests_batch.submit(batch_requests)
+            store_api_requests_batch.submit(batch_requests).result().result()
 
         await extractor.close()
 
@@ -238,7 +270,7 @@ async def extract_contratos(
             batch_requests.append(api_request)
 
         if batch_requests:
-            store_api_requests_batch.submit(batch_requests)
+            store_api_requests_batch.submit(batch_requests).result()
 
         await extractor.close()
 
@@ -311,7 +343,7 @@ async def extract_atas(
             batch_requests.append(api_request)
 
         if batch_requests:
-            store_api_requests_batch.submit(batch_requests)
+            store_api_requests_batch.submit(batch_requests).result()
 
         await extractor.close()
 
@@ -568,7 +600,7 @@ async def extract_contratacoes_atualizacao_modalidade(
             batch_requests.append(api_request)
 
         if batch_requests:
-            store_api_requests_batch.submit(batch_requests)
+            store_api_requests_batch.submit(batch_requests).result()
 
         await extractor.close()
 
@@ -653,7 +685,7 @@ async def extract_contratos_atualizacao(
             batch_requests.append(api_request)
 
         if batch_requests:
-            store_api_requests_batch.submit(batch_requests)
+            store_api_requests_batch.submit(batch_requests).result()
 
         await extractor.close()
 
@@ -728,7 +760,7 @@ async def extract_atas_atualizacao(
             batch_requests.append(api_request)
 
         if batch_requests:
-            store_api_requests_batch.submit(batch_requests)
+            store_api_requests_batch.submit(batch_requests).result()
 
         await extractor.close()
 

@@ -540,14 +540,17 @@ def fetch_payload(
 
     try:
         con = connect()
-        sql = "SELECT payload FROM raw.hot_payloads WHERE sha256_payload = ?;"
-        result = con.con.execute(sql, [sha256_hash]).fetchone()
+        
+        # Use Ibis to query for payload by hash
+        hot_payloads = con.table("raw.hot_payloads")
+        query = hot_payloads.filter(hot_payloads.payload_sha256 == sha256_hash).select(hot_payloads.payload_compressed)
+        result_df = query.execute()
 
-        if not result:
+        if len(result_df) == 0:
             console.print("❌ Payload not found for the given hash.")
             raise typer.Exit(1)
 
-        compressed_payload = result[0]
+        compressed_payload = result_df.iloc[0]['payload_compressed']
         decompressed_payload = zlib.decompress(compressed_payload)
         payload_json = json.loads(decompressed_payload)
 
@@ -1064,7 +1067,9 @@ async def _validate_database_schema():
 
         for table in required_tables:
             try:
-                con.raw_sql(f"SELECT COUNT(*) FROM {table}").fetchone()
+                # Use Ibis to check if table exists and get row count
+                table_ref = con.table(table)
+                table_ref.count().execute()
                 existing_tables.append(table)
             except Exception:
                 missing_tables.append(table)
