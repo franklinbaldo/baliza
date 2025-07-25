@@ -143,11 +143,12 @@ async def extract_contratacoes_modalidade(
 
         for api_request in api_requests:
             # Count records in this page
-            payload_json = json.loads(
-                zlib.decompress(api_request.payload_compressed).decode("utf-8")
-            )
-            if "data" in payload_json:
-                total_records += len(payload_json["data"])
+            if api_request.payload_compressed:
+                payload_json = json.loads(
+                    zlib.decompress(api_request.payload_compressed).decode("utf-8")
+                )
+                if "data" in payload_json:
+                    total_records += len(payload_json["data"])
 
             total_bytes += api_request.payload_size
             batch_requests.append(api_request)
@@ -220,11 +221,18 @@ async def extract_contratos(
         batch_requests = []
 
         for api_request in api_requests:
-            payload_json = json.loads(
-                zlib.decompress(api_request.payload_compressed).decode("utf-8")
-            )
-            if "data" in payload_json:
-                total_records += len(payload_json["data"])
+            if api_request.payload_compressed:
+                payload_json = json.loads(
+                    zlib.decompress(api_request.payload_compressed).decode("utf-8")
+                )
+                if "data" in payload_json:
+                    total_records += len(payload_json["data"])
+            if api_request.payload_compressed:
+                payload_json = json.loads(
+                    zlib.decompress(api_request.payload_compressed).decode("utf-8")
+                )
+                if "data" in payload_json:
+                    total_records += len(payload_json["data"])
 
             total_bytes += api_request.payload_size
             batch_requests.append(api_request)
@@ -532,11 +540,12 @@ async def extract_contratacoes_atualizacao_modalidade(
 
         for api_request in api_requests:
             # Count records in this page
-            payload_json = json.loads(
-                zlib.decompress(api_request.payload_compressed).decode("utf-8")
-            )
-            if "data" in payload_json:
-                total_records += len(payload_json["data"])
+            if api_request.payload_compressed:
+                payload_json = json.loads(
+                    zlib.decompress(api_request.payload_compressed).decode("utf-8")
+                )
+                if "data" in payload_json:
+                    total_records += len(payload_json["data"])
 
             total_bytes += api_request.payload_size
             batch_requests.append(api_request)
@@ -610,11 +619,18 @@ async def extract_contratos_atualizacao(
         batch_requests = []
 
         for api_request in api_requests:
-            payload_json = json.loads(
-                zlib.decompress(api_request.payload_compressed).decode("utf-8")
-            )
-            if "data" in payload_json:
-                total_records += len(payload_json["data"])
+            if api_request.payload_compressed:
+                payload_json = json.loads(
+                    zlib.decompress(api_request.payload_compressed).decode("utf-8")
+                )
+                if "data" in payload_json:
+                    total_records += len(payload_json["data"])
+            if api_request.payload_compressed:
+                payload_json = json.loads(
+                    zlib.decompress(api_request.payload_compressed).decode("utf-8")
+                )
+                if "data" in payload_json:
+                    total_records += len(payload_json["data"])
 
             total_bytes += api_request.payload_size
             batch_requests.append(api_request)

@@ -1,7 +1,7 @@
 # MessagePack vs JSON+zlib Serialization Analysis
 
-**Date**: July 24, 2025  
-**Question**: Should Baliza use MessagePack instead of JSON+zlib for raw payload storage?  
+**Date**: July 24, 2025
+**Question**: Should Baliza use MessagePack instead of JSON+zlib for raw payload storage?
 **Conclusion**: **NO - Stick with current JSON+zlib approach**
 
 ## 🎯 Executive Summary
@@ -46,7 +46,7 @@ A comprehensive benchmark analysis comparing MessagePack against the current JSO
 
 ### 🧑‍💻 **Development Impact**: Negative
 - Less human-readable for debugging
-- Additional dependency (msgpack-python)  
+- Additional dependency (msgpack-python)
 - Potential compatibility issues with existing tools
 - No debugging benefits
 
@@ -59,7 +59,7 @@ A comprehensive benchmark analysis comparing MessagePack against the current JSO
 
 ## 🚨 Critical Issues with Migration
 
-1. **Breaking Changes**: 
+1. **Breaking Changes**:
    - SHA-256 hashes would change for all existing data
    - Content deduplication system would break
    - Audit trail integrity compromised

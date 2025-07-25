@@ -81,7 +81,7 @@ baliza ui
 # PNCP API has no explicit rate limiting - can use all endpoints simultaneously
 baliza extract --concurrent --all-endpoints --date-range last_30_days
 
-# Extract specific modalidades in parallel 
+# Extract specific modalidades in parallel
 baliza extract --concurrent --modalidades 6,7,8 --max-workers 12
 
 # Performance: 8.75x faster than sequential (8 min vs 70 min per month)

@@ -11,14 +11,14 @@ CREATE SCHEMA IF NOT EXISTS meta;
 -- Raw Layer: API requests table (unified design)
 CREATE TABLE IF NOT EXISTS raw.api_requests (
     request_id         UUID PRIMARY KEY,
-    ingestion_date     DATE NOT NULL,  
+    ingestion_date     DATE NOT NULL,
     endpoint           TEXT NOT NULL,
     http_status        SMALLINT NOT NULL,
     etag               TEXT,
     payload_sha256     VARCHAR(64) NOT NULL,
     payload_size       INT NOT NULL,
     collected_at       TIMESTAMPTZ NOT NULL,
-    
+
     -- Constraints
     UNIQUE(endpoint, collected_at),
     CHECK(http_status >= 100 AND http_status < 600),
@@ -33,16 +33,16 @@ CREATE TABLE IF NOT EXISTS raw.hot_payloads (
 );
 
 -- Indexes for performance
-CREATE INDEX IF NOT EXISTS idx_api_requests_ingestion_date 
+CREATE INDEX IF NOT EXISTS idx_api_requests_ingestion_date
 ON raw.api_requests(ingestion_date);
 
-CREATE INDEX IF NOT EXISTS idx_api_requests_payload_sha256 
+CREATE INDEX IF NOT EXISTS idx_api_requests_payload_sha256
 ON raw.api_requests(payload_sha256);
 
-CREATE INDEX IF NOT EXISTS idx_api_requests_endpoint 
+CREATE INDEX IF NOT EXISTS idx_api_requests_endpoint
 ON raw.api_requests(endpoint);
 
-CREATE INDEX IF NOT EXISTS idx_api_requests_collected_at 
+CREATE INDEX IF NOT EXISTS idx_api_requests_collected_at
 ON raw.api_requests(collected_at);
 
 -- Metadata: Execution log
@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS meta.execution_log (
     metadata          JSON
 );
 
--- Metadata: Schema evolution tracking  
+-- Metadata: Schema evolution tracking
 CREATE TABLE IF NOT EXISTS meta.schema_versions (
     version_id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     api_version        TEXT NOT NULL,

@@ -710,6 +710,7 @@ def _perform_database_reset(force: bool, backup: bool):
     import shutil
     import time
     from datetime import datetime
+    from typing import List
 
     db_path = Path(settings.DATABASE_PATH)
     db_dir = db_path.parent
@@ -720,7 +721,7 @@ def _perform_database_reset(force: bool, backup: bool):
         return
 
     # Get database size for reporting
-    db_size_mb = db_path.stat().st_size / (1024 * 1024)
+    db_size_mb = float(db_path.stat().st_size) / (1024 * 1024)
 
     # Show what will be deleted
     console.print("📋 [yellow]Análise do que será removido:[/yellow]")
@@ -731,12 +732,12 @@ def _perform_database_reset(force: bool, backup: bool):
 
     # Check for temporary files
     temp_patterns = ["*.tmp", "*.log", "*.cache"]
-    temp_files = []
+    temp_files: List[Path] = []
     for pattern in temp_patterns:
         temp_files.extend(db_dir.glob(pattern))
 
     if temp_files:
-        total_temp_mb = sum(f.stat().st_size for f in temp_files) / (1024 * 1024)
+        total_temp_mb = float(sum(f.stat().st_size for f in temp_files)) / (1024 * 1024)
         items_to_delete.append(
             f"• {len(temp_files)} arquivos temporários ({total_temp_mb:.2f} MB)"
         )
@@ -744,7 +745,7 @@ def _perform_database_reset(force: bool, backup: bool):
     # Check for DuckDB WAL files
     wal_files = list(db_dir.glob("*.wal"))
     if wal_files:
-        wal_mb = sum(f.stat().st_size for f in wal_files) / (1024 * 1024)
+        wal_mb = float(sum(f.stat().st_size for f in wal_files)) / (1024 * 1024)
         items_to_delete.append(f"• {len(wal_files)} arquivos WAL ({wal_mb:.2f} MB)")
 
     for item in items_to_delete:

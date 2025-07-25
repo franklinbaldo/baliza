@@ -34,7 +34,7 @@ GET /v1/pca/atualizacao?dataInicio={YYYYMMDD}&dataFim={YYYYMMDD}&pagina={page}
 
 **Parâmetros Obrigatórios:**
 - `dataInicio` (string): Data inicial YYYYMMDD
-- `dataFim` (string): Data final YYYYMMDD  
+- `dataFim` (string): Data final YYYYMMDD
 - `pagina` (int): Número da página
 
 **Parâmetros Opcionais:**
@@ -230,7 +230,7 @@ GET /v1/instrumentoscobranca/inclusao?dataInicial={YYYYMMDD}&dataFinal={YYYYMMDD
 
 ### **Códigos HTTP**
 - `200`: Sucesso com dados
-- `204`: Sucesso sem dados  
+- `204`: Sucesso sem dados
 - `400`: Bad Request
 - `422`: Unprocessable Entity
 - `500`: Internal Server Error

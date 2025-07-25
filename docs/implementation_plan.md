@@ -35,7 +35,7 @@ O pipeline seguirá uma arquitetura de três camadas otimizada para simplicidade
           collected_at       TIMESTAMPTZ NOT NULL,
           UNIQUE(endpoint, collected_at)
         );
-        
+
         -- Índices para performance
         CREATE INDEX idx_ingestion_date ON raw.api_requests(ingestion_date);
         CREATE INDEX idx_payload_sha256 ON raw.api_requests(payload_sha256);
@@ -60,7 +60,7 @@ O pipeline seguirá uma arquitetura de três camadas otimizada para simplicidade
         ```sql
         -- Particionamento lógico via WHERE clauses (DuckDB native)
         CREATE TABLE marts.contratos_mes AS
-        SELECT * FROM staging.contratos_cleaned 
+        SELECT * FROM staging.contratos_cleaned
         WHERE data_publicacao >= '2024-01-01'
         ORDER BY orgao, data_publicacao;
         ```
@@ -82,7 +82,7 @@ class CircuitBreaker:
 @task(
     retries=3,
     retry_delay_seconds=60,
-    retry_condition_fn=lambda task, task_run, state: 
+    retry_condition_fn=lambda task, task_run, state:
         isinstance(state.result(), (httpx.HTTPStatusError, httpx.TimeoutException))
 )
 def fetch_pncp_endpoint(endpoint: str, attempt: int = 0):
@@ -90,7 +90,7 @@ def fetch_pncp_endpoint(endpoint: str, attempt: int = 0):
     if attempt > 0:
         delay = min((2 ** attempt) + random.uniform(0, 1), 300)
         time.sleep(delay)
-    
+
     # Lógica de requisição com circuit breaker
 ```
 
@@ -138,7 +138,7 @@ CREATE TABLE meta.pipeline_metrics (
 
 #### Alerting Simples
 - Logs estruturados (JSON) para fácil parsing
-- GitHub Actions para monitoring básico  
+- GitHub Actions para monitoring básico
 - Webhook notifications (Slack/Discord) opcionais
 
 ## 3. Experiência do Usuário (CLI Melhorada)
@@ -314,7 +314,7 @@ CREATE TABLE raw.api_requests (
   payload_size       INT NOT NULL,
   payload_compressed BLOB NOT NULL,
   collected_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  
+
   -- Constraints
   UNIQUE(endpoint, collected_at),
   CHECK(http_status >= 100 AND http_status < 600),
@@ -391,7 +391,7 @@ PRAGMA temp_directory='data/tmp';
 - [ ] Testes unitários > 80% coverage
 - [ ] Documentação básica atualizada
 
-### Fase 2B (ETL Completo)  
+### Fase 2B (ETL Completo)
 - [ ] `baliza run --latest` produz marts
 - [ ] Performance < 5min para mês completo
 - [ ] Error handling robusto
