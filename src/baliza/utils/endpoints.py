@@ -176,15 +176,18 @@ class PaginationHelper:
     @staticmethod
     def get_page_size(endpoint_name: str, requested_size: Optional[int] = None) -> int:
         """Get appropriate page size for endpoint"""
-        config: Dict = ENDPOINT_CONFIG.get(endpoint_name, {})
-        limits = config.get("page_size_limits", {"min": 10, "max": 500})
-        default_size = config.get("default_page_size", 500)
+        config = ENDPOINT_CONFIG.get(endpoint_name)
+        if config is None:
+            return 500  # Default fallback
+            
+        limits = config.page_size_limits
+        default_size = config.default_page_size
 
         if requested_size is None:
             return default_size
 
         # Clamp to limits
-        return max(limits["min"], min(requested_size, limits["max"]))
+        return max(limits.min, min(requested_size, limits.max))
 
     @staticmethod
     def calculate_total_pages(total_records: int, page_size: int) -> int:
@@ -262,12 +265,15 @@ class EndpointValidator:
         if page < 1:
             raise ValueError("Page number must be >= 1")
 
-        config: Dict = ENDPOINT_CONFIG.get(endpoint_name, {})
-        limits = config.get("page_size_limits", {"min": 10, "max": 500})
+        config = ENDPOINT_CONFIG.get(endpoint_name)
+        if config is None:
+            limits_min, limits_max = 10, 500  # Default fallback
+        else:
+            limits_min, limits_max = config.page_size_limits.min, config.page_size_limits.max
 
-        if page_size < limits["min"] or page_size > limits["max"]:
+        if page_size < limits_min or page_size > limits_max:
             raise ValueError(
-                f"Page size must be between {limits['min']} and {limits['max']}"
+                f"Page size must be between {limits_min} and {limits_max}"
             )
 
     ENDPOINT_PARAM_MODELS = {
