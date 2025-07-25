@@ -89,9 +89,9 @@ def extract_and_normalize_payloads(endpoint_pattern: str, table_name: str) -> in
             # Create Polars DataFrame from normalized records
             df = pl.DataFrame(normalized_records)
             
-            # Convert to Ibis table (DuckDB can read from Polars)
-            staging_table = con.read_polars(df)
-            con.create_table(f"staging.{table_name}", staging_table, overwrite=True)
+            # Convert Polars DataFrame to pandas for Ibis compatibility
+            df_pandas = df.to_pandas()
+            con.create_table(f"staging.{table_name}", df_pandas, overwrite=True)
             
             logger.info(f"Created staging.{table_name} with {len(normalized_records)} records using Polars")
             
@@ -100,7 +100,7 @@ def extract_and_normalize_payloads(endpoint_pattern: str, table_name: str) -> in
             logger.warning("Polars not available, using basic staging approach")
             
             # Create a simple staging view without full normalization
-            con.create_schema("staging", if_not_exists=True)
+            con.raw_sql("CREATE SCHEMA IF NOT EXISTS staging")
             staging_expr = query.select([
                 query.request_id.name('source_request_id'),
                 query.ingestion_date.name('source_ingestion_date'), 

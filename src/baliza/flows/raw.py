@@ -51,6 +51,9 @@ def store_dataframe(df: pd.DataFrame, table_name: str, overwrite: bool = False) 
             con.insert(table_name, df, overwrite=overwrite)
         except Exception:
             # Table doesn't exist, create it from the dataframe
+            # For DuckDB compatibility, convert None values to empty strings in string columns
+            if 'etag' in df.columns:
+                df['etag'] = df['etag'].fillna('')
             con.create_table(table_name, df, overwrite=overwrite)
             
         logger.info(f"Stored {len(df)} rows in table {table_name}.")
