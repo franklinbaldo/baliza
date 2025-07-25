@@ -8,6 +8,13 @@ CREATE SCHEMA IF NOT EXISTS staging;
 CREATE SCHEMA IF NOT EXISTS marts;
 CREATE SCHEMA IF NOT EXISTS meta;
 
+-- Create hot_payloads first (referenced by foreign key)
+CREATE TABLE IF NOT EXISTS raw.hot_payloads (
+    payload_sha256     VARCHAR(64) PRIMARY KEY,
+    payload_compressed BLOB NOT NULL,
+    first_seen_at      TIMESTAMPTZ NOT NULL
+);
+
 -- Raw Layer: API requests table (unified design)
 CREATE TABLE IF NOT EXISTS raw.api_requests (
     request_id         UUID PRIMARY KEY,
@@ -22,14 +29,7 @@ CREATE TABLE IF NOT EXISTS raw.api_requests (
     -- Constraints
     UNIQUE(endpoint, collected_at),
     CHECK(http_status >= 100 AND http_status < 600),
-    CHECK(payload_size > 0),
-    FOREIGN KEY (payload_sha256) REFERENCES raw.hot_payloads(payload_sha256)
-);
-
-CREATE TABLE IF NOT EXISTS raw.hot_payloads (
-    payload_sha256     VARCHAR(64) PRIMARY KEY,
-    payload_compressed BLOB NOT NULL,
-    first_seen_at      TIMESTAMPTZ NOT NULL
+    CHECK(payload_size > 0)
 );
 
 -- Indexes for performance

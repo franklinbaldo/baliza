@@ -5,7 +5,6 @@ from pathlib import Path
 import typer
 from rich.console import Console
 from rich.table import Table
-from prefect.server.api.server import serve as start_prefect_server
 
 from .backend import init_database_schema, connect
 from .flows.raw import extract_phase_2a_concurrent
@@ -108,8 +107,8 @@ def init():
 
     try:
         # Create required directories
-        Path(settings.DATABASE_PATH).parent.mkdir(parents=True, exist_ok=True)
-        Path(settings.TEMP_DIRECTORY).mkdir(parents=True, exist_ok=True)
+        Path(settings.database_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(settings.temp_directory).mkdir(parents=True, exist_ok=True)
         console.print("✅ Diretórios necessários verificados/criados.")
 
         # Initialize database schema
@@ -286,7 +285,8 @@ def ui(
     """Inicia a interface web do Prefect."""
     import socket
     import webbrowser
-    import threading
+    import subprocess
+    import os
 
     # Check if port is already in use
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -298,26 +298,45 @@ def ui(
 
     console.print(f"🚀 Iniciando a UI do Prefect na porta {port}...")
 
-    def run_server():
+    try:
+        # Use Prefect CLI to start server with UI
+        env = os.environ.copy()
+        env["PREFECT_SERVER_API_HOST"] = "localhost"
+        env["PREFECT_SERVER_API_PORT"] = str(port)
+        
+        # Start server with UI enabled
+        process = subprocess.Popen(
+            ["prefect", "server", "start", "--host", "localhost", "--port", str(port), "--ui"],
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True
+        )
+
+        console.print("✅ UI do Prefect iniciada com sucesso!")
+        console.print(f"🔗 URL: http://localhost:{port}")
+
+        if not no_browser:
+            # Give the server a moment to start
+            import time
+            time.sleep(3)
+            webbrowser.open(f"http://localhost:{port}")
+
+        # Wait for process to complete or handle Ctrl+C
         try:
-            asyncio.run(
-                start_prefect_server(
-                    host="localhost", port=port, log_level="info", background=False
-                )
-            )
-        except Exception as e:
-            console.print(f"❌ Erro ao iniciar a UI do Prefect: {e}")
+            for line in iter(process.stdout.readline, ''):
+                if line:
+                    print(line.strip())
+            process.wait()
+        except KeyboardInterrupt:
+            console.print("\n⏹️  Parando o servidor Prefect...")
+            process.terminate()
+            process.wait()
+            console.print("✅ Servidor Prefect parado com sucesso!")
 
-    server_thread = threading.Thread(target=run_server, daemon=True)
-    server_thread.start()
-
-    console.print("✅ UI do Prefect iniciada com sucesso!")
-    console.print(f"🔗 URL: http://localhost:{port}")
-
-    if not no_browser:
-        webbrowser.open(f"http://localhost:{port}")
-
-    server_thread.join()
+    except Exception as e:
+        console.print(f"❌ Erro ao iniciar a UI do Prefect: {e}")
+        raise typer.Exit(1)
 
 
 @app.command()
@@ -335,18 +354,14 @@ def query(
 
     try:
         con = connect()
-        query_result = con.raw_sql(sql)
-        result_schema = query_result.schema()
-        result = query_result.fetchall()
+        # Execute query and get results as DataFrame
+        df = con.sql(sql).to_pandas()
 
-        if not result:
+        if df.empty:
             console.print("✅ Query executed successfully, but returned no results.")
             return
 
         if output:
-            import pandas as pd
-
-            df = pd.DataFrame(result, columns=result_schema.names)
             if output.endswith(".csv"):
                 df.to_csv(output, index=False)
                 console.print(f"✅ Results saved to {output}")
@@ -358,10 +373,10 @@ def query(
                 raise typer.Exit(1)
         else:
             table = Table(title="Query Results")
-            for col_name in result_schema.names:
+            for col_name in df.columns:
                 table.add_column(col_name)
 
-            for row in result:
+            for _, row in df.iterrows():
                 table.add_row(*[str(item) for item in row])
 
             console.print(table)
@@ -712,7 +727,7 @@ def _perform_database_reset(force: bool, backup: bool):
     from datetime import datetime
     from typing import List
 
-    db_path = Path(settings.DATABASE_PATH)
+    db_path = Path(settings.database_path)
     db_dir = db_path.parent
 
     # Check if database exists
@@ -942,7 +957,7 @@ async def _check_pncp_api_health():
         timeout = httpx.Timeout(connect=5.0, read=10.0, write=5.0, pool=5.0)
         async with httpx.AsyncClient(timeout=timeout) as client:
             # Try a simple API call
-            test_url = f"{settings.PNCP_API_BASE_URL}/contratacoes-publicacao"
+            test_url = f"{settings.pncp_api_base_url}/contratacoes-publicacao"
             params = {
                 "dataInicial": "2024-01-01",
                 "dataFinal": "2024-01-01",
@@ -967,7 +982,7 @@ async def _check_available_disk_space():
         import psutil
 
         # Check disk space where database is located
-        db_path = Path(settings.DATABASE_PATH).parent
+        db_path = Path(settings.database_path).parent
         disk_usage = psutil.disk_usage(str(db_path))
 
         free_gb = disk_usage.free / (1024**3)
@@ -1084,7 +1099,7 @@ async def _check_file_permissions():
     """Check file system permissions for database and temp directories"""
     try:
         # Check database directory permissions
-        db_path = Path(settings.DATABASE_PATH)
+        db_path = Path(settings.database_path)
         db_dir = db_path.parent
 
         issues = []

@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     """General application settings."""
 
     # API Configuration
+    pncp_api_base_url: str = "https://pncp.gov.br/api/consulta"
 
     # Database Configuration
     database_path: str = "data/baliza.duckdb"

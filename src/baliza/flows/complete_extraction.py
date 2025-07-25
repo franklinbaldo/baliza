@@ -23,7 +23,7 @@ from .raw import (
     extract_contratos_atualizacao,
     extract_atas_atualizacao,
     log_extraction_execution,
-    store_api_request,
+    store_api_requests_batch,
 )
 
 
@@ -297,7 +297,7 @@ async def extract_contratacoes_proposta(
                 total_records += len(payload_json["data"])
 
             total_bytes += api_request.payload_size
-            store_api_request.submit(api_request)
+            store_api_requests_batch.submit(api_request)
 
         await extractor.close()
 
@@ -370,7 +370,7 @@ async def extract_instrumentos_cobranca(
                 total_records += len(payload_json["data"])
 
             total_bytes += api_request.payload_size
-            store_api_request.submit(api_request)
+            store_api_requests_batch.submit(api_request)
 
         await extractor.close()
 
@@ -439,7 +439,7 @@ async def extract_pca(
                 total_records += len(payload_json["data"])
 
             total_bytes += api_request.payload_size
-            store_api_request.submit(api_request)
+            store_api_requests_batch.submit(api_request)
 
         await extractor.close()
 
@@ -508,7 +508,7 @@ async def extract_pca_atualizacao(
                 total_records += len(payload_json["data"])
 
             total_bytes += api_request.payload_size
-            store_api_request.submit(api_request)
+            store_api_requests_batch.submit(api_request)
 
         await extractor.close()
 
