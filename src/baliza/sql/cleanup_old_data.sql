@@ -8,4 +8,4 @@ WHERE start_time < NOW() - INTERVAL '${days_to_keep} days';
 -- TODO: The retention period for failed requests is hardcoded to 30 days.
 -- Keep failed requests for specified days
 DELETE FROM meta.failed_requests 
-WHERE failed_at < NOW() - INTERVAL '${failed_requests_days_to_keep} days' AND resolved = true;
+WHERE failed_at < NOW() - INTERVAL '{{ retention_days_logs }} days' AND resolved = true;

@@ -52,9 +52,9 @@ CREATE TABLE IF NOT EXISTS meta.execution_log (
     task_name         TEXT,
     start_time        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     end_time          TIMESTAMPTZ,
-    status            TEXT NOT NULL CHECK(status IN ('running', 'success', 'failed')),
-    records_processed INT DEFAULT 0,
-    bytes_processed   BIGINT DEFAULT 0,
+    status            TEXT NOT NULL CHECK(status IN ('running', 'success', 'failed', 'partial_success')),
+    records_processed INT NOT NULL DEFAULT 0,
+    bytes_processed   BIGINT NOT NULL DEFAULT 0,
     error_message     TEXT,
     metadata          JSON
 );
@@ -75,9 +75,9 @@ CREATE TABLE IF NOT EXISTS meta.failed_requests (
     original_endpoint   TEXT NOT NULL,
     failure_reason      TEXT NOT NULL,
     failed_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    retry_count         INT DEFAULT 0,
+    retry_count         INT NOT NULL DEFAULT 0,
     last_retry_at       TIMESTAMPTZ,
-    resolved            BOOLEAN DEFAULT FALSE,
+    resolved            BOOLEAN NOT NULL DEFAULT FALSE,
     archived_payload    BLOB,
     request_metadata    JSON
 );

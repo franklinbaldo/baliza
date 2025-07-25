@@ -405,9 +405,11 @@ def get_enum_description(enum_class: type[Enum], value: int | str) -> str:
     if not enum_member:
         return f"Unknown {enum_class.__name__} value: {value}"
 
-    # TODO: This function could be improved by using the docstrings of the
-    # enum members to provide a more detailed description.
-    # Convert enum name to human-readable format
+    # Use the docstring of the enum member if it exists
+    if enum_member.__doc__:
+        return enum_member.__doc__.strip()
+
+    # Fallback to the previous implementation
     name = enum_member.name.replace("_", " ").title()
     return f"{name} ({enum_member.value})"
 

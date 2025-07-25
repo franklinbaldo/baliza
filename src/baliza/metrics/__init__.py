@@ -1,1 +1,1 @@
-# TODO: Add a package docstring.
+"""Metrics and data quality checks for the Baliza pipeline."""

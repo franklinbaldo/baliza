@@ -1,6 +1,6 @@
 """Custom Pydantic types for the application."""
 
-from typing import Any, Callable
+from typing import Any
 
 from pydantic import GetCoreSchemaHandler
 from pydantic_core.core_schema import CoreSchema, str_schema

@@ -138,7 +138,12 @@ def example_staging_views_with_ibis():
             "payload_sha256",
             "payload_size",
             "collected_at",
-            "payload_compressed",  # TODO: Add JSON extraction here
+            ibis.literal("json_extract(payload_compressed, '$.totalRegistros')").name(
+                "total_registros"
+            ),
+            ibis.literal(
+                "json_array_length(json_extract(payload_compressed, '$.data'))"
+            ).name("data_count"),
         ]
     )
 

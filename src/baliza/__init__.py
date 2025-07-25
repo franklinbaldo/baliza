@@ -1,1 +1,1 @@
-# TODO: Add a package docstring.
+"""Baliza: A data pipeline for the Brazilian Public Procurement Portal (PNCP)."""

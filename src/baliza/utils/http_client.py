@@ -22,7 +22,6 @@ from .circuit_breaker import (
 )
 
 
-from pydantic import field_validator
 from pydantic import ConfigDict
 
 
@@ -70,9 +69,6 @@ class APIRequest(BaseModel):
 class PNCPClient:
     """HTTP client for PNCP API with resilience patterns"""
 
-    # TODO: This class creates a new `httpx.AsyncClient` for each request.
-    # It would be more efficient to use a session object to reuse the
-    # underlying connection.
     def __init__(self):
         self.pncp_settings = PNCPAPISettings()
         self.base_url = self.pncp_settings.base_url
@@ -91,7 +87,7 @@ class PNCPClient:
         self.logger = get_run_logger()
 
         # HTTP client configuration
-        self.client_config = {
+        client_config = {
             "timeout": httpx.Timeout(
                 connect=10.0,
                 read=self.pncp_settings.timeout_seconds,
@@ -104,6 +100,7 @@ class PNCPClient:
             "http2": True,
             "follow_redirects": True,
         }
+        self.client = httpx.AsyncClient(**client_config)
 
     async def fetch_endpoint_data(
         self, endpoint_name: str, url: str, params: Dict[str, Any] = None
@@ -158,62 +155,61 @@ class PNCPClient:
 
         start_time = datetime.now()
 
-        async with httpx.AsyncClient(**self.client_config) as client:
-            try:
-                response = await client.get(url)
-                response_time = (datetime.now() - start_time).total_seconds()
+        try:
+            response = await self.client.get(url)
+            response_time = (datetime.now() - start_time).total_seconds()
 
-                # Adapt rate limiting based on response
-                self.rate_limiter.adapt_rate(response_time, response.status_code)
+            # Adapt rate limiting based on response
+            self.rate_limiter.adapt_rate(response_time, response.status_code)
 
-                # Validate response
-                if response.status_code not in [200, 204]:
-                    self.logger.warning(
-                        f"HTTP {response.status_code} for {url}: {response.text[:200]}"
-                    )
-                    response.raise_for_status()
-
-                # Handle empty response (204 No Content)
-                if response.status_code == 204 or not response.content:
-                    payload_json = {
-                        "data": [],
-                        "totalRegistros": 0,
-                        "totalPaginas": 0,
-                        "numeroPagina": 1,
-                        "paginasRestantes": 0,
-                        "empty": True,
-                    }
-                else:
-                    payload_json = response.json()
-
-                # Validate with Pydantic
-                pncp_response = PNCPResponse(**payload_json)
-
-                # Create API request record
-                api_request = self._create_api_request(
-                    metadata=metadata,
-                    response=response,
-                    payload_json=payload_json,
-                    pncp_response=pncp_response,
+            # Validate response
+            if response.status_code not in [200, 204]:
+                self.logger.warning(
+                    f"HTTP {response.status_code} for {url}: {response.text[:200]}"
                 )
+                response.raise_for_status()
 
-                self.logger.info(
-                    f"Successfully fetched {len(pncp_response.data)} records "
-                    f"from {metadata.endpoint} (page {pncp_response.numeroPagina}/"
-                    f"{pncp_response.totalPaginas})"
-                )
+            # Handle empty response (204 No Content)
+            if response.status_code == 204 or not response.content:
+                payload_json = {
+                    "data": [],
+                    "totalRegistros": 0,
+                    "totalPaginas": 0,
+                    "numeroPagina": 1,
+                    "paginasRestantes": 0,
+                    "empty": True,
+                }
+            else:
+                payload_json = response.json()
 
-                return api_request
+            # Validate with Pydantic
+            pncp_response = PNCPResponse(**payload_json)
 
-            except httpx.HTTPStatusError as e:
-                self.logger.error(f"HTTP error for {url}: {e}")
-                raise
-            except httpx.TimeoutException as e:
-                self.logger.error(f"Timeout for {url}: {e}")
-                raise
-            except Exception as e:
-                self.logger.error(f"Unexpected error for {url}: {e}")
-                raise
+            # Create API request record
+            api_request, payload_compressed = self._create_api_request(
+                metadata=metadata,
+                response=response,
+                payload_json=payload_json,
+                pncp_response=pncp_response,
+            )
+
+            self.logger.info(
+                f"Successfully fetched {len(pncp_response.data)} records "
+                f"from {metadata.endpoint} (page {pncp_response.numeroPagina}/"
+                f"{pncp_response.totalPaginas})"
+            )
+
+            return api_request, payload_compressed
+
+        except httpx.HTTPStatusError as e:
+            self.logger.error(f"HTTP error for {url}: {e}")
+            raise
+        except httpx.TimeoutException as e:
+            self.logger.error(f"Timeout for {url}: {e}")
+            raise
+        except Exception as e:
+            self.logger.error(f"Unexpected error for {url}: {e}")
+            raise
 
     def _create_api_request(
         self,
@@ -225,9 +221,6 @@ class PNCPClient:
         """Create APIRequest model from response data"""
 
         # Serialize and compress payload
-        # TODO: Consider MessagePack for serialization (see analysis/msgpack_evaluation.py)
-        # NOTE: Analysis shows JSON+zlib is actually more efficient for PNCP data patterns
-        # DECISION: Keep current approach - MessagePack offers no significant benefits here
         payload_bytes = json.dumps(
             payload_json, ensure_ascii=False, separators=(",", ":")
         ).encode("utf-8")
@@ -256,8 +249,7 @@ class PNCPClient:
 
     async def close(self):
         """Cleanup resources"""
-        # Circuit breaker and rate limiter don't need explicit cleanup
-        pass
+        await self.client.aclose()
 
 
 class EndpointExtractor:
@@ -454,7 +446,10 @@ class EndpointExtractor:
         return requests
 
     async def extract_contratacoes_proposta(
-        self, data_final: str, modalidade: Optional[ModalidadeContratacao] = None, **filters
+        self,
+        data_final: str,
+        modalidade: Optional[ModalidadeContratacao] = None,
+        **filters,
     ) -> List[APIRequest]:
         """Extract contratações with open proposal period"""
 

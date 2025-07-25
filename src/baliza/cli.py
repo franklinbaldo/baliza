@@ -5,6 +5,7 @@ from pathlib import Path
 import typer
 from rich.console import Console
 from rich.table import Table
+from prefect.server.api.server import serve as start_prefect_server
 
 from .backend import init_database_schema, connect
 from .flows.raw import extract_phase_2a_concurrent
@@ -15,6 +16,53 @@ from .config import settings
 
 app = typer.Typer()
 console = Console()
+
+
+def _run_extraction(days: int):
+    """Helper function to run the extraction part of the pipeline."""
+    console.print("📥 Etapa 1: Extração (Raw Layer)")
+    console.print(f"📅 Extraindo dados dos últimos {days} dias...")
+    result = asyncio.run(
+        extract_phase_2a_concurrent(
+            date_range_days=days,
+            modalidades=settings.HIGH_PRIORITY_MODALIDADES,
+            concurrent=True,
+        )
+    )
+    console.print("✅ Etapa 1 concluída: Dados extraídos com sucesso")
+    console.print(
+        f"📊 Total: {result['total_records']} registros, {result['total_mb']} MB"
+    )
+
+
+def _run_staging():
+    """Helper function to run the staging part of the pipeline."""
+    console.print("🔄 Etapa 2: Transformação (Staging Layer)")
+    staging_result = staging_transformation()
+    if staging_result["status"] == "success":
+        console.print("✅ Etapa 2 concluída: Staging views criadas com sucesso")
+        console.print(
+            f"📊 Total: {staging_result['total_staging_records']} registros staging"
+        )
+    else:
+        console.print(
+            f"❌ Erro na etapa 2: {staging_result.get('error_message', 'Unknown error')}"
+        )
+        raise typer.Exit(1)
+
+
+def _run_marts():
+    """Helper function to run the marts part of the pipeline."""
+    console.print("📈 Etapa 3: Marts (Analytics Layer)")
+    marts_result = marts_creation()
+    if marts_result["status"] == "success":
+        console.print("✅ Etapa 3 concluída: Marts criados com sucesso")
+        console.print(f"📊 Total: {marts_result['total_mart_records']} marts gerados")
+    else:
+        console.print(
+            f"❌ Erro na etapa 3: {marts_result.get('error_message', 'Unknown error')}"
+        )
+        raise typer.Exit(1)
 
 
 @app.command()
@@ -30,84 +78,20 @@ def run(
     ),
 ):
     """Executa o pipeline de ETL completo (raw -> staging -> marts)."""
-    # TODO: This command is very long. It would be better to break it down
-    # into smaller functions to improve readability and maintainability.
     console.print("🚀 Executando o pipeline completo...")
-
     try:
-        # Step 1: Raw Layer - Extract data
-        console.print("📥 Etapa 1: Extração (Raw Layer)")
-
         if latest:
-            # Extract data for the last 30 days for latest month
             days = 30
         elif mes:
-            import calendar
-
-            # FIXME: This logic for determining the number of days is repeated
-            # in other commands. It would be better to extract it into a
-            # helper function to avoid code duplication.
-            try:
-                year, month = map(int, mes.split("-"))
-                _, num_days = calendar.monthrange(year, month)
-                days = num_days
-            except ValueError:
-                console.print("❌ Formato de mês inválido. Use YYYY-MM.")
-                raise typer.Exit(1)
+            days = _get_days_from_month(mes)
         elif dia:
-            # Extract for single day
             days = 1
         else:
-            # Default: last 7 days
             days = 7
 
-        console.print(f"📅 Extraindo dados dos últimos {days} dias...")
-
-        # Run extraction flow
-        result = asyncio.run(
-            extract_phase_2a_concurrent(
-                date_range_days=days,
-                modalidades=settings.HIGH_PRIORITY_MODALIDADES,
-                concurrent=True,
-            )
-        )
-
-        console.print("✅ Etapa 1 concluída: Dados extraídos com sucesso")
-        console.print(
-            f"📊 Total: {result['total_records']} registros, {result['total_mb']} MB"
-        )
-
-        # Step 2: Staging Layer - Transform data
-        console.print("🔄 Etapa 2: Transformação (Staging Layer)")
-
-        staging_result = staging_transformation()
-
-        if staging_result["status"] == "success":
-            console.print("✅ Etapa 2 concluída: Staging views criadas com sucesso")
-            console.print(
-                f"📊 Total: {staging_result['total_staging_records']} registros staging"
-            )
-        else:
-            console.print(
-                f"❌ Erro na etapa 2: {staging_result.get('error_message', 'Unknown error')}"
-            )
-            raise typer.Exit(1)
-
-        # Step 3: Marts Layer - Create analytics tables
-        console.print("📈 Etapa 3: Marts (Analytics Layer)")
-
-        marts_result = marts_creation()
-
-        if marts_result["status"] == "success":
-            console.print("✅ Etapa 3 concluída: Marts criados com sucesso")
-            console.print(
-                f"📊 Total: {marts_result['total_mart_records']} marts gerados"
-            )
-        else:
-            console.print(
-                f"❌ Erro na etapa 3: {marts_result.get('error_message', 'Unknown error')}"
-            )
-            raise typer.Exit(1)
+        _run_extraction(days)
+        _run_staging()
+        _run_marts()
 
         console.print("🎉 Pipeline completo executado com sucesso!")
         console.print("✅ Todas as camadas processadas: Raw → Staging → Marts")
@@ -120,12 +104,14 @@ def run(
 @app.command()
 def init():
     """Prepara o ambiente para a primeira execução."""
-    # TODO: This command could be more comprehensive. For example, it could
-    # also check for the existence of required directories and create them
-    # if they are missing.
     console.print("Inicializando o ambiente...")
 
     try:
+        # Create required directories
+        Path(settings.DATABASE_PATH).parent.mkdir(parents=True, exist_ok=True)
+        Path(settings.TEMP_DIRECTORY).mkdir(parents=True, exist_ok=True)
+        console.print("✅ Diretórios necessários verificados/criados.")
+
         # Initialize database schema
         init_database_schema()
         console.print("✅ Schema do banco de dados inicializado com sucesso")
@@ -158,6 +144,43 @@ def doctor():
         raise typer.Exit(1)
 
 
+def _run_extraction_flow(
+    days: int,
+    modalidades: str,
+    sequential: bool,
+    extract_all: bool = False,
+    include_pca: bool = False,
+):
+    """Helper function to run an extraction flow."""
+    modalidades_list = _parse_modalidades(modalidades)
+    console.print(f"📋 Modalidades a serem extraídas: {modalidades_list}")
+    console.print(f"📅 Extraindo últimos {days} dias")
+    console.print(f"⚡ Modo: {'Sequencial' if sequential else 'Concorrente'}")
+
+    if extract_all:
+        console.print("🚀 Iniciando extração COMPLETA do PNCP (100% cobertura)...")
+        console.print(f"📊 Incluir PCA: {'Sim' if include_pca else 'Não'}")
+        result = asyncio.run(
+            extract_all_pncp_endpoints(
+                date_range_days=days,
+                modalidades=modalidades_list,
+                include_pca=include_pca,
+                concurrent=not sequential,
+            )
+        )
+        _display_complete_extraction_results(result)
+    else:
+        console.print("🚀 Iniciando extração de dados...")
+        result = asyncio.run(
+            extract_phase_2a_concurrent(
+                date_range_days=days,
+                modalidades=modalidades_list,
+                concurrent=not sequential,
+            )
+        )
+        _display_extraction_results(result)
+
+
 @app.command()
 def extract(
     days: int = typer.Option(
@@ -173,30 +196,8 @@ def extract(
     ),
 ):
     """Executa apenas a etapa de extração (raw)."""
-    # TODO: The `extract` and `extract-all` commands are very similar.
-    # It would be better to refactor them to reduce code duplication.
-    console.print("🚀 Iniciando extração de dados...")
-
     try:
-        # Parse modalidades if provided
-        modalidades_list = _parse_modalidades(modalidades)
-        console.print(f"📋 Modalidades a serem extraídas: {modalidades_list}")
-
-        console.print(f"📅 Extraindo últimos {days} dias")
-        console.print(f"⚡ Modo: {'Sequencial' if sequential else 'Concorrente'}")
-
-        # Run extraction flow
-        result = asyncio.run(
-            extract_phase_2a_concurrent(
-                date_range_days=days,
-                modalidades=modalidades_list,
-                concurrent=not sequential,
-            )
-        )
-
-        # Display results
-        _display_extraction_results(result)
-
+        _run_extraction_flow(days, modalidades, sequential)
     except Exception as e:
         console.print(f"❌ Erro na extração: {e}")
         raise typer.Exit(1)
@@ -220,30 +221,10 @@ def extract_all(
     ),
 ):
     """Executa extração de TODOS os endpoints PNCP (100% de cobertura)."""
-    console.print("🚀 Iniciando extração COMPLETA do PNCP (100% cobertura)...")
-
     try:
-        # Parse modalidades if provided
-        modalidades_list = _parse_modalidades(modalidades)
-        console.print(f"📋 Modalidades a serem extraídas: {modalidades_list}")
-
-        console.print(f"📅 Extraindo últimos {days} dias")
-        console.print(f"📊 Incluir PCA: {'Sim' if include_pca else 'Não'}")
-        console.print(f"⚡ Modo: {'Sequencial' if sequential else 'Concorrente'}")
-
-        # Run complete extraction flow
-        result = asyncio.run(
-            extract_all_pncp_endpoints(
-                date_range_days=days,
-                modalidades=modalidades_list,
-                include_pca=include_pca,
-                concurrent=not sequential,
-            )
+        _run_extraction_flow(
+            days, modalidades, sequential, extract_all=True, include_pca=include_pca
         )
-
-        # Display comprehensive results
-        _display_complete_extraction_results(result)
-
     except Exception as e:
         console.print(f"❌ Erro na extração completa: {e}")
         raise typer.Exit(1)
@@ -303,14 +284,9 @@ def ui(
     ),
 ):
     """Inicia a interface web do Prefect."""
-    # TODO: This command is highly dependent on the `prefect` command-line
-    # tool. It would be better to use the Prefect Python API to start the
-    # server, as this would make the command more robust and less likely
-    # to break if the `prefect` command-line tool changes.
     import socket
-    import subprocess
-    import time
     import webbrowser
+    import threading
 
     # Check if port is already in use
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -321,33 +297,27 @@ def ui(
             raise typer.Exit()
 
     console.print(f"🚀 Iniciando a UI do Prefect na porta {port}...")
-    try:
-        # Start Prefect server
-        proc = subprocess.Popen(
-            ["prefect", "server", "start", "--host", "localhost", "--port", str(port)],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
 
-        # Wait for server to start
-        time.sleep(5)
+    def run_server():
+        try:
+            asyncio.run(
+                start_prefect_server(
+                    host="localhost", port=port, log_level="info", background=False
+                )
+            )
+        except Exception as e:
+            console.print(f"❌ Erro ao iniciar a UI do Prefect: {e}")
 
-        console.print("✅ UI do Prefect iniciada com sucesso!")
-        console.print(f"🔗 URL: http://localhost:{port}")
+    server_thread = threading.Thread(target=run_server, daemon=True)
+    server_thread.start()
 
-        if not no_browser:
-            webbrowser.open(f"http://localhost:{port}")
+    console.print("✅ UI do Prefect iniciada com sucesso!")
+    console.print(f"🔗 URL: http://localhost:{port}")
 
-        # Keep the command running
-        proc.wait()
+    if not no_browser:
+        webbrowser.open(f"http://localhost:{port}")
 
-    except FileNotFoundError:
-        console.print("❌ Erro: 'prefect' não encontrado. Você instalou o Prefect?")
-        raise typer.Exit(1)
-    except Exception as e:
-        console.print(f"❌ Erro ao iniciar a UI do Prefect: {e}")
-        raise typer.Exit(1)
+    server_thread.join()
 
 
 @app.command()
@@ -365,7 +335,9 @@ def query(
 
     try:
         con = connect()
-        result = con.raw_sql(sql).fetchall()
+        query_result = con.raw_sql(sql)
+        result_schema = query_result.schema()
+        result = query_result.fetchall()
 
         if not result:
             console.print("✅ Query executed successfully, but returned no results.")
@@ -374,11 +346,7 @@ def query(
         if output:
             import pandas as pd
 
-            # FIXME: This is not a very robust way to get the column names.
-            # It would be better to use the ibis API to get the schema of the
-            # result, as this would be more reliable and less likely to break
-            # if the underlying database driver changes.
-            df = pd.DataFrame(result, columns=[d[0] for d in con.con.description])
+            df = pd.DataFrame(result, columns=result_schema.names)
             if output.endswith(".csv"):
                 df.to_csv(output, index=False)
                 console.print(f"✅ Results saved to {output}")
@@ -390,8 +358,8 @@ def query(
                 raise typer.Exit(1)
         else:
             table = Table(title="Query Results")
-            for col in con.con.description:
-                table.add_column(col[0])
+            for col_name in result_schema.names:
+                table.add_column(col_name)
 
             for row in result:
                 table.add_row(*[str(item) for item in row])
@@ -572,6 +540,19 @@ def fetch_payload(
         raise typer.Exit(1)
 
 
+def _get_days_from_month(mes: str) -> int:
+    """Calculates the number of days in a given month string (YYYY-MM)."""
+    import calendar
+
+    try:
+        year, month = map(int, mes.split("-"))
+        _, num_days = calendar.monthrange(year, month)
+        return num_days
+    except ValueError:
+        console.print("❌ Formato de mês inválido. Use YYYY-MM.")
+        raise typer.Exit(1)
+
+
 def _parse_modalidades(modalidades: str) -> list[int]:
     """Parse a comma-separated string of modalidades into a list of integers."""
     if not modalidades:
@@ -579,7 +560,9 @@ def _parse_modalidades(modalidades: str) -> list[int]:
     try:
         return [int(m.strip()) for m in modalidades.split(",")]
     except ValueError:
-        console.print("❌ Modalidades inválidas. Use uma lista de números separados por vírgula (ex: 1,2,3).")
+        console.print(
+            "❌ Modalidades inválidas. Use uma lista de números separados por vírgula (ex: 1,2,3)."
+        )
         raise typer.Exit(1)
 
 

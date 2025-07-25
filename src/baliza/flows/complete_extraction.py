@@ -11,7 +11,7 @@ from uuid import uuid4
 from prefect import flow, task, get_run_logger
 
 from ..config import settings
-from ..enums import ModalidadeContratacao, get_enum_by_value
+from ..enums import ModalidadeContratacao
 from ..utils.http_client import EndpointExtractor
 from ..utils.endpoints import DateRangeHelper, get_all_pncp_endpoints
 from .raw import (
@@ -25,6 +25,66 @@ from .raw import (
     log_extraction_execution,
     store_api_request,
 )
+
+
+@flow
+async def extract_contratacoes_subflow(data_inicial, data_final, modalidades):
+    """Extracts all data related to contratacoes."""
+    tasks = []
+    for modalidade in modalidades:
+        task = extract_contratacoes_modalidade.submit(
+            data_inicial=data_inicial,
+            data_final=data_final,
+            modalidade_code=modalidade.value,
+        )
+        tasks.append(task)
+        task = extract_contratacoes_atualizacao_modalidade.submit(
+            data_inicial=data_inicial,
+            data_final=data_final,
+            modalidade_code=modalidade.value,
+        )
+        tasks.append(task)
+    proposta_task = extract_contratacoes_proposta.submit(data_final=data_final)
+    tasks.append(proposta_task)
+    return [task.result() for task in tasks]
+
+
+@flow
+async def extract_contratos_subflow(data_inicial, data_final):
+    """Extracts all data related to contratos."""
+    tasks = [
+        extract_contratos.submit(data_inicial=data_inicial, data_final=data_final),
+        extract_contratos_atualizacao.submit(
+            data_inicial=data_inicial, data_final=data_final
+        ),
+    ]
+    return [task.result() for task in tasks]
+
+
+@flow
+async def extract_atas_subflow(data_inicial, data_final):
+    """Extracts all data related to atas."""
+    tasks = [
+        extract_atas.submit(data_inicial=data_inicial, data_final=data_final),
+        extract_atas_atualizacao.submit(
+            data_inicial=data_inicial, data_final=data_final
+        ),
+    ]
+    return [task.result() for task in tasks]
+
+
+@flow
+async def extract_pca_subflow(data_inicial, data_final, codigo_classificacao):
+    """Extracts all data related to PCA."""
+    current_year = datetime.now().year
+    tasks = [
+        extract_pca.submit(
+            ano_pca=current_year,
+            codigo_classificacao=codigo_classificacao,
+        ),
+        extract_pca_atualizacao.submit(data_inicio=data_inicial, data_fim=data_final),
+    ]
+    return [task.result() for task in tasks]
 
 
 @flow(name="extract_all_pncp_endpoints", log_prints=True)
@@ -44,9 +104,6 @@ async def extract_all_pncp_endpoints(
         include_pca: Whether to include PCA endpoints (requires additional params)
         concurrent: Whether to run extractions concurrently
     """
-    # TODO: This flow is very long and complex. It would be better to
-    # break it down into smaller, more manageable sub-flows to improve
-    # readability and maintainability.
     logger = get_run_logger()
     execution_id = str(uuid4())
     start_time = datetime.now()
@@ -66,149 +123,49 @@ async def extract_all_pncp_endpoints(
 
     try:
         results = []
-
         if concurrent:
-            # Concurrent extraction for optimal performance
             tasks = []
-
-            # 1. CONTRATAÇÕES ENDPOINTS
-            # Extract contratacoes_publicacao for each modalidade
-            for modalidade in modalidades:
-                task = extract_contratacoes_modalidade.submit(
-                    data_inicial=data_inicial,
-                    data_final=data_final,
-                    modalidade_code=modalidade.value,
+            tasks.append(
+                extract_contratacoes_subflow.submit(
+                    data_inicial, data_final, modalidades
                 )
-                tasks.append(task)
-
-            # Extract contratacoes_atualizacao for each modalidade
-            for modalidade in modalidades:
-                task = extract_contratacoes_atualizacao_modalidade.submit(
-                    data_inicial=data_inicial,
-                    data_final=data_final,
-                    modalidade_code=modalidade.value,
+            )
+            tasks.append(extract_contratos_subflow.submit(data_inicial, data_final))
+            tasks.append(extract_atas_subflow.submit(data_inicial, data_final))
+            tasks.append(
+                extract_instrumentos_cobranca.submit(
+                    data_inicial=data_inicial, data_final=data_final
                 )
-                tasks.append(task)
-
-            # Extract contratacoes_proposta (single endpoint, no modalidade required)
-            proposta_task = extract_contratacoes_proposta.submit(data_final=data_final)
-            tasks.append(proposta_task)
-
-            # 2. CONTRATOS ENDPOINTS
-            contratos_task = extract_contratos.submit(
-                data_inicial=data_inicial, data_final=data_final
             )
-            tasks.append(contratos_task)
-
-            contratos_atualizacao_task = extract_contratos_atualizacao.submit(
-                data_inicial=data_inicial, data_final=data_final
-            )
-            tasks.append(contratos_atualizacao_task)
-
-            # 3. ATAS ENDPOINTS
-            atas_task = extract_atas.submit(
-                data_inicial=data_inicial, data_final=data_final
-            )
-            tasks.append(atas_task)
-
-            atas_atualizacao_task = extract_atas_atualizacao.submit(
-                data_inicial=data_inicial, data_final=data_final
-            )
-            tasks.append(atas_atualizacao_task)
-
-            # 4. INSTRUMENTOS DE COBRANÇA
-            instrumentos_task = extract_instrumentos_cobranca.submit(
-                data_inicial=data_inicial, data_final=data_final
-            )
-            tasks.append(instrumentos_task)
-
-            # 5. PCA ENDPOINTS (if requested)
             if include_pca:
-                current_year = datetime.now().year
-
-                # Extract PCA for current year (requires classification code)
-                pca_task = extract_pca.submit(
-                    ano_pca=current_year,
-                    codigo_classificacao=codigo_classificacao,
+                tasks.append(
+                    extract_pca_subflow.submit(
+                        data_inicial, data_final, codigo_classificacao
+                    )
                 )
-                tasks.append(pca_task)
 
-                # PCA atualizacao
-                pca_atualizacao_task = extract_pca_atualizacao.submit(
-                    data_inicio=data_inicial, data_fim=data_final
-                )
-                tasks.append(pca_atualizacao_task)
-
-            # Wait for all tasks to complete
-            results = [task.result() for task in tasks]
-
+            for task in tasks:
+                results.extend(task.result())
         else:
             # Sequential extraction (fallback)
-            logger.info("Running sequential extraction (fallback mode)")
-
-            # 1. Contratações - publicacao
-            for modalidade in modalidades:
-                result = await extract_contratacoes_modalidade(
-                    data_inicial=data_inicial,
-                    data_final=data_final,
-                    modalidade_code=modalidade,
+            results.extend(
+                await extract_contratacoes_subflow(
+                    data_inicial, data_final, modalidades
                 )
-                results.append(result)
-
-            # 2. Contratações - atualizacao
-            for modalidade in modalidades:
-                result = await extract_contratacoes_atualizacao_modalidade(
-                    data_inicial=data_inicial,
-                    data_final=data_final,
-                    modalidade_code=modalidade,
+            )
+            results.extend(await extract_contratos_subflow(data_inicial, data_final))
+            results.extend(await extract_atas_subflow(data_inicial, data_final))
+            results.append(
+                await extract_instrumentos_cobranca(
+                    data_inicial=data_inicial, data_final=data_final
                 )
-                results.append(result)
-
-            # 3. Contratações - proposta
-            result = await extract_contratacoes_proposta(data_final=data_final)
-            results.append(result)
-
-            # 4. Contratos
-            result = await extract_contratos(
-                data_inicial=data_inicial, data_final=data_final
             )
-            results.append(result)
-
-            result = await extract_contratos_atualizacao(
-                data_inicial=data_inicial, data_final=data_final
-            )
-            results.append(result)
-
-            # 5. Atas
-            result = await extract_atas(
-                data_inicial=data_inicial, data_final=data_final
-            )
-            results.append(result)
-
-            result = await extract_atas_atualizacao(
-                data_inicial=data_inicial, data_final=data_final
-            )
-            results.append(result)
-
-            # 6. Instrumentos de cobrança
-            result = await extract_instrumentos_cobranca(
-                data_inicial=data_inicial, data_final=data_final
-            )
-            results.append(result)
-
-            # 7. PCA (if requested)
             if include_pca:
-                current_year = datetime.now().year
-
-                result = await extract_pca(
-                    ano_pca=current_year, codigo_classificacao="01"
+                results.extend(
+                    await extract_pca_subflow(
+                        data_inicial, data_final, codigo_classificacao
+                    )
                 )
-                results.append(result)
-
-                result = await extract_pca_atualizacao(
-                    data_inicio=data_inicial, data_fim=data_final
-                )
-                results.append(result)
 
         # Aggregate results
         total_requests = sum(r.total_requests for r in results)
@@ -348,7 +305,7 @@ async def extract_contratacoes_proposta(
 
         result = ExtractionResult(
             endpoint="contratacoes_proposta",
-            modalidade=modalidade_code,
+            modalidade=modalidade,
             date_range=f"up_to_{data_final}",
             total_requests=len(api_requests),
             total_records=total_records,
@@ -370,7 +327,7 @@ async def extract_contratacoes_proposta(
 
         return ExtractionResult(
             endpoint="contratacoes_proposta",
-            modalidade=modalidade_code,
+            modalidade=modalidade,
             date_range=f"up_to_{data_final}",
             total_requests=0,
             total_records=0,

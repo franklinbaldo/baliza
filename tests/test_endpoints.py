@@ -51,9 +51,7 @@ class TestURLBuilder:
 
     def test_build_atas_url(self):
         """Test building atas URL"""
-        url = build_atas_url(
-            data_inicial="20240101", data_final="20240131", pagina=3
-        )
+        url = build_atas_url(data_inicial="20240101", data_final="20240131", pagina=3)
 
         expected = (
             "https://pncp.gov.br/api/consulta/v1/atas"
@@ -183,9 +181,9 @@ class TestEndpointValidator:
 
         # Valid contratacoes params
         valid_params = {
-            "data_inicial": "2024-01-01",
-            "data_final": "2024-01-31",
-            "modalidade": 1,
+            "data_inicial": date(2024, 1, 1),
+            "data_final": date(2024, 1, 31),
+            "codigoModalidadeContratacao": 1,
             "pagina": 1,
         }
 

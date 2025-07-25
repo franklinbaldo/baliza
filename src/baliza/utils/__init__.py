@@ -1,2 +1,1 @@
-# TODO: Add a more descriptive package docstring.
-# Utils package for Baliza
+"""Utility functions for the Baliza pipeline."""
