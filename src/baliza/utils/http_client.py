@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 import httpx
 from prefect import get_run_logger
 
-from ..config import settings
+from ..config import settings, PNCP_API_Settings
 from ..enums import ModalidadeContratacao, get_enum_by_value
 from .circuit_breaker import (
     CircuitBreaker,
@@ -68,6 +68,7 @@ class APIRequest(BaseModel):
     payload_sha256: str
     payload_size: int
     collected_at: datetime
+    payload_compressed: Optional[bytes] = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -79,7 +80,8 @@ class PNCPClient:
     # It would be more efficient to use a session object to reuse the
     # underlying connection.
     def __init__(self):
-        self.base_url = settings.PNCP_API_BASE_URL
+        self.pncp_settings = PNCP_API_Settings()
+        self.base_url = self.pncp_settings.PNCP_API_BASE_URL
         self.rate_limiter = AdaptiveRateLimiter(settings.REQUESTS_PER_MINUTE)
         self.circuit_breaker = CircuitBreaker(
             CircuitBreakerConfig(
@@ -97,7 +99,7 @@ class PNCPClient:
         # HTTP client configuration
         self.client_config = {
             "timeout": httpx.Timeout(
-                connect=10.0, read=settings.API_TIMEOUT_SECONDS, write=10.0, pool=5.0
+                connect=10.0, read=self.pncp_settings.API_TIMEOUT_SECONDS, write=10.0, pool=5.0
             ),
             "limits": httpx.Limits(
                 max_keepalive_connections=20, max_connections=100, keepalive_expiry=60
@@ -289,13 +291,10 @@ class EndpointExtractor:
                 **filters,
             )
 
-            # FIXME: This is a bug. The `fetch_endpoint_data` method returns
-            # a tuple, but only the first element is being used. The second
-            # element, which is the compressed payload, is being ignored.
-            api_request = await self.client.fetch_endpoint_data(
+            api_request, payload_compressed = await self.client.fetch_endpoint_data(
                 "contratacoes_publicacao", url
             )
-
+            api_request.payload_compressed = payload_compressed
             requests.append(api_request)
 
             # Parse response to check pagination
@@ -337,8 +336,10 @@ class EndpointExtractor:
                 **filters,
             )
 
-            api_request = await self.client.fetch_endpoint_data("contratos", url)
-
+            api_request, payload_compressed = await self.client.fetch_endpoint_data(
+                "contratos", url
+            )
+            api_request.payload_compressed = payload_compressed
             requests.append(api_request)
 
             # Parse response to check pagination
@@ -375,8 +376,10 @@ class EndpointExtractor:
                 **filters,
             )
 
-            api_request = await self.client.fetch_endpoint_data("atas", url)
-
+            api_request, payload_compressed = await self.client.fetch_endpoint_data(
+                "atas", url
+            )
+            api_request.payload_compressed = payload_compressed
             requests.append(api_request)
 
             # Parse response to check pagination
@@ -423,10 +426,10 @@ class EndpointExtractor:
                 **filters,
             )
 
-            api_request = await self.client.fetch_endpoint_data(
+            api_request, payload_compressed = await self.client.fetch_endpoint_data(
                 "contratacoes_atualizacao", url
             )
-
+            api_request.payload_compressed = payload_compressed
             requests.append(api_request)
 
             # Parse response to check pagination
@@ -468,10 +471,10 @@ class EndpointExtractor:
                 **filters,
             )
 
-            api_request = await self.client.fetch_endpoint_data(
+            api_request, payload_compressed = await self.client.fetch_endpoint_data(
                 "contratacoes_proposta", url
             )
-
+            api_request.payload_compressed = payload_compressed
             requests.append(api_request)
 
             # Parse response to check pagination
@@ -510,10 +513,10 @@ class EndpointExtractor:
                 **filters,
             )
 
-            api_request = await self.client.fetch_endpoint_data(
+            api_request, payload_compressed = await self.client.fetch_endpoint_data(
                 "contratos_atualizacao", url
             )
-
+            api_request.payload_compressed = payload_compressed
             requests.append(api_request)
 
             # Parse response to check pagination
@@ -552,8 +555,10 @@ class EndpointExtractor:
                 **filters,
             )
 
-            api_request = await self.client.fetch_endpoint_data("atas_atualizacao", url)
-
+            api_request, payload_compressed = await self.client.fetch_endpoint_data(
+                "atas_atualizacao", url
+            )
+            api_request.payload_compressed = payload_compressed
             requests.append(api_request)
 
             # Parse response to check pagination
@@ -592,10 +597,10 @@ class EndpointExtractor:
                 **filters,
             )
 
-            api_request = await self.client.fetch_endpoint_data(
+            api_request, payload_compressed = await self.client.fetch_endpoint_data(
                 "instrumentoscobranca_inclusao", url
             )
-
+            api_request.payload_compressed = payload_compressed
             requests.append(api_request)
 
             # Parse response to check pagination
@@ -632,8 +637,10 @@ class EndpointExtractor:
                 **filters,
             )
 
-            api_request = await self.client.fetch_endpoint_data("pca", url)
-
+            api_request, payload_compressed = await self.client.fetch_endpoint_data(
+                "pca", url
+            )
+            api_request.payload_compressed = payload_compressed
             requests.append(api_request)
 
             # Parse response to check pagination
@@ -672,8 +679,10 @@ class EndpointExtractor:
                 **filters,
             )
 
-            api_request = await self.client.fetch_endpoint_data("pca_usuario", url)
-
+            api_request, payload_compressed = await self.client.fetch_endpoint_data(
+                "pca_usuario", url
+            )
+            api_request.payload_compressed = payload_compressed
             requests.append(api_request)
 
             # Parse response to check pagination
@@ -715,12 +724,12 @@ class EndpointExtractor:
             api_request, payload_compressed = await self.client.fetch_endpoint_data(
                 "pca_atualizacao", url
             )
-
-            requests.append((api_request, payload_compressed))
+            api_request.payload_compressed = payload_compressed
+            requests.append(api_request)
 
             # Parse response to check pagination
             payload_json = json.loads(
-                zlib.decompress(payload_compressed).decode("utf-8")
+                zlib.decompress(api_request.payload_compressed).decode("utf-8")
             )
             pncp_response = PNCPResponse(**payload_json)
 

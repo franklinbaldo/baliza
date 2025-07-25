@@ -156,18 +156,15 @@ class NotaFiscalEletronicaConsultaDTO(BaseModel):
 
 
 class ItemNotaFiscalConsultaDTO(BaseModel):
-    # FIXME: Some of these fields are typed as `str` when they should
-    # probably be `float` or `int`. This could lead to data inconsistencies
-    # and should be corrected.
-    numeroItem: Optional[str] = None
+    numeroItem: Optional[int] = None
     descricaoProdutoServico: Optional[str] = None
     codigoNCM: Optional[str] = None
     descricaoNCM: Optional[str] = None
     cfop: Optional[str] = None
-    quantidade: Optional[str] = None
+    quantidade: Optional[float] = None
     unidade: Optional[str] = None
-    valorUnitario: Optional[str] = None
-    valorTotal: Optional[str] = None
+    valorUnitario: Optional[float] = None
+    valorTotal: Optional[float] = None
 
 
 class EventoNotaFiscalConsultaDTO(BaseModel):

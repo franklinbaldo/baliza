@@ -267,10 +267,8 @@ class TestEndpointExtractor:
             )
 
             assert len(results) >= 1
-            assert all(
-                r[0].endpoint == "contratacoes_publicacao" for r in results
-            )
-            assert all(r[0].http_status == 200 for r in results)
+            assert all(r.endpoint == "contratacoes_publicacao" for r in results)
+            assert all(r.http_status == 200 for r in results)
 
     async def test_extract_contratos(self, mock_get_run_logger):
         """Test contratos extraction"""
@@ -294,8 +292,8 @@ class TestEndpointExtractor:
             )
 
             assert len(results) >= 1
-            assert all(r[0].endpoint == "contratos" for r in results)
-            assert all(r[0].http_status == 200 for r in results)
+            assert all(r.endpoint == "contratos" for r in results)
+            assert all(r.http_status == 200 for r in results)
 
     async def test_pagination_handling(self, mock_get_run_logger):
         """Test pagination is handled correctly"""

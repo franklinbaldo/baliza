@@ -33,6 +33,7 @@ async def extract_all_pncp_endpoints(
     modalidades: Optional[List[int]] = None,
     include_pca: bool = False,
     concurrent: bool = True,
+    codigo_classificacao: str = "01",
 ) -> Dict[str, Any]:
     """
     Extract data from ALL PNCP endpoints for 100% API coverage
@@ -125,13 +126,10 @@ async def extract_all_pncp_endpoints(
             if include_pca:
                 current_year = datetime.now().year
 
-                # FIXME: The classification code is hardcoded. It would be
-                # better to make it configurable, for example, through the
-                # settings file or as a parameter to the flow.
                 # Extract PCA for current year (requires classification code)
                 pca_task = extract_pca.submit(
                     ano_pca=current_year,
-                    codigo_classificacao="01",  # Default classification
+                    codigo_classificacao=codigo_classificacao,
                 )
                 tasks.append(pca_task)
 
