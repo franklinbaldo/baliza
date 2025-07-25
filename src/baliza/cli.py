@@ -159,6 +159,7 @@ def doctor():
 def _run_extraction_flow(
     days: int,
     modalidades: str,
+    endpoints: str,
     sequential: bool,
     extract_all: bool = False,
     include_pca: bool = False,
@@ -203,13 +204,18 @@ def extract(
         "--modalidades",
         help="Modalidades específicas separadas por vírgula (ex: 1,2,3)",
     ),
+    endpoints: str = typer.Option(
+        None,
+        "--endpoints",
+        help="Endpoints específicos separados por vírgula (ex: contratos,atas)",
+    ),
     sequential: bool = typer.Option(
         False, "--sequential", help="Executa em modo sequencial ao invés de concorrente"
     ),
 ):
     """Executa apenas a etapa de extração (raw)."""
     try:
-        _run_extraction_flow(days, modalidades, sequential)
+        _run_extraction_flow(days, modalidades, endpoints, sequential)
     except Exception as e:
         console.print(f"❌ Erro na extração: {e}")
         raise typer.Exit(1)
@@ -235,7 +241,7 @@ def extract_all(
     """Executa extração de TODOS os endpoints PNCP (100% de cobertura)."""
     try:
         _run_extraction_flow(
-            days, modalidades, sequential, extract_all=True, include_pca=include_pca
+            days, modalidades, None, sequential, extract_all=True, include_pca=include_pca
         )
     except Exception as e:
         console.print(f"❌ Erro na extração completa: {e}")
@@ -632,10 +638,8 @@ def _get_days_from_month(mes: str) -> int:
 
 def _parse_modalidades(modalidades: str) -> list[int]:
     """Parse a comma-separated string of modalidades into a list of integers."""
-    if not modalidades:
-        # Use ALL modalidades by default for complete coverage
-        from .legacy.enums import ModalidadeContratacao
-        return [modalidade.value for modalidade in ModalidadeContratacao]
+    if not modalidades or modalidades == "0":
+        return []
     try:
         return [int(m.strip()) for m in modalidades.split(",")]
     except ValueError:
