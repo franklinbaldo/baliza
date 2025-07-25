@@ -1,3 +1,6 @@
+-- TODO: This query is not very scalable. If new tables are added, they will
+-- not be included in the stats. It would be better to dynamically get the
+-- list of tables and generate the stats for each one.
 -- Get table statistics for monitoring
 SELECT 
     'raw.api_requests' as table_name,

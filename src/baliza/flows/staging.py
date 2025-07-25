@@ -7,7 +7,7 @@ from typing import Dict, Any
 
 from prefect import flow, task, get_run_logger
 
-from ..backend import connect, load_sql_file
+from ..backend import connect
 
 
 @task(name="create_staging_views", retries=1)
@@ -18,6 +18,9 @@ def create_staging_views() -> bool:
     try:
         con = connect()
 
+        # TODO: This task creates views for all endpoints in a single task.
+        # It would be better to break this down into smaller tasks, one for
+        # each view, to improve parallelism and make the flow more modular.
         # Create staging schema if not exists
         con.raw_sql("CREATE SCHEMA IF NOT EXISTS staging")
 

@@ -3,6 +3,9 @@ from typing import List
 
 
 class Settings(BaseSettings):
+    # FIXME: Some of these settings are specific to the PNCP API and should
+    # be moved to a separate configuration file or class to improve
+    # modularity.
     # API Configuration
     PNCP_API_BASE_URL: str = "https://pncp.gov.br/api/consulta"
     SUPPORTED_API_VERSION: str = "1.0"
@@ -67,7 +70,9 @@ class Settings(BaseSettings):
         env_file = ".env"
 
 
-# Endpoint Configuration Mapping
+# TODO: This configuration is hardcoded. It would be better to load it
+# from a separate configuration file (e.g., YAML or JSON) to make it
+# easier to update and maintain.
 ENDPOINT_CONFIG = {
     "contratacoes_publicacao": {
         "path": "/v1/contratacoes/publicacao",

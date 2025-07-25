@@ -75,6 +75,9 @@ class APIRequest(BaseModel):
 class PNCPClient:
     """HTTP client for PNCP API with resilience patterns"""
 
+    # TODO: This class creates a new `httpx.AsyncClient` for each request.
+    # It would be more efficient to use a session object to reuse the
+    # underlying connection.
     def __init__(self):
         self.base_url = settings.PNCP_API_BASE_URL
         self.rate_limiter = AdaptiveRateLimiter(settings.REQUESTS_PER_MINUTE)
@@ -286,6 +289,9 @@ class EndpointExtractor:
                 **filters,
             )
 
+            # FIXME: This is a bug. The `fetch_endpoint_data` method returns
+            # a tuple, but only the first element is being used. The second
+            # element, which is the compressed payload, is being ignored.
             api_request = await self.client.fetch_endpoint_data(
                 "contratacoes_publicacao", url
             )

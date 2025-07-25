@@ -3,6 +3,8 @@ from typing import List, Optional
 
 
 class RespostaErroValidacaoDTO(BaseModel):
+    # TODO: Add docstrings to all models to explain the purpose of each
+    # model and its fields.
     message: Optional[str] = None
     path: Optional[str] = None
     timestamp: Optional[str] = None
@@ -154,6 +156,9 @@ class NotaFiscalEletronicaConsultaDTO(BaseModel):
 
 
 class ItemNotaFiscalConsultaDTO(BaseModel):
+    # FIXME: Some of these fields are typed as `str` when they should
+    # probably be `float` or `int`. This could lead to data inconsistencies
+    # and should be corrected.
     numeroItem: Optional[str] = None
     descricaoProdutoServico: Optional[str] = None
     codigoNCM: Optional[str] = None

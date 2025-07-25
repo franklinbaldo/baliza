@@ -8,10 +8,11 @@ from datetime import datetime
 from typing import List, Dict, Any, Optional
 from uuid import uuid4
 
+import pandas as pd
 from prefect import flow, task, get_run_logger
 from pydantic import BaseModel
 
-from ..backend import connect, load_sql_file
+from ..backend import connect
 from ..config import settings
 from ..enums import ModalidadeContratacao, get_enum_by_value
 from ..utils.http_client import EndpointExtractor, APIRequest
@@ -32,9 +33,6 @@ class ExtractionResult(BaseModel):
     error_message: Optional[str] = None
 
 
-import pandas as pd
-
-
 @task(name="store_api_request", retries=2)
 def store_api_request(api_request: APIRequest, payload_compressed: bytes) -> bool:
     """Store API request data in DuckDB"""
@@ -43,6 +41,10 @@ def store_api_request(api_request: APIRequest, payload_compressed: bytes) -> boo
     try:
         con = connect()
 
+        # FIXME: This task writes to two different tables. This is not
+        # transactional and could lead to data inconsistencies if one of the
+        # writes fails. It would be better to use a transaction to ensure
+        # that both writes succeed or fail together.
         # Store payload in hot_payloads
         hot_payloads_table = con.table("raw.hot_payloads")
         hot_payloads_df = pd.DataFrame(
@@ -85,6 +87,9 @@ def log_extraction_execution(
     metadata: Optional[Dict[str, Any]] = None,
 ) -> bool:
     """Log extraction execution in meta.execution_log"""
+    # TODO: This task is very similar to the `store_api_request` task.
+    # It would be better to create a generic "store_dataframe" task to
+    # reduce code duplication.
     logger = get_run_logger()
 
     try:
@@ -162,7 +167,7 @@ async def extract_contratacoes_modalidade(
             # Store in database (this will be executed sequentially by Prefect)
             # FIXME: Sequential storage creates performance bottleneck
             # TODO: Implement batch storage pattern for better performance
-            store_api_request.submit(api_request, payload_compressed)
+            store_api_request.submit(api_request, api_request.payload_compressed)
 
         await extractor.close()
 
