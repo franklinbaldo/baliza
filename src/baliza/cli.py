@@ -179,15 +179,8 @@ def extract(
 
     try:
         # Parse modalidades if provided
-        modalidades_list = None
-        if modalidades:
-            modalidades_list = [int(m.strip()) for m in modalidades.split(",")]
-            console.print(f"📋 Modalidades específicas: {modalidades_list}")
-        else:
-            modalidades_list = settings.HIGH_PRIORITY_MODALIDADES
-            console.print(
-                f"📋 Usando modalidades de alta prioridade: {modalidades_list}"
-            )
+        modalidades_list = _parse_modalidades(modalidades)
+        console.print(f"📋 Modalidades a serem extraídas: {modalidades_list}")
 
         console.print(f"📅 Extraindo últimos {days} dias")
         console.print(f"⚡ Modo: {'Sequencial' if sequential else 'Concorrente'}")
@@ -231,15 +224,8 @@ def extract_all(
 
     try:
         # Parse modalidades if provided
-        modalidades_list = None
-        if modalidades:
-            modalidades_list = [int(m.strip()) for m in modalidades.split(",")]
-            console.print(f"📋 Modalidades específicas: {modalidades_list}")
-        else:
-            modalidades_list = settings.HIGH_PRIORITY_MODALIDADES
-            console.print(
-                f"📋 Usando modalidades de alta prioridade: {modalidades_list}"
-            )
+        modalidades_list = _parse_modalidades(modalidades)
+        console.print(f"📋 Modalidades a serem extraídas: {modalidades_list}")
 
         console.print(f"📅 Extraindo últimos {days} dias")
         console.print(f"📊 Incluir PCA: {'Sim' if include_pca else 'Não'}")
@@ -583,6 +569,17 @@ def fetch_payload(
 
     except Exception as e:
         console.print(f"❌ Error fetching payload: {e}")
+        raise typer.Exit(1)
+
+
+def _parse_modalidades(modalidades: str) -> list[int]:
+    """Parse a comma-separated string of modalidades into a list of integers."""
+    if not modalidades:
+        return settings.HIGH_PRIORITY_MODALIDADES
+    try:
+        return [int(m.strip()) for m in modalidades.split(",")]
+    except ValueError:
+        console.print("❌ Modalidades inválidas. Use uma lista de números separados por vírgula (ex: 1,2,3).")
         raise typer.Exit(1)
 
 

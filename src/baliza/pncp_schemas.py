@@ -6,59 +6,18 @@ from typing import Optional
 from uuid import uuid4
 import re
 
-from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
-from .types import Cnpj, Cpf
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-
-class OrgaoEntidadeDTO(BaseModel):
-    """Schema for RecuperarOrgaoEntidadeDTO from OpenAPI."""
-
-    cnpj: str
-    razao_social: str
-    poder_id: str
-    esfera_id: str
-
-
-class UnidadeOrgaoDTO(BaseModel):
-    """Schema for RecuperarUnidadeOrgaoDTO from OpenAPI."""
-
-    uf_nome: str
-    codigo_unidade: str
-    nome_unidade: str
-    uf_sigla: str
-    municipio_nome: str
-    codigo_ibge: str
-
-
-class TipoContratoDTO(BaseModel):
-    """Schema for TipoContrato from OpenAPI."""
-
-    id: int
-    nome: str
-
-
-class CategoriaDTO(BaseModel):
-    """Schema for Categoria from OpenAPI."""
-
-    id: int
-    nome: str
-
-
-class AmparoLegalDTO(BaseModel):
-    """Schema for RecuperarAmparoLegalDTO from OpenAPI."""
-
-    codigo: int
-    nome: str
-    descricao: str
-
-
-class FonteOrcamentariaDTO(BaseModel):
-    """Schema for ContratacaoFonteOrcamentariaDTO from OpenAPI."""
-
-    codigo: int
-    nome: str
-    descricao: str
-    data_inclusao: datetime
+from .enums import ModalidadeContratacao, SituacaoCompra, TipoPessoa
+from .models import (
+    AmparoLegalDTO,
+    CategoriaDTO,
+    FonteOrcamentariaDTO,
+    OrgaoEntidadeDTO,
+    TipoContratoDTO,
+    UnidadeOrgaoDTO,
+)
+from .types import Cnpj
 
 
 # === BRONZE TABLE MODELS ===
@@ -88,14 +47,14 @@ class BronzeContrato(BaseModel):
 
     # Fornecedor
     ni_fornecedor: Optional[str] = None
-    tipo_pessoa: Optional[str] = Field(None, max_length=2)  # PJ, PF, PE
+    tipo_pessoa: Optional[TipoPessoa] = None
     nome_razao_social_fornecedor: Optional[str] = None
     codigo_pais_fornecedor: Optional[str] = None
 
     # Subcontratação
     ni_fornecedor_subcontratado: Optional[str] = None
     nome_fornecedor_subcontratado: Optional[str] = None
-    tipo_pessoa_subcontratada: Optional[str] = Field(None, max_length=2)
+    tipo_pessoa_subcontratada: Optional[TipoPessoa] = None
 
     # Orgão/Entidade
     orgao_cnpj: Optional[Cnpj] = None
@@ -157,17 +116,6 @@ class BronzeContrato(BaseModel):
         if v is not None and v < 0:
             raise ValueError(f"Valor não pode ser negativo: {v}")
         return v
-
-    @field_validator("tipo_pessoa", "tipo_pessoa_subcontratada")
-    @classmethod
-    def validate_tipo_pessoa(cls, v: Optional[str]) -> Optional[str]:
-        """Valida tipo de pessoa."""
-        if v is None:
-            return v
-        v_upper = v.upper()
-        if v_upper not in ["PJ", "PF", "PE"]:
-            raise ValueError(f"Tipo pessoa deve ser PJ, PF ou PE: {v}")
-        return v_upper
 
     @field_validator("unidade_uf_sigla")
     @classmethod
@@ -350,7 +298,7 @@ class BronzeContratacao(BaseModel):
     unidade_subrogada_nome: Optional[str] = None
 
     # Modalidade e Disputa
-    modalidade_id: Optional[int] = None
+    modalidade_id: Optional[ModalidadeContratacao] = None
     modalidade_nome: Optional[str] = None
     modo_disputa_id: Optional[int] = None
     modo_disputa_nome: Optional[str] = None
@@ -369,7 +317,7 @@ class BronzeContratacao(BaseModel):
     valor_total_homologado: Optional[Decimal] = None
 
     # Situação
-    situacao_compra_id: Optional[str] = None  # ENUM: 1,2,3,4
+    situacao_compra_id: Optional[SituacaoCompra] = None
     situacao_compra_nome: Optional[str] = None
 
     # Flags
@@ -409,34 +357,6 @@ class BronzeContratacao(BaseModel):
 
         return v
 
-
-    @field_validator("modalidade_id")
-    @classmethod
-    def validate_modalidade(cls, v: Optional[int]) -> Optional[int]:
-        """Valida se modalidade existe nos ENUMs oficiais PNCP."""
-        if v is None:
-            return v
-        # IDs válidos de modalidade conforme PNCP OpenAPI
-        valid_modalidades = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}
-        if v not in valid_modalidades:
-            raise ValueError(
-                f"Modalidade inválida: {v}. Deve ser uma de: {sorted(valid_modalidades)}"
-            )
-        return v
-
-    @field_validator("situacao_compra_id")
-    @classmethod
-    def validate_situacao(cls, v: Optional[str]) -> Optional[str]:
-        """Valida se situação existe nos ENUMs oficiais PNCP."""
-        if v is None:
-            return v
-        # Situações válidas conforme PNCP OpenAPI
-        valid_situacoes = {"1", "2", "3", "4"}
-        if v not in valid_situacoes:
-            raise ValueError(
-                f"Situação inválida: {v}. Deve ser uma de: {sorted(valid_situacoes)}"
-            )
-        return v
 
     @field_validator("valor_total_estimado", "valor_total_homologado")
     @classmethod

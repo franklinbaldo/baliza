@@ -30,7 +30,7 @@ from .raw import (
 @flow(name="extract_all_pncp_endpoints", log_prints=True)
 async def extract_all_pncp_endpoints(
     date_range_days: int = 7,
-    modalidades: Optional[List[int]] = None,
+    modalidades: Optional[List[ModalidadeContratacao]] = None,
     include_pca: bool = False,
     concurrent: bool = True,
     codigo_classificacao: str = "01",
@@ -77,7 +77,7 @@ async def extract_all_pncp_endpoints(
                 task = extract_contratacoes_modalidade.submit(
                     data_inicial=data_inicial,
                     data_final=data_final,
-                    modalidade_code=modalidade,
+                    modalidade_code=modalidade.value,
                 )
                 tasks.append(task)
 
@@ -86,7 +86,7 @@ async def extract_all_pncp_endpoints(
                 task = extract_contratacoes_atualizacao_modalidade.submit(
                     data_inicial=data_inicial,
                     data_final=data_final,
-                    modalidade_code=modalidade,
+                    modalidade_code=modalidade.value,
                 )
                 tasks.append(task)
 
@@ -307,17 +307,11 @@ async def extract_all_pncp_endpoints(
 # Individual missing endpoint tasks
 @task(name="extract_contratacoes_proposta", timeout_seconds=3600)
 async def extract_contratacoes_proposta(
-    data_final: str, modalidade_code: Optional[int] = None, **filters
+    data_final: str, modalidade: Optional[ModalidadeContratacao] = None, **filters
 ) -> ExtractionResult:
     """Extract contratações with open proposal period"""
     logger = get_run_logger()
     start_time = datetime.now()
-
-    modalidade = None
-    if modalidade_code:
-        modalidade = get_enum_by_value(ModalidadeContratacao, modalidade_code)
-        if not modalidade:
-            raise ValueError(f"Invalid modalidade code: {modalidade_code}")
 
     logger.info(
         f"Starting extraction: contratacoes_proposta "

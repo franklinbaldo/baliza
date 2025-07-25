@@ -439,6 +439,18 @@ ENUM_REGISTRY = {
 }
 
 
+class TipoEventoNotaFiscal(str, Enum):
+    """Represents the type of event in an electronic invoice."""
+
+    CONFIRMACAO_OPERACAO = "CONFIRMACAO_OPERACAO"
+    CIENCIA_OPERACAO = "CIENCIA_OPERACAO"
+    DESCONHECIMENTO_OPERACAO = "DESCONHECIMENTO_OPERACAO"
+    OPERACAO_NAO_REALIZADA = "OPERACAO_NAO_REALIZADA"
+
+
+ENUM_REGISTRY["TipoEventoNotaFiscal"] = TipoEventoNotaFiscal
+
+
 def get_enum_by_name(enum_name: str) -> type[Enum] | None:
     """Get enum class by name."""
     return ENUM_REGISTRY.get(enum_name)

@@ -23,7 +23,7 @@ class ExtractionResult(BaseModel):
     """Result of extraction operation"""
 
     endpoint: str
-    modalidade: Optional[int] = None
+    modalidade: Optional[ModalidadeContratacao] = None
     date_range: str
     total_requests: int
     total_records: int
@@ -120,16 +120,11 @@ def log_extraction_execution(
 
 @task(name="extract_contratacoes_modalidade", timeout_seconds=3600)
 async def extract_contratacoes_modalidade(
-    data_inicial: str, data_final: str, modalidade_code: int, **filters
+    data_inicial: str, data_final: str, modalidade: ModalidadeContratacao, **filters
 ) -> ExtractionResult:
     """Extract contratacoes for specific modalidade"""
     logger = get_run_logger()
     start_time = datetime.now()
-
-    # Validate modalidade using enum
-    modalidade = get_enum_by_value(ModalidadeContratacao, modalidade_code)
-    if not modalidade:
-        raise ValueError(f"Invalid modalidade code: {modalidade_code}")
 
     logger.info(
         f"Starting extraction: contratacoes_publicacao "
@@ -172,7 +167,7 @@ async def extract_contratacoes_modalidade(
 
         result = ExtractionResult(
             endpoint="contratacoes_publicacao",
-            modalidade=modalidade_code,
+            modalidade=modalidade,
             date_range=f"{data_inicial}:{data_final}",
             total_requests=len(api_requests),
             total_records=total_records,
@@ -195,7 +190,7 @@ async def extract_contratacoes_modalidade(
 
         return ExtractionResult(
             endpoint="contratacoes_publicacao",
-            modalidade=modalidade_code,
+            modalidade=modalidade,
             date_range=f"{data_inicial}:{data_final}",
             total_requests=0,
             total_records=0,
@@ -347,7 +342,7 @@ async def extract_atas(
 @flow(name="extract_phase_2a_concurrent", log_prints=True)
 async def extract_phase_2a_concurrent(
     date_range_days: int = 7,
-    modalidades: Optional[List[int]] = None,
+    modalidades: Optional[List[ModalidadeContratacao]] = None,
     concurrent: bool = True,
 ) -> Dict[str, Any]:
     """
@@ -382,7 +377,7 @@ async def extract_phase_2a_concurrent(
                 task = extract_contratacoes_modalidade.submit(
                     data_inicial=data_inicial,
                     data_final=data_final,
-                    modalidade_code=modalidade,
+                    modalidade=modalidade,
                 )
                 tasks.append(task)
 
@@ -505,16 +500,11 @@ async def extract_phase_2a_concurrent(
 
 @task(name="extract_contratacoes_atualizacao_modalidade", timeout_seconds=3600)
 async def extract_contratacoes_atualizacao_modalidade(
-    data_inicial: str, data_final: str, modalidade_code: int, **filters
+    data_inicial: str, data_final: str, modalidade: ModalidadeContratacao, **filters
 ) -> ExtractionResult:
     """Extract contratacoes by update date for specific modalidade"""
     logger = get_run_logger()
     start_time = datetime.now()
-
-    # Validate modalidade using enum
-    modalidade = get_enum_by_value(ModalidadeContratacao, modalidade_code)
-    if not modalidade:
-        raise ValueError(f"Invalid modalidade code: {modalidade_code}")
 
     logger.info(
         f"Starting extraction: contratacoes_atualizacao "
@@ -553,7 +543,7 @@ async def extract_contratacoes_atualizacao_modalidade(
 
         result = ExtractionResult(
             endpoint="contratacoes_atualizacao",
-            modalidade=modalidade_code,
+            modalidade=modalidade,
             date_range=f"{data_inicial}:{data_final}",
             total_requests=len(api_requests),
             total_records=total_records,
@@ -576,7 +566,7 @@ async def extract_contratacoes_atualizacao_modalidade(
 
         return ExtractionResult(
             endpoint="contratacoes_atualizacao",
-            modalidade=modalidade_code,
+            modalidade=modalidade,
             date_range=f"{data_inicial}:{data_final}",
             total_requests=0,
             total_records=0,

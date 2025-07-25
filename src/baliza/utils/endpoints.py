@@ -6,15 +6,15 @@ from datetime import datetime, timedelta, date
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import urlencode
 
-from ..config import ENDPOINT_CONFIG, MODALIDADE_CONTRATACAO, settings, PNCP_API_Settings
+from ..config import ENDPOINT_CONFIG, settings, PNCPAPISettings
 
 
 class URLBuilder:
     """Builds PNCP API endpoint URLs with proper parameters"""
 
     def __init__(self, base_url: str = None):
-        self.pncp_settings = PNCP_API_Settings()
-        self.base_url = base_url or self.pncp_settings.PNCP_API_BASE_URL
+        self.pncp_settings = PNCPAPISettings()
+        self.base_url = base_url or self.pncp_settings.base_url
 
     # TODO: The endpoint configuration is loaded from the `ENDPOINT_CONFIG`
     # dictionary every time a URL is built. It would be more efficient to
@@ -27,7 +27,7 @@ class URLBuilder:
 
         # Validate required parameters
         missing_params = []
-        for required_param in config["required_params"]:
+        for required_param in config.required_params:
             if required_param not in params:
                 missing_params.append(required_param)
 
@@ -37,11 +37,11 @@ class URLBuilder:
             )
 
         # Filter only valid parameters
-        valid_params = config["required_params"] + config.get("optional_params", [])
+        valid_params = config.required_params + config.optional_params
         filtered_params = {k: v for k, v in params.items() if k in valid_params}
 
         # Build URL
-        path = config["path"]
+        path = config.path
         url = f"{self.base_url}{path}"
 
         if filtered_params:
@@ -134,26 +134,31 @@ class DateRangeHelper:
             return False
 
 
+from ..enums import ModalidadeContratacao
+
+
 class ModalidadeHelper:
     """Helper for working with modalidades de contratação"""
 
     @staticmethod
-    def get_modalidade_name(codigo: int) -> str:
+    def get_modalidade_name(modalidade: ModalidadeContratacao) -> str:
         """Get modalidade name by code"""
-        return MODALIDADE_CONTRATACAO.get(codigo, f"Modalidade {codigo}")
+        return modalidade.name.replace("_", " ").title()
 
     @staticmethod
-    def get_high_priority_modalidades() -> List[int]:
+    def get_high_priority_modalidades() -> List[ModalidadeContratacao]:
         """Get list of high priority modalidade codes"""
-        return settings.HIGH_PRIORITY_MODALIDADES
+        return settings.high_priority_modalidades
 
     @staticmethod
-    def get_all_modalidades() -> List[int]:
+    def get_all_modalidades() -> List[ModalidadeContratacao]:
         """Get all available modalidade codes"""
-        return list(MODALIDADE_CONTRATACAO.keys())
+        return list(ModalidadeContratacao)
 
     @classmethod
-    def get_modalidades_by_priority(cls, priority: str = "high") -> List[int]:
+    def get_modalidades_by_priority(
+        cls, priority: str = "high"
+    ) -> List[ModalidadeContratacao]:
         """Get modalidades filtered by priority level"""
         if priority == "high":
             return cls.get_high_priority_modalidades()
@@ -236,7 +241,7 @@ class EndpointValidator:
         """Validate modalidade code"""
         if modalidade is None:
             return False
-        return modalidade in MODALIDADE_CONTRATACAO
+        return modalidade in [m.value for m in ModalidadeContratacao]
 
     @staticmethod
     def validate_date_format(date_str: str) -> bool:
@@ -286,14 +291,18 @@ class EndpointValidator:
 
 # Convenience functions for common operations
 def build_contratacao_url(
-    data_inicial: str, data_final: str, modalidade: int, pagina: int = 1, **kwargs
+    data_inicial: str,
+    data_final: str,
+    modalidade: ModalidadeContratacao,
+    pagina: int = 1,
+    **kwargs,
 ) -> str:
     """Build URL for contratações/publicação endpoint"""
     builder = URLBuilder()
     params = {
         "dataInicial": data_inicial,
         "dataFinal": data_final,
-        "codigoModalidadeContratacao": modalidade,
+        "codigoModalidadeContratacao": modalidade.value,
         "pagina": pagina,
         **kwargs,
     }
@@ -332,14 +341,18 @@ def build_atas_url(
 
 
 def build_contratacoes_atualizacao_url(
-    data_inicial: str, data_final: str, modalidade: int, pagina: int = 1, **kwargs
+    data_inicial: str,
+    data_final: str,
+    modalidade: ModalidadeContratacao,
+    pagina: int = 1,
+    **kwargs,
 ) -> str:
     """Build URL for contratações/atualizacao endpoint"""
     builder = URLBuilder()
     params = {
         "dataInicial": data_inicial,
         "dataFinal": data_final,
-        "codigoModalidadeContratacao": modalidade,
+        "codigoModalidadeContratacao": modalidade.value,
         "pagina": pagina,
         **kwargs,
     }
@@ -347,7 +360,10 @@ def build_contratacoes_atualizacao_url(
 
 
 def build_contratacoes_proposta_url(
-    data_final: str, pagina: int = 1, modalidade: int = None, **kwargs
+    data_final: str,
+    pagina: int = 1,
+    modalidade: Optional[ModalidadeContratacao] = None,
+    **kwargs,
 ) -> str:
     """Build URL for contratações/proposta endpoint"""
     builder = URLBuilder()
@@ -357,7 +373,7 @@ def build_contratacoes_proposta_url(
         **kwargs,
     }
     if modalidade:
-        params["codigoModalidadeContratacao"] = modalidade
+        params["codigoModalidadeContratacao"] = modalidade.value
     return builder.build_url("contratacoes_proposta", **params)
 
 
@@ -447,7 +463,7 @@ def build_pca_atualizacao_url(
 
 def get_phase_2a_endpoints() -> List[str]:
     """Get list of Phase 2A priority endpoints"""
-    return settings.PHASE_2A_ENDPOINTS
+    return settings.phase_2a_endpoints
 
 
 def get_all_pncp_endpoints() -> List[str]:

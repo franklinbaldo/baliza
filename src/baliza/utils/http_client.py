@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 import httpx
 from prefect import get_run_logger
 
-from ..config import settings, PNCP_API_Settings
+from ..config import PNCPAPISettings, settings
 from ..enums import ModalidadeContratacao, get_enum_by_value
 from .circuit_breaker import (
     CircuitBreaker,
@@ -47,14 +47,8 @@ class RequestMetadata(BaseModel):
     method: str = "GET"
     request_id: str
     timestamp: datetime
-    modalidade: Optional[int] = None
+    modalidade: Optional[ModalidadeContratacao] = None
     date_range: Optional[str] = None
-
-    @field_validator("modalidade")
-    def validate_modalidade(cls, v):
-        if v is not None and not get_enum_by_value(ModalidadeContratacao, v):
-            raise ValueError(f"Invalid modalidade: {v}")
-        return v
 
 
 class APIRequest(BaseModel):
@@ -80,26 +74,29 @@ class PNCPClient:
     # It would be more efficient to use a session object to reuse the
     # underlying connection.
     def __init__(self):
-        self.pncp_settings = PNCP_API_Settings()
-        self.base_url = self.pncp_settings.PNCP_API_BASE_URL
-        self.rate_limiter = AdaptiveRateLimiter(settings.REQUESTS_PER_MINUTE)
+        self.pncp_settings = PNCPAPISettings()
+        self.base_url = self.pncp_settings.base_url
+        self.rate_limiter = AdaptiveRateLimiter(settings.requests_per_minute)
         self.circuit_breaker = CircuitBreaker(
             CircuitBreakerConfig(
-                failure_threshold=settings.CIRCUIT_BREAKER_FAILURE_THRESHOLD,
-                recovery_timeout=settings.CIRCUIT_BREAKER_RECOVERY_TIMEOUT,
+                failure_threshold=settings.circuit_breaker_failure_threshold,
+                recovery_timeout=settings.circuit_breaker_recovery_timeout,
             )
         )
         self.retry_config = RetryConfig(
-            max_attempts=settings.MAX_RETRY_ATTEMPTS,
-            backoff_factor=settings.RETRY_BACKOFF_FACTOR,
-            backoff_max=settings.RETRY_BACKOFF_MAX,
+            max_attempts=settings.max_retry_attempts,
+            backoff_factor=settings.retry_backoff_factor,
+            backoff_max=settings.retry_backoff_max,
         )
         self.logger = get_run_logger()
 
         # HTTP client configuration
         self.client_config = {
             "timeout": httpx.Timeout(
-                connect=10.0, read=self.pncp_settings.API_TIMEOUT_SECONDS, write=10.0, pool=5.0
+                connect=10.0,
+                read=self.pncp_settings.timeout_seconds,
+                write=10.0,
+                pool=5.0,
             ),
             "limits": httpx.Limits(
                 max_keepalive_connections=20, max_connections=100, keepalive_expiry=60
@@ -113,12 +110,19 @@ class PNCPClient:
     ) -> (APIRequest, bytes):
         """Fetch data from PNCP endpoint with resilience patterns"""
 
+        modalidade_code = params.get("codigoModalidadeContratacao") if params else None
+        modalidade = (
+            get_enum_by_value(ModalidadeContratacao, modalidade_code)
+            if modalidade_code
+            else None
+        )
+
         request_metadata = RequestMetadata(
             endpoint=endpoint_name,
             url=url,
             request_id=self._generate_request_id(url),
             timestamp=datetime.now(),
-            modalidade=params.get("codigoModalidadeContratacao") if params else None,
+            modalidade=modalidade,
             date_range=f"{params.get('dataInicial')}-{params.get('dataFinal')}"
             if params
             else None,
@@ -279,14 +283,14 @@ class EndpointExtractor:
 
         self.logger.info(
             f"Starting extraction: contratacoes_publicacao "
-            f"({data_inicial} to {data_final}, modalidade {modalidade.value})"
+            f"({data_inicial} to {data_final}, modalidade {modalidade.name})"
         )
 
         while True:
             url = build_contratacao_url(
                 data_inicial=data_inicial,
                 data_final=data_final,
-                modalidade=modalidade.value,
+                modalidade=modalidade,
                 pagina=pagina,
                 **filters,
             )
@@ -414,14 +418,14 @@ class EndpointExtractor:
 
         self.logger.info(
             f"Starting extraction: contratacoes_atualizacao "
-            f"({data_inicial} to {data_final}, modalidade {modalidade.value})"
+            f"({data_inicial} to {data_final}, modalidade {modalidade.name})"
         )
 
         while True:
             url = build_contratacoes_atualizacao_url(
                 data_inicial=data_inicial,
                 data_final=data_final,
-                modalidade=modalidade.value,
+                modalidade=modalidade,
                 pagina=pagina,
                 **filters,
             )
@@ -450,7 +454,7 @@ class EndpointExtractor:
         return requests
 
     async def extract_contratacoes_proposta(
-        self, data_final: str, modalidade: ModalidadeContratacao = None, **filters
+        self, data_final: str, modalidade: Optional[ModalidadeContratacao] = None, **filters
     ) -> List[APIRequest]:
         """Extract contratações with open proposal period"""
 
@@ -467,7 +471,7 @@ class EndpointExtractor:
             url = build_contratacoes_proposta_url(
                 data_final=data_final,
                 pagina=pagina,
-                modalidade=modalidade.value if modalidade else None,
+                modalidade=modalidade,
                 **filters,
             )
 

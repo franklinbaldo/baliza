@@ -36,21 +36,21 @@ def connect() -> Backend:
     """Connect to the DuckDB database and set pragmas."""
 
     # Ensure data directory exists
-    db_path = Path(settings.DATABASE_PATH)
+    db_path = Path(settings.database_path)
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    con = ibis.duckdb.connect(settings.DATABASE_PATH)
+    con = ibis.duckdb.connect(settings.database_path)
 
     # Ensure temp directory exists
-    temp_path = Path(settings.TEMP_DIRECTORY)
+    temp_path = Path(settings.temp_directory)
     temp_path.mkdir(parents=True, exist_ok=True)
 
-    con.raw_sql(f"PRAGMA threads={settings.DUCKDB_THREADS};")
-    con.raw_sql(f"PRAGMA memory_limit='{settings.DUCKDB_MEMORY_LIMIT}';")
-    con.raw_sql(f"PRAGMA temp_directory='{settings.TEMP_DIRECTORY}';")
-    con.raw_sql(f"PRAGMA enable_progress_bar={'true' if settings.DUCKDB_ENABLE_PROGRESS_BAR else 'false'};")
+    con.raw_sql(f"PRAGMA threads={settings.duckdb_threads};")
+    con.raw_sql(f"PRAGMA memory_limit='{settings.duckdb_memory_limit}';")
+    con.raw_sql(f"PRAGMA temp_directory='{settings.temp_directory}';")
+    con.raw_sql(f"PRAGMA enable_progress_bar={'true' if settings.duckdb_enable_progress_bar else 'false'};")
 
-    logger.info(f"Connected to DuckDB at {settings.DATABASE_PATH}")
+    logger.info(f"Connected to DuckDB at {settings.database_path}")
     return con
 
 

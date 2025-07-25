@@ -1,47 +1,56 @@
+from typing import Dict, List
+
+from pydantic import BaseModel
 from pydantic_settings import BaseSettings
-from typing import List
+
+from .enums import ModalidadeContratacao
 
 
-class PNCP_API_Settings(BaseSettings):
-    PNCP_API_BASE_URL: str = "https://pncp.gov.br/api/consulta"
-    SUPPORTED_API_VERSION: str = "1.0"
-    API_TIMEOUT_SECONDS: int = 30
+class PNCPAPISettings(BaseSettings):
+    """API settings for PNCP."""
+
+    base_url: str = "https://pncp.gov.br/api/consulta"
+    supported_api_version: str = "1.0"
+    timeout_seconds: int = 30
+
     class Config:
         env_file = ".env"
         env_prefix = "PNCP_"
+
+
 class Settings(BaseSettings):
+    """General application settings."""
+
     # API Configuration
 
     # Database Configuration
-    DATABASE_PATH: str = "data/baliza.duckdb"
-    TEMP_DIRECTORY: str = "data/tmp"
-    DUCKDB_THREADS: int = 8
-    DUCKDB_MEMORY_LIMIT: str = "4GB"
-    DUCKDB_ENABLE_PROGRESS_BAR: bool = True
+    database_path: str = "data/baliza.duckdb"
+    temp_directory: str = "data/tmp"
+    duckdb_threads: int = 8
+    duckdb_memory_limit: str = "4GB"
+    duckdb_enable_progress_bar: bool = True
 
-    # Rate Limiting (PNCP has no explicit rate limits - using conservative approach)
-    REQUESTS_PER_MINUTE: int = 120  # Increased - no explicit limits found
-    REQUESTS_PER_HOUR: int = 7200  # Increased - 120 * 60
-    CONCURRENT_ENDPOINTS: int = 12  # All endpoints can run simultaneously
+    # Rate Limiting
+    requests_per_minute: int = 120
+    requests_per_hour: int = 7200
+    concurrent_endpoints: int = 12
 
     # Retry Configuration
-    MAX_RETRY_ATTEMPTS: int = 3
-    RETRY_BACKOFF_FACTOR: float = 2.0
-    RETRY_BACKOFF_MAX: int = 300
+    max_retry_attempts: int = 3
+    retry_backoff_factor: float = 2.0
+    retry_backoff_max: int = 300
 
     # Circuit Breaker
-    CIRCUIT_BREAKER_FAILURE_THRESHOLD: int = 5
-    CIRCUIT_BREAKER_RECOVERY_TIMEOUT: int = 300
+    circuit_breaker_failure_threshold: int = 5
+    circuit_breaker_recovery_timeout: int = 300
 
     # Default Date Ranges
-    DEFAULT_DATE_RANGE_DAYS: int = 7
-    MAX_DATE_RANGE_DAYS: int = 30
+    default_date_range_days: int = 7
+    max_date_range_days: int = 30
 
-    # Phase 2A Priority Endpoints (currently implemented)
-    PHASE_2A_ENDPOINTS: List[str] = ["contratacoes_publicacao", "contratos", "atas"]
-
-    # ALL PNCP Endpoints for 100% coverage
-    ALL_PNCP_ENDPOINTS: List[str] = [
+    # Endpoints
+    phase_2a_endpoints: List[str] = ["contratacoes_publicacao", "contratos", "atas"]
+    all_pncp_endpoints: List[str] = [
         "contratacoes_publicacao",
         "contratacoes_atualizacao",
         "contratacoes_proposta",
@@ -55,11 +64,17 @@ class Settings(BaseSettings):
         "pca_atualizacao",
     ]
 
-    # High Priority Modalidades (Pregão, Dispensa, Concorrência)
-    HIGH_PRIORITY_MODALIDADES: List[int] = [6, 7, 8, 4, 5]
+    # High Priority Modalidades
+    high_priority_modalidades: List[ModalidadeContratacao] = [
+        ModalidadeContratacao.PREGAO_ELETRONICO,
+        ModalidadeContratacao.PREGAO_PRESENCIAL,
+        ModalidadeContratacao.DISPENSA_DE_LICITACAO,
+        ModalidadeContratacao.CONCORRENCIA_ELETRONICA,
+        ModalidadeContratacao.CONCORRENCIA_PRESENCIAL,
+    ]
 
     # Pagination
-    DEFAULT_PAGE_SIZE: int = 500
+    default_page_size: int = 500
     MAX_PAGE_SIZE: int = 500
 
     # Schema Validation
@@ -74,19 +89,36 @@ class Settings(BaseSettings):
         env_file = ".env"
 
 
-# TODO: This configuration is hardcoded. It would be better to load it
-# from a separate configuration file (e.g., YAML or JSON) to make it
-# easier to update and maintain.
-ENDPOINT_CONFIG = {
-    "contratacoes_publicacao": {
-        "path": "/v1/contratacoes/publicacao",
-        "required_params": [
+class PageSizeLimits(BaseModel):
+    """Pydantic model for page size limits."""
+
+    min: int
+    max: int
+
+
+class EndpointConfig(BaseModel):
+    """Pydantic model for endpoint configuration."""
+
+    path: str
+    required_params: List[str]
+    optional_params: List[str]
+    page_size_limits: PageSizeLimits
+    default_page_size: int
+    priority: int
+    requires_modalidade: bool
+    sync_type: str = "incremental"
+
+
+ENDPOINT_CONFIG: Dict[str, EndpointConfig] = {
+    "contratacoes_publicacao": EndpointConfig(
+        path="/v1/contratacoes/publicacao",
+        required_params=[
             "dataInicial",
             "dataFinal",
             "codigoModalidadeContratacao",
             "pagina",
         ],
-        "optional_params": [
+        optional_params=[
             "codigoModoDisputa",
             "uf",
             "codigoMunicipioIbge",
@@ -95,48 +127,48 @@ ENDPOINT_CONFIG = {
             "idUsuario",
             "tamanhoPagina",
         ],
-        "page_size_limits": {"min": 10, "max": 50},
-        "default_page_size": 50,
-        "priority": 1,
-        "requires_modalidade": True,
-    },
-    "contratos": {
-        "path": "/v1/contratos",
-        "required_params": ["dataInicial", "dataFinal", "pagina"],
-        "optional_params": [
+        page_size_limits=PageSizeLimits(min=10, max=50),
+        default_page_size=50,
+        priority=1,
+        requires_modalidade=True,
+    ),
+    "contratos": EndpointConfig(
+        path="/v1/contratos",
+        required_params=["dataInicial", "dataFinal", "pagina"],
+        optional_params=[
             "cnpjOrgao",
             "codigoUnidadeAdministrativa",
             "usuarioId",
             "tamanhoPagina",
         ],
-        "page_size_limits": {"min": 10, "max": 500},
-        "default_page_size": 500,
-        "priority": 2,
-        "requires_modalidade": False,
-    },
-    "atas": {
-        "path": "/v1/atas",
-        "required_params": ["dataInicial", "dataFinal", "pagina"],
-        "optional_params": [
+        page_size_limits=PageSizeLimits(min=10, max=500),
+        default_page_size=500,
+        priority=2,
+        requires_modalidade=False,
+    ),
+    "atas": EndpointConfig(
+        path="/v1/atas",
+        required_params=["dataInicial", "dataFinal", "pagina"],
+        optional_params=[
             "idUsuario",
             "cnpj",
             "codigoUnidadeAdministrativa",
             "tamanhoPagina",
         ],
-        "page_size_limits": {"min": 10, "max": 500},
-        "default_page_size": 500,
-        "priority": 3,
-        "requires_modalidade": False,
-    },
-    "contratacoes_atualizacao": {
-        "path": "/v1/contratacoes/atualizacao",
-        "required_params": [
+        page_size_limits=PageSizeLimits(min=10, max=500),
+        default_page_size=500,
+        priority=3,
+        requires_modalidade=False,
+    ),
+    "contratacoes_atualizacao": EndpointConfig(
+        path="/v1/contratacoes/atualizacao",
+        required_params=[
             "dataInicial",
             "dataFinal",
             "codigoModalidadeContratacao",
             "pagina",
         ],
-        "optional_params": [
+        optional_params=[
             "codigoModoDisputa",
             "uf",
             "codigoMunicipioIbge",
@@ -145,46 +177,46 @@ ENDPOINT_CONFIG = {
             "idUsuario",
             "tamanhoPagina",
         ],
-        "page_size_limits": {"min": 10, "max": 50},
-        "default_page_size": 50,
-        "priority": 4,
-        "requires_modalidade": True,
-        "sync_type": "incremental",
-    },
-    "contratos_atualizacao": {
-        "path": "/v1/contratos/atualizacao",
-        "required_params": ["dataInicial", "dataFinal", "pagina"],
-        "optional_params": [
+        page_size_limits=PageSizeLimits(min=10, max=50),
+        default_page_size=50,
+        priority=4,
+        requires_modalidade=True,
+        sync_type="incremental",
+    ),
+    "contratos_atualizacao": EndpointConfig(
+        path="/v1/contratos/atualizacao",
+        required_params=["dataInicial", "dataFinal", "pagina"],
+        optional_params=[
             "cnpjOrgao",
             "codigoUnidadeAdministrativa",
             "usuarioId",
             "tamanhoPagina",
         ],
-        "page_size_limits": {"min": 10, "max": 500},
-        "default_page_size": 500,
-        "priority": 5,
-        "requires_modalidade": False,
-        "sync_type": "incremental",
-    },
-    "atas_atualizacao": {
-        "path": "/v1/atas/atualizacao",
-        "required_params": ["dataInicial", "dataFinal", "pagina"],
-        "optional_params": [
+        page_size_limits=PageSizeLimits(min=10, max=500),
+        default_page_size=500,
+        priority=5,
+        requires_modalidade=False,
+        sync_type="incremental",
+    ),
+    "atas_atualizacao": EndpointConfig(
+        path="/v1/atas/atualizacao",
+        required_params=["dataInicial", "dataFinal", "pagina"],
+        optional_params=[
             "idUsuario",
             "cnpj",
             "codigoUnidadeAdministrativa",
             "tamanhoPagina",
         ],
-        "page_size_limits": {"min": 10, "max": 500},
-        "default_page_size": 500,
-        "priority": 6,
-        "requires_modalidade": False,
-        "sync_type": "incremental",
-    },
-    "contratacoes_proposta": {
-        "path": "/v1/contratacoes/proposta",
-        "required_params": ["dataFinal", "pagina"],
-        "optional_params": [
+        page_size_limits=PageSizeLimits(min=10, max=500),
+        default_page_size=500,
+        priority=6,
+        requires_modalidade=False,
+        sync_type="incremental",
+    ),
+    "contratacoes_proposta": EndpointConfig(
+        path="/v1/contratacoes/proposta",
+        required_params=["dataFinal", "pagina"],
+        optional_params=[
             "codigoModalidadeContratacao",
             "uf",
             "codigoMunicipioIbge",
@@ -193,88 +225,56 @@ ENDPOINT_CONFIG = {
             "idUsuario",
             "tamanhoPagina",
         ],
-        "page_size_limits": {"min": 10, "max": 50},
-        "default_page_size": 50,
-        "priority": 7,
-        "requires_modalidade": False,
-        "sync_type": "snapshot",
-    },
-    "instrumentoscobranca_inclusao": {
-        "path": "/v1/instrumentoscobranca/inclusao",
-        "required_params": ["dataInicial", "dataFinal", "pagina"],
-        "optional_params": [
-            "tipoInstrumentoCobranca",
-            "cnpjOrgao",
-            "tamanhoPagina",
-        ],
-        "page_size_limits": {"min": 10, "max": 100},
-        "default_page_size": 100,
-        "priority": 8,
-        "requires_modalidade": False,
-        "sync_type": "incremental",
-    },
-    "pca": {
-        "path": "/v1/pca/",
-        "required_params": ["anoPca", "codigoClassificacaoSuperior", "pagina"],
-        "optional_params": ["tamanhoPagina"],
-        "page_size_limits": {"min": 10, "max": 500},
-        "default_page_size": 500,
-        "priority": 9,
-        "requires_modalidade": False,
-        "sync_type": "annual",
-    },
-    "pca_usuario": {
-        "path": "/v1/pca/usuario",
-        "required_params": ["anoPca", "idUsuario", "pagina"],
-        "optional_params": [
+        page_size_limits=PageSizeLimits(min=10, max=50),
+        default_page_size=50,
+        priority=7,
+        requires_modalidade=False,
+        sync_type="snapshot",
+    ),
+    "instrumentoscobranca_inclusao": EndpointConfig(
+        path="/v1/instrumentoscobranca/inclusao",
+        required_params=["dataInicial", "dataFinal", "pagina"],
+        optional_params=["tipoInstrumentoCobranca", "cnpjOrgao", "tamanhoPagina"],
+        page_size_limits=PageSizeLimits(min=10, max=100),
+        default_page_size=100,
+        priority=8,
+        requires_modalidade=False,
+        sync_type="incremental",
+    ),
+    "pca": EndpointConfig(
+        path="/v1/pca/",
+        required_params=["anoPca", "codigoClassificacaoSuperior", "pagina"],
+        optional_params=["tamanhoPagina"],
+        page_size_limits=PageSizeLimits(min=10, max=500),
+        default_page_size=500,
+        priority=9,
+        requires_modalidade=False,
+        sync_type="annual",
+    ),
+    "pca_usuario": EndpointConfig(
+        path="/v1/pca/usuario",
+        required_params=["anoPca", "idUsuario", "pagina"],
+        optional_params=[
             "codigoClassificacaoSuperior",
             "cnpj",
             "tamanhoPagina",
         ],
-        "page_size_limits": {"min": 10, "max": 500},
-        "default_page_size": 500,
-        "priority": 10,
-        "requires_modalidade": False,
-        "sync_type": "annual",
-    },
-    "pca_atualizacao": {
-        "path": "/v1/pca/atualizacao",
-        "required_params": ["dataInicio", "dataFim", "pagina"],
-        "optional_params": [
-            "cnpj",
-            "codigoUnidade",
-            "tamanhoPagina",
-        ],
-        "page_size_limits": {"min": 10, "max": 500},
-        "default_page_size": 500,
-        "priority": 11,
-        "requires_modalidade": False,
-        "sync_type": "incremental",
-    },
-}
-
-# Domain Tables
-MODALIDADE_CONTRATACAO = {
-    1: "Leilão - Eletrônico",
-    2: "Diálogo Competitivo",
-    3: "Concurso",
-    4: "Concorrência - Eletrônica",
-    5: "Concorrência - Presencial",
-    6: "Pregão - Eletrônico",
-    7: "Pregão - Presencial",
-    8: "Dispensa de Licitação",
-    9: "Inexigibilidade",
-    10: "Manifestação de Interesse",
-    11: "Pré-qualificação",
-    12: "Credenciamento",
-    13: "Leilão - Presencial",
-}
-
-SITUACAO_CONTRATACAO = {
-    1: "Divulgada no PNCP",
-    2: "Revogada",
-    3: "Anulada",
-    4: "Suspensa",
+        page_size_limits=PageSizeLimits(min=10, max=500),
+        default_page_size=500,
+        priority=10,
+        requires_modalidade=False,
+        sync_type="annual",
+    ),
+    "pca_atualizacao": EndpointConfig(
+        path="/v1/pca/atualizacao",
+        required_params=["dataInicio", "dataFim", "pagina"],
+        optional_params=["cnpj", "codigoUnidade", "tamanhoPagina"],
+        page_size_limits=PageSizeLimits(min=10, max=500),
+        default_page_size=500,
+        priority=11,
+        requires_modalidade=False,
+        sync_type="incremental",
+    ),
 }
 
 settings = Settings()
