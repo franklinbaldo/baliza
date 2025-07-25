@@ -11,6 +11,7 @@ from .flows.raw import extract_phase_2a_concurrent
 from .flows.staging import staging_transformation
 from .flows.marts import marts_creation
 from .flows.complete_extraction import extract_all_pncp_endpoints
+from .flows.export import export_to_parquet
 from .config import settings
 
 app = typer.Typer()
@@ -284,6 +285,52 @@ def transform(
 
     except Exception as e:
         console.print(f"❌ Erro na transformação: {e}")
+        raise typer.Exit(1)
+
+
+@app.command()
+def export(
+    output_dir: str = typer.Option(
+        "data/parquet", "--output", "-o", help="Diretório de saída para arquivos Parquet."
+    ),
+    staging: bool = typer.Option(
+        True, "--staging/--no-staging", help="Exportar tabelas de staging."
+    ),
+    marts: bool = typer.Option(
+        True, "--marts/--no-marts", help="Exportar tabelas de marts."
+    ),
+    mes: str = typer.Option(
+        None, "--mes", help="Filtrar dados por mês específico (formato YYYY-MM)."
+    ),
+):
+    """Exporta dados processados para arquivos Parquet."""
+    console.print(f"📦 Exportando dados para {output_dir}...")
+
+    try:
+        export_result = export_to_parquet(
+            output_base_dir=output_dir,
+            export_staging=staging,
+            export_marts=marts,
+            month_filter=mes
+        )
+
+        if export_result["status"] == "success":
+            console.print("✅ Exportação concluída com sucesso")
+            console.print(f"📊 {export_result['total_exports_successful']} tabelas exportadas")
+            console.print(f"📈 {export_result['total_records_exported']:,} registros exportados")
+            console.print(f"💾 {export_result['total_size_mb']:.2f} MB gerados")
+            
+            if export_result['total_exports_failed'] > 0:
+                console.print(f"⚠️  {export_result['total_exports_failed']} exportações falharam")
+                
+        else:
+            console.print(f"❌ Erro na exportação: {export_result.get('error_message')}")
+            raise typer.Exit(1)
+
+        console.print(f"🎉 Dados exportados para: {output_dir}")
+
+    except Exception as e:
+        console.print(f"❌ Erro na exportação: {e}")
         raise typer.Exit(1)
 
 

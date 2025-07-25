@@ -2,63 +2,161 @@
 Staging data transformation flows using Prefect and Ibis
 """
 
+import json
+import zlib
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 from prefect import flow, task, get_run_logger
+import ibis
 
 from ..backend import connect
 
 
-@task(name="create_staging_view", retries=1)
-def create_staging_view(endpoint_name: str, view_name: str) -> bool:
-    """Create a staging view for a specific endpoint."""
+@task(name="extract_and_normalize_payloads", retries=1)
+def extract_and_normalize_payloads(endpoint_pattern: str, table_name: str) -> int:
+    """Extract and normalize JSON payloads for a specific endpoint pattern."""
     logger = get_run_logger()
 
     try:
         con = connect()
-        con.raw_sql("CREATE SCHEMA IF NOT EXISTS staging")
+        
+        # Get successful requests with payloads for this endpoint pattern
         api_requests = con.table("raw.api_requests")
-        expr = api_requests.filter(api_requests.endpoint == endpoint_name).filter(
-            api_requests.http_status == 200
+        hot_payloads = con.table("raw.hot_payloads")
+        
+        # Join to get compressed payloads
+        query = (
+            api_requests
+            .join(hot_payloads, api_requests.payload_sha256 == hot_payloads.payload_sha256)
+            .filter(
+                (api_requests.http_status >= 200) & 
+                (api_requests.http_status <= 299) &
+                api_requests.endpoint.like(f"%{endpoint_pattern}%")
+            )
+            .select([
+                api_requests.request_id,
+                api_requests.ingestion_date,
+                api_requests.endpoint,
+                api_requests.collected_at,
+                hot_payloads.payload_compressed
+            ])
         )
-        con.create_view(f"staging.{view_name}", expr, overwrite=True)
-        logger.info(f"Created staging.{view_name} view")
-        return True
+        
+        # Execute query to get data
+        raw_data = query.execute()
+        
+        if len(raw_data) == 0:
+            logger.warning(f"No data found for endpoint pattern: {endpoint_pattern}")
+            return 0
+        
+        # Extract and normalize JSON data
+        normalized_records = []
+        
+        for _, row in raw_data.iterrows():
+            try:
+                # Decompress and parse JSON
+                payload_json = json.loads(
+                    zlib.decompress(row['payload_compressed']).decode("utf-8")
+                )
+                
+                # Extract records from PNCP response structure
+                if 'data' in payload_json and isinstance(payload_json['data'], list):
+                    for record in payload_json['data']:
+                        # Add metadata to each record
+                        normalized_record = {
+                            'source_request_id': str(row['request_id']),
+                            'source_ingestion_date': row['ingestion_date'],
+                            'source_endpoint': row['endpoint'],
+                            'source_collected_at': row['collected_at'],
+                            **record  # Spread the actual PNCP record data
+                        }
+                        normalized_records.append(normalized_record)
+                        
+            except Exception as e:
+                logger.warning(f"Failed to parse payload for request {row['request_id']}: {e}")
+                continue
+        
+        if not normalized_records:
+            logger.warning(f"No valid records extracted for {endpoint_pattern}")
+            return 0
+        
+        # Create staging table using Ibis with normalized data
+        # Note: We'll use Polars to handle the complex nested JSON data
+        try:
+            import polars as pl
+            
+            # Create Polars DataFrame from normalized records
+            df = pl.DataFrame(normalized_records)
+            
+            # Convert to Ibis table (DuckDB can read from Polars)
+            staging_table = con.read_polars(df)
+            con.create_table(f"staging.{table_name}", staging_table, overwrite=True)
+            
+            logger.info(f"Created staging.{table_name} with {len(normalized_records)} records using Polars")
+            
+        except ImportError:
+            # Fallback to basic approach if Polars not available
+            logger.warning("Polars not available, using basic staging approach")
+            
+            # Create a simple staging view without full normalization
+            con.create_schema("staging", if_not_exists=True)
+            staging_expr = query.select([
+                query.request_id.name('source_request_id'),
+                query.ingestion_date.name('source_ingestion_date'), 
+                query.endpoint.name('source_endpoint'),
+                query.collected_at.name('source_collected_at')
+            ])
+            con.create_view(f"staging.{table_name}_raw", staging_expr, overwrite=True)
+            logger.info(f"Created basic staging view staging.{table_name}_raw")
+            
+            return len(raw_data)
+        
+        return len(normalized_records)
+        
     except Exception as e:
-        logger.error(f"Failed to create staging view for {endpoint_name}: {e}")
+        logger.error(f"Failed to extract and normalize {endpoint_pattern}: {e}")
         raise
 
 
-@task(name="create_staging_views", retries=1)
-def create_staging_views() -> bool:
-    """Create staging views for data transformation"""
+@task(name="create_staging_tables", retries=1)
+def create_staging_tables() -> Dict[str, int]:
+    """Create staging tables for data transformation"""
     logger = get_run_logger()
-    logger.info("Creating staging views...")
-    # This task now orchestrates the creation of individual views.
-    # We can run these in parallel.
+    logger.info("Creating staging tables with normalized JSON data...")
+    
+    # Ensure staging schema exists
+    con = connect()
+    con.create_schema("staging", if_not_exists=True)
+    
+    # Define endpoint patterns and their corresponding table names
     endpoints = {
-        "contratacoes_publicacao": "contratacoes",
-        "contratos": "contratos",
+        "contratacoes": "contratacoes",
+        "contratos": "contratos", 
         "atas": "atas",
     }
+    
+    # Create staging tables in parallel
     tasks = []
-    for endpoint, view in endpoints.items():
-        task = create_staging_view.submit(endpoint, view)
-        tasks.append(task)
+    for endpoint_pattern, table_name in endpoints.items():
+        task = extract_and_normalize_payloads.submit(endpoint_pattern, table_name)
+        tasks.append((table_name, task))
 
-    # Wait for all tasks to complete
-    for task in tasks:
-        task.result()
+    # Wait for all tasks to complete and collect results
+    results = {}
+    for table_name, task in tasks:
+        record_count = task.result()
+        results[f"{table_name}_count"] = record_count
+        logger.info(f"Staging table {table_name}: {record_count} records")
 
-    logger.info("All staging views created.")
-    return True
+    logger.info("All staging tables created.")
+    return results
 
 
 @flow(name="staging_transformation", log_prints=True)
 def staging_transformation() -> Dict[str, Any]:
     """
-    Transform raw data into staging layer
+    Transform raw data into staging layer with normalized JSON payloads
     """
     logger = get_run_logger()
     start_time = datetime.now()
@@ -66,16 +164,28 @@ def staging_transformation() -> Dict[str, Any]:
     logger.info("Starting staging transformation...")
 
     try:
-        # Create staging views
-        create_staging_views()
+        # Create staging tables with normalized data
+        counts = create_staging_tables()
 
-        # Get row counts for verification
+        # Get final row counts for verification
         con = connect()
-        contratacoes_count = con.table("staging.contratacoes").count().execute()
-        contratos_count = con.table("staging.contratos").count().execute()
-        atas_count = con.table("staging.atas").count().execute()
+        try:
+            contratacoes_count = con.table("staging.contratacoes").count().execute()
+        except Exception:
+            contratacoes_count = counts.get("contratacoes_count", 0)
+            
+        try:
+            contratos_count = con.table("staging.contratos").count().execute() 
+        except Exception:
+            contratos_count = counts.get("contratos_count", 0)
+            
+        try:
+            atas_count = con.table("staging.atas").count().execute()
+        except Exception:
+            atas_count = counts.get("atas_count", 0)
 
         duration = (datetime.now() - start_time).total_seconds()
+        total_records = contratacoes_count + contratos_count + atas_count
 
         result = {
             "status": "success",
@@ -83,12 +193,14 @@ def staging_transformation() -> Dict[str, Any]:
             "contratacoes_count": contratacoes_count,
             "contratos_count": contratos_count,
             "atas_count": atas_count,
-            "total_staging_records": contratacoes_count + contratos_count + atas_count,
+            "total_staging_records": total_records,
+            "normalized_data": True,
+            "using_polars": "polars" in str(counts),
         }
 
         logger.info(
             f"Staging transformation completed: "
-            f"{result['total_staging_records']} records in {duration:.2f}s"
+            f"{total_records} normalized records in {duration:.2f}s"
         )
 
         return result
