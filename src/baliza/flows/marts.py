@@ -10,38 +10,19 @@ import ibis
 from ..backend import connect
 
 
-@task(name="create_marts_schema", retries=1)
-def create_marts_schema() -> bool:
-    """Create marts schema and tables"""
+@task(name="create_marts_layer", retries=1)
+def create_marts_layer() -> Dict[str, int]:
+    """Create marts schema and all mart tables."""
     logger = get_run_logger()
+    logger.info("Creating marts layer...")
 
     try:
         con = connect()
-
-        # TODO: This task is very simple and could be combined with the
-        # `create_summary_table` and `create_data_quality_table` tasks to
-        # reduce the number of tasks in the flow.
-        # Create marts schema if not exists
-        # TODO: Consider using Ibis schema management for consistency
-        con.raw_sql("CREATE SCHEMA IF NOT EXISTS marts")
-
+        con.create_schema("marts", overwrite=True)
         logger.info("Created marts schema")
-        return True
 
-    except Exception as e:
-        logger.error(f"Failed to create marts schema: {e}")
-        raise
-
-
-@task(name="create_summary_table", retries=1)
-def create_summary_table() -> bool:
-    """Create extraction summary mart table"""
-    logger = get_run_logger()
-
-    try:
-        con = connect()
+        # Create summary table
         api_requests = con.table("raw.api_requests")
-
         extraction_summary = api_requests.filter(
             api_requests.http_status == 200
         ).summary(
@@ -56,26 +37,10 @@ def create_summary_table() -> bool:
                 "unique_payloads",
             ]
         )
-
         con.create_table("marts.extraction_summary", extraction_summary, overwrite=True)
         logger.info("Created marts.extraction_summary table")
 
-        return True
-
-    except Exception as e:
-        logger.error(f"Failed to create summary table: {e}")
-        raise
-
-
-@task(name="create_data_quality_table", retries=1)
-def create_data_quality_table() -> bool:
-    """Create data quality monitoring table"""
-    logger = get_run_logger()
-
-    try:
-        con = connect()
-        api_requests = con.table("raw.api_requests")
-
+        # Create data quality table
         data_quality = (
             api_requests.group_by(
                 date=api_requests.collected_at.truncate("D"), endpoint="endpoint"
@@ -101,14 +66,20 @@ def create_data_quality_table() -> bool:
             )
             .order_by([ibis.desc("date"), "endpoint"])
         )
-
         con.create_table("marts.data_quality", data_quality, overwrite=True)
         logger.info("Created marts.data_quality table")
 
-        return True
+        # Get mart table counts for verification
+        summary_count = con.table("marts.extraction_summary").count().execute()
+        quality_count = con.table("marts.data_quality").count().execute()
+
+        return {
+            "extraction_summary_count": summary_count,
+            "data_quality_count": quality_count,
+        }
 
     except Exception as e:
-        logger.error(f"Failed to create data quality table: {e}")
+        logger.error(f"Failed to create marts layer: {e}")
         raise
 
 
@@ -123,26 +94,16 @@ def marts_creation() -> Dict[str, Any]:
     logger.info("Starting marts creation...")
 
     try:
-        # Create marts schema
-        create_marts_schema()
-
-        # Create mart tables
-        create_summary_table()
-        create_data_quality_table()
-
-        # Get mart table counts for verification
-        con = connect()
-        summary_count = con.table("marts.extraction_summary").count().execute()
-        quality_count = con.table("marts.data_quality").count().execute()
+        # Create marts layer
+        counts = create_marts_layer()
 
         duration = (datetime.now() - start_time).total_seconds()
 
         result = {
             "status": "success",
             "duration_seconds": duration,
-            "extraction_summary_count": summary_count,
-            "data_quality_count": quality_count,
-            "total_mart_records": summary_count + quality_count,
+            **counts,
+            "total_mart_records": sum(counts.values()),
         }
 
         logger.info(

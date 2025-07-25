@@ -5,23 +5,25 @@ Endpoint utilities for PNCP API integration
 from datetime import datetime, timedelta, date
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import urlencode
-
+from pydantic import BaseModel, validator
 from ..config import ENDPOINT_CONFIG, settings, PNCPAPISettings
+from ..enums import ModalidadeContratacao
 
 
 class URLBuilder:
     """Builds PNCP API endpoint URLs with proper parameters"""
 
+    _config_cache = None
+
     def __init__(self, base_url: str = None):
         self.pncp_settings = PNCPAPISettings()
         self.base_url = base_url or self.pncp_settings.base_url
+        if URLBuilder._config_cache is None:
+            URLBuilder._config_cache = ENDPOINT_CONFIG
 
-    # TODO: The endpoint configuration is loaded from the `ENDPOINT_CONFIG`
-    # dictionary every time a URL is built. It would be more efficient to
-    # cache this configuration to avoid repeated lookups.
     def build_url(self, endpoint_name: str, **params) -> str:
         """Build complete URL for endpoint with parameters"""
-        config = ENDPOINT_CONFIG.get(endpoint_name)
+        config = URLBuilder._config_cache.get(endpoint_name)
         if not config:
             raise ValueError(f"Unknown endpoint: {endpoint_name}")
 
@@ -134,7 +136,20 @@ class DateRangeHelper:
             return False
 
 
-from ..enums import ModalidadeContratacao
+class BaseEndpointParams(BaseModel):
+    data_inicial: date
+    data_final: date
+    pagina: int = 1
+
+    @validator("data_final")
+    def validate_date_range(cls, v, values):
+        if "data_inicial" in values and v < values["data_inicial"]:
+            raise ValueError("data_final must be after data_inicial")
+        return v
+
+
+class ContratacoesPublicacaoParams(BaseEndpointParams):
+    codigoModalidadeContratacao: int
 
 
 class ModalidadeHelper:
@@ -271,22 +286,23 @@ class EndpointValidator:
                 f"Page size must be between {limits['min']} and {limits['max']}"
             )
 
-    # FIXME: This method is not very robust. It would be better to use a
-    # more powerful validation library like Pydantic to validate the
-    # endpoint parameters. This would make the validation more reliable and
-    # easier to maintain.
+    ENDPOINT_PARAM_MODELS = {
+        "contratacoes_publicacao": ContratacoesPublicacaoParams,
+        # Add other endpoint models here...
+    }
+
     def validate_endpoint_params(self, endpoint_name: str, params: dict) -> dict:
-        """Validate endpoint parameters"""
-        errors = []
-        if not self.validate_date_format(params.get("data_inicial")):
-            errors.append("Invalid data_inicial")
-        if not self.validate_date_format(params.get("data_final")):
-            errors.append("Invalid data_final")
-        if not self.validate_modalidade(params.get("modalidade")):
-            errors.append("Invalid modalidade")
-        if not self.validate_pagination_params(params.get("pagina"), 50):
-            errors.append("Invalid pagina")
-        return {"valid": not errors, "errors": errors}
+        """Validate endpoint parameters using Pydantic models."""
+        model = self.ENDPOINT_PARAM_MODELS.get(endpoint_name)
+        if not model:
+            # If no model is defined, assume validation is not required
+            return {"valid": True, "errors": []}
+
+        try:
+            model(**params)
+            return {"valid": True, "errors": []}
+        except Exception as e:
+            return {"valid": False, "errors": e.errors()}
 
 
 # Convenience functions for common operations

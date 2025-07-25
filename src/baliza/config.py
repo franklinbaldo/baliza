@@ -81,9 +81,21 @@ class Settings(BaseSettings):
     VALIDATE_SCHEMA: bool = True
     SCHEMA_FINGERPRINT_CHECK: bool = True
 
-    # TODO: Add configuration for data retention policies
-    # TODO: Add configuration for security settings (encryption, auth)
-    # TODO: Add configuration for monitoring and alerting thresholds
+    # Data Retention
+    retention_days_raw: int = 365
+    retention_days_staging: int = 180
+    retention_days_logs: int = 90
+
+    # Security
+    secret_key: str = "your-secret-key"
+    enable_authentication: bool = False
+
+    # Monitoring
+    cpu_alert_threshold: float = 90.0  # Percentage
+    memory_alert_threshold: float = 90.0  # Percentage
+
+    # Logging
+    log_level: str = "INFO"
 
     class Config:
         env_file = ".env"

@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from typing import Optional, Callable, Any
 from enum import Enum
 import logging
+import threading
 
 logger = logging.getLogger(__name__)
 
@@ -35,9 +36,6 @@ class CircuitBreakerError(Exception):
 class CircuitBreaker:
     """Circuit breaker with adaptive behavior for PNCP API"""
 
-    # TODO: This class is not thread-safe. If it is used in a multi-threaded
-    # environment, it could lead to race conditions. It would be better to
-    # add a lock to protect the shared state.
     def __init__(self, config: CircuitBreakerConfig = None):
         self.config = config or CircuitBreakerConfig()
         self.state = CircuitState.CLOSED
@@ -45,18 +43,20 @@ class CircuitBreaker:
         self.success_count = 0
         self.last_failure_time: Optional[datetime] = None
         self.last_success_time: Optional[datetime] = None
+        self._lock = threading.Lock()
 
     def call(self, func: Callable, *args, **kwargs) -> Any:
         """Execute function with circuit breaker protection"""
 
-        if self.state == CircuitState.OPEN:
-            if self._should_attempt_reset():
-                self.state = CircuitState.HALF_OPEN
-                logger.info("Circuit breaker transitioning to HALF_OPEN")
-            else:
-                raise CircuitBreakerError(
-                    f"Circuit breaker is OPEN. Last failure: {self.last_failure_time}"
-                )
+        with self._lock:
+            if self.state == CircuitState.OPEN:
+                if self._should_attempt_reset():
+                    self.state = CircuitState.HALF_OPEN
+                    logger.info("Circuit breaker transitioning to HALF_OPEN")
+                else:
+                    raise CircuitBreakerError(
+                        f"Circuit breaker is OPEN. Last failure: {self.last_failure_time}"
+                    )
 
         try:
             result = func(*args, **kwargs)
@@ -77,32 +77,36 @@ class CircuitBreaker:
 
     def _on_success(self):
         """Handle successful call"""
-        self.last_success_time = datetime.now()
+        with self._lock:
+            self.last_success_time = datetime.now()
 
-        if self.state == CircuitState.HALF_OPEN:
-            self.success_count += 1
-            if self.success_count >= self.config.success_threshold:
-                self.state = CircuitState.CLOSED
-                self.failure_count = 0
-                self.success_count = 0
-                logger.info("Circuit breaker reset to CLOSED after successful recovery")
-        elif self.state == CircuitState.CLOSED:
-            # Reset failure count on success
-            self.failure_count = max(0, self.failure_count - 1)
+            if self.state == CircuitState.HALF_OPEN:
+                self.success_count += 1
+                if self.success_count >= self.config.success_threshold:
+                    self.state = CircuitState.CLOSED
+                    self.failure_count = 0
+                    self.success_count = 0
+                    logger.info(
+                        "Circuit breaker reset to CLOSED after successful recovery"
+                    )
+            elif self.state == CircuitState.CLOSED:
+                # Reset failure count on success
+                self.failure_count = max(0, self.failure_count - 1)
 
     def _on_failure(self, exception: Exception):
         """Handle failed call"""
-        self.failure_count += 1
-        self.last_failure_time = datetime.now()
-        self.success_count = 0  # Reset success count
+        with self._lock:
+            self.failure_count += 1
+            self.last_failure_time = datetime.now()
+            self.success_count = 0  # Reset success count
 
-        if self.failure_count >= self.config.failure_threshold:
-            if self.state != CircuitState.OPEN:
-                self.state = CircuitState.OPEN
-                logger.warning(
-                    f"Circuit breaker OPENED after {self.failure_count} failures. "
-                    f"Last error: {exception}"
-                )
+            if self.failure_count >= self.config.failure_threshold:
+                if self.state != CircuitState.OPEN:
+                    self.state = CircuitState.OPEN
+                    logger.warning(
+                        f"Circuit breaker OPENED after {self.failure_count} failures. "
+                        f"Last error: {exception}"
+                    )
 
 
 class AdaptiveRateLimiter:
@@ -135,20 +139,18 @@ class AdaptiveRateLimiter:
 
         self.request_times.append(datetime.now())
 
+    async def _sleep(self, seconds: float):
+        """Sleep function - can be overridden for testing"""
+        import asyncio
+
+        await asyncio.sleep(seconds)
+
     def adapt_rate(self, response_time: float, status_code: int):
         """Adapt rate based on server response"""
         if status_code >= 500 or response_time > 10.0 or status_code == 429:
             self.adaptive_factor = 0.8
         elif status_code == 200 and response_time < 2.0:
             self.adaptive_factor = 1.0
-
-    # FIXME: The `_sleep` method is defined inside the `acquire` method, which
-    # is not ideal. It should be a standalone method of the class.
-    async def _sleep(self, seconds: float):
-        """Sleep function - can be overridden for testing"""
-        import asyncio
-
-        await asyncio.sleep(seconds)
 
 
 class RetryConfig:

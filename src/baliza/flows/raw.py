@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 from ..backend import connect
 from ..config import settings
-from ..enums import ModalidadeContratacao, get_enum_by_value
+from ..enums import ModalidadeContratacao
 from ..utils.http_client import EndpointExtractor, APIRequest
 from ..utils.endpoints import DateRangeHelper
 
@@ -33,41 +33,49 @@ class ExtractionResult(BaseModel):
     error_message: Optional[str] = None
 
 
-@task(name="store_api_request", retries=2)
-def store_api_request(api_request: APIRequest, payload_compressed: bytes) -> bool:
-    """Store API request data in DuckDB"""
+@task(name="store_dataframe", retries=2)
+def store_dataframe(df: pd.DataFrame, table_name: str, overwrite: bool = False) -> bool:
+    """Store a pandas DataFrame in a DuckDB table."""
     logger = get_run_logger()
+
+    if df.empty:
+        return True
 
     try:
         con = connect()
+        con.insert(table_name, df, overwrite=overwrite)
+        logger.info(f"Stored {len(df)} rows in table {table_name}.")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to store dataframe in table {table_name}: {e}")
+        raise
 
-        with con.begin():
-            # Store payload in hot_payloads
-            hot_payloads_table = con.table("raw.hot_payloads")
-            hot_payloads_df = pd.DataFrame(
-                [
-                    {
-                        "payload_sha256": api_request.payload_sha256,
-                        "payload_compressed": payload_compressed,
-                        "first_seen_at": api_request.collected_at,
-                    }
-                ]
-            )
-            hot_payloads_table.insert(hot_payloads_df, overwrite=True)
 
-            # Store request metadata in api_requests
-            api_requests_table = con.table("raw.api_requests")
-            api_request_df = pd.DataFrame([api_request.dict()])
-            api_requests_table.insert(api_request_df)
-
-        logger.info(
-            f"Stored API request: {api_request.endpoint} ({api_request.payload_size} bytes)"
-        )
+@task(name="store_api_requests_batch", retries=2)
+def store_api_requests_batch(api_requests: List[APIRequest]) -> bool:
+    """Store a batch of API request data in DuckDB"""
+    if not api_requests:
         return True
 
-    except Exception as e:
-        logger.error(f"Failed to store API request: {e}")
-        raise
+    # Store payloads in hot_payloads
+    hot_payloads_df = pd.DataFrame(
+        [
+            {
+                "payload_sha256": req.payload_sha256,
+                "payload_compressed": req.payload_compressed,
+                "first_seen_at": req.collected_at,
+            }
+            for req in api_requests
+        ]
+    )
+    store_dataframe.submit(hot_payloads_df, "raw.hot_payloads", overwrite=True)
+
+    # Store request metadata in api_requests
+    requests_for_df = [req.dict(exclude={"payload_compressed"}) for req in api_requests]
+    api_request_df = pd.DataFrame(requests_for_df)
+    store_dataframe.submit(api_request_df, "raw.api_requests")
+
+    return True
 
 
 @task(name="log_extraction_execution", retries=1)
@@ -84,38 +92,24 @@ def log_extraction_execution(
     metadata: Optional[Dict[str, Any]] = None,
 ) -> bool:
     """Log extraction execution in meta.execution_log"""
-    # TODO: This task is very similar to the `store_api_request` task.
-    # It would be better to create a generic "store_dataframe" task to
-    # reduce code duplication.
-    logger = get_run_logger()
-
-    try:
-        con = connect()
-        execution_log_table = con.table("meta.execution_log")
-        df = pd.DataFrame(
-            [
-                {
-                    "execution_id": execution_id,
-                    "flow_name": flow_name,
-                    "task_name": task_name,
-                    "start_time": start_time,
-                    "end_time": end_time,
-                    "status": status,
-                    "records_processed": records_processed,
-                    "bytes_processed": bytes_processed,
-                    "error_message": error_message,
-                    "metadata": json.dumps(metadata) if metadata else None,
-                }
-            ]
-        )
-        execution_log_table.insert(df)
-
-        logger.info(f"Logged execution: {flow_name}.{task_name} - {status}")
-        return True
-
-    except Exception as e:
-        logger.error(f"Failed to log execution: {e}")
-        raise
+    df = pd.DataFrame(
+        [
+            {
+                "execution_id": execution_id,
+                "flow_name": flow_name,
+                "task_name": task_name,
+                "start_time": start_time,
+                "end_time": end_time,
+                "status": status,
+                "records_processed": records_processed,
+                "bytes_processed": bytes_processed,
+                "error_message": error_message,
+                "metadata": json.dumps(metadata) if metadata else None,
+            }
+        ]
+    )
+    store_dataframe.submit(df, "meta.execution_log")
+    return True
 
 
 @task(name="extract_contratacoes_modalidade", timeout_seconds=3600)
@@ -142,9 +136,10 @@ async def extract_contratacoes_modalidade(
             **filters,
         )
 
-        # Store each request in database
+        # Store requests in a batch
         total_records = 0
         total_bytes = 0
+        batch_requests = []
 
         for api_request in api_requests:
             # Count records in this page
@@ -155,11 +150,11 @@ async def extract_contratacoes_modalidade(
                 total_records += len(payload_json["data"])
 
             total_bytes += api_request.payload_size
+            batch_requests.append(api_request)
 
-            # Store in database (this will be executed sequentially by Prefect)
-            # FIXME: Sequential storage creates performance bottleneck
-            # TODO: Implement batch storage pattern for better performance
-            store_api_request.submit(api_request, api_request.payload_compressed)
+        # Store the batch of requests
+        if batch_requests:
+            store_api_requests_batch.submit(batch_requests)
 
         await extractor.close()
 
@@ -222,16 +217,20 @@ async def extract_contratos(
         # Store and count data
         total_records = 0
         total_bytes = 0
+        batch_requests = []
 
-        for api_request, payload_compressed in api_requests:
+        for api_request in api_requests:
             payload_json = json.loads(
-                zlib.decompress(payload_compressed).decode("utf-8")
+                zlib.decompress(api_request.payload_compressed).decode("utf-8")
             )
             if "data" in payload_json:
                 total_records += len(payload_json["data"])
 
             total_bytes += api_request.payload_size
-            store_api_request.submit(api_request, payload_compressed)
+            batch_requests.append(api_request)
+
+        if batch_requests:
+            store_api_requests_batch.submit(batch_requests)
 
         await extractor.close()
 
@@ -291,16 +290,20 @@ async def extract_atas(
         # Store and count data
         total_records = 0
         total_bytes = 0
+        batch_requests = []
 
-        for api_request, payload_compressed in api_requests:
+        for api_request in api_requests:
             payload_json = json.loads(
-                zlib.decompress(payload_compressed).decode("utf-8")
+                zlib.decompress(api_request.payload_compressed).decode("utf-8")
             )
             if "data" in payload_json:
                 total_records += len(payload_json["data"])
 
             total_bytes += api_request.payload_size
-            store_api_request.submit(api_request, payload_compressed)
+            batch_requests.append(api_request)
+
+        if batch_requests:
+            store_api_requests_batch.submit(batch_requests)
 
         await extractor.close()
 
@@ -525,17 +528,21 @@ async def extract_contratacoes_atualizacao_modalidade(
         # Store each request in database
         total_records = 0
         total_bytes = 0
+        batch_requests = []
 
-        for api_request, payload_compressed in api_requests:
+        for api_request in api_requests:
             # Count records in this page
             payload_json = json.loads(
-                zlib.decompress(payload_compressed).decode("utf-8")
+                zlib.decompress(api_request.payload_compressed).decode("utf-8")
             )
             if "data" in payload_json:
                 total_records += len(payload_json["data"])
 
             total_bytes += api_request.payload_size
-            store_api_request.submit(api_request, payload_compressed)
+            batch_requests.append(api_request)
+
+        if batch_requests:
+            store_api_requests_batch.submit(batch_requests)
 
         await extractor.close()
 
@@ -600,16 +607,20 @@ async def extract_contratos_atualizacao(
         # Store and count data
         total_records = 0
         total_bytes = 0
+        batch_requests = []
 
-        for api_request, payload_compressed in api_requests:
+        for api_request in api_requests:
             payload_json = json.loads(
-                zlib.decompress(payload_compressed).decode("utf-8")
+                zlib.decompress(api_request.payload_compressed).decode("utf-8")
             )
             if "data" in payload_json:
                 total_records += len(payload_json["data"])
 
             total_bytes += api_request.payload_size
-            store_api_request.submit(api_request, payload_compressed)
+            batch_requests.append(api_request)
+
+        if batch_requests:
+            store_api_requests_batch.submit(batch_requests)
 
         await extractor.close()
 
@@ -671,16 +682,20 @@ async def extract_atas_atualizacao(
         # Store and count data
         total_records = 0
         total_bytes = 0
+        batch_requests = []
 
-        for api_request, payload_compressed in api_requests:
+        for api_request in api_requests:
             payload_json = json.loads(
-                zlib.decompress(payload_compressed).decode("utf-8")
+                zlib.decompress(api_request.payload_compressed).decode("utf-8")
             )
             if "data" in payload_json:
                 total_records += len(payload_json["data"])
 
             total_bytes += api_request.payload_size
-            store_api_request.submit(api_request, payload_compressed)
+            batch_requests.append(api_request)
+
+        if batch_requests:
+            store_api_requests_batch.submit(batch_requests)
 
         await extractor.close()
 

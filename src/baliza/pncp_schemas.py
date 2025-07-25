@@ -9,14 +9,6 @@ import re
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .enums import ModalidadeContratacao, SituacaoCompra, TipoPessoa
-from .models import (
-    AmparoLegalDTO,
-    CategoriaDTO,
-    FonteOrcamentariaDTO,
-    OrgaoEntidadeDTO,
-    TipoContratoDTO,
-    UnidadeOrgaoDTO,
-)
 from .types import Cnpj
 
 
@@ -106,7 +98,6 @@ class BronzeContrato(BaseModel):
     usuario_nome: Optional[str] = None
     extracted_at: datetime = Field(default_factory=datetime.now)
 
-
     @field_validator(
         "valor_inicial", "valor_parcela", "valor_global", "valor_acumulado"
     )
@@ -174,7 +165,6 @@ class BronzeContrato(BaseModel):
             raise ValueError("Data de assinatura não pode ser no futuro")
 
         return self
-
 
     @classmethod
     def from_api_response(cls, contrato_data: dict) -> "BronzeContrato":
@@ -357,7 +347,6 @@ class BronzeContratacao(BaseModel):
 
         return v
 
-
     @field_validator("valor_total_estimado", "valor_total_homologado")
     @classmethod
     def validate_positive_values(cls, v: Optional[Decimal]) -> Optional[Decimal]:
@@ -427,7 +416,6 @@ class BronzeContratacao(BaseModel):
             raise ValueError("Data de abertura de proposta muito distante no futuro")
 
         return self
-
 
     @classmethod
     def from_api_response(cls, contratacao_data: dict) -> "BronzeContratacao":
@@ -596,7 +584,6 @@ class BronzeAta(BaseModel):
     usuario: Optional[str] = None
     extracted_at: datetime = Field(default_factory=datetime.now)
 
-
     @model_validator(mode="after")
     def validate_date_consistency(self) -> "BronzeAta":
         """Valida consistência entre datas."""
@@ -635,7 +622,6 @@ class BronzeAta(BaseModel):
             )
 
         return self
-
 
     @classmethod
     def from_api_response(cls, ata_data: dict) -> "BronzeAta":

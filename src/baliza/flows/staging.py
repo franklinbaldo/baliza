@@ -10,49 +10,49 @@ from prefect import flow, task, get_run_logger
 from ..backend import connect
 
 
-@task(name="create_staging_views", retries=1)
-def create_staging_views() -> bool:
-    """Create staging views for data transformation"""
+@task(name="create_staging_view", retries=1)
+def create_staging_view(endpoint_name: str, view_name: str) -> bool:
+    """Create a staging view for a specific endpoint."""
     logger = get_run_logger()
 
     try:
         con = connect()
-
-        # TODO: This task creates views for all endpoints in a single task.
-        # It would be better to break this down into smaller tasks, one for
-        # each view, to improve parallelism and make the flow more modular.
-        # Create staging schema if not exists
         con.raw_sql("CREATE SCHEMA IF NOT EXISTS staging")
-
-        # Define Ibis expressions for views
         api_requests = con.table("raw.api_requests")
-
-        # contratacoes
-        contratacoes_expr = api_requests.filter(
-            api_requests.endpoint == "contratacoes_publicacao"
-        ).filter(api_requests.http_status == 200)
-        con.create_view("staging.contratacoes", contratacoes_expr, overwrite=True)
-        logger.info("Created staging.contratacoes view")
-
-        # contratos
-        contratos_expr = api_requests.filter(
-            api_requests.endpoint == "contratos"
-        ).filter(api_requests.http_status == 200)
-        con.create_view("staging.contratos", contratos_expr, overwrite=True)
-        logger.info("Created staging.contratos view")
-
-        # atas
-        atas_expr = api_requests.filter(api_requests.endpoint == "atas").filter(
+        expr = api_requests.filter(api_requests.endpoint == endpoint_name).filter(
             api_requests.http_status == 200
         )
-        con.create_view("staging.atas", atas_expr, overwrite=True)
-        logger.info("Created staging.atas view")
-
+        con.create_view(f"staging.{view_name}", expr, overwrite=True)
+        logger.info(f"Created staging.{view_name} view")
         return True
-
     except Exception as e:
-        logger.error(f"Failed to create staging views: {e}")
+        logger.error(f"Failed to create staging view for {endpoint_name}: {e}")
         raise
+
+
+@task(name="create_staging_views", retries=1)
+def create_staging_views() -> bool:
+    """Create staging views for data transformation"""
+    logger = get_run_logger()
+    logger.info("Creating staging views...")
+    # This task now orchestrates the creation of individual views.
+    # We can run these in parallel.
+    endpoints = {
+        "contratacoes_publicacao": "contratacoes",
+        "contratos": "contratos",
+        "atas": "atas",
+    }
+    tasks = []
+    for endpoint, view in endpoints.items():
+        task = create_staging_view.submit(endpoint, view)
+        tasks.append(task)
+
+    # Wait for all tasks to complete
+    for task in tasks:
+        task.result()
+
+    logger.info("All staging views created.")
+    return True
 
 
 @flow(name="staging_transformation", log_prints=True)
