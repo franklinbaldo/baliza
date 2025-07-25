@@ -165,29 +165,9 @@ class ModalidadeHelper:
         return modalidade.name.replace("_", " ").title()
 
     @staticmethod
-    def get_high_priority_modalidades() -> List[ModalidadeContratacao]:
-        """Get list of high priority modalidade codes"""
-        return settings.high_priority_modalidades
-
-    @staticmethod
     def get_all_modalidades() -> List[ModalidadeContratacao]:
         """Get all available modalidade codes"""
         return list(ModalidadeContratacao)
-
-    @classmethod
-    def get_modalidades_by_priority(
-        cls, priority: str = "high"
-    ) -> List[ModalidadeContratacao]:
-        """Get modalidades filtered by priority level"""
-        if priority == "high":
-            return cls.get_high_priority_modalidades()
-        elif priority == "all":
-            return cls.get_all_modalidades()
-        else:
-            # Medium and low priority
-            high_priority = set(cls.get_high_priority_modalidades())
-            all_modalidades = set(cls.get_all_modalidades())
-            return list(all_modalidades - high_priority)
 
 
 class PaginationHelper:
@@ -322,11 +302,14 @@ def build_contratacao_url(
 ) -> str:
     """Build URL for contratações/publicação endpoint"""
     builder = URLBuilder()
+    # Use maximum page size for optimization
+    page_size = PaginationHelper.get_page_size("contratacoes_publicacao")
     params = {
         "dataInicial": data_inicial,
         "dataFinal": data_final,
         "codigoModalidadeContratacao": modalidade.value,
         "pagina": pagina,
+        "tamanhoPagina": page_size,
         **kwargs,
     }
     return builder.build_url("contratacoes_publicacao", **params)
@@ -337,10 +320,13 @@ def build_contratos_url(
 ) -> str:
     """Build URL for contratos endpoint"""
     builder = URLBuilder()
+    # Use maximum page size for optimization
+    page_size = PaginationHelper.get_page_size("contratos")
     params = {
         "dataInicial": data_inicial,
         "dataFinal": data_final,
         "pagina": pagina,
+        "tamanhoPagina": page_size,
         **kwargs,
     }
     return builder.build_url("contratos", **params)
@@ -351,10 +337,13 @@ def build_atas_url(
 ) -> str:
     """Build URL for atas endpoint"""
     builder = URLBuilder()
+    # Use maximum page size for optimization
+    page_size = PaginationHelper.get_page_size("atas")
     params = {
         "dataInicial": data_inicial,
         "dataFinal": data_final,
         "pagina": pagina,
+        "tamanhoPagina": page_size,
         **kwargs,
     }
     return builder.build_url("atas", **params)

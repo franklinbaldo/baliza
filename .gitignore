@@ -14,3 +14,4 @@ __pycache__/
 src/baliza.egg-info/
 uv.lock
 repomix-output.xml
+data/catalog.yml

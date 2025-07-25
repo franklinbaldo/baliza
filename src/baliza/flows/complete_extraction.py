@@ -113,7 +113,7 @@ async def extract_all_pncp_endpoints(
 
     # Use high priority modalidades if not specified
     if modalidades is None:
-        modalidades = settings.HIGH_PRIORITY_MODALIDADES
+        modalidades = list(ModalidadeContratacao)
 
     logger.info(
         f"Starting COMPLETE PNCP extraction: {data_inicial} to {data_final}, "

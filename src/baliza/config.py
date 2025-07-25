@@ -65,14 +65,6 @@ class Settings(BaseSettings):
         "pca_atualizacao",
     ]
 
-    # High Priority Modalidades
-    high_priority_modalidades: List[ModalidadeContratacao] = [
-        ModalidadeContratacao.PREGAO_ELETRONICO,
-        ModalidadeContratacao.PREGAO_PRESENCIAL,
-        ModalidadeContratacao.DISPENSA_DE_LICITACAO,
-        ModalidadeContratacao.CONCORRENCIA_ELETRONICA,
-        ModalidadeContratacao.CONCORRENCIA_PRESENCIAL,
-    ]
 
     # Pagination
     default_page_size: int = 500
@@ -141,7 +133,7 @@ ENDPOINT_CONFIG: Dict[str, EndpointConfig] = {
             "tamanhoPagina",
         ],
         page_size_limits=PageSizeLimits(min=10, max=50),
-        default_page_size=50,
+        default_page_size=50,  # Max allowed for this endpoint
         priority=1,
         requires_modalidade=True,
     ),

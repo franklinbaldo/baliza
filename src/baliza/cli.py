@@ -21,10 +21,14 @@ def _run_extraction(days: int):
     """Helper function to run the extraction part of the pipeline."""
     console.print("📥 Etapa 1: Extração (Raw Layer)")
     console.print(f"📅 Extraindo dados dos últimos {days} dias...")
+    # Use ALL modalidades for complete ETL run
+    from .enums import ModalidadeContratacao
+    all_modalidades = [modalidade.value for modalidade in ModalidadeContratacao]
+    
     result = asyncio.run(
         extract_phase_2a_concurrent(
             date_range_days=days,
-            modalidades=settings.HIGH_PRIORITY_MODALIDADES,
+            modalidades=all_modalidades,
             concurrent=True,
         )
     )
@@ -571,7 +575,9 @@ def _get_days_from_month(mes: str) -> int:
 def _parse_modalidades(modalidades: str) -> list[int]:
     """Parse a comma-separated string of modalidades into a list of integers."""
     if not modalidades:
-        return settings.HIGH_PRIORITY_MODALIDADES
+        # Use ALL modalidades by default for complete coverage
+        from .enums import ModalidadeContratacao
+        return [modalidade.value for modalidade in ModalidadeContratacao]
     try:
         return [int(m.strip()) for m in modalidades.split(",")]
     except ValueError:
