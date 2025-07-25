@@ -2,6 +2,8 @@
 Examples of how current raw SQL operations should be converted to Ibis
 """
 
+# TODO: turn these snippets into automated tests or docs
+
 import ibis
 
 

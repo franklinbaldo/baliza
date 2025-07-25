@@ -4,6 +4,8 @@ Simple script to collect real test fixtures from PNCP API
 Uses only built-in libraries to avoid dependency issues
 """
 
+# TODO: unify with collect_test_fixtures for single entry point
+
 import json
 import urllib.request
 import urllib.parse

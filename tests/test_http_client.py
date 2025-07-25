@@ -2,6 +2,8 @@
 Tests for HTTP client with circuit breaker and rate limiting
 """
 
+# TODO: mock network errors to test retry logic thoroughly
+
 import pytest
 import asyncio
 import logging
@@ -267,9 +269,7 @@ class TestEndpointExtractor:
             )
 
             assert len(results) >= 1
-            assert all(
-                r[0].endpoint == "contratacoes_publicacao" for r in results
-            )
+            assert all(r[0].endpoint == "contratacoes_publicacao" for r in results)
             assert all(r[0].http_status == 200 for r in results)
 
     async def test_extract_contratos(self, mock_get_run_logger):

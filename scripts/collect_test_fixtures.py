@@ -4,6 +4,8 @@ Script to collect real test fixtures from PNCP API endpoints
 Saves JSON responses to tests/fixtures/ for use in unit tests
 """
 
+# TODO: switch to Pydantic models for parsing responses
+
 import asyncio
 import json
 import sys

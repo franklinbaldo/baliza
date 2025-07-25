@@ -2,6 +2,8 @@
 Tests for endpoint utilities
 """
 
+# TODO: expand coverage for URL validation
+
 import pytest
 from datetime import date
 from unittest.mock import patch

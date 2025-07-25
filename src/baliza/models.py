@@ -1,6 +1,8 @@
 from pydantic import BaseModel
 from typing import List, Optional
 
+# TODO: replace plain integer fields with enums from baliza.enums where possible
+
 
 class RespostaErroValidacaoDTO(BaseModel):
     message: Optional[str] = None

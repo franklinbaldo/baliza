@@ -1,5 +1,8 @@
 """Pydantic schemas for PNCP API responses - Direct mapping to bronze tables."""
 
+# FIXME: this file is very large and should be split into multiple modules
+# TODO: use enums from baliza.enums for categorical fields
+
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional

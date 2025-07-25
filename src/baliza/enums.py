@@ -4,6 +4,8 @@ PNCP Enum Utilities - Centralized enum management for BALIZA
 
 from enum import Enum
 
+# TODO: consider generating these enums from the official OpenAPI spec
+
 
 class InstrumentoConvocatorio(int, Enum):
     """

@@ -2,6 +2,9 @@
 Raw data extraction flows using Prefect
 """
 
+# FIXME: storage logic is duplicated across tasks
+# TODO: consider a dedicated repository layer using Pydantic models
+
 import json
 import zlib
 from datetime import datetime
@@ -10,8 +13,9 @@ from uuid import uuid4
 
 from prefect import flow, task, get_run_logger
 from pydantic import BaseModel
+import pandas as pd
 
-from ..backend import connect, load_sql_file
+from ..backend import connect
 from ..config import settings
 from ..enums import ModalidadeContratacao, get_enum_by_value
 from ..utils.http_client import EndpointExtractor, APIRequest
@@ -30,9 +34,6 @@ class ExtractionResult(BaseModel):
     duration_seconds: float
     success: bool
     error_message: Optional[str] = None
-
-
-import pandas as pd
 
 
 @task(name="store_api_request", retries=2)
@@ -162,7 +163,7 @@ async def extract_contratacoes_modalidade(
             # Store in database (this will be executed sequentially by Prefect)
             # FIXME: Sequential storage creates performance bottleneck
             # TODO: Implement batch storage pattern for better performance
-            store_api_request.submit(api_request, payload_compressed)
+            store_api_request.submit(api_request, api_request.payload_compressed)
 
         await extractor.close()
 

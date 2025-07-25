@@ -2,6 +2,8 @@
 Endpoint utilities for PNCP API integration
 """
 
+# FIXME: URL building should rely on Pydantic models and enum types for safety
+
 from datetime import datetime, timedelta, date
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import urlencode

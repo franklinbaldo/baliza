@@ -2,6 +2,8 @@
 Circuit breaker implementation for PNCP API resilience
 """
 
+# TODO: expose hooks to emit metrics on state changes
+
 import random
 from dataclasses import dataclass
 from datetime import datetime, timedelta

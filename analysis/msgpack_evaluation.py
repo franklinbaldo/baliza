@@ -2,6 +2,8 @@
 MessagePack vs Current (JSON + zlib) Analysis for Baliza Raw Storage
 """
 
+# TODO: automate benchmarks as part of performance regression suite
+
 import json
 import zlib
 import msgpack

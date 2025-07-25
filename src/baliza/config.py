@@ -1,6 +1,8 @@
 from pydantic_settings import BaseSettings
 from typing import List
 
+# TODO: map endpoint configuration values to Enums and strongly typed models
+
 
 class Settings(BaseSettings):
     # API Configuration

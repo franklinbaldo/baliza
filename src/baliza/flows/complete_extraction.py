@@ -2,6 +2,8 @@
 Complete PNCP endpoint extraction flows for 100% API coverage
 """
 
+# FIXME: duplicated extraction loops should be generalized into reusable helpers
+
 import json
 import zlib
 from datetime import datetime

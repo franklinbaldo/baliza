@@ -2,6 +2,9 @@
 HTTP client for PNCP API with Prefect integration, rate limiting and circuit breaker
 """
 
+# FIXME: retry logic only covers HTTP errors; unexpected exceptions are dropped
+# TODO: move client configuration to a dedicated Pydantic settings object
+
 import json
 import hashlib
 import zlib
@@ -286,15 +289,15 @@ class EndpointExtractor:
                 **filters,
             )
 
-            api_request = await self.client.fetch_endpoint_data(
+            api_request, payload_compressed = await self.client.fetch_endpoint_data(
                 "contratacoes_publicacao", url
             )
 
-            requests.append(api_request)
+            requests.append((api_request, payload_compressed))
 
             # Parse response to check pagination
             payload_json = json.loads(
-                zlib.decompress(api_request.payload_compressed).decode("utf-8")
+                zlib.decompress(payload_compressed).decode("utf-8")
             )
             pncp_response = PNCPResponse(**payload_json)
 
@@ -331,13 +334,15 @@ class EndpointExtractor:
                 **filters,
             )
 
-            api_request = await self.client.fetch_endpoint_data("contratos", url)
+            api_request, payload_compressed = await self.client.fetch_endpoint_data(
+                "contratos", url
+            )
 
-            requests.append(api_request)
+            requests.append((api_request, payload_compressed))
 
             # Parse response to check pagination
             payload_json = json.loads(
-                zlib.decompress(api_request.payload_compressed).decode("utf-8")
+                zlib.decompress(payload_compressed).decode("utf-8")
             )
             pncp_response = PNCPResponse(**payload_json)
 
@@ -369,13 +374,15 @@ class EndpointExtractor:
                 **filters,
             )
 
-            api_request = await self.client.fetch_endpoint_data("atas", url)
+            api_request, payload_compressed = await self.client.fetch_endpoint_data(
+                "atas", url
+            )
 
-            requests.append(api_request)
+            requests.append((api_request, payload_compressed))
 
             # Parse response to check pagination
             payload_json = json.loads(
-                zlib.decompress(api_request.payload_compressed).decode("utf-8")
+                zlib.decompress(payload_compressed).decode("utf-8")
             )
             pncp_response = PNCPResponse(**payload_json)
 
@@ -417,15 +424,15 @@ class EndpointExtractor:
                 **filters,
             )
 
-            api_request = await self.client.fetch_endpoint_data(
+            api_request, payload_compressed = await self.client.fetch_endpoint_data(
                 "contratacoes_atualizacao", url
             )
 
-            requests.append(api_request)
+            requests.append((api_request, payload_compressed))
 
             # Parse response to check pagination
             payload_json = json.loads(
-                zlib.decompress(api_request.payload_compressed).decode("utf-8")
+                zlib.decompress(payload_compressed).decode("utf-8")
             )
             pncp_response = PNCPResponse(**payload_json)
 
@@ -462,15 +469,15 @@ class EndpointExtractor:
                 **filters,
             )
 
-            api_request = await self.client.fetch_endpoint_data(
+            api_request, payload_compressed = await self.client.fetch_endpoint_data(
                 "contratacoes_proposta", url
             )
 
-            requests.append(api_request)
+            requests.append((api_request, payload_compressed))
 
             # Parse response to check pagination
             payload_json = json.loads(
-                zlib.decompress(api_request.payload_compressed).decode("utf-8")
+                zlib.decompress(payload_compressed).decode("utf-8")
             )
             pncp_response = PNCPResponse(**payload_json)
 
@@ -504,15 +511,15 @@ class EndpointExtractor:
                 **filters,
             )
 
-            api_request = await self.client.fetch_endpoint_data(
+            api_request, payload_compressed = await self.client.fetch_endpoint_data(
                 "contratos_atualizacao", url
             )
 
-            requests.append(api_request)
+            requests.append((api_request, payload_compressed))
 
             # Parse response to check pagination
             payload_json = json.loads(
-                zlib.decompress(api_request.payload_compressed).decode("utf-8")
+                zlib.decompress(payload_compressed).decode("utf-8")
             )
             pncp_response = PNCPResponse(**payload_json)
 
@@ -546,13 +553,15 @@ class EndpointExtractor:
                 **filters,
             )
 
-            api_request = await self.client.fetch_endpoint_data("atas_atualizacao", url)
+            api_request, payload_compressed = await self.client.fetch_endpoint_data(
+                "atas_atualizacao", url
+            )
 
-            requests.append(api_request)
+            requests.append((api_request, payload_compressed))
 
             # Parse response to check pagination
             payload_json = json.loads(
-                zlib.decompress(api_request.payload_compressed).decode("utf-8")
+                zlib.decompress(payload_compressed).decode("utf-8")
             )
             pncp_response = PNCPResponse(**payload_json)
 
@@ -586,15 +595,15 @@ class EndpointExtractor:
                 **filters,
             )
 
-            api_request = await self.client.fetch_endpoint_data(
+            api_request, payload_compressed = await self.client.fetch_endpoint_data(
                 "instrumentoscobranca_inclusao", url
             )
 
-            requests.append(api_request)
+            requests.append((api_request, payload_compressed))
 
             # Parse response to check pagination
             payload_json = json.loads(
-                zlib.decompress(api_request.payload_compressed).decode("utf-8")
+                zlib.decompress(payload_compressed).decode("utf-8")
             )
             pncp_response = PNCPResponse(**payload_json)
 
@@ -626,13 +635,15 @@ class EndpointExtractor:
                 **filters,
             )
 
-            api_request = await self.client.fetch_endpoint_data("pca", url)
+            api_request, payload_compressed = await self.client.fetch_endpoint_data(
+                "pca", url
+            )
 
-            requests.append(api_request)
+            requests.append((api_request, payload_compressed))
 
             # Parse response to check pagination
             payload_json = json.loads(
-                zlib.decompress(api_request.payload_compressed).decode("utf-8")
+                zlib.decompress(payload_compressed).decode("utf-8")
             )
             pncp_response = PNCPResponse(**payload_json)
 
@@ -666,13 +677,15 @@ class EndpointExtractor:
                 **filters,
             )
 
-            api_request = await self.client.fetch_endpoint_data("pca_usuario", url)
+            api_request, payload_compressed = await self.client.fetch_endpoint_data(
+                "pca_usuario", url
+            )
 
-            requests.append(api_request)
+            requests.append((api_request, payload_compressed))
 
             # Parse response to check pagination
             payload_json = json.loads(
-                zlib.decompress(api_request.payload_compressed).decode("utf-8")
+                zlib.decompress(payload_compressed).decode("utf-8")
             )
             pncp_response = PNCPResponse(**payload_json)
 

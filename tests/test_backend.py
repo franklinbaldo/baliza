@@ -2,6 +2,8 @@ import pytest
 from src.baliza.backend import connect, load_sql_file
 from src.baliza.config import settings
 
+# TODO: add tests for error conditions and edge cases
+
 
 def test_load_sql_file_success():
     content = load_sql_file("init_schema.sql")

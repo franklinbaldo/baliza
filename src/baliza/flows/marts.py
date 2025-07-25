@@ -2,12 +2,16 @@
 Marts (analytics) layer flows using Prefect and Ibis
 """
 
+# TODO: introduce Pydantic models for mart schemas and validation
+
 from datetime import datetime
 from typing import Dict, Any
 
 from prefect import flow, task, get_run_logger
 
-from ..backend import connect, load_sql_file
+import ibis
+
+from ..backend import connect
 
 
 @task(name="create_marts_schema", retries=1)
@@ -28,9 +32,6 @@ def create_marts_schema() -> bool:
     except Exception as e:
         logger.error(f"Failed to create marts schema: {e}")
         raise
-
-
-import ibis
 
 
 @task(name="create_summary_table", retries=1)
@@ -56,9 +57,7 @@ def create_summary_table() -> bool:
             .order_by([ibis.desc("ingestion_date"), "endpoint"])
         )
 
-        con.create_table(
-            "marts.extraction_summary", extraction_summary, overwrite=True
-        )
+        con.create_table("marts.extraction_summary", extraction_summary, overwrite=True)
         logger.info("Created marts.extraction_summary table")
 
         return True
@@ -98,8 +97,7 @@ def create_data_quality_table() -> bool:
                 success_rate_pct=(
                     ibis._.successful_requests * 100.0 / ibis._.total_requests
                 ).round(2),
-                duplicate_payloads=ibis._.total_requests
-                - ibis._.unique_payloads,
+                duplicate_payloads=ibis._.total_requests - ibis._.unique_payloads,
             )
             .order_by([ibis.desc("date"), "endpoint"])
         )

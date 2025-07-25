@@ -2,6 +2,9 @@ import asyncio
 import os
 from pathlib import Path
 
+# FIXME: this CLI module is getting large and hard to maintain
+# TODO: split commands into submodules and validate arguments with Pydantic
+
 import typer
 from rich.console import Console
 from rich.table import Table

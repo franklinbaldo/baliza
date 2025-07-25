@@ -4,6 +4,10 @@ from prefect import get_run_logger
 from pathlib import Path
 from typing import Dict, Any, List
 import logging
+
+# FIXME: this module mixes database setup and utility functions in one place
+# TODO: use parametrized queries instead of naive string substitution in
+# execute_sql_file
 from .config import settings
 
 try:
