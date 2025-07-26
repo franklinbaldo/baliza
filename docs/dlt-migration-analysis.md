@@ -1,5 +1,13 @@
 # DLT Migration Analysis & Revised Plan
 
+# DLT Migration Analysis & Revised Plan
+
+# TODO: This document outlines the plan for migrating to DLT. While much of the
+#       migration has been completed, some phases (e.g., E2E testing, shadow mode)
+#       were not fully executed or are still pending. This document should be
+#       updated to reflect the current status of each phase, clarifying which
+#       parts of the plan were implemented and which remain as future work.
+
 **Date**: July 25, 2025  
 **Status**: Migration in progress  
 **Current State**: WIP with legacy preservation structure

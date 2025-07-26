@@ -16,6 +16,10 @@
 
 ---
 
+<div align="center">
+  <p style="color: red; font-weight: bold;">⚠️ ATENÇÃO: A funcionalidade de "detecção inteligente de gaps" (incremental inteligente) mencionada abaixo está em desenvolvimento e não está totalmente implementada na versão atual. A pipeline realiza deduplicação de dados, mas a otimização de requisições para buscar apenas dados faltantes ainda é um recurso futuro. Por padrão, a extração ainda pode re-solicitar dados já existentes, que serão descartados pela deduplicação.</p>
+</div>
+
 ## 🚀 Início Rápido - Nova Versão Simplificada
 
 **BALIZA v2.0** foi completamente reformulado com foco em simplicidade e eficiência. Uma única linha de comando extrai TODOS os dados históricos do PNCP:
@@ -28,7 +32,7 @@ uv run baliza extract
 
 **Pronto!** Por padrão, o BALIZA agora:
 - ✅ **Extrai TODOS os dados históricos** automaticamente (backfill completo)
-- ✅ **Detecta gaps** e só baixa dados que ainda não temos (incremental inteligente)  
+- ✅ **Deduplicação de dados** para evitar armazenamento de duplicatas (a detecção inteligente de gaps para otimização de requisições está em desenvolvimento)  
 - ✅ **Salva em Parquet** otimizado para análise
 - ✅ **Zero configuração** necessária
 
@@ -41,7 +45,7 @@ O Portal Nacional de Contratações Públicas (PNCP) é um avanço, mas sua API 
 O BALIZA v2.0 remove toda a complexidade desnecessária e foca no essencial: **extrair todos os dados do PNCP de forma eficiente e confiável**.
 
 -   🛡️ **Completo por Padrão:** Extrai todo o histórico disponível sem configuração
--   🔍 **Inteligente:** Detecta automaticamente quais dados já temos (gap detection)
+-   🔍 **Inteligente:** Realiza deduplicação de dados (otimização de requisições em desenvolvimento)
 -   📊 **Pronto para Análise:** Dados em Parquet para pandas, polars, DuckDB
 -   🚀 **Zero Complexidade:** Uma única linha de comando para tudo
 
@@ -100,7 +104,7 @@ flowchart TD
 
 **Tecnologias Core:**
 - **DLT (Data Load Tool):** Pipeline robusto com retry automático e schema evolution
-- **Gap Detection:** Só baixa dados que não temos (48x mais rápido em re-execuções)
+- **Gap Detection:** Deduplicação de dados (otimização de requisições em desenvolvimento)
 - **Hash-based Deduplication:** Evita dados duplicados automaticamente
 - **Parquet:** Formato otimizado para análise de dados
 
@@ -165,7 +169,7 @@ baliza/
 | **CLI** | 12 comandos confusos | 1 comando principal intuitivo |
 | **Dependências** | 25+ bibliotecas | 8 bibliotecas essenciais |
 | **Arquitetura** | Prefect + Ibis + DuckDB + Custom | DLT + Parquet |
-| **Incremental** | Manual gap detection | Automático com hash deduplication |
+| **Incremental** | Manual gap detection | Deduplicação de dados (otimização de requisições em desenvolvimento) |
 | **Output** | DuckDB proprietário | Parquet padrão da indústria |
 | **Performance** | ~70 min por mês | ~8 min por mês + incremental |
 

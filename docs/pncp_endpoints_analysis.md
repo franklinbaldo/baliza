@@ -1,5 +1,12 @@
 # Análise Completa dos Endpoints PNCP API v1.0
 
+# TODO: This document describes a "phased" implementation strategy and lists 10 endpoints.
+#       However, the current implementation in `src/baliza/extraction/config.py`
+#       processes all 12 endpoints by default, ignoring these phases.
+#       This document should be updated to reflect the current strategy, removing
+#       the phased implementation concept, while retaining valuable information
+#       about endpoint parameters and priorities.
+
 ## Resumo Executivo
 
 A API PNCP v1.0 oferece **10 endpoints** organizados em **6 categorias** de dados. Todos são endpoints de consulta (GET) com paginação obrigatória.
