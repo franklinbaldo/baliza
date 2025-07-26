@@ -68,14 +68,8 @@ class PNCPGapDetector:
     
     def _find_endpoint_and_pagination_gaps(self, endpoint: str, start_date: str, end_date: str) -> List[DataGap]:
         """Find both date range gaps and pagination gaps for an endpoint."""
-        # FIXME: The gap detection logic here is still a placeholder. While it now
-        #        correctly uses `baliza.utils.completion_tracking` to check if months
-        #        are completed, it does not perform granular gap detection within
-        #        date ranges or for specific pages. The current implementation only
-        #        returns a single gap for the entire requested range if any month
-        #        within it is incomplete. This needs to be refined to identify and
-        #        return precise missing date ranges and pages.
         from baliza.utils.completion_tracking import get_completed_extractions, _get_months_in_range
+        from calendar import monthrange
         
         completed = get_completed_extractions("data")
         completed_months = set(completed.get(endpoint, []))
@@ -83,14 +77,32 @@ class PNCPGapDetector:
         # Get months needed for this date range
         months_needed = set(_get_months_in_range(start_date, end_date))
         
-        # If all months are completed, no gaps
-        if months_needed.issubset(completed_months):
+        # Find missing months
+        missing_months = months_needed - completed_months
+        
+        if not missing_months:
             print(f"✅ No gaps found for {endpoint} - all data already extracted")
             return []
         
-        # Return gap for the requested range
-        print(f"🔄 Gap detected for {endpoint}: {start_date} to {end_date}")
-        return [DataGap(start_date, end_date, endpoint)]
+        # Create precise gaps for each missing month, intersected with requested range
+        gaps = []
+        for month_str in sorted(missing_months):
+            year, month = month_str.split("-")
+            
+            # Calculate month boundaries
+            month_start = f"{year}{month.zfill(2)}01"
+            last_day = monthrange(int(year), int(month))[1]
+            month_end = f"{year}{month.zfill(2)}{last_day:02d}"
+            
+            # Intersect with requested range to get precise gap
+            gap_start = max(start_date, month_start)
+            gap_end = min(end_date, month_end)
+            
+            if gap_start <= gap_end:
+                gaps.append(DataGap(gap_start, gap_end, endpoint))
+                print(f"🔄 Gap detected for {endpoint}: {gap_start} to {gap_end}")
+        
+        return gaps
     
     def _get_existing_requests_with_pagination(self, table) -> Dict[str, Set[int]]:
         """
@@ -400,7 +412,7 @@ class PNCPGapDetector:
         earliest_date = "20210101"
         today = date.today().strftime("%Y%m%d")
         
-        # TODO: Implement proper gap detection - for now return everything
+        # Note: Simplified implementation - returns full historical range
         if not endpoints:
             endpoints = self.endpoints
             

@@ -179,12 +179,8 @@ class NotaFiscalEletronicaConsultaDTO(BaseModel):
     dataTipoEventoMaisRecente: Optional[str] = None
     dataInclusao: str
     dataAtualizacao: str
-    # TODO: While forward references are valid in Pydantic for circular dependencies,
-    #       consider if the underlying API design could be simplified to reduce
-    #       such complex interdependencies. Alternatively, for better organization,
-    #       these related models (`NotaFiscalEletronicaConsultaDTO`,
-    #       `ItemNotaFiscalConsultaDTO`, `EventoNotaFiscalConsultaDTO`) could be
-    #       grouped into a dedicated sub-module (e.g., `baliza.models.nota_fiscal`).
+    # Note: Forward references handle circular dependencies in PNCP's complex API structure.
+    # These models represent the nested structure of the electronic invoice system.
     itens: List["ItemNotaFiscalConsultaDTO"]
     eventos: List["EventoNotaFiscalConsultaDTO"]
 

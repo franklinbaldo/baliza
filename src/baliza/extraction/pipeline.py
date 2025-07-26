@@ -64,10 +64,8 @@ def pncp_source(
         if gap.missing_pages:
             # Specific pages needed - create targeted requests
             print(f"   📄 Fetching specific pages: {gap.missing_pages[:5]}{'...' if len(gap.missing_pages) > 5 else ''}")
-            # TODO: This is inefficient. The DLT REST API source doesn't easily support
-            #       requesting specific pages out of the box. A custom resource or a more
-            #       advanced paginator strategy could be implemented to only fetch the
-            #       truly missing pages instead of the entire date range.
+            # Note: Specific page requests would require custom DLT resource implementation.
+            # For now, we fetch the entire date range when any pages are missing.
             config = create_pncp_rest_config(gap.start_date, gap.end_date, modalidades)
         else:
             # Full date range needed - fetch all pages
@@ -216,17 +214,6 @@ def pncp_source_legacy_compat(
     """
     modalidades = [modalidade] if modalidade else None
     return pncp_source(start_date, end_date, modalidades)
-
-
-# TODO: The completion tracking functions (`mark_extraction_completed`,
-#       `is_extraction_completed`, `get_completed_extractions`, and
-#       `_get_months_in_range`) are currently defined in this module.
-#       Consider moving these functions to `baliza.utils.completion_tracking`
-#       to centralize all completion tracking logic and improve modularity.
-
-def mark_extraction_completed(
-    output_dir: str, start_date: str, end_date: str, endpoints: List[str]
-):
 
 
 def run_structured_extraction(

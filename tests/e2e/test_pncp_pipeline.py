@@ -322,11 +322,9 @@ class TestPerformanceAndScaling:
 class TestRealAPIIntegration:
     """Integration tests against real PNCP API (use sparingly)."""
     
-    # TODO: These tests are currently skipped. It is crucial to enable and run
-    #       these integration tests against the real PNCP API as part of a
-    #       dedicated integration testing suite. This ensures that the pipeline
-    #       functions correctly with the actual API, catching any issues that
-    #       might not be apparent with mocked data or unit tests.
+    # Integration tests are skipped by default to avoid hitting the real API.
+    # To enable: Remove @pytest.mark.skip decorator and run with: pytest -m integration
+    # Recommended for CI/CD: Run on a schedule (daily) rather than on every commit
     
     @pytest.mark.skip(reason="Real API test - enable for integration testing")
     def test_real_api_connection(self):

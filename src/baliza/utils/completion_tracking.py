@@ -4,15 +4,29 @@ Extracted from pipeline.py to break circular dependencies.
 """
 
 import os
+from pathlib import Path
 from typing import Dict, List, Set
 from datetime import datetime, date
 
-# TODO: Consider adding `is_extraction_completed` function to this module
-#       for completeness, as it is a logical counterpart to `mark_extraction_completed`.
-#       Also, evaluate consistently using `pathlib` instead of `os.path` for
-#       all file system operations within this module for improved readability
-#       and modern Python practices.
+# Note: Using pathlib throughout for modern Python practices
 
+
+
+def is_extraction_completed(output_dir: str, endpoint: str, month: str) -> bool:
+    """
+    Check if extraction is completed for endpoint/month combination.
+    
+    Args:
+        output_dir: Base output directory
+        endpoint: Endpoint name
+        month: Month in YYYY-MM format
+        
+    Returns:
+        True if extraction is completed, False otherwise
+    """
+    year, month_num = month.split("-")
+    marker_path = Path(output_dir) / endpoint / year / month_num / ".completed"
+    return marker_path.exists()
 
 
 def get_completed_extractions(output_dir: str) -> Dict[str, List[str]]:
@@ -26,32 +40,30 @@ def get_completed_extractions(output_dir: str) -> Dict[str, List[str]]:
         Dict mapping endpoint names to lists of completed months (YYYY-MM format)
     """
     completed = {}
+    output_path = Path(output_dir)
     
-    if not os.path.exists(output_dir):
+    if not output_path.exists():
         return completed
     
-    for endpoint_dir in os.listdir(output_dir):
-        endpoint_path = os.path.join(output_dir, endpoint_dir)
-        if not os.path.isdir(endpoint_path):
+    for endpoint_dir in output_path.iterdir():
+        if not endpoint_dir.is_dir():
             continue
             
-        completed[endpoint_dir] = []
+        completed[endpoint_dir.name] = []
         
-        for year_dir in os.listdir(endpoint_path):
-            year_path = os.path.join(endpoint_path, year_dir)
-            if not os.path.isdir(year_path):
+        for year_dir in endpoint_dir.iterdir():
+            if not year_dir.is_dir():
                 continue
                 
-            for month_dir in os.listdir(year_path):
-                month_path = os.path.join(year_path, month_dir)
-                if not os.path.isdir(month_path):
+            for month_dir in year_dir.iterdir():
+                if not month_dir.is_dir():
                     continue
                     
                 # Check for .completed marker
-                marker_path = os.path.join(month_path, ".completed")
-                if os.path.exists(marker_path):
-                    month_key = f"{year_dir}-{month_dir}"
-                    completed[endpoint_dir].append(month_key)
+                marker_path = month_dir / ".completed"
+                if marker_path.exists():
+                    month_key = f"{year_dir.name}-{month_dir.name}"
+                    completed[endpoint_dir.name].append(month_key)
     
     return completed
 
@@ -99,10 +111,10 @@ def mark_extraction_completed(output_dir: str, start_date: str, end_date: str, e
     for endpoint in endpoints:
         for month in months:
             year, month_num = month.split("-")
-            marker_dir = os.path.join(output_dir, endpoint, year, month_num)
-            os.makedirs(marker_dir, exist_ok=True)
+            marker_dir = Path(output_dir) / endpoint / year / month_num
+            marker_dir.mkdir(parents=True, exist_ok=True)
             
-            marker_path = os.path.join(marker_dir, ".completed")
-            with open(marker_path, "w") as f:
+            marker_path = marker_dir / ".completed"
+            with marker_path.open("w") as f:
                 f.write(f"Completed at: {datetime.now().isoformat()}\n")
                 f.write(f"Date range: {start_date} to {end_date}\n")

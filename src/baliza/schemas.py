@@ -420,36 +420,7 @@ def get_enum_description(enum_class: type[Enum], value: int | str) -> str:
     return f"{name} ({enum_member.value})"
 
 
-# TODO: Evaluate if the ENUM_REGISTRY is still necessary. With Pydantic models
-#       and direct enum usage, dynamic access via a string name might be an
-#       over-engineering. If it's only used in `get_all_enum_metadata`, consider
-#       refactoring `get_all_enum_metadata` to iterate directly over the enum classes.
-# Enum registry for dynamic access and metadata generation
-# Used by get_all_enum_metadata() and get_enum_by_name() functions
-ENUM_REGISTRY = {
-    "InstrumentoConvocatorio": InstrumentoConvocatorio,
-    "ModalidadeContratacao": ModalidadeContratacao,
-    "ModoDisputa": ModoDisputa,
-    "CriterioJulgamento": CriterioJulgamento,
-    "SituacaoContratacao": SituacaoContratacao,
-    "SituacaoItemContratacao": SituacaoItemContratacao,
-    "TipoBeneficio": TipoBeneficio,
-    "SituacaoResultadoItemContratacao": SituacaoResultadoItemContratacao,
-    "TipoContrato": TipoContrato,
-    "TipoTermoContrato": TipoTermoContrato,
-    "CategoriaProcesso": CategoriaProcesso,
-    "TipoDocumento": TipoDocumento,
-    "NaturezaJuridica": NaturezaJuridica,
-    "PorteEmpresa": PorteEmpresa,
-    "AmparoLegal": AmparoLegal,
-    "CategoriaItemPlanoContratacoes": CategoriaItemPlanoContratacoes,
-    "PoderId": PoderId,
-    "EsferaId": EsferaId,
-    "TipoPessoa": TipoPessoa,
-    "ClassificacaoCatalogo": ClassificacaoCatalogo,
-    "SituacaoCompra": SituacaoCompra,
-    "IndicadorOrcamentoSigiloso": IndicadorOrcamentoSigiloso,
-}
+# Note: ENUM_REGISTRY removed as it was unused. Direct enum imports are preferred for type safety.
 
 
 class TipoEventoNotaFiscal(str, Enum):
@@ -461,39 +432,7 @@ class TipoEventoNotaFiscal(str, Enum):
     OPERACAO_NAO_REALIZADA = "OPERACAO_NAO_REALIZADA"
 
 
-ENUM_REGISTRY["TipoEventoNotaFiscal"] = TipoEventoNotaFiscal
-
-
-def get_enum_by_name(enum_name: str) -> Optional[Type[Enum]]:
-    """Get enum class by name."""
-    return ENUM_REGISTRY.get(enum_name)  # type: ignore
-
-
-def get_all_enum_metadata() -> Dict[str, Dict[str, Any]]:
-    """Get metadata for all enums in the registry."""
-    metadata: Dict[str, Dict[str, Any]] = {}
-
-    for enum_name, enum_class in ENUM_REGISTRY.items():
-        values_list: List[Dict[str, Any]] = []
-        for member in enum_class:
-            values_list.append(
-                {
-                    "value": member.value,
-                    "name": member.name,
-                    "description": get_enum_description(
-                        enum_class,
-                        member.value,  # type: ignore
-                    ),
-                }
-            )
-
-        metadata[enum_name] = {
-            "name": enum_name,
-            "description": f"Enum for {enum_name.replace('_', ' ').lower()}",
-            "values": values_list,
-        }
-
-    return metadata
+# Note: Removed unused registry functions. Use direct enum imports and type checking instead.
 
 
 class PncpEndpoint(str, Enum):

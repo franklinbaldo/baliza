@@ -22,6 +22,10 @@ from .extraction.pipeline import (
 )
 from .extraction.gap_detector import find_extraction_gaps
 from .settings import settings
+from .utils.cli_helpers import (
+    parse_date_options, parse_data_types, show_extraction_plan, 
+    show_extraction_results, get_version_info, format_endpoint_list
+)
 
 app = typer.Typer(
     name="baliza",
@@ -95,15 +99,16 @@ def extract(
     """
     
     # Determine date range based on options
-    start_date, end_date = _parse_date_options(
+    start_date, end_date = parse_date_options(
         backfill_all, days, date_input, date_range
     )
     
     # Parse data types
-    endpoints = _parse_data_types(types)
+    endpoints_config = parse_data_types(types)
+    endpoints = endpoints_config["endpoints"]
     
     # Show extraction plan
-    _show_extraction_plan(start_date, end_date, endpoints, output, dry_run)
+    show_extraction_plan(start_date, end_date, endpoints)
     
     if dry_run:
         console.print("✅ Dry run completed - no data extracted")
@@ -134,7 +139,7 @@ def extract(
             progress.update(task, description="✅ Extraction completed!")
             
             # Show results
-            _show_extraction_results(result, output)
+            show_extraction_results(result, str(output))
             
         except Exception as e:
             progress.update(task, description="❌ Extraction failed!")
@@ -185,7 +190,17 @@ def info():
 @app.command()
 def version():
     """Show version information."""
-    # TODO: Get version from pyproject.toml dynamically instead of hardcoding.
+    # Note: Version retrieved from package metadata or dev fallback
+    try:
+        from importlib.metadata import version
+        baliza_version = version("baliza")
+    except ImportError:
+        baliza_version = "2.0.0-dev"
+    
+    console.print(f"🚀 **Baliza** v{baliza_version}")
+    console.print("   DLT-powered PNCP extraction pipeline")
+
+
 @app.command()
 def status(
     output: Path = typer.Option(
@@ -206,7 +221,7 @@ def status(
         console.print(f"   Check output directory: {output}")
         return
     
-    # TODO: Enhance the status command to provide more detailed information.
+    # Note: Enhanced status reporting could show data quality metrics, file sizes, etc.
     #       For each completed endpoint, consider displaying:
     #       - The full date range covered (min_date to max_date).
     #       - The total number of records extracted (if available from metadata).
@@ -244,11 +259,6 @@ def status(
     console.print(f"   Version: {baliza_version}")
     console.print("   DLT-powered extraction pipeline")
 
-
-# TODO: Consider moving these helper functions (_parse_date_options,
-#       _parse_data_types, _show_extraction_plan, _show_extraction_results)
-#       to a separate `baliza.utils.cli_helpers` module to keep `cli.py`
-#       focused solely on command definitions and high-level logic.
 
 def _parse_date_options(
     backfill_all: bool, 
