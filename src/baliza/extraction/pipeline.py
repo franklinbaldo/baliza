@@ -11,9 +11,9 @@ Smart Gap Detection:
 import dlt
 from dlt.sources.rest_api import rest_api_source
 from typing import List, Optional, Any
-from .pncp_config import create_pncp_rest_config, create_modalidade_resources
+from .config import create_pncp_rest_config, create_modalidade_resources
 from .gap_detector import find_extraction_gaps, DataGap
-from baliza.legacy.enums import ModalidadeContratacao
+from baliza.schemas import ModalidadeContratacao
 
 
 def pncp_source(

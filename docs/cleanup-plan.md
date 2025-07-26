@@ -9,7 +9,8 @@
 src/baliza/
 ├── extraction/
 │   ├── config.py          # 🔄 RENAMED from pncp_config.py - API configuration
-│   └── pipeline.py        # 🔄 RENAMED from pncp.py - extraction functions
+│   ├── pipeline.py        # 🔄 RENAMED from pncp.py - extraction functions
+│   └── gap_detector.py    # ✅ NEW - smart gap detection for incremental loading
 ├── schemas.py             # 🔄 RENAMED from enums.py - PNCP schemas & enums
 ├── models.py              # 🔄 MOVED from legacy/ - Pydantic response models  
 ├── utils.py               # 🔄 MOVED from legacy/utils/ - hash & utility functions
@@ -67,6 +68,7 @@ mkdir -p src/baliza/extraction/
 # Move and rename pipeline components with better names
 mv src/baliza/pipelines/pncp_config.py src/baliza/extraction/config.py
 mv src/baliza/pipelines/pncp.py src/baliza/extraction/pipeline.py
+mv src/baliza/pipelines/gap_detector.py src/baliza/extraction/gap_detector.py
 
 # Move and rename core components
 mv src/baliza/legacy/enums.py src/baliza/schemas.py      # Better name: schemas

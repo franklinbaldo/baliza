@@ -6,9 +6,9 @@ Converts legacy ENDPOINT_CONFIG to dlt REST API format
 from datetime import date, timedelta
 from typing import Dict, Any, List, Optional
 from dlt.sources.rest_api.typing import RESTAPIConfig
-from baliza.config import ENDPOINT_CONFIG, settings
-from baliza.legacy.enums import PncpEndpoint, ModalidadeContratacao
-from baliza.legacy.utils.hash_utils import hash_sha256
+from baliza.settings import ENDPOINT_CONFIG, settings
+from baliza.schemas import PncpEndpoint, ModalidadeContratacao
+from baliza.utils import hash_sha256
 import os
 import dlt
 

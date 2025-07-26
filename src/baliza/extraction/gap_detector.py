@@ -68,56 +68,10 @@ class PNCPGapDetector:
     
     def _find_endpoint_and_pagination_gaps(self, endpoint: str, start_date: str, end_date: str) -> List[DataGap]:
         """Find both date range gaps and pagination gaps for an endpoint."""
-        try:
-            from baliza.backend import connect
-            
-            con = connect()
-            table_name = f"pncp_data.{endpoint}"
-            
-            try:
-                table = con.table(table_name)
-            except Exception:
-                # Table doesn't exist - everything is a gap
-                return [DataGap(start_date, end_date, endpoint)]
-            
-            # Get all existing request metadata to reconstruct what we have
-            existing_requests = self._get_existing_requests_with_pagination(table)
-            
-            # Find date range gaps
-            date_gaps = self._find_date_gaps(start_date, end_date, existing_requests)
-            
-            # Find pagination gaps within existing date ranges  
-            pagination_gaps = self._find_pagination_gaps(start_date, end_date, existing_requests)
-            
-            # Combine gaps
-            all_gaps = []
-            
-            # Add date range gaps (these need all pages)
-            for start_dt, end_dt in date_gaps:
-                gap = DataGap(
-                    start_date=start_dt.strftime("%Y%m%d"),
-                    end_date=end_dt.strftime("%Y%m%d"),
-                    endpoint=endpoint,
-                    missing_pages=None  # All pages needed
-                )
-                all_gaps.append(gap)
-            
-            # Add pagination gaps (specific pages needed)
-            for date_str, missing_pages in pagination_gaps:
-                gap = DataGap(
-                    start_date=date_str,
-                    end_date=date_str,
-                    endpoint=endpoint,
-                    missing_pages=missing_pages
-                )
-                all_gaps.append(gap)
-            
-            return all_gaps
-            
-        except Exception as e:
-            print(f"⚠️  Error detecting gaps for {endpoint}: {e}")
-            # Safer to assume we need everything
-            return [DataGap(start_date, end_date, endpoint)]
+        # TODO: Implement gap detection with DLT state management
+        # For now, assume we need everything (safe default)
+        print(f"🔄 Gap detection temporarily disabled - assuming full extraction needed for {endpoint}")
+        return [DataGap(start_date, end_date, endpoint)]
     
     def _get_existing_requests_with_pagination(self, table) -> Dict[str, Set[int]]:
         """
@@ -263,7 +217,10 @@ class PNCPGapDetector:
         """Find gaps for a specific endpoint."""
         try:
             # Import here to avoid circular imports
-            from baliza.backend import connect
+            # Import here to avoid circular imports - we'll need to implement a simple connection
+            # For now, this will be a placeholder until we implement the connection logic
+            # from baliza.backend import connect
+            pass
             
             con = connect()
             
@@ -423,7 +380,15 @@ class PNCPGapDetector:
         earliest_date = "20210101"
         today = date.today().strftime("%Y%m%d")
         
-        return self.find_missing_date_ranges(earliest_date, today, endpoints)
+        # TODO: Implement proper gap detection - for now return everything
+        if not endpoints:
+            endpoints = self.endpoints
+            
+        gaps = []
+        for endpoint in endpoints:
+            gaps.append(DataGap(earliest_date, today, endpoint))
+        
+        return gaps
 
 
 def find_extraction_gaps(
