@@ -11,6 +11,30 @@ from rich.table import Table
 console = Console()
 
 
+def _normalize_date_format(date_str: str) -> str:
+    """Normalize date string to YYYYMMDD format.
+    
+    Supports:
+    - YYYYMMDD (already normalized)
+    - YYYY-MM-DD (ISO format)
+    - YYYY-MM (month format, uses first day)
+    """
+    date_str = date_str.strip()
+    
+    if len(date_str) == 8 and date_str.isdigit():
+        return date_str  # Already YYYYMMDD
+    
+    if len(date_str) == 10 and date_str.count('-') == 2:
+        # YYYY-MM-DD format
+        return date_str.replace('-', '')
+    
+    if len(date_str) == 7 and date_str.count('-') == 1:
+        # YYYY-MM format
+        return date_str.replace('-', '') + '01'
+    
+    raise ValueError(f"Unsupported date format: {date_str}")
+
+
 def parse_date_options(
     backfill_all: bool, 
     days: Optional[int], 
@@ -24,14 +48,13 @@ def parse_date_options(
     if date_range:
         try:
             start_str, end_str = date_range.split(":")
-            # TODO: The `date_range` parsing currently assumes YYYYMMDD:YYYYMMDD.
-            #       It should be more robust to handle YYYY-MM-DD:YYYY-MM-DD or
-            #       YYYY-MM:YYYY-MM formats, similar to how `date_input` is handled.
-            #       Also, the `ValueError` is caught, but the function should ideally
-            #       raise a `typer.BadParameter` for consistency with `cli.py`.
+            # Support multiple date formats: YYYYMMDD, YYYY-MM-DD, YYYY-MM
+            start_str = _normalize_date_format(start_str)
+            end_str = _normalize_date_format(end_str)
             return start_str, end_str
-        except ValueError:
-            raise ValueError("Date range must be in format YYYYMMDD:YYYYMMDD")
+        except ValueError as e:
+            import typer
+            raise typer.BadParameter(f"Date range must be in format YYYYMMDD:YYYYMMDD, YYYY-MM-DD:YYYY-MM-DD, or YYYY-MM:YYYY-MM. Error: {e}")
     
     if date_input:
         return date_input, date_input
@@ -68,10 +91,9 @@ def parse_data_types(data_types: Optional[List[str]]) -> Dict[str, List[int]]:
         if data_type in type_mapping:
             endpoints.extend(type_mapping[data_type])
         else:
-            # TODO: Instead of printing a warning, consider raising a `typer.BadParameter`
-            #       exception here. This would provide immediate feedback to the user
-            #       about invalid input and align with Typer's error handling philosophy.
-            console.print(f"[yellow]Warning: Unknown data type '{data_type}' ignored[/yellow]")
+            import typer
+            available_types = ", ".join(type_mapping.keys())
+            raise typer.BadParameter(f"Unknown data type '{data_type}'. Available types: {available_types}")
     
     return {"endpoints": endpoints}
 
@@ -81,7 +103,7 @@ def show_extraction_plan(
     end_date: Optional[str], 
     endpoints: List[str], 
     gaps_found: int = None,
-    output_dir: Optional[str] = None # TODO: Add output_dir parameter for consistency
+    output_dir: Optional[str] = None
 ):
     """Display extraction plan to user."""
     table = Table(title="📋 Extraction Plan")
@@ -98,7 +120,9 @@ def show_extraction_plan(
     if gaps_found is not None:
         table.add_row("Data Gaps Found", str(gaps_found))
     
-    # TODO: Display output_dir in the plan if provided
+    # Display output directory in the plan
+    if output_dir:
+        table.add_row("Output Directory", output_dir)
     
     console.print(table)
 

@@ -3,7 +3,6 @@ from typing import Dict, List, ClassVar
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 
-from .schemas import ModalidadeContratacao
 
 
 class PNCPAPISettings(BaseSettings):

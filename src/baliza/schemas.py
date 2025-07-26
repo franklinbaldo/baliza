@@ -3,7 +3,12 @@ PNCP Enum Utilities - Centralized enum management for BALIZA
 """
 
 from enum import Enum
-from typing import Type, Any, Dict, List, Union, Optional
+from typing import Type, Dict, List, Union, Optional
+
+
+class InvalidEnumValueError(ValueError):
+    """Raised when an invalid value is provided for an enum."""
+    pass
 
 
 class InstrumentoConvocatorio(int, Enum):
@@ -374,15 +379,29 @@ class IndicadorOrcamentoSigiloso(str, Enum):
 
 
 # Enum utilities (mantidas para possíveis usos futuros ou compatibilidade)
-def get_enum_by_value(enum_class: Type[Enum], value: Union[int, str]) -> Optional[Enum]:
-    """Get enum member by value, returning None if not found."""
+def get_enum_by_value(enum_class: Type[Enum], value: Union[int, str], strict: bool = False) -> Optional[Enum]:
+    """Get enum member by value.
+    
+    Args:
+        enum_class: The enum class to search
+        value: The value to find
+        strict: If True, raises InvalidEnumValueError for invalid values
+        
+    Returns:
+        Enum member if found, None otherwise (unless strict=True)
+        
+    Raises:
+        InvalidEnumValueError: If strict=True and value is invalid
+    """
     try:
         return enum_class(value)
-    except (ValueError, TypeError):
-        # TODO: Consider a more robust error handling strategy here. Instead of
-        #       silently returning None, which can lead to `NoneType` errors
-        #       downstream, consider raising a custom exception (e.g., `InvalidEnumValueError`)
-        #       or returning a well-defined default value if appropriate for the context.
+    except (ValueError, TypeError) as e:
+        if strict:
+            valid_values = [member.value for member in enum_class]
+            raise InvalidEnumValueError(
+                f"Invalid value {value!r} for {enum_class.__name__}. "
+                f"Valid values: {valid_values}"
+            ) from e
         return None
 
 

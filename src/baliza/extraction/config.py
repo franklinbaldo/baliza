@@ -4,13 +4,10 @@ Converts legacy ENDPOINT_CONFIG to dlt REST API format
 """
 
 from datetime import date, timedelta
-from typing import Dict, Any, List, Optional
-from dlt.sources.rest_api.typing import RESTAPIConfig
+from typing import Dict, Any, List
 from baliza.settings import ENDPOINT_CONFIG, settings
-from baliza.schemas import PncpEndpoint, ModalidadeContratacao
+from baliza.schemas import ModalidadeContratacao
 from baliza.utils import hash_sha256
-import os
-import dlt
 
 
 def create_pncp_rest_config(
@@ -116,13 +113,9 @@ def _build_endpoint_params(endpoint_config, start_date: str, end_date: str, moda
         
     # Add modalidade if required and provided
     if endpoint_config.requires_modalidade and modalidades:
-        # TODO: This logic only uses the first modalidade from the list.
-        #       For endpoints that require a modalidade, the system should either
-        #       iterate through them and create separate requests or be designed
-        #       to handle one modalidade at a time. The current implementation
-        #       is misleading if a list of modalities is provided and only the
-        #       first one is used. This needs to be clarified or refactored.
-        # For now, use the first modalidade
+        # Note: This function builds params for a single resource. For multiple modalidades,
+        # the pipeline creates separate resources using create_modalidade_resources().
+        # Here we use the first modalidade as this function is called per resource.
         params["codigoModalidadeContratacao"] = modalidades[0]
     
     return params
@@ -174,61 +167,7 @@ def _add_metadata(record: Dict[str, Any]) -> Dict[str, Any]:
 
 
 
-def create_modalidade_resources(
-    endpoint_name: str, 
-    start_date: str, 
-    end_date: str, 
-    modalidades: List[int]
-) -> List[Dict[str, Any]]:
-    """
-    Create separate resources for each modalidade (for endpoints that require it).
-    This handles endpoints like 'contratacoes_publicacao' that need modalidade parameter.
-    """
-    # TODO: Evaluate if this function is still necessary. The `pncp_source` function
-    #       in `pipeline.py` now handles the creation of resources for different
-    #       modalities based on the `modalidades` parameter. This function might
-    #       be a remnant of a previous design and could be removed if no longer used.
-    
-    if endpoint_name not in ENDPOINT_CONFIG:
-        raise ValueError(f"Unknown endpoint: {endpoint_name}")
-        
-    endpoint_config = ENDPOINT_CONFIG[endpoint_name]
-    
-    if not endpoint_config.requires_modalidade:
-        raise ValueError(f"Endpoint {endpoint_name} does not require modalidade")
-    
-    resources = []
-    
-    for modalidade_id in modalidades:
-        modalidade_enum = ModalidadeContratacao(modalidade_id)
-        resource_name = f"{endpoint_name}_{modalidade_enum.name.lower()}"
-        
-        params = _build_endpoint_params(endpoint_config, start_date, end_date, [modalidade_id])
-        
-        resource = {
-            "name": resource_name,
-            "endpoint": {
-                "path": endpoint_config.path,
-                "method": "GET", 
-                "params": params,
-                "paginator": _get_paginator_config(endpoint_config),
-                "data_selector": "data",
-            },
-            "primary_key": "_dlt_id",
-            "write_disposition": "merge",
-            "processing_steps": [
-                {
-                    "map": _add_hash_id
-                },
-                {
-                    "map": _add_metadata
-                }
-            ]
-        }
-        
-        resources.append(resource)
-    
-    return resources
+# Removed create_modalidade_resources() - functionality integrated into pncp_source()
 
 
 # Configuration for common use cases

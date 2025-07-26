@@ -14,17 +14,13 @@ from datetime import date, timedelta
 from typing import Optional
 
 from .extraction.pipeline import (
-    pncp_source, 
-    run_priority_extraction,
     run_structured_extraction,
-    create_default_pipeline,
     get_completed_extractions
 )
-from .extraction.gap_detector import find_extraction_gaps
 from .settings import settings
 from .utils.cli_helpers import (
     parse_date_options, parse_data_types, show_extraction_plan, 
-    show_extraction_results, get_version_info, format_endpoint_list
+    show_extraction_results
 )
 
 app = typer.Typer(

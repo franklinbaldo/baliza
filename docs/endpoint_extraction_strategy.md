@@ -1,11 +1,8 @@
-# Estratégia de Extração PNCP - Mapeamento por Fases
+# Estratégia de Extração PNCP - Todos os Endpoints
 
-# TODO: This document describes a "phased" rollout strategy for endpoints.
-#       However, the current implementation in `src/baliza/extraction/config.py`
-#       processes all 12 endpoints by default, ignoring these phases.
-#       This document should be updated to reflect the current strategy, removing
-#       the phased implementation concept, while retaining valuable information
-#       about endpoint parameters and priorities.
+**Status**: Implementação completa - todos os 12 endpoints PNCP são processados por padrão.
+
+**Nota**: A estratégia de fases foi descontinuada. O sistema atual processa todos os endpoints automaticamente, usando detecção inteligente de lacunas para extrações incrementais eficientes.
 
 ## Fase 2A (MVP) - 3 Endpoints Essenciais
 
