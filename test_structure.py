@@ -60,7 +60,11 @@ def test_flow_structure():
         if flow_path.exists():
             print(f"✅ {flow_file} exists")
             
-            # Check for key functions/classes
+            # FIXME: Checking for features by searching for strings in the file
+            #        is extremely fragile and should be avoided. This test will break
+            #        easily with minor refactoring. A better approach would be to
+            #        import the modules and inspect their members (functions, classes)
+            #        directly to ensure the required components exist.
             with open(flow_path) as f:
                 content = f.read()
                 

@@ -34,6 +34,11 @@ def simulate_extraction_2021_10():
     endpoints = ["contratacoes", "contratos", "atas"]
     
     # Simulate extraction metrics
+    # FIXME: All metrics in this simulation are hardcoded.
+    #        This makes the simulation rigid and unrealistic. The script should
+    #        be updated to generate more dynamic and varied data to better
+    #        reflect real-world scenarios. For example, the number of records
+    #        and pages should vary, and the payload content could be randomized.
     extraction_metrics = {
         "total_requests": 0,
         "total_records": 0,

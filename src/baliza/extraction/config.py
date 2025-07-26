@@ -38,6 +38,9 @@ def create_pncp_rest_config(
         end_date = end_dt.strftime("%Y%m%d")
     
     # Client configuration
+    # FIXME: The User-Agent is hardcoded. It should be dynamic and include
+    #        version information, for example, by reading from pyproject.toml.
+    #        This helps in identifying the client application making requests.
     client_config = {
         "base_url": settings.pncp_api_base_url,
         "headers": {
@@ -52,9 +55,7 @@ def create_pncp_rest_config(
     resources = []
     
     for endpoint_name, endpoint_config in ENDPOINT_CONFIG.items():
-        # Skip endpoints not in our priority list for now
-        if endpoint_name not in ["contratacoes_publicacao", "contratos", "atas"]:
-            continue
+        # Process ALL endpoints - no phase restrictions
             
         # Get appropriate page size for this endpoint
         page_size = settings.ENDPOINT_PAGE_LIMITS.get(endpoint_name, settings.default_page_size)
@@ -111,7 +112,11 @@ def _build_endpoint_params(endpoint_config, start_date: str, end_date: str, moda
         
     # Add modalidade if required and provided
     if endpoint_config.requires_modalidade and modalidades:
-        # For endpoints requiring modalidade, we'll need to create multiple resources
+        # TODO: This logic only uses the first modalidade from the list.
+        #       For endpoints that require a modalidade, the system should either
+        #       iterate through them and create separate requests or be designed
+        #       to handle one modalidade at a time. The current implementation
+        #       is misleading if a list of modalidades is provided.
         # For now, use the first modalidade
         params["codigoModalidadeContratacao"] = modalidades[0]
     

@@ -9,8 +9,12 @@ Smart Gap Detection:
 """
 
 import dlt
+import json
 from dlt.sources.rest_api import rest_api_source
-from typing import List, Optional, Any
+from dlt.destinations import filesystem
+from pathlib import Path
+from datetime import datetime, date
+from typing import List, Optional, Any, Dict
 from .config import create_pncp_rest_config, create_modalidade_resources
 from .gap_detector import find_extraction_gaps, DataGap
 from baliza.schemas import ModalidadeContratacao
@@ -59,8 +63,10 @@ def pncp_source(
         if gap.missing_pages:
             # Specific pages needed - create targeted requests
             print(f"   📄 Fetching specific pages: {gap.missing_pages[:5]}{'...' if len(gap.missing_pages) > 5 else ''}")
-            # For now, create a source that will fetch all pages (DLT REST API doesn't support page-specific requests easily)
-            # This could be optimized by creating a custom resource that only requests specific pages
+            # TODO: This is inefficient. The DLT REST API source doesn't easily support
+            #       requesting specific pages out of the box. A custom resource or a more
+            #       advanced paginator strategy could be implemented to only fetch the
+            #       truly missing pages instead of the entire date range.
             config = create_pncp_rest_config(gap.start_date, gap.end_date, modalidades)
         else:
             # Full date range needed - fetch all pages
@@ -98,6 +104,8 @@ def pncp_priority_source(start_date: str, end_date: str):
     Source for priority endpoints only (Phase 2a implementation).
     Includes: contratacoes_publicacao, contratos, atas
     """
+    # FIXME: Priority endpoints are hardcoded. This should be configurable
+    #        or dynamically determined based on system needs.
     priority_endpoints = ["contratacoes_publicacao", "contratos", "atas"]
     return pncp_source(start_date, end_date, endpoints=priority_endpoints)
 
@@ -129,31 +137,47 @@ def pncp_all_modalidades_source(start_date: str, end_date: str):
 
 
 # Convenience functions for common use cases
-def create_default_pipeline(destination: str = "duckdb"):
-    """Create default pipeline for development/testing."""
-    return dlt.pipeline(
-        pipeline_name="baliza_pncp", 
-        destination=destination,
-        dataset_name="pncp_data"
-    )
+def create_default_pipeline(destination: str = "parquet", output_dir: str = "data"):
+    """Create structured pipeline with Parquet export by endpoint and month."""
+    if destination == "parquet":
+        # Use filesystem destination for structured Parquet export
+        dest = filesystem(bucket_url=output_dir, layout="{table_name}/{load_id}")
+        return dlt.pipeline(
+            pipeline_name="baliza_pncp",
+            destination=dest,
+            dataset_name="pncp_raw"
+        )
+    else:
+        return dlt.pipeline(
+            pipeline_name="baliza_pncp", 
+            destination=destination,
+            dataset_name="pncp_data"
+        )
 
 
 def run_priority_extraction(
     start_date: str, 
     end_date: str,
-    destination: str = "duckdb"
+    destination: str = "parquet",
+    output_dir: str = "data"
 ) -> Any:
     """
-    Run extraction for priority endpoints.
+    Run extraction for priority endpoints with structured output.
     
     Returns:
         Pipeline run summary with metrics
     """
-    pipeline = create_default_pipeline(destination)
+    pipeline = create_default_pipeline(destination, output_dir)
     source = pncp_priority_source(start_date, end_date)
     
     # Run the pipeline - dlt handles everything!
-    return pipeline.run(source)
+    result = pipeline.run(source)
+    
+    # Mark extraction as completed for each endpoint and month
+    if destination == "parquet":
+        mark_extraction_completed(output_dir, start_date, end_date, ["contratacoes_publicacao", "contratos", "atas"])
+    
+    return result
 
 
 def run_modalidade_extraction(
@@ -208,3 +232,150 @@ if __name__ == "__main__":
     result = run_priority_extraction(start_str, end_str)
     
     print(f"Extraction completed: {result.metrics}")
+def mark_extraction_completed(output_dir: str, start_date: str, end_date: str, endpoints: List[str]):
+    """Mark extraction as completed for endpoint/month combinations."""
+    base_path = Path(output_dir)
+    
+    # Generate list of months between start and end dates
+    months = _get_months_in_range(start_date, end_date)
+    
+    for endpoint in endpoints:
+        for month in months:
+            endpoint_dir = base_path / endpoint / month
+            endpoint_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Create completion marker
+            completion_file = endpoint_dir / ".completed"
+            completion_data = {
+                "completed_at": datetime.now().isoformat(),
+                "endpoint": endpoint,
+                "month": month,
+                "start_date": start_date,
+                "end_date": end_date,
+                "extractor_version": "2.0-dlt"
+            }
+            
+            with open(completion_file, 'w') as f:
+                json.dump(completion_data, f, indent=2)
+                
+            print(f"✅ Marked {endpoint}/{month} as completed")
+
+
+def is_extraction_completed(output_dir: str, endpoint: str, month: str) -> bool:
+    """Check if extraction is completed for endpoint/month combination."""
+    completion_file = Path(output_dir) / endpoint / month / ".completed"
+    return completion_file.exists()
+
+
+def get_completed_extractions(output_dir: str) -> Dict[str, List[str]]:
+    """Get list of completed extractions organized by endpoint."""
+    base_path = Path(output_dir)
+    completed = {}
+    
+    if not base_path.exists():
+        return completed
+    
+    for endpoint_dir in base_path.iterdir():
+        if endpoint_dir.is_dir():
+            endpoint = endpoint_dir.name
+            completed[endpoint] = []
+            
+            for month_dir in endpoint_dir.iterdir():
+                if month_dir.is_dir() and (month_dir / ".completed").exists():
+                    completed[endpoint].append(month_dir.name)
+    
+    return completed
+
+
+def _get_months_in_range(start_date: str, end_date: str) -> List[str]:
+    """Generate list of YYYY-MM strings between start and end dates."""
+    # Parse dates (assuming YYYYMMDD format)
+    start_year = int(start_date[:4])
+    start_month = int(start_date[4:6])
+    end_year = int(end_date[:4])
+    end_month = int(end_date[4:6])
+    
+    months = []
+    
+    current_year = start_year
+    current_month = start_month
+    
+    while (current_year < end_year) or (current_year == end_year and current_month <= end_month):
+        months.append(f"{current_year:04d}-{current_month:02d}")
+        
+        current_month += 1
+        if current_month > 12:
+            current_month = 1
+            current_year += 1
+    
+    return months
+
+
+def run_structured_extraction(
+    start_date: str = None,
+    end_date: str = None,
+    endpoints: List[str] = None,
+    output_dir: str = "data",
+    skip_completed: bool = True
+) -> Any:
+    """Run extraction with structured Parquet output and completion tracking.
+    
+    Args:
+        start_date: Start date in YYYYMMDD format (optional for backfill)
+        end_date: End date in YYYYMMDD format (optional for backfill)
+        endpoints: List of endpoints to extract (default: all)
+        output_dir: Output directory for structured Parquet files
+        skip_completed: Skip already completed endpoint/month combinations
+    
+    Returns:
+        Pipeline run summary with metrics
+    """
+    # Use all endpoints if none specified
+    from baliza.settings import settings
+    if not endpoints:
+        endpoints = settings.all_pncp_endpoints
+    
+    # Filter out already completed extractions
+    if skip_completed:
+        completed = get_completed_extractions(output_dir)
+        months_in_range = _get_months_in_range(start_date or "20240101", end_date or "20241231")
+        
+        filtered_endpoints = []
+        for endpoint in endpoints:
+            if endpoint not in completed:
+                filtered_endpoints.append(endpoint)
+            else:
+                # Check if all months are completed
+                completed_months = set(completed[endpoint])
+                required_months = set(months_in_range)
+                
+                if not required_months.issubset(completed_months):
+                    filtered_endpoints.append(endpoint)
+                else:
+                    print(f"⏭️  Skipping {endpoint} - all months already completed")
+        
+        endpoints = filtered_endpoints
+    
+    if not endpoints:
+        print("✅ All extractions already completed")
+        return None
+    
+    # Create pipeline with structured output
+    pipeline = create_default_pipeline("parquet", output_dir)
+    
+    # Create source with gap detection
+    source = pncp_source(
+        start_date=start_date,
+        end_date=end_date,
+        endpoints=endpoints,
+        backfill_all=(start_date is None and end_date is None)
+    )
+    
+    # Run extraction
+    result = pipeline.run(source)
+    
+    # Mark extractions as completed
+    mark_extraction_completed(output_dir, start_date or "20240101", end_date or "20241231", endpoints)
+    
+    return result
+EOF < /dev/null

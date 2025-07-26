@@ -27,6 +27,11 @@ async def collect_contratacoes_publicacao_fixture():
     """Collect real contratacoes/publicacao response"""
     print("🔍 Coletando fixture: contratacoes/publicacao...")
 
+    # FIXME: The code for fetching and saving fixtures is duplicated across
+    #        multiple functions (collect_contratacoes_publicacao_fixture,
+    #        collect_contratos_fixture, etc.). This should be refactored into a
+    #        single, reusable function that takes the endpoint and URL as
+    #        parameters to avoid code duplication and make it easier to maintain.
     client = PNCPClient()
     builder = URLBuilder()
 

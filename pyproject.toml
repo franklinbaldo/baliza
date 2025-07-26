@@ -5,32 +5,36 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "baliza"
 version = "0.1.0"
-description = "A modern, production-ready data pipeline for PNCP data using Prefect, Ibis, and DuckDB."
-authors = [{ name = "Gemini", email = "gemini@google.com" }]
+description = "Streamlined PNCP data extraction to Parquet using DLT pipeline."
+authors = [{ name = "Franklin Baldo", email = "frank@franklinbaldo.com" }]
 requires-python = ">=3.11"
 
 dependencies = [
-    "prefect",
-    "ibis-framework[duckdb]",
-    "pydantic",
-    "httpx",
-    "typer",
-    "rich",
-    "ruff",
-    "msgpack>=1.1.1",
-    "psutil",
-    "polars>=1.31.0",
-    "pytest>=8.4.1",
-    "pytest-asyncio>=1.1.0",
-    "pytest-mock>=3.14.1",
-    "dlt>=1.14.1",
+    # Core DLT pipeline
+    "dlt[duckdb]>=1.14.1",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    
+    # CLI and UI
+    "typer[all]>=0.9.0",
+    "rich>=13.0.0",
+    
+    # HTTP and utilities
+    "httpx>=0.25.0",
+    "tenacity>=8.0.0",
 ]
 
 [project.optional-dependencies]
 test = [
-    "pytest>=7.0",
-    "pytest-asyncio>=0.21.0",
-    "pytest-mock>=3.10.0"
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-mock>=3.14.0",
+    "pytest-httpx>=0.30.0"
+]
+dev = [
+    "ruff>=0.1.0",
+    "mypy>=1.8.0",
+    "pre-commit>=3.6.0"
 ]
 
 [project.scripts]
@@ -39,7 +43,4 @@ baliza = "baliza.cli:app"
 [tool.setuptools]
 package-dir = {"" = "src"}
 
-[dependency-groups]
-dev = [
-    "pre-commit",
-]
+# Removed: dependency-groups replaced by optional-dependencies

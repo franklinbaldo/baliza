@@ -179,6 +179,11 @@ class NotaFiscalEletronicaConsultaDTO(BaseModel):
     dataTipoEventoMaisRecente: Optional[str] = None
     dataInclusao: str
     dataAtualizacao: str
+    # TODO: Using string forward references like `"ItemNotaFiscalConsultaDTO"`
+    #       can sometimes indicate a circular dependency between models.
+    #       While valid in Pydantic, it's worth reviewing if the model
+    #       structure can be simplified to avoid them, for example, by moving
+    #       the referenced models to a separate file.
     itens: List["ItemNotaFiscalConsultaDTO"]
     eventos: List["EventoNotaFiscalConsultaDTO"]
 

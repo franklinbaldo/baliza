@@ -352,6 +352,10 @@ class SituacaoCompra(str, Enum):
     Baseado na seção 6.3 e 6.4 do manual, que lista códigos de situação.
     Conforme OpenAPI, são strings: "1", "2", "3", "4".
     """
+    # TODO: This seems redundant with SituacaoContratacao. It was likely created
+    # because the OpenAPI spec uses strings ("1", "2") instead of integers.
+    # Investigate if we can consolidate these into a single enum or create a
+    # more robust way to handle type differences between the API and the database.
 
     DIVULGADA_NO_PNCP = "1"
     REVOGADA = "2"
@@ -503,3 +507,4 @@ class PncpEndpoint(str, Enum):
     PCA = "pca"
     PCA_USUARIO = "pca_usuario"
     PCA_ATUALIZACAO = "pca_atualizacao"
+    CONTRATACAO_ESPECIFICA = "contratacao_especifica"

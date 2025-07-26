@@ -68,6 +68,10 @@ def mock_extractor():
     return mock_ext
 
 @pytest.mark.skip(reason="DLT resource naming issue in test environment")
+# FIXME: All tests in this file are skipped. This is a critical issue.
+#        The reason "DLT resource naming issue in test environment" needs to be
+#        investigated and resolved. A test suite that is not running provides
+#        a false sense of security.
 @pytest.mark.asyncio
 async def test_pncp_source_creation_and_resources(mock_extractor):
     """Verify that the pncp_source can be created and its resources are callable."""

@@ -4,6 +4,11 @@ Examples of how current raw SQL operations should be converted to Ibis
 
 import ibis
 
+# TODO: This file contains illustrative examples of how to use Ibis for data
+#       manipulation. It is not part of the active production pipeline and should
+#       not be treated as such. The code here is for demonstration and
+#       educational purposes only.
+
 
 def example_current_vs_ibis_approach():
     """

@@ -107,6 +107,10 @@ def test_optimization_with_mock_data():
         
         for modalidade in modalidades:
             for page in range(1, 6):  # 5 pages per modalidade
+                # FIXME: The endpoint URL is hardcoded. This is brittle and will break
+                #        if the API path or parameters change. The test should use the
+                #        configuration from `baliza.settings` to construct the URL
+                #        dynamically, ensuring it stays in sync with the application.
                 endpoint = f"https://pncp.gov.br/api/consulta/contratacoes/publicacao?dataInicial=20211001&dataFinal=20211031&codigoModalidadeContratacao={modalidade.value}&pagina={page}&tamanhoPagina=50"
                 
                 api_request_data, records = create_mock_api_request(endpoint, modalidade, page)

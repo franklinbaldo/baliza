@@ -9,10 +9,6 @@ from .schemas import ModalidadeContratacao
 class PNCPAPISettings(BaseSettings):
     """API settings for PNCP."""
 
-    # TODO: This class seems to be a subset of the main `Settings` class.
-    #       It's not clear where this is used or why it's separate.
-    #       Investigate if this can be merged into the main `Settings` class
-    #       or if its purpose can be better documented.
     base_url: str = "https://pncp.gov.br/api/consulta"
     supported_api_version: str = "1.0"
     timeout_seconds: int = 30
@@ -66,8 +62,8 @@ class Settings(BaseSettings):
         "pca",
         "pca_usuario",
         "pca_atualizacao",
-        "contratacao_especifica",
     ]
+
 
     # Pagination
     default_page_size: int = 500  # Most endpoints support 500
@@ -92,8 +88,6 @@ class Settings(BaseSettings):
     retention_days_logs: int = 90
 
     # Security
-    # FIXME: The secret_key is hardcoded. This is a major security risk.
-    #        It should be loaded from an environment variable or a secrets management system.
     secret_key: str = "your-secret-key"
     enable_authentication: bool = False
 
@@ -243,18 +237,6 @@ ENDPOINT_CONFIG: Dict[str, EndpointConfig] = {
         priority=11,
         requires_modalidade=False,
         sync_type="incremental",
-    ),
-    
-    # Phase 5: Detail/Drill-down Endpoints  
-    "contratacao_especifica": EndpointConfig(
-        path="/v1/orgaos/{cnpj}/compras/{ano}/{sequencial}",
-        required_params=["cnpj", "ano", "sequencial"],
-        optional_params=[],
-        page_size_limits=PageSizeLimits(min=1, max=1),  # Single record endpoint
-        default_page_size=1,
-        priority=12,
-        requires_modalidade=False,
-        sync_type="on_demand",
     ),
 }
 

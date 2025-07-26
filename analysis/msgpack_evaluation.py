@@ -10,6 +10,10 @@ import sys
 from typing import Dict, Any
 import hashlib
 
+# TODO: This script is for analysis and evaluation purposes only. It is not part
+#       of the production data pipeline and should not be executed as part of
+#       any automated workflow. Its purpose is to compare serialization methods,
+#       and its findings should be used to inform design decisions.
 
 def create_sample_pncp_payload() -> Dict[str, Any]:
     """Create a realistic PNCP API response payload for testing"""

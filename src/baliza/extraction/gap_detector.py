@@ -68,8 +68,11 @@ class PNCPGapDetector:
     
     def _find_endpoint_and_pagination_gaps(self, endpoint: str, start_date: str, end_date: str) -> List[DataGap]:
         """Find both date range gaps and pagination gaps for an endpoint."""
-        # TODO: Implement gap detection with DLT state management
-        # For now, assume we need everything (safe default)
+        # FIXME: The entire gap detection logic is a placeholder.
+        #        It currently assumes a full extraction is always needed.
+        #        This must be replaced with a proper implementation that queries
+        #        DLT state or a metadata store to identify what data has already
+        #        been ingested.
         print(f"🔄 Gap detection temporarily disabled - assuming full extraction needed for {endpoint}")
         return [DataGap(start_date, end_date, endpoint)]
     
@@ -292,7 +295,9 @@ class PNCPGapDetector:
                 return []
             
             # For now, assume each extraction covered the last 30 days from extraction date
-            # This is a heuristic that can be improved with more metadata
+            # TODO: This is a weak heuristic. The actual date range covered by an
+            #       extraction should be stored as metadata alongside the data.
+            #       Relying on the extraction timestamp is fragile and likely inaccurate.
             ranges = []
             for extract_date in extraction_dates:
                 range_start = extract_date - timedelta(days=30)

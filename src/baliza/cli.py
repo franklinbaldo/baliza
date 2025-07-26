@@ -16,7 +16,9 @@ from typing import Optional
 from .extraction.pipeline import (
     pncp_source, 
     run_priority_extraction,
-    create_default_pipeline
+    run_structured_extraction,
+    create_default_pipeline,
+    get_completed_extractions
 )
 from .extraction.gap_detector import find_extraction_gaps
 from .settings import settings
@@ -120,19 +122,14 @@ def extract(
         task = progress.add_task("🔄 Extracting PNCP data...", total=None)
         
         try:
-            # Create DLT pipeline
-            pipeline = create_default_pipeline("duckdb")
-            
-            # Create source with gap detection
-            source = pncp_source(
+            # Run structured extraction with completion tracking
+            result = run_structured_extraction(
                 start_date=start_date,
                 end_date=end_date,
                 endpoints=endpoints,
-                backfill_all=backfill_all
+                output_dir=str(output),
+                skip_completed=True
             )
-            
-            # Run extraction
-            result = pipeline.run(source)
             
             progress.update(task, description="✅ Extraction completed!")
             
@@ -161,7 +158,12 @@ def info():
     table.add_row("contracts", "Contract data", "contratos")
     table.add_row("publications", "Contract publications", "contratacoes_publicacao") 
     table.add_row("agreements", "Agreement records", "atas")
-    table.add_row("all", "All data types (default)", "All endpoints")
+    table.add_row("updates", "Update sync endpoints", "*_atualizacao")
+    table.add_row("proposals", "Proposal data", "contratacoes_proposta")
+    table.add_row("charges", "Collection instruments", "instrumentoscobranca_inclusao")
+    table.add_row("pca", "Annual contracting plans", "pca*")
+    table.add_row("details", "Specific contract details", "contratacao_especifica")
+    table.add_row("all", "ALL 12 data types (default)", "All PNCP endpoints")
     
     console.print(table)
     console.print()
@@ -183,7 +185,49 @@ def info():
 @app.command()
 def version():
     """Show version information."""
-    # TODO: Get version from pyproject.toml
+    # TODO: Get version from pyproject.toml dynamically instead of hardcoding.
+@app.command()
+def status(
+    output: Path = typer.Option(
+        "data/", 
+        "--output", "-o", 
+        help="Output directory to check"
+    )
+):
+    """Show status of completed extractions."""
+    
+    console.print("📊 [bold]Extraction Status[/bold]")
+    console.print()
+    
+    completed = get_completed_extractions(str(output))
+    
+    if not completed:
+        console.print("❌ No completed extractions found")
+        console.print(f"   Check output directory: {output}")
+        return
+    
+    # Create status table
+    table = Table(title="Completed Extractions")
+    table.add_column("Endpoint", style="cyan", no_wrap=True)
+    table.add_column("Months Completed", style="green")
+    table.add_column("Total", style="white", justify="center")
+    
+    total_months = 0
+    for endpoint, months in completed.items():
+        months_str = ", ".join(sorted(months)[:3])  # Show first 3 months
+        if len(months) > 3:
+            months_str += f" +{len(months) - 3} more"
+        
+        table.add_row(endpoint, months_str, str(len(months)))
+        total_months += len(months)
+    
+    console.print(table)
+    console.print()
+    console.print(f"✅ [bold green]{len(completed)} endpoints[/bold green] with [bold green]{total_months} months[/bold green] completed")
+    console.print(f"📁 Output directory: {output}")
+
+
+    #       This can be done using `importlib.metadata` or by reading the file.
     console.print("🚀 [bold]Baliza PNCP Data Extractor[/bold]")
     console.print("   Version: 2.0.0-dlt")
     console.print("   DLT-powered extraction pipeline")
@@ -252,21 +296,31 @@ def _parse_date_options(
 def _parse_data_types(types: str) -> list[str]:
     """Parse data types string into endpoint list."""
     if types == "all":
-        return ["contratacoes_publicacao", "contratos", "atas"]
+        # Return ALL 12 endpoints - no phase restrictions!
+        return settings.all_pncp_endpoints
     
     type_mapping = {
         "contracts": "contratos",
         "publications": "contratacoes_publicacao", 
-        "agreements": "atas"
+        "agreements": "atas",
+        "updates": ["contratacoes_atualizacao", "contratos_atualizacao", "atas_atualizacao"],
+        "proposals": "contratacoes_proposta",
+        "charges": "instrumentoscobranca_inclusao",
+        "pca": ["pca", "pca_usuario", "pca_atualizacao"],
+        "details": "contratacao_especifica"
     }
     
     endpoints = []
     for type_name in types.split(","):
         type_name = type_name.strip()
         if type_name in type_mapping:
-            endpoints.append(type_mapping[type_name])
+            mapped = type_mapping[type_name]
+            if isinstance(mapped, list):
+                endpoints.extend(mapped)
+            else:
+                endpoints.append(mapped)
         else:
-            raise typer.BadParameter(f"Unknown data type: {type_name}")
+            raise typer.BadParameter(f"Unknown data type: {type_name}. Available: {', '.join(type_mapping.keys())}")
     
     return endpoints
 
@@ -313,7 +367,9 @@ def _show_extraction_results(result, output: Path):
     console.print("✅ [bold green]Extraction Completed![/bold green]")
     console.print()
     
-    # TODO: Parse DLT result metrics
+    # TODO: Parse DLT's result object to show detailed metrics,
+    #       like number of rows extracted, file sizes, etc.
+    #       The current output is too generic.
     console.print(f"📁 Data saved to: {output}")
     console.print("📊 Run metrics available in DLT logs")
     
