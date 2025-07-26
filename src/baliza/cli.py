@@ -238,6 +238,11 @@ def status(
     console.print("   DLT-powered extraction pipeline")
 
 
+# TODO: Consider moving these helper functions (_parse_date_options,
+#       _parse_data_types, _show_extraction_plan, _show_extraction_results)
+#       to a separate `baliza.utils.cli_helpers` module to keep `cli.py`
+#       focused solely on command definitions and high-level logic.
+
 def _parse_date_options(
     backfill_all: bool, 
     days: Optional[int], 

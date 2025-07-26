@@ -24,6 +24,10 @@ import zlib
 
 @pytest.fixture(autouse=True)
 def mock_prefect_logger():
+    # TODO: This fixture mocks a Prefect logger, but Prefect is no longer
+    #       used in the DLT-based pipeline. This fixture should be removed
+    #       or updated to mock a standard Python logger if logging capture
+    #       is still needed for testing purposes.
     with patch('prefect.get_run_logger', return_value=logging.getLogger('mock_prefect_logger')):
         yield
 

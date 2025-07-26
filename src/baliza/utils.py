@@ -1,6 +1,12 @@
 import hashlib
 import json
 
+# TODO: This utility module currently only contains a hashing function.
+#       Consider if this module should be expanded to include other general-purpose
+#       utility functions used across the project, or if it should remain focused
+#       solely on hashing. If other utilities are added, consider renaming the file
+#       to something more generic like `common_utils.py`.
+
 def hash_sha256(data: dict) -> str:
     """Generates a SHA256 hash for a given dictionary.
     The dictionary is first serialized to a JSON string to ensure consistent hashing.

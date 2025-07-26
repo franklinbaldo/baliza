@@ -68,12 +68,14 @@ class PNCPGapDetector:
     
     def _find_endpoint_and_pagination_gaps(self, endpoint: str, start_date: str, end_date: str) -> List[DataGap]:
         """Find both date range gaps and pagination gaps for an endpoint."""
-        # FIXME: The entire gap detection logic is a placeholder.
-        #        It currently assumes a full extraction is always needed.
-        #        This must be replaced with a proper implementation that queries
-        #        DLT state or a metadata store to identify what data has already
-        #        been ingested.
-        # Use completion markers to determine gaps
+        # FIXME: The gap detection logic here is still a placeholder and introduces
+        #        a circular dependency by importing `get_completed_extractions` and
+        #        `_get_months_in_range` from `pipeline.py`. These functions, which
+        #        are crucial for determining completion status, should be moved to
+        #        a more central utility module (e.g., `baliza.utils.completion_tracking`)
+        #        to break the dependency and make the gap detection truly functional.
+        #        Currently, it only checks if *all* months are completed, not if there
+        #        are actual gaps within the requested range.
         from .pipeline import get_completed_extractions, _get_months_in_range
         
         completed = get_completed_extractions("data")

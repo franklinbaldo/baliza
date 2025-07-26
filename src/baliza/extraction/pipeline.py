@@ -104,10 +104,12 @@ def pncp_priority_source(start_date: str, end_date: str):
     Source for priority endpoints only (Phase 2a implementation).
     Includes: contratacoes_publicacao, contratos, atas
     """
-    # Use first 3 endpoints as priority (configurable via settings)
     from baliza.settings import settings
     priority_endpoints = settings.all_pncp_endpoints[:3]
     return pncp_source(start_date, end_date, endpoints=priority_endpoints)
+
+
+def pncp_modalidade_source(
 
 
 def pncp_modalidade_source(

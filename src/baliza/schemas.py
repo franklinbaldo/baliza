@@ -421,6 +421,10 @@ def get_enum_description(enum_class: type[Enum], value: int | str) -> str:
     return f"{name} ({enum_member.value})"
 
 
+# TODO: Evaluate if the ENUM_REGISTRY is still necessary. With Pydantic models
+#       and direct enum usage, dynamic access via a string name might be an
+#       over-engineering. If it's only used in `get_all_enum_metadata`, consider
+#       refactoring `get_all_enum_metadata` to iterate directly over the enum classes.
 # Enum registry for dynamic access
 ENUM_REGISTRY = {
     "InstrumentoConvocatorio": InstrumentoConvocatorio,

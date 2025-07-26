@@ -13,6 +13,12 @@ from .enums import (
 class RespostaErroValidacaoDTO(BaseModel):
     """Represents a validation error response."""
 
+    # TODO: Review all DTOs in this file. It's possible that some of these
+    #       DTOs are no longer actively used by the current DLT-based extraction
+    #       pipeline, or they might be remnants from previous API versions or
+    #       unused endpoints. Consider removing any unused DTOs to reduce code
+    #       complexity and improve maintainability.
+
     message: str
     path: str
     timestamp: str

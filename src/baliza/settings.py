@@ -9,7 +9,10 @@ from .schemas import ModalidadeContratacao
 class PNCPAPISettings(BaseSettings):
     """API settings for PNCP."""
 
-    # Removed - functionality consolidated into main Settings class
+    # TODO: This class was previously identified as potentially redundant and has
+    #       since been removed or consolidated into the main `Settings` class.
+    #       Ensure that all its previous functionalities and configurations are
+    #       properly handled within the `Settings` class or elsewhere.
     pass
 
 

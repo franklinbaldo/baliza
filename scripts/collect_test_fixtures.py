@@ -10,6 +10,13 @@ import sys
 import os
 from pathlib import Path
 
+# TODO: This script collects test fixtures from the PNCP API. Given the migration
+#       to DLT and the new testing strategy, evaluate if this script is still
+#       necessary or if fixtures should be generated differently (e.g., directly
+#       from DLT's internal data structures or by mocking the API at a lower level).
+#       If kept, the duplicated code for fetching and saving fixtures should be
+#       refactored into a single, reusable function.
+
 from baliza.utils.http_client import PNCPClient
 from baliza.utils.endpoints import URLBuilder, DateRangeHelper
 from baliza.enums import ModalidadeContratacao, get_enum_by_value

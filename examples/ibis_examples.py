@@ -7,7 +7,8 @@ import ibis
 # TODO: This file contains illustrative examples of how to use Ibis for data
 #       manipulation. It is not part of the active production pipeline and should
 #       not be treated as such. The code here is for demonstration and
-#       educational purposes only.
+#       educational purposes only. Consider moving this script to a dedicated
+#       `examples` directory to further clarify its role outside the main application.
 
 
 def example_current_vs_ibis_approach():

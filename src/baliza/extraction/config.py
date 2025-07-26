@@ -154,6 +154,12 @@ def _add_hash_id(record: Dict[str, Any]) -> Dict[str, Any]:
     return record_copy
 
 
+# TODO: These functions (`_add_url_metadata`, `_add_request_url`) are currently
+#       defined but not actively used as processing steps in the `create_pncp_rest_config`
+#       function. If their purpose is to add metadata to records, they should be
+#       explicitly included in the `processing_steps` list of the relevant resources.
+#       Otherwise, consider moving them to a more appropriate utility module or
+#       removing them if they are no longer needed.
 def _add_url_metadata(record: Dict[str, Any]) -> Dict[str, Any]:
     """
     Processing step to add URL metadata for request deduplication.
