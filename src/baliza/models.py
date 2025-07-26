@@ -21,7 +21,10 @@ class RespostaErroValidacaoDTO(BaseModel):
 
 
 class PlanoContratacaoItemDTO(BaseModel):
-    """Represents an item in a procurement plan."""
+    """
+    Representa um item em um plano de contratação.
+    Baseado na seção 6.1 e 6.2 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md (Dados de retorno, item 8.x).
+    """
 
     nomeClassificacaoCatalogo: str
     descricaoItem: str
@@ -47,7 +50,10 @@ class PlanoContratacaoItemDTO(BaseModel):
 
 
 class PlanoContratacaoComItensDoUsuarioDTO(BaseModel):
-    """Represents a procurement plan with items for a user."""
+    """
+    Representa um plano de contratação com itens para um usuário.
+    Baseado na seção 6.1 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md (Dados de retorno).
+    """
 
     itens: List[PlanoContratacaoItemDTO]
     codigoUnidade: str
@@ -61,7 +67,10 @@ class PlanoContratacaoComItensDoUsuarioDTO(BaseModel):
 
 
 class PaginaRetornoPlanoContratacaoComItensDoUsuarioDTO(BaseModel):
-    """Represents a paginated response for procurement plans."""
+    """
+    Representa uma resposta paginada para planos de contratação.
+    Baseado na seção 4.2 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md (Dados de Retorno padronizados).
+    """
 
     data: List[PlanoContratacaoComItensDoUsuarioDTO]
     totalRegistros: int
@@ -72,7 +81,10 @@ class PaginaRetornoPlanoContratacaoComItensDoUsuarioDTO(BaseModel):
 
 
 class ContratacaoFonteOrcamentariaDTO(BaseModel):
-    """Represents a budgetary source for a contract."""
+    """
+    Representa uma fonte orçamentária para uma contratação.
+    Baseado na seção 6.3 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md (Dados de retorno, item 17).
+    """
 
     codigo: int
     nome: str
@@ -81,7 +93,10 @@ class ContratacaoFonteOrcamentariaDTO(BaseModel):
 
 
 class RecuperarAmparoLegalDTO(BaseModel):
-    """Represents the legal support for a contract."""
+    """
+    Representa o amparo legal para uma contratação.
+    Baseado na seção 6.3 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md (Dados de retorno, item 16).
+    """
 
     descricao: str
     nome: str
@@ -89,7 +104,10 @@ class RecuperarAmparoLegalDTO(BaseModel):
 
 
 class RecuperarOrgaoEntidadeDTO(BaseModel):
-    """Represents an organization entity."""
+    """
+    Representa uma entidade de órgão.
+    Baseado na seção 6.3 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md (Dados de retorno, item 25).
+    """
 
     cnpj: str
     poderId: str
@@ -98,7 +116,10 @@ class RecuperarOrgaoEntidadeDTO(BaseModel):
 
 
 class RecuperarUnidadeOrgaoDTO(BaseModel):
-    """Represents an organization unit."""
+    """
+    Representa uma unidade de órgão.
+    Baseado na seção 6.3 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md (Dados de retorno, item 26).
+    """
 
     ufNome: str
     codigoUnidade: str
@@ -109,7 +130,69 @@ class RecuperarUnidadeOrgaoDTO(BaseModel):
 
 
 class RecuperarCompraDTO(BaseModel):
-    """Represents a purchase."""
+    """
+    Representa uma compra.
+    Baseado na seção 6.3 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md (Dados de retorno).
+
+    Exemplo de JSON:
+    ```json
+    {
+      "valorTotalEstimado": 150000.50,
+      "valorTotalHomologado": 145000.00,
+      "indicadorOrcamentoSigiloso": "COMPRA_SEM_SIGILO",
+      "numeroControlePNCP": "12345678901234567890-1-123456/2024",
+      "anoCompra": 2024,
+      "sequencialCompra": 123456,
+      "numeroCompra": "COMPRA-001/2024",
+      "processo": "PROCESSO-ABC-2024",
+      "orgaoEntidade": {
+        "cnpj": "12345678000100",
+        "poderId": "E",
+        "esferaId": "M",
+        "razaoSocial": "PREFEITURA MUNICIPAL DE EXEMPLO"
+      },
+      "unidadeOrgao": {
+        "ufNome": "São Paulo",
+        "codigoUnidade": "UNID001",
+        "nomeUnidade": "Secretaria de Compras",
+        "ufSigla": "SP",
+        "municipioNome": "São Paulo",
+        "codigoIbge": "3550308"
+      },
+      "modalidadeId": 6,
+      "modalidadeNome": "Pregão Eletrônico",
+      "modoDisputaId": 1,
+      "modoDisputaNome": "Aberto",
+      "tipoInstrumentoConvocatorioCodigo": 1,
+      "tipoInstrumentoConvocatorioNome": "Edital",
+      "amparoLegal": {
+        "descricao": "Lei 14.133/2021, Art. 75, II",
+        "nome": "Art. 75, II",
+        "codigo": 19
+      },
+      "objetoCompra": "Aquisição de materiais de escritório",
+      "srp": false,
+      "fontesOrcamentarias": [
+        {
+          "codigo": 1,
+          "nome": "Recursos Próprios",
+          "descricao": "Recursos do Tesouro Municipal",
+          "dataInclusao": "2024-01-01T00:00:00Z"
+        }
+      ],
+      "dataPublicacaoPncp": "2024-01-10T09:00:00Z",
+      "dataAberturaProposta": "2024-01-15T10:00:00Z",
+      "dataEncerramentoProposta": "2024-01-20T17:00:00Z",
+      "situacaoCompraId": "1",
+      "situacaoCompraNome": "Divulgada no PNCP",
+      "existeResultado": true,
+      "dataInclusao": "2024-01-05T08:00:00Z",
+      "dataAtualizacao": "2024-01-10T09:00:00Z",
+      "dataAtualizacaoGlobal": "2024-01-10T09:00:00Z",
+      "usuarioNome": "Sistema Interno"
+    }
+    ```
+    """
 
     valorTotalEstimado: float
     valorTotalHomologado: float
@@ -152,14 +235,23 @@ class RecuperarCompraDTO(BaseModel):
 
 
 class Categoria(BaseModel):
-    """Represents a category."""
+    """
+    Representa uma categoria.
+    Baseado na seção 6.6 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md (Dados de retorno, item 8).
+    """
 
     id: int
     nome: str
 
 
 class NotaFiscalEletronicaConsultaDTO(BaseModel):
-    """Represents an electronic invoice for consultation."""
+    """
+    Representa uma nota fiscal eletrônica para consulta.
+    Baseado na seção 6.5.1 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md (implied from context, not explicitly listed).
+
+    Note: Forward references handle circular dependencies in PNCP's complex API structure.
+    These models represent the nested structure of the electronic invoice system.
+    """
 
     instrumentoCobrancaId: int
     chave: str
@@ -179,14 +271,15 @@ class NotaFiscalEletronicaConsultaDTO(BaseModel):
     dataTipoEventoMaisRecente: Optional[str] = None
     dataInclusao: str
     dataAtualizacao: str
-    # Note: Forward references handle circular dependencies in PNCP's complex API structure.
-    # These models represent the nested structure of the electronic invoice system.
     itens: List["ItemNotaFiscalConsultaDTO"]
     eventos: List["EventoNotaFiscalConsultaDTO"]
 
 
 class ItemNotaFiscalConsultaDTO(BaseModel):
-    """Represents an item in an electronic invoice."""
+    """
+    Representa um item em uma nota fiscal eletrônica.
+    Baseado na seção 6.5.1 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md (implied from context).
+    """
 
     numeroItem: int
     descricaoProdutoServico: str
@@ -200,7 +293,10 @@ class ItemNotaFiscalConsultaDTO(BaseModel):
 
 
 class EventoNotaFiscalConsultaDTO(BaseModel):
-    """Represents an event in an electronic invoice."""
+    """
+    Representa um evento em uma nota fiscal eletrônica.
+    Baseado na seção 6.5.1 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md (implied from context).
+    """
 
     dataEvento: str
     tipoEvento: TipoEventoNotaFiscal
@@ -209,7 +305,10 @@ class EventoNotaFiscalConsultaDTO(BaseModel):
 
 
 class TipoInstrumentoCobrancaDTO(BaseModel):
-    """Represents a type of collection instrument."""
+    """
+    Representa um tipo de instrumento de cobrança.
+    Baseado na seção 5.18 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md (implied from context, not explicitly listed as domain table).
+    """
 
     id: int
     nome: str
@@ -220,7 +319,10 @@ class TipoInstrumentoCobrancaDTO(BaseModel):
 
 
 class ConsultarInstrumentoCobrancaDTO(BaseModel):
-    """Represents a collection instrument for consultation."""
+    """
+    Representa um instrumento de cobrança para consulta.
+    Baseado na seção 6.5 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md (Dados de retorno).
+    """
 
     cnpj: str
     ano: int
@@ -242,7 +344,10 @@ class ConsultarInstrumentoCobrancaDTO(BaseModel):
 
 
 class PaginaRetornoConsultarInstrumentoCobrancaDTO(BaseModel):
-    """Represents a paginated response for collection instruments."""
+    """
+    Representa uma resposta paginada para instrumentos de cobrança.
+    Baseado na seção 4.2 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md (Dados de Retorno padronizados).
+    """
 
     data: List[ConsultarInstrumentoCobrancaDTO]
     totalRegistros: int
@@ -253,14 +358,73 @@ class PaginaRetornoConsultarInstrumentoCobrancaDTO(BaseModel):
 
 
 class TipoContrato(BaseModel):
-    """Represents a contract type."""
+    """
+    Representa um tipo de contrato.
+    Baseado na seção 6.6 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md (Dados de retorno, item 7).
+    """
 
     id: int
     nome: str
 
 
 class RecuperarContratoDTO(BaseModel):
-    """Represents a contract."""
+    """
+    Representa um contrato.
+    Baseado na seção 6.6 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md (Dados de retorno).
+
+    Exemplo de JSON:
+    ```json
+    {
+      "codigoPaisFornecedor": "BR",
+      "numeroControlePncpCompra": "12345678901234567890-1-123456/2024",
+      "numeroControlePNCP": "12345678901234567890-2-789012/2024",
+      "anoContrato": 2024,
+      "tipoContrato": {
+        "id": 1,
+        "nome": "Contrato (termo inicial)"
+      },
+      "numeroContratoEmpenho": "CONTRATO-001/2024",
+      "dataAssinatura": "2024-01-25T00:00:00Z",
+      "dataVigenciaInicio": "2024-02-01T00:00:00Z",
+      "dataVigenciaFim": "2025-01-31T00:00:00Z",
+      "niFornecedor": "12345678000199",
+      "tipoPessoa": "PJ",
+      "orgaoEntidade": {
+        "cnpj": "12345678000100",
+        "poderId": "E",
+        "esferaId": "M",
+        "razaoSocial": "PREFEITURA MUNICIPAL DE EXEMPLO"
+      },
+      "categoriaProcesso": {
+        "id": 2,
+        "nome": "Compras"
+      },
+      "dataPublicacaoPncp": "2024-01-30T10:00:00Z",
+      "dataAtualizacao": "2024-01-30T10:00:00Z",
+      "sequencialContrato": 789012,
+      "unidadeOrgao": {
+        "ufNome": "São Paulo",
+        "codigoUnidade": "UNID001",
+        "nomeUnidade": "Secretaria de Compras",
+        "ufSigla": "SP",
+        "municipioNome": "São Paulo",
+        "codigoIbge": "3550308"
+      },
+      "informacaoComplementar": "Contrato para fornecimento de bens e serviços.",
+      "processo": "PROCESSO-ABC-2024",
+      "nomeRazaoSocialFornecedor": "FORNECEDOR LTDA",
+      "receita": false,
+      "numeroParcelas": 12,
+      "objetoContrato": "Fornecimento de materiais de escritório",
+      "valorInicial": 100000.00,
+      "valorParcela": 8333.33,
+      "valorGlobal": 100000.00,
+      "valorAcumulado": 100000.00,
+      "dataAtualizacaoGlobal": "2024-01-30T10:00:00Z",
+      "usuarioNome": "Sistema Interno"
+    }
+    ```
+    """
 
     codigoPaisFornecedor: Optional[str] = None
     numeroControlePncpCompra: str
@@ -302,7 +466,10 @@ class RecuperarContratoDTO(BaseModel):
 
 
 class PaginaRetornoRecuperarContratoDTO(BaseModel):
-    """Represents a paginated response for contracts."""
+    """
+    Representa uma resposta paginada para contratos.
+    Baseado na seção 4.2 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md (Dados de Retorno padronizados).
+    """
 
     data: List[RecuperarContratoDTO]
     totalRegistros: int
@@ -313,7 +480,10 @@ class PaginaRetornoRecuperarContratoDTO(BaseModel):
 
 
 class RecuperarCompraPublicacaoDTO(BaseModel):
-    """Represents a purchase publication."""
+    """
+    Representa uma publicação de compra.
+    Baseado na seção 6.3 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md (Dados de retorno).
+    """
 
     numeroControlePNCP: str
     srp: bool
@@ -352,7 +522,10 @@ class RecuperarCompraPublicacaoDTO(BaseModel):
 
 
 class PaginaRetornoRecuperarCompraPublicacaoDTO(BaseModel):
-    """Represents a paginated response for purchase publications."""
+    """
+    Representa uma resposta paginada para publicações de compra.
+    Baseado na seção 4.2 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md (Dados de Retorno padronizados).
+    """
 
     data: List[RecuperarCompraPublicacaoDTO]
     totalRegistros: int
@@ -363,7 +536,10 @@ class PaginaRetornoRecuperarCompraPublicacaoDTO(BaseModel):
 
 
 class AtaRegistroPrecoPeriodoDTO(BaseModel):
-    """Represents a price registration act for a period."""
+    """
+    Representa uma ata de registro de preço por período.
+    Baseado na seção 6.5 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md (Dados de retorno).
+    """
 
     numeroControlePNCPAta: str
     numeroAtaRegistroPreco: str
@@ -391,7 +567,10 @@ class AtaRegistroPrecoPeriodoDTO(BaseModel):
 
 
 class PaginaRetornoAtaRegistroPrecoPeriodoDTO(BaseModel):
-    """Represents a paginated response for price registration acts."""
+    """
+    Representa uma resposta paginada para atas de registro de preço.
+    Baseado na seção 4.2 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md (Dados de Retorno padronizados).
+    """
 
     data: List[AtaRegistroPrecoPeriodoDTO]
     totalRegistros: int

@@ -9,7 +9,7 @@ from typing import Type, Any, Dict, List, Union, Optional
 class InstrumentoConvocatorio(int, Enum):
     """
     Representa os tipos de instrumento convocatório.
-    Baseado na Tabela de Domínio: Instrumento Convocatório (seção 5.1)
+    Baseado na Tabela de Domínio: Instrumento Convocatório (seção 5.1 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md).
     """
 
     EDITAL = 1
@@ -20,7 +20,7 @@ class InstrumentoConvocatorio(int, Enum):
 class ModalidadeContratacao(int, Enum):
     """
     Representa as modalidades de contratação.
-    Baseado na Tabela de Domínio: Modalidade de Contratação (seção 5.2)
+    Baseado na Tabela de Domínio: Modalidade de Contratação (seção 5.2 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md).
     """
 
     LEILAO_ELETRONICO = 1
@@ -41,7 +41,7 @@ class ModalidadeContratacao(int, Enum):
 class ModoDisputa(int, Enum):
     """
     Representa os modos de disputa.
-    Baseado na Tabela de Domínio: Modo de Disputa (seção 5.3)
+    Baseado na Tabela de Domínio: Modo de Disputa (seção 5.3 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md).
     """
 
     ABERTO = 1
@@ -55,7 +55,7 @@ class ModoDisputa(int, Enum):
 class CriterioJulgamento(int, Enum):
     """
     Representa os critérios de julgamento.
-    Baseado na Tabela de Domínio: Critério de Julgamento (seção 5.4)
+    Baseado na Tabela de Domínio: Critério de Julgamento (seção 5.4 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md).
     """
 
     MENOR_PRECO = 1
@@ -71,7 +71,7 @@ class CriterioJulgamento(int, Enum):
 class SituacaoContratacao(int, Enum):
     """
     Representa a situação da contratação.
-    Baseado na Tabela de Domínio: Situação da Contratação (seção 5.5)
+    Baseado na Tabela de Domínio: Situação da Contratação (seção 5.5 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md).
     """
 
     DIVULGADA_NO_PNCP = 1
@@ -83,7 +83,7 @@ class SituacaoContratacao(int, Enum):
 class SituacaoItemContratacao(int, Enum):
     """
     Representa a situação do item da contratação.
-    Baseado na Tabela de Domínio: Situação do Item da Contratação (seção 5.6)
+    Baseado na Tabela de Domínio: Situação do Item da Contratação (seção 5.6 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md).
     """
 
     EM_ANDAMENTO = 1
@@ -96,7 +96,7 @@ class SituacaoItemContratacao(int, Enum):
 class TipoBeneficio(int, Enum):
     """
     Representa os tipos de benefício.
-    Baseado na Tabela de Domínio: Tipo de Benefício (seção 5.7)
+    Baseado na Tabela de Domínio: Tipo de Benefício (seção 5.7 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md).
     """
 
     PARTICIPACAO_EXCLUSIVA_ME_EPP = 1
@@ -109,7 +109,7 @@ class TipoBeneficio(int, Enum):
 class SituacaoResultadoItemContratacao(int, Enum):
     """
     Representa a situação do resultado do item da contratação.
-    Baseado na Tabela de Domínio: Situação do Resultado do Item da Contratação (seção 5.8)
+    Baseado na Tabela de Domínio: Situação do Resultado do Item da Contratação (seção 5.8 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md).
     """
 
     INFORMADO = 1
@@ -119,7 +119,7 @@ class SituacaoResultadoItemContratacao(int, Enum):
 class TipoContrato(int, Enum):
     """
     Representa os tipos de contrato.
-    Baseado na Tabela de Domínio: Tipo de Contrato (seção 5.9)
+    Baseado na Tabela de Domínio: Tipo de Contrato (seção 5.9 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md).
     """
 
     CONTRATO_TERMO_INICIAL = 1
@@ -139,7 +139,7 @@ class TipoContrato(int, Enum):
 class TipoTermoContrato(int, Enum):
     """
     Representa os tipos de termo de contrato.
-    Baseado na Tabela de Domínio: Tipo de Termo de Contrato (seção 5.10)
+    Baseado na Tabela de Domínio: Tipo de Termo de Contrato (seção 5.10 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md).
     """
 
     TERMO_DE_RESCISAO = 1
@@ -150,7 +150,7 @@ class TipoTermoContrato(int, Enum):
 class CategoriaProcesso(int, Enum):
     """
     Representa as categorias de processo.
-    Baseado na Tabela de Domínio: Categoria do Processo (seção 5.11)
+    Baseado na Tabela de Domínio: Categoria do Processo (seção 5.11 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md).
     """
 
     CESSAO = 1
@@ -169,7 +169,7 @@ class CategoriaProcesso(int, Enum):
 class TipoDocumento(int, Enum):
     """
     Representa os tipos de documento.
-    Baseado na Tabela de Domínio: Tipo de Documento (seção 5.12)
+    Baseado na Tabela de Domínio: Tipo de Documento (seção 5.12 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md).
     """
 
     AVISO_DE_CONTRATACAO_DIRETA = 1
@@ -195,7 +195,7 @@ class TipoDocumento(int, Enum):
 class NaturezaJuridica(str, Enum):
     """
     Representa as naturezas jurídicas.
-    Baseado na Tabela de Domínio: Natureza Jurídica (seção 5.13)
+    Baseado na Tabela de Domínio: Natureza Jurídica (seção 5.13 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md).
     """
 
     NATUREZA_JURIDICA_NAO_INFORMADA = "0000"
@@ -240,7 +240,7 @@ class NaturezaJuridica(str, Enum):
 class PorteEmpresa(int, Enum):
     """
     Representa o porte da empresa.
-    Baseado na Tabela de Domínio: Porte da Empresa (seção 5.14)
+    Baseado na Tabela de Domínio: Porte da Empresa (seção 5.14 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md).
     """
 
     ME = 1
@@ -253,7 +253,7 @@ class PorteEmpresa(int, Enum):
 class AmparoLegal(int, Enum):
     """
     Representa os amparos legais.
-    Baseado na Tabela de Domínio: Amparo Legal (seção 5.15)
+    Baseado na Tabela de Domínio: Amparo Legal (seção 5.15 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md).
     """
 
     LEI_14133_ART_28_I = 1
@@ -289,7 +289,7 @@ class AmparoLegal(int, Enum):
 class CategoriaItemPlanoContratacoes(int, Enum):
     """
     Representa a categoria do item do Plano de Contratações.
-    Baseado na Tabela de Domínio: Categoria do Item do Plano de Contratações (seção 5.16)
+    Baseado na Tabela de Domínio: Categoria do Item do Plano de Contratações (seção 5.16 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md).
     """
 
     MATERIAL = 1
@@ -305,7 +305,7 @@ class CategoriaItemPlanoContratacoes(int, Enum):
 class PoderId(str, Enum):
     """
     Representa o poder ao qual um órgão/entidade pertence.
-    Baseado na seção 5.13 - Natureza Jurídica, campo 'poderId'.
+    Baseado na seção 5.13 - Natureza Jurídica, campo 'poderId' (do MANUAL-PNCP-CONSULTAS-VERSAO-1.md).
     """
 
     LEGISLATIVO = "L"
@@ -316,7 +316,7 @@ class PoderId(str, Enum):
 class EsferaId(str, Enum):
     """
     Representa a esfera à qual um órgão/entidade pertence.
-    Baseado na seção 5.13 - Natureza Jurídica, campo 'esferaId'.
+    Baseado na seção 5.13 - Natureza Jurídica, campo 'esferaId' (do MANUAL-PNCP-CONSULTAS-VERSAO-1.md).
     """
 
     FEDERAL = "F"
@@ -328,7 +328,7 @@ class EsferaId(str, Enum):
 class TipoPessoa(str, Enum):
     """
     Representa o tipo de pessoa (física, jurídica ou estrangeira).
-    Baseado no manual e Pydantic Field Enum.
+    Baseado no manual e Pydantic Field Enum (seção 5.13 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md).
     """
 
     PESSOA_JURIDICA = "PJ"
@@ -339,7 +339,7 @@ class TipoPessoa(str, Enum):
 class ClassificacaoCatalogo(int, Enum):
     """
     Representa a classificação se um item é Material ou Serviço.
-    Baseado na seção 6.1 e 6.2 do manual.
+    Baseado na seção 6.1 e 6.2 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md.
     """
 
     MATERIAL = 1
@@ -349,7 +349,7 @@ class ClassificacaoCatalogo(int, Enum):
 class SituacaoCompra(str, Enum):
     """
     Representa a situação da compra/contratação (versão string da API).
-    Baseado na seção 6.3 e 6.4 do manual, que lista códigos de situação.
+    Baseado na seção 6.3 e 6.4 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md, que lista códigos de situação.
     Conforme OpenAPI, são strings: "1", "2", "3", "4".
     
     Note: This exists alongside SituacaoContratacao (int enum) because the API
@@ -365,7 +365,7 @@ class SituacaoCompra(str, Enum):
 class IndicadorOrcamentoSigiloso(str, Enum):
     """
     Representa o indicador de orçamento sigiloso.
-    Baseado no OpenAPI, para o campo indicadorOrcamentoSigiloso.
+    Baseado no OpenAPI, para o campo indicadorOrcamentoSigiloso (do MANUAL-PNCP-CONSULTAS-VERSAO-1.md).
     """
 
     COMPRA_SEM_SIGILO = "COMPRA_SEM_SIGILO"
@@ -424,7 +424,10 @@ def get_enum_description(enum_class: type[Enum], value: int | str) -> str:
 
 
 class TipoEventoNotaFiscal(str, Enum):
-    """Represents the type of event in an electronic invoice."""
+    """
+    Representa o tipo de evento em uma nota fiscal eletrônica.
+    Baseado na seção 6.5.1 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md (implied from context, not explicitly listed as domain table).
+    """
 
     CONFIRMACAO_OPERACAO = "CONFIRMACAO_OPERACAO"
     CIENCIA_OPERACAO = "CIENCIA_OPERACAO"
@@ -436,8 +439,10 @@ class TipoEventoNotaFiscal(str, Enum):
 
 
 class PncpEndpoint(str, Enum):
-    """Representa os endpoints da API PNCP.
-    Os valores devem corresponder às chaves em ENDPOINT_CONFIG no config.py.
+    """
+    Representa os endpoints da API PNCP.
+    Os valores devem corresponder às chaves em ENDPOINT_CONFIG no config.py e aos caminhos da API
+    (seção 6 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md).
     """
     CONTRATACOES_PUBLICACAO = "contratacoes_publicacao"
     CONTRATOS = "contratos"
