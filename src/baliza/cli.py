@@ -229,7 +229,12 @@ def status(
 
     #       This can be done using `importlib.metadata` or by reading the file.
     console.print("🚀 [bold]Baliza PNCP Data Extractor[/bold]")
-    console.print("   Version: 2.0.0-dlt")
+    try:
+        from importlib.metadata import version
+        baliza_version = version("baliza")
+    except ImportError:
+        baliza_version = "2.0.0-dev"
+    console.print(f"   Version: {baliza_version}")
     console.print("   DLT-powered extraction pipeline")
 
 
