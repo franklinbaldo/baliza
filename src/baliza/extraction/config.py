@@ -56,6 +56,9 @@ def create_pncp_rest_config(
         if endpoint_name not in ["contratacoes_publicacao", "contratos", "atas"]:
             continue
             
+        # Get appropriate page size for this endpoint
+        page_size = settings.ENDPOINT_PAGE_LIMITS.get(endpoint_name, settings.default_page_size)
+        
         # Base resource configuration
         resource = {
             "name": endpoint_name,
@@ -63,15 +66,13 @@ def create_pncp_rest_config(
                 "path": endpoint_config.path,
                 "method": "GET",
                 "params": _build_endpoint_params(
-                    endpoint_config, start_date, end_date, modalidades
+                    endpoint_config, start_date, end_date, modalidades, page_size
                 ),
                 "paginator": _get_paginator_config(endpoint_config),
                 "data_selector": "data",  # PNCP responses have data array
             },
             "primary_key": "_dlt_id",  # Will be added by processing step
             "write_disposition": "merge",  # Deduplication based on hash
-            # Add incremental loading to avoid re-requesting existing data
-            "incremental": dlt.sources.incremental("_baliza_extracted_at"),
             "processing_steps": [
                 {
                     "map": _add_hash_id  # Map function for deduplication
@@ -80,6 +81,7 @@ def create_pncp_rest_config(
                     "map": _add_metadata  # Map function for metadata
                 }
             ]
+            # Note: Incremental loading handled by gap detection instead of DLT incremental
         }
         
         resources.append(resource)
@@ -90,11 +92,14 @@ def create_pncp_rest_config(
     }
 
 
-def _build_endpoint_params(endpoint_config, start_date: str, end_date: str, modalidades: List[int]) -> Dict[str, Any]:
+def _build_endpoint_params(endpoint_config, start_date: str, end_date: str, modalidades: List[int], page_size: int = None) -> Dict[str, Any]:
     """Build parameters for an endpoint based on its configuration."""
     
+    # Use provided page_size or fallback to endpoint default
+    effective_page_size = page_size if page_size is not None else endpoint_config.default_page_size
+    
     params = {
-        "tamanhoPagina": endpoint_config.default_page_size,
+        "tamanhoPagina": effective_page_size,
         "pagina": 1,  # Will be handled by paginator
     }
     

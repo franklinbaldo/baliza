@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, ClassVar
 
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
@@ -67,8 +67,17 @@ class Settings(BaseSettings):
 
 
     # Pagination
-    default_page_size: int = 500
+    default_page_size: int = 500  # Most endpoints support 500
     MAX_PAGE_SIZE: int = 500
+    
+    # Specific page size limits per endpoint (from endpoint_extraction_strategy.md)
+    ENDPOINT_PAGE_LIMITS: ClassVar[Dict[str, int]] = {
+        "contratacoes_publicacao": 50,   # Max 50 (required modalidade param)
+        "contratos": 500,                # Max 500
+        "atas": 500,                     # Max 500
+        "instrumentos_cobranca": 100,    # Max 100 (if we add this endpoint later)
+        # Default 500 for other endpoints
+    }
 
     # Schema Validation
     VALIDATE_SCHEMA: bool = True
