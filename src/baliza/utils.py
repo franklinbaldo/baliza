@@ -5,7 +5,8 @@ import json
 #       Consider if this module should be expanded to include other general-purpose
 #       utility functions used across the project, or if it should remain focused
 #       solely on hashing. If other utilities are added, consider renaming the file
-#       to something more generic like `common_utils.py`.
+#       to something more generic like `common_utils.py`. If only hashing-related
+#       functions are present, consider renaming this file to `hashing_utils.py`.
 
 def hash_sha256(data: dict) -> str:
     """Generates a SHA256 hash for a given dictionary.

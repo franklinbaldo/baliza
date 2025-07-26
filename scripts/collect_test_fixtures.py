@@ -22,6 +22,12 @@ from baliza.utils.endpoints import URLBuilder, DateRangeHelper
 from baliza.enums import ModalidadeContratacao, get_enum_by_value
 from baliza.config import settings
 
+# TODO: The `PNCPClient`, `URLBuilder`, and `DateRangeHelper` classes are part
+#       of the legacy HTTP client implementation. With the migration to DLT,
+#       much of their functionality is now handled by DLT's built-in REST API
+#       source. Evaluate if these classes are still necessary for this script
+#       or if they can be replaced by direct DLT calls or simpler constructs.
+
 # Add src to path to import our modules
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root / "src"))

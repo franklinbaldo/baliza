@@ -179,9 +179,12 @@ class NotaFiscalEletronicaConsultaDTO(BaseModel):
     dataTipoEventoMaisRecente: Optional[str] = None
     dataInclusao: str
     dataAtualizacao: str
-    # Note: Forward references are necessary here due to circular dependencies
-    # between NotaFiscalEletronicaConsultaDTO, ItemNotaFiscalConsultaDTO, and EventoNotaFiscalConsultaDTO
-    # This is a valid Pydantic pattern for handling complex nested relationships
+    # TODO: While forward references are valid in Pydantic for circular dependencies,
+    #       consider if the underlying API design could be simplified to reduce
+    #       such complex interdependencies. Alternatively, for better organization,
+    #       these related models (`NotaFiscalEletronicaConsultaDTO`,
+    #       `ItemNotaFiscalConsultaDTO`, `EventoNotaFiscalConsultaDTO`) could be
+    #       grouped into a dedicated sub-module (e.g., `baliza.models.nota_fiscal`).
     itens: List["ItemNotaFiscalConsultaDTO"]
     eventos: List["EventoNotaFiscalConsultaDTO"]
 

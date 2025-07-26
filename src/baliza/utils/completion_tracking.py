@@ -7,6 +7,13 @@ import os
 from typing import Dict, List, Set
 from datetime import datetime, date
 
+# TODO: Consider adding `is_extraction_completed` function to this module
+#       for completeness, as it is a logical counterpart to `mark_extraction_completed`.
+#       Also, evaluate consistently using `pathlib` instead of `os.path` for
+#       all file system operations within this module for improved readability
+#       and modern Python practices.
+
+
 
 def get_completed_extractions(output_dir: str) -> Dict[str, List[str]]:
     """

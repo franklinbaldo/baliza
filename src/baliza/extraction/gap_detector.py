@@ -68,6 +68,13 @@ class PNCPGapDetector:
     
     def _find_endpoint_and_pagination_gaps(self, endpoint: str, start_date: str, end_date: str) -> List[DataGap]:
         """Find both date range gaps and pagination gaps for an endpoint."""
+        # FIXME: The gap detection logic here is still a placeholder. While it now
+        #        correctly uses `baliza.utils.completion_tracking` to check if months
+        #        are completed, it does not perform granular gap detection within
+        #        date ranges or for specific pages. The current implementation only
+        #        returns a single gap for the entire requested range if any month
+        #        within it is incomplete. This needs to be refined to identify and
+        #        return precise missing date ranges and pages.
         from baliza.utils.completion_tracking import get_completed_extractions, _get_months_in_range
         
         completed = get_completed_extractions("data")

@@ -218,23 +218,15 @@ def pncp_source_legacy_compat(
     return pncp_source(start_date, end_date, modalidades)
 
 
-if __name__ == "__main__":
-    # Example usage
-    from datetime import date, timedelta
-    
-    # Get last 7 days
-    end_date = date.today()
-    start_date = end_date - timedelta(days=7)
-    
-    start_str = start_date.strftime("%Y%m%d")
-    end_str = end_date.strftime("%Y%m%d")
-    
-    print(f"Running PNCP extraction for {start_str} to {end_str}")
-    
-    # Run priority extraction
-    result = run_priority_extraction(start_str, end_str)
-    
-    print(f"Extraction completed: {result.metrics}")
+# TODO: The completion tracking functions (`mark_extraction_completed`,
+#       `is_extraction_completed`, `get_completed_extractions`, and
+#       `_get_months_in_range`) are currently defined in this module.
+#       Consider moving these functions to `baliza.utils.completion_tracking`
+#       to centralize all completion tracking logic and improve modularity.
+
+def mark_extraction_completed(
+    output_dir: str, start_date: str, end_date: str, endpoints: List[str]
+):
 
 
 def run_structured_extraction(

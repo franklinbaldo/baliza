@@ -65,6 +65,10 @@ class Settings(BaseSettings):
 
     # Pagination
     default_page_size: int = 500  # Most endpoints support 500
+    # TODO: Evaluate if MAX_PAGE_SIZE is still necessary. The `ENDPOINT_PAGE_LIMITS`
+    #       dictionary seems to define specific page size limits per endpoint,
+    #       potentially making this global constant redundant. If it's only used
+    #       as a general guideline, consider removing it to avoid confusion.
     MAX_PAGE_SIZE: int = 500
     
     # Specific page size limits per endpoint (from endpoint_extraction_strategy.md)

@@ -206,6 +206,13 @@ def status(
         console.print(f"   Check output directory: {output}")
         return
     
+    # TODO: Enhance the status command to provide more detailed information.
+    #       For each completed endpoint, consider displaying:
+    #       - The full date range covered (min_date to max_date).
+    #       - The total number of records extracted (if available from metadata).
+    #       - The total size of the extracted data.
+    #       This would provide a more comprehensive overview of the extracted data.
+    
     # Create status table
     table = Table(title="Completed Extractions")
     table.add_column("Endpoint", style="cyan", no_wrap=True)

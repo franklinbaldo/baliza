@@ -150,7 +150,12 @@ def _add_hash_id(record: Dict[str, Any]) -> Dict[str, Any]:
     return record_copy
 
 
-
+# TODO: The functions `_add_url_metadata` and `_add_request_url` are defined
+#       in this file but are not used within `create_pncp_rest_config`'s
+#       `processing_steps`. If they are intended to be used as DLT processing
+#       steps, they should be explicitly added to the `processing_steps` list
+#       of the relevant resources. Otherwise, consider moving them to a more
+#       appropriate utility module or removing them if they are no longer needed.
 
 def _add_metadata(record: Dict[str, Any]) -> Dict[str, Any]:
     """
