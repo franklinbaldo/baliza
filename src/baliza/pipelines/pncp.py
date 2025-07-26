@@ -1,79 +1,161 @@
-import dlt
-import json
-import zlib # Import zlib for decompression
-from baliza.legacy.enums import PncpEndpoint, ModalidadeContratacao
-from baliza.legacy.utils.http_client import EndpointExtractor, PNCPResponse # Import PNCPResponse
-from baliza.legacy.utils.hash_utils import hash_sha256 # Import hash_sha256
-from datetime import date, timedelta
+"""
+PNCP Data Pipeline using DLT REST API Source
+Pure configuration-driven approach with zero custom HTTP code
+"""
 
-@dlt.source
+import dlt
+from dlt.sources.rest_api import rest_api_source
+from typing import List, Optional, Any
+from .pncp_config import create_pncp_rest_config, create_modalidade_resources
+from baliza.legacy.enums import ModalidadeContratacao
+
+
 def pncp_source(
-    start_date: str = "20240101",
-    end_date: str = "20240101",
-    modalidade: int = None, # Optional, for specific endpoints
-    extractor_instance: EndpointExtractor = None # New argument for dependency injection
+    start_date: str = None,
+    end_date: str = None,
+    modalidades: List[int] = None,
+    endpoints: List[str] = None
 ):
     """
-    A dlt source for extracting data from the PNCP API.
-    This source uses the legacy PncpEndpoint enum to define resources
-    and integrates with EndpointExtractor for data fetching.
+    Create PNCP data source using dlt REST API built-ins.
+    
+    Args:
+        start_date: Start date in YYYYMMDD format
+        end_date: End date in YYYYMMDD format  
+        modalidades: List of modalidade IDs to process
+        endpoints: List of endpoint names to include (default: priority endpoints)
+    
+    Returns:
+        DLT source ready for pipeline execution
     """
-    extractor = extractor_instance or EndpointExtractor()
+    
+    # Create REST API configuration
+    config = create_pncp_rest_config(start_date, end_date, modalidades)
+    
+    # Filter endpoints if specified
+    if endpoints:
+        config["resources"] = [
+            r for r in config["resources"] 
+            if r["name"] in endpoints
+        ]
+    
+    # Create and return dlt REST API source
+    # This handles ALL HTTP operations, pagination, retries automatically!
+    return rest_api_source(config, name="pncp")
 
-    async def _contratacoes_publicacao_resource(
-        start_date: str = dlt.sources.incremental("data_inicial", initial_value="20240101"),
-        end_date: str = dlt.sources.incremental("data_final", initial_value="20240101"),
-        modalidade: int = None
-    ):
-        modalidade_enum = ModalidadeContratacao(modalidade) if modalidade else None
-        api_requests = await extractor.extract_contratacoes_publicacao(
-            data_inicial=start_date,
-            data_final=end_date,
-            modalidade=modalidade_enum
-        )
-        for api_request in api_requests:
-            # Decompress and parse the payload
-            payload_json = json.loads(zlib.decompress(api_request.payload_compressed).decode("utf-8"))
-            pncp_response = PNCPResponse(**payload_json)
-            
-            # Iterate over individual records in the response data
-            for record in pncp_response.data:
-                # Add a unique ID for deduplication
-                record["_dlt_id"] = hash_sha256(record)
-                yield record
 
-    async def _contratos_resource(
-        start_date: str = dlt.sources.incremental("data_inicial", initial_value="20240101"),
-        end_date: str = dlt.sources.incremental("data_final", initial_value="20240101")
-    ):
-        api_requests = await extractor.extract_contratos(
-            data_inicial=start_date,
-            data_final=end_date
-        )
-        for api_request in api_requests:
-            payload_json = json.loads(zlib.decompress(api_request.payload_compressed).decode("utf-8"))
-            pncp_response = PNCPResponse(**payload_json)
-            for record in pncp_response.data:
-                record["_dlt_id"] = hash_sha256(record)
-                yield record
+def pncp_priority_source(start_date: str, end_date: str):
+    """
+    Source for priority endpoints only (Phase 2a implementation).
+    Includes: contratacoes_publicacao, contratos, atas
+    """
+    priority_endpoints = ["contratacoes_publicacao", "contratos", "atas"]
+    return pncp_source(start_date, end_date, endpoints=priority_endpoints)
 
-    async def _atas_resource(
-        start_date: str = dlt.sources.incremental("data_inicial", initial_value="20240101"),
-        end_date: str = dlt.sources.incremental("data_final", initial_value="20240101")
-    ):
-        api_requests = await extractor.extract_atas(
-            data_inicial=start_date,
-            data_final=end_date
-        )
-        for api_request in api_requests:
-            payload_json = json.loads(zlib.decompress(api_request.payload_compressed).decode("utf-8"))
-            pncp_response = PNCPResponse(**payload_json)
-            for record in pncp_response.data:
-                record["_dlt_id"] = hash_sha256(record)
-                yield record
 
-    return {
-        "contratacoes_publicacao": dlt.resource(_contratacoes_publicacao_resource, name="contratacoes_publicacao", primary_key="_dlt_id", write_disposition="merge"),
-        "contratos": dlt.resource(_contratos_resource, name="contratos", primary_key="_dlt_id", write_disposition="merge"),
-        "atas": dlt.resource(_atas_resource, name="atas", primary_key="_dlt_id", write_disposition="merge"),
-    }
+def pncp_modalidade_source(
+    start_date: str, 
+    end_date: str, 
+    modalidade: ModalidadeContratacao
+):
+    """
+    Source for a specific modalidade with separate resources per modalidade.
+    Useful for endpoints that require modalidade parameter.
+    """
+    return pncp_source(
+        start_date=start_date,
+        end_date=end_date, 
+        modalidades=[modalidade.value],
+        endpoints=["contratacoes_publicacao"]  # Only endpoint requiring modalidade
+    )
+
+
+def pncp_all_modalidades_source(start_date: str, end_date: str):
+    """
+    Source for all modalidades - creates separate resources for each.
+    Production use case for complete data extraction.
+    """
+    all_modalidades = [m.value for m in ModalidadeContratacao]
+    return pncp_source(start_date, end_date, modalidades=all_modalidades)
+
+
+# Convenience functions for common use cases
+def create_default_pipeline(destination: str = "duckdb"):
+    """Create default pipeline for development/testing."""
+    return dlt.pipeline(
+        pipeline_name="baliza_pncp", 
+        destination=destination,
+        dataset_name="pncp_data"
+    )
+
+
+def run_priority_extraction(
+    start_date: str, 
+    end_date: str,
+    destination: str = "duckdb"
+) -> Any:
+    """
+    Run extraction for priority endpoints.
+    
+    Returns:
+        Pipeline run summary with metrics
+    """
+    pipeline = create_default_pipeline(destination)
+    source = pncp_priority_source(start_date, end_date)
+    
+    # Run the pipeline - dlt handles everything!
+    return pipeline.run(source)
+
+
+def run_modalidade_extraction(
+    start_date: str,
+    end_date: str, 
+    modalidade: ModalidadeContratacao,
+    destination: str = "duckdb"
+) -> Any:
+    """
+    Run extraction for specific modalidade.
+    
+    Returns:
+        Pipeline run summary with metrics
+    """
+    pipeline = create_default_pipeline(destination)
+    source = pncp_modalidade_source(start_date, end_date, modalidade)
+    
+    return pipeline.run(source)
+
+
+# Migration compatibility layer (temporary)
+def pncp_source_legacy_compat(
+    start_date: str = "20240101",
+    end_date: str = "20240101", 
+    modalidade: int = None,
+    extractor_instance = None  # Ignored - no longer needed!
+):
+    """
+    Legacy compatibility wrapper for existing code.
+    
+    WARNING: This is deprecated. Use pncp_source() directly.
+    extractor_instance parameter is ignored (no longer needed with dlt built-ins).
+    """
+    modalidades = [modalidade] if modalidade else None
+    return pncp_source(start_date, end_date, modalidades)
+
+
+if __name__ == "__main__":
+    # Example usage
+    from datetime import date, timedelta
+    
+    # Get last 7 days
+    end_date = date.today()
+    start_date = end_date - timedelta(days=7)
+    
+    start_str = start_date.strftime("%Y%m%d")
+    end_str = end_date.strftime("%Y%m%d")
+    
+    print(f"Running PNCP extraction for {start_str} to {end_str}")
+    
+    # Run priority extraction
+    result = run_priority_extraction(start_str, end_str)
+    
+    print(f"Extraction completed: {result.metrics}")

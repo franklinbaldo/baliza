@@ -108,11 +108,17 @@ def _build_endpoint_params(endpoint_config, start_date: str, end_date: str, moda
     return params
 
 
-def _get_paginator_config(endpoint_config) -> str:
+def _get_paginator_config(endpoint_config) -> Dict[str, Any]:
     """Get appropriate paginator configuration for endpoint."""
     
-    # PNCP uses page number pagination with 'pagina' parameter
-    return "page_number"
+    # PNCP uses page number pagination with custom field names
+    return {
+        "type": "page_number",
+        "page_param": "pagina",           # PNCP parameter name
+        "total_path": "totalPaginas",     # PNCP field for total pages
+        "base_page": 1,                   # PNCP starts at page 1
+        "stop_after_empty_page": True     # Stop if no data returned
+    }
 
 
 def _add_hash_id(record: Dict[str, Any]) -> Dict[str, Any]:
