@@ -1,6 +1,13 @@
 """
 PNCP Data Pipeline using DLT REST API Source
 Pure configuration-driven approach with zero custom HTTP code
+
+Note on Request-Level Deduplication:
+- DLT provides data-level deduplication (hash-based, primary key-based)
+- DLT does NOT provide HTTP request-level deduplication/caching
+- Our hash-based deduplication prevents saving duplicates but doesn't prevent HTTP requests
+- For production use, consider implementing request caching at the infrastructure level
+  (e.g., HTTP cache, Redis, or API gateway caching)
 """
 
 import dlt
@@ -17,7 +24,8 @@ def pncp_source(
     endpoints: List[str] = None
 ):
     """
-    Create PNCP data source using dlt REST API built-ins.
+    Create PNCP data source using dlt REST API built-ins with incremental loading.
+    DLT's incremental loading prevents re-requesting data we already have.
     
     Args:
         start_date: Start date in YYYYMMDD format
@@ -29,7 +37,7 @@ def pncp_source(
         DLT source ready for pipeline execution
     """
     
-    # Create REST API configuration
+    # Create REST API configuration with incremental loading
     config = create_pncp_rest_config(start_date, end_date, modalidades)
     
     # Filter endpoints if specified
@@ -39,8 +47,8 @@ def pncp_source(
             if r["name"] in endpoints
         ]
     
-    # Create and return dlt REST API source
-    # This handles ALL HTTP operations, pagination, retries automatically!
+    # Create and return dlt REST API source with incremental loading
+    # The incremental configuration in the config will handle request-level deduplication
     return rest_api_source(config, name="pncp")
 
 

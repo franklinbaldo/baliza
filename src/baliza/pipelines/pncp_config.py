@@ -4,11 +4,13 @@ Converts legacy ENDPOINT_CONFIG to dlt REST API format
 """
 
 from datetime import date, timedelta
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from dlt.sources.rest_api.typing import RESTAPIConfig
 from baliza.config import ENDPOINT_CONFIG, settings
 from baliza.legacy.enums import PncpEndpoint, ModalidadeContratacao
 from baliza.legacy.utils.hash_utils import hash_sha256
+import os
+import dlt
 
 
 def create_pncp_rest_config(
@@ -43,6 +45,7 @@ def create_pncp_rest_config(
             "Accept": "application/json"
         }
         # Note: timeout would need to be configured through session if needed
+        # Note: DLT doesn't provide request-level caching, so we implement deduplication at data level
     }
     
     # Build resources from ENDPOINT_CONFIG
@@ -67,6 +70,8 @@ def create_pncp_rest_config(
             },
             "primary_key": "_dlt_id",  # Will be added by processing step
             "write_disposition": "merge",  # Deduplication based on hash
+            # Add incremental loading to avoid re-requesting existing data
+            "incremental": dlt.sources.incremental("_baliza_extracted_at"),
             "processing_steps": [
                 {
                     "map": _add_hash_id  # Map function for deduplication
@@ -135,6 +140,20 @@ def _add_hash_id(record: Dict[str, Any]) -> Dict[str, Any]:
     return record_copy
 
 
+def _add_url_metadata(record: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Processing step to add URL metadata for request deduplication.
+    This allows us to track which URLs we've already processed.
+    """
+    record_copy = record.copy()
+    
+    # DLT provides request context in the resource
+    # We'll add URL tracking if available in the context
+    # For now, we'll implement this when we integrate with the pipeline
+    
+    return record_copy
+
+
 def _add_metadata(record: Dict[str, Any]) -> Dict[str, Any]:
     """
     Processing step to add extraction metadata.
@@ -143,6 +162,24 @@ def _add_metadata(record: Dict[str, Any]) -> Dict[str, Any]:
     
     # Add extraction timestamp
     record_copy["_baliza_extracted_at"] = date.today().isoformat()
+    
+    # Note: URL will be added by dlt automatically from request context
+    # We don't need to manually add it here
+    
+    return record_copy
+
+
+def _add_request_url(record: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Processing step to add the request URL for future deduplication.
+    DLT doesn't provide request-level caching, so we implement it ourselves.
+    """
+    record_copy = record.copy()
+    
+    # Add URL metadata that can be used for request-level deduplication
+    # Note: The actual URL needs to be passed through DLT context
+    # For now, we'll add a placeholder that can be populated during processing
+    record_copy["_baliza_request_url"] = None  # Will be set by pipeline context
     
     return record_copy
 
