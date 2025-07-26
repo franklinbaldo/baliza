@@ -24,6 +24,11 @@ def parse_date_options(
     if date_range:
         try:
             start_str, end_str = date_range.split(":")
+            # TODO: The `date_range` parsing currently assumes YYYYMMDD:YYYYMMDD.
+            #       It should be more robust to handle YYYY-MM-DD:YYYY-MM-DD or
+            #       YYYY-MM:YYYY-MM formats, similar to how `date_input` is handled.
+            #       Also, the `ValueError` is caught, but the function should ideally
+            #       raise a `typer.BadParameter` for consistency with `cli.py`.
             return start_str, end_str
         except ValueError:
             raise ValueError("Date range must be in format YYYYMMDD:YYYYMMDD")

@@ -4,29 +4,42 @@ Script to collect real test fixtures from PNCP API endpoints
 Saves JSON responses to tests/fixtures/ for use in unit tests
 """
 
+# FIXME: This script is largely obsolete and should be removed or completely rewritten.
+#        With the migration to DLT, the primary method for testing API interactions
+#        should involve mocking DLT's internal HTTP client (e.g., using `pytest-httpx`
+#        to intercept requests made by DLT's `rest_api_source`).
+#        
+#        Reasons for obsolescence/removal:
+#        1.  **Legacy HTTP Client:** It relies on `PNCPClient`, `URLBuilder`, and
+#            `DateRangeHelper`, which are part of the old, pre-DLT HTTP client
+#            implementation. DLT now handles all HTTP requests internally.
+#        2.  **Duplicated Logic:** The core logic for fetching and saving fixtures
+#            is duplicated across multiple functions, making it hard to maintain.
+#        3.  **Misaligned Testing Strategy:** If E2E tests are rewritten to mock
+#            DLT's behavior, these pre-collected JSON files might not be directly
+#            used or necessary.
+#        4.  **Maintenance Overhead:** Keeping this script updated with API changes
+#            and new endpoints is an unnecessary overhead if DLT handles the API
+#            interaction.
+#
+#        Recommendation:
+#        -   **Option 1 (Preferred):** Delete this script entirely. Focus on writing
+#            new, DLT-native tests that mock at the appropriate layer.
+#        -   **Option 2 (If absolutely necessary):** Rewrite this script from scratch
+#            to use DLT's `rest_api_source` to fetch data, and then extract the raw
+#            JSON payloads from DLT's internal structures. This would still require
+#            significant refactoring and a clear justification for its existence.
+
 import asyncio
 import json
 import sys
 import os
 from pathlib import Path
 
-# TODO: This script collects test fixtures from the PNCP API. Given the migration
-#       to DLT and the new testing strategy, evaluate if this script is still
-#       necessary or if fixtures should be generated differently (e.g., directly
-#       from DLT's internal data structures or by mocking the API at a lower level).
-#       If kept, the duplicated code for fetching and saving fixtures should be
-#       refactored into a single, reusable function.
-
 from baliza.utils.http_client import PNCPClient
 from baliza.utils.endpoints import URLBuilder, DateRangeHelper
 from baliza.enums import ModalidadeContratacao, get_enum_by_value
 from baliza.config import settings
-
-# TODO: The `PNCPClient`, `URLBuilder`, and `DateRangeHelper` classes are part
-#       of the legacy HTTP client implementation. With the migration to DLT,
-#       much of their functionality is now handled by DLT's built-in REST API
-#       source. Evaluate if these classes are still necessary for this script
-#       or if they can be replaced by direct DLT calls or simpler constructs.
 
 # Add src to path to import our modules
 project_root = Path(__file__).parent.parent
@@ -40,11 +53,6 @@ async def collect_contratacoes_publicacao_fixture():
     """Collect real contratacoes/publicacao response"""
     print("🔍 Coletando fixture: contratacoes/publicacao...")
 
-    # FIXME: The code for fetching and saving fixtures is duplicated across
-    #        multiple functions (collect_contratacoes_publicacao_fixture,
-    #        collect_contratos_fixture, etc.). This should be refactored into a
-    #        single, reusable function that takes the endpoint and URL as
-    #        parameters to avoid code duplication and make it easier to maintain.
     client = PNCPClient()
     builder = URLBuilder()
 
