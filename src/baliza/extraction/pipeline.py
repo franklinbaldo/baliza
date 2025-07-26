@@ -165,6 +165,11 @@ def run_priority_extraction(
     """
     Run extraction for priority endpoints with structured output.
     
+    TODO: Evaluate if this function is still necessary. The `run_structured_extraction`
+    function provides a more generic way to run extractions with endpoint filtering.
+    This function might be a remnant of a previous design and could be removed if
+    its functionality is fully covered by `run_structured_extraction`.
+    
     Returns:
         Pipeline run summary with metrics
     """
@@ -190,6 +195,10 @@ def run_modalidade_extraction(
     """
     Run extraction for specific modalidade.
     
+    TODO: Evaluate if this function is still necessary. Similar to `run_priority_extraction`,
+    its functionality might be fully covered by `run_structured_extraction` with appropriate
+    endpoint and modality filtering. Consider removing it if it's redundant.
+    
     Returns:
         Pipeline run summary with metrics
     """
@@ -208,6 +217,10 @@ def pncp_source_legacy_compat(
 ):
     """
     Legacy compatibility wrapper for existing code.
+    
+    TODO: Evaluate if this legacy compatibility function is still necessary.
+    If there are no external callers or deprecated parts of the system relying
+    on this, it should be removed to reduce code complexity and maintenance burden.
     
     WARNING: This is deprecated. Use pncp_source() directly.
     extractor_instance parameter is ignored (no longer needed with dlt built-ins).

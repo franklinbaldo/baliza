@@ -72,6 +72,10 @@ def _get_months_in_range(start_date: str, end_date: str) -> List[str]:
     """
     Get list of months (YYYY-MM format) between start and end dates.
     
+    TODO: Evaluate if this function should be public or remain a private helper.
+    If it's useful outside this module (e.g., for CLI date parsing or reporting),
+    consider making it a public function within `baliza.utils.date_utils`.
+    
     Args:
         start_date: Start date in YYYYMMDD format
         end_date: End date in YYYYMMDD format
@@ -116,5 +120,9 @@ def mark_extraction_completed(output_dir: str, start_date: str, end_date: str, e
             
             marker_path = marker_dir / ".completed"
             with marker_path.open("w") as f:
+                # TODO: Consider adding more metadata to the .completed marker file,
+                #       such as the number of records extracted, the DLT load ID,
+                #       or a hash of the extracted data. This would enhance the
+                #       resumability logic and provide more detailed status reporting.
                 f.write(f"Completed at: {datetime.now().isoformat()}\n")
                 f.write(f"Date range: {start_date} to {end_date}\n")

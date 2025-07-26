@@ -379,6 +379,10 @@ def get_enum_by_value(enum_class: Type[Enum], value: Union[int, str]) -> Optiona
     try:
         return enum_class(value)
     except (ValueError, TypeError):
+        # TODO: Consider a more robust error handling strategy here. Instead of
+        #       silently returning None, which can lead to `NoneType` errors
+        #       downstream, consider raising a custom exception (e.g., `InvalidEnumValueError`)
+        #       or returning a well-defined default value if appropriate for the context.
         return None
 
 

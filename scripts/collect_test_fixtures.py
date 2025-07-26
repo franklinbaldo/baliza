@@ -243,6 +243,11 @@ async def collect_all_fixtures():
 
     results = []
 
+    # TODO: Dynamically determine the endpoints to collect instead of relying
+    #       on hardcoded lists or settings. This could involve iterating through
+    #       `baliza.settings.ENDPOINT_CONFIG` and filtering based on `sync_type`
+    #       or other criteria, ensuring all relevant endpoints are covered.
+
     # Collect each endpoint fixture
     results.append(await collect_contratacoes_publicacao_fixture())
     results.append(await collect_contratos_fixture())

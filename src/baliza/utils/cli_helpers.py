@@ -68,6 +68,9 @@ def parse_data_types(data_types: Optional[List[str]]) -> Dict[str, List[int]]:
         if data_type in type_mapping:
             endpoints.extend(type_mapping[data_type])
         else:
+            # TODO: Instead of printing a warning, consider raising a `typer.BadParameter`
+            #       exception here. This would provide immediate feedback to the user
+            #       about invalid input and align with Typer's error handling philosophy.
             console.print(f"[yellow]Warning: Unknown data type '{data_type}' ignored[/yellow]")
     
     return {"endpoints": endpoints}
@@ -77,7 +80,8 @@ def show_extraction_plan(
     start_date: Optional[str], 
     end_date: Optional[str], 
     endpoints: List[str], 
-    gaps_found: int = None
+    gaps_found: int = None,
+    output_dir: Optional[str] = None # TODO: Add output_dir parameter for consistency
 ):
     """Display extraction plan to user."""
     table = Table(title="📋 Extraction Plan")
@@ -93,6 +97,8 @@ def show_extraction_plan(
     
     if gaps_found is not None:
         table.add_row("Data Gaps Found", str(gaps_found))
+    
+    # TODO: Display output_dir in the plan if provided
     
     console.print(table)
 

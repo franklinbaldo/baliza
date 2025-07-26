@@ -116,8 +116,13 @@ def _build_endpoint_params(endpoint_config, start_date: str, end_date: str, moda
         
     # Add modalidade if required and provided
     if endpoint_config.requires_modalidade and modalidades:
-        # Use the first modalidade - caller should create separate resources for each modalidade
-        # This is intended behavior: each resource handles one modalidade
+        # TODO: This logic only uses the first modalidade from the list.
+        #       For endpoints that require a modalidade, the system should either
+        #       iterate through them and create separate requests or be designed
+        #       to handle one modalidade at a time. The current implementation
+        #       is misleading if a list of modalities is provided and only the
+        #       first one is used. This needs to be clarified or refactored.
+        # For now, use the first modalidade
         params["codigoModalidadeContratacao"] = modalidades[0]
     
     return params
@@ -179,6 +184,10 @@ def create_modalidade_resources(
     Create separate resources for each modalidade (for endpoints that require it).
     This handles endpoints like 'contratacoes_publicacao' that need modalidade parameter.
     """
+    # TODO: Evaluate if this function is still necessary. The `pncp_source` function
+    #       in `pipeline.py` now handles the creation of resources for different
+    #       modalities based on the `modalidades` parameter. This function might
+    #       be a remnant of a previous design and could be removed if no longer used.
     
     if endpoint_name not in ENDPOINT_CONFIG:
         raise ValueError(f"Unknown endpoint: {endpoint_name}")
