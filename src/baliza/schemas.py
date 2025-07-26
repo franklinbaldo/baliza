@@ -348,14 +348,13 @@ class ClassificacaoCatalogo(int, Enum):
 
 class SituacaoCompra(str, Enum):
     """
-    Representa a situação da compra/contratação.
+    Representa a situação da compra/contratação (versão string da API).
     Baseado na seção 6.3 e 6.4 do manual, que lista códigos de situação.
     Conforme OpenAPI, são strings: "1", "2", "3", "4".
+    
+    Note: This exists alongside SituacaoContratacao (int enum) because the API
+    returns string values while internal processing may use integers.
     """
-    # TODO: This seems redundant with SituacaoContratacao. It was likely created
-    # because the OpenAPI spec uses strings ("1", "2") instead of integers.
-    # Investigate if we can consolidate these into a single enum or create a
-    # more robust way to handle type differences between the API and the database.
 
     DIVULGADA_NO_PNCP = "1"
     REVOGADA = "2"
@@ -421,11 +420,8 @@ def get_enum_description(enum_class: type[Enum], value: int | str) -> str:
     return f"{name} ({enum_member.value})"
 
 
-# TODO: Evaluate if the ENUM_REGISTRY is still necessary. With Pydantic models
-#       and direct enum usage, dynamic access via a string name might be an
-#       over-engineering. If it's only used in `get_all_enum_metadata`, consider
-#       refactoring `get_all_enum_metadata` to iterate directly over the enum classes.
-# Enum registry for dynamic access
+# Enum registry for dynamic access and metadata generation
+# Used by get_all_enum_metadata() and get_enum_by_name() functions
 ENUM_REGISTRY = {
     "InstrumentoConvocatorio": InstrumentoConvocatorio,
     "ModalidadeContratacao": ModalidadeContratacao,

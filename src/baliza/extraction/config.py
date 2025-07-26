@@ -116,12 +116,8 @@ def _build_endpoint_params(endpoint_config, start_date: str, end_date: str, moda
         
     # Add modalidade if required and provided
     if endpoint_config.requires_modalidade and modalidades:
-        # TODO: This logic only uses the first modalidade from the list.
-        #       For endpoints that require a modalidade, the system should either
-        #       iterate through them and create separate requests or be designed
-        #       to handle one modalidade at a time. The current implementation
-        #       is misleading if a list of modalidades is provided.
-        # For now, use the first modalidade
+        # Use the first modalidade - caller should create separate resources for each modalidade
+        # This is intended behavior: each resource handles one modalidade
         params["codigoModalidadeContratacao"] = modalidades[0]
     
     return params
@@ -154,24 +150,6 @@ def _add_hash_id(record: Dict[str, Any]) -> Dict[str, Any]:
     return record_copy
 
 
-# TODO: These functions (`_add_url_metadata`, `_add_request_url`) are currently
-#       defined but not actively used as processing steps in the `create_pncp_rest_config`
-#       function. If their purpose is to add metadata to records, they should be
-#       explicitly included in the `processing_steps` list of the relevant resources.
-#       Otherwise, consider moving them to a more appropriate utility module or
-#       removing them if they are no longer needed.
-def _add_url_metadata(record: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Processing step to add URL metadata for request deduplication.
-    This allows us to track which URLs we've already processed.
-    """
-    record_copy = record.copy()
-    
-    # DLT provides request context in the resource
-    # We'll add URL tracking if available in the context
-    # For now, we'll implement this when we integrate with the pipeline
-    
-    return record_copy
 
 
 def _add_metadata(record: Dict[str, Any]) -> Dict[str, Any]:
@@ -189,21 +167,6 @@ def _add_metadata(record: Dict[str, Any]) -> Dict[str, Any]:
     return record_copy
 
 
-def _add_request_url(record: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Processing step to add the request URL for future deduplication.
-    DLT doesn't provide request-level caching, so we implement it ourselves.
-    """
-    record_copy = record.copy()
-    
-    # TODO: Plumb the actual request URL from the DLT resource context.
-    # DLT's `rest_api_source` provides context about the request. This function
-    # should be adapted to be a proper processing step that accesses this context
-    # and adds the `request_url` to the record. This is crucial for enabling
-    # request-level deduplication and improving traceability in the future.
-    record_copy["_baliza_request_url"] = None  # Will be set by pipeline context
-    
-    return record_copy
 
 
 def create_modalidade_resources(

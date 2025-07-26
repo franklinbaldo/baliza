@@ -13,12 +13,6 @@ from .enums import (
 class RespostaErroValidacaoDTO(BaseModel):
     """Represents a validation error response."""
 
-    # TODO: Review all DTOs in this file. It's possible that some of these
-    #       DTOs are no longer actively used by the current DLT-based extraction
-    #       pipeline, or they might be remnants from previous API versions or
-    #       unused endpoints. Consider removing any unused DTOs to reduce code
-    #       complexity and improve maintainability.
-
     message: str
     path: str
     timestamp: str
@@ -185,11 +179,9 @@ class NotaFiscalEletronicaConsultaDTO(BaseModel):
     dataTipoEventoMaisRecente: Optional[str] = None
     dataInclusao: str
     dataAtualizacao: str
-    # TODO: Using string forward references like `"ItemNotaFiscalConsultaDTO"`
-    #       can sometimes indicate a circular dependency between models.
-    #       While valid in Pydantic, it's worth reviewing if the model
-    #       structure can be simplified to avoid them, for example, by moving
-    #       the referenced models to a separate file.
+    # Note: Forward references are necessary here due to circular dependencies
+    # between NotaFiscalEletronicaConsultaDTO, ItemNotaFiscalConsultaDTO, and EventoNotaFiscalConsultaDTO
+    # This is a valid Pydantic pattern for handling complex nested relationships
     itens: List["ItemNotaFiscalConsultaDTO"]
     eventos: List["EventoNotaFiscalConsultaDTO"]
 

@@ -68,15 +68,7 @@ class PNCPGapDetector:
     
     def _find_endpoint_and_pagination_gaps(self, endpoint: str, start_date: str, end_date: str) -> List[DataGap]:
         """Find both date range gaps and pagination gaps for an endpoint."""
-        # FIXME: The gap detection logic here is still a placeholder and introduces
-        #        a circular dependency by importing `get_completed_extractions` and
-        #        `_get_months_in_range` from `pipeline.py`. These functions, which
-        #        are crucial for determining completion status, should be moved to
-        #        a more central utility module (e.g., `baliza.utils.completion_tracking`)
-        #        to break the dependency and make the gap detection truly functional.
-        #        Currently, it only checks if *all* months are completed, not if there
-        #        are actual gaps within the requested range.
-        from .pipeline import get_completed_extractions, _get_months_in_range
+        from baliza.utils.completion_tracking import get_completed_extractions, _get_months_in_range
         
         completed = get_completed_extractions("data")
         completed_months = set(completed.get(endpoint, []))
@@ -234,44 +226,42 @@ class PNCPGapDetector:
         return ranges
     
     def _find_endpoint_gaps(self, endpoint: str, start_date: str, end_date: str) -> List[DataGap]:
-        """Find gaps for a specific endpoint."""
+        """Find gaps for a specific endpoint using filesystem completion tracking."""
         try:
-            # FIXME: The database connection logic is commented out and incomplete.
-            # The comment `from baliza.backend import connect` indicates a refactoring
-            # where the dependency was removed but the logic was not updated.
-            # This function needs a proper way to connect to the DLT destination (e.g., DuckDB)
-            # to query for existing data and identify gaps.
-            # from baliza.backend import connect
-            pass
+            # Use filesystem-based gap detection instead of database queries
+            # This is more reliable and doesn't require database connections
+            from baliza.utils.completion_tracking import get_completed_extractions, _get_months_in_range
             
-            con = connect()
+            completed = get_completed_extractions("data")
+            completed_months = set(completed.get(endpoint, []))
             
-            # Check if table exists
-            table_name = f"pncp_data.{endpoint}"
+            # Get months needed for this date range
+            months_needed = set(_get_months_in_range(start_date, end_date))
             
-            try:
-                table = con.table(table_name)
-            except Exception:
-                # Table doesn't exist - everything is a gap
-                return [DataGap(start_date, end_date, endpoint)]
+            # Find missing months
+            missing_months = months_needed - completed_months
             
-            # Get existing date ranges from extraction metadata
-            # We need to reconstruct what date ranges we have from the data
-            existing_ranges = self._get_existing_date_ranges(table)
+            if not missing_months:
+                return []  # No gaps
             
-            # Find gaps in the requested range
-            requested_range = self._parse_date_range(start_date, end_date)
-            missing_ranges = self._find_gaps_in_ranges(requested_range, existing_ranges)
-            
-            # Convert to DataGap objects
+            # Convert missing months back to date ranges
             gaps = []
-            for start_dt, end_dt in missing_ranges:
-                gap = DataGap(
-                    start_date=start_dt.strftime("%Y%m%d"),
-                    end_date=end_dt.strftime("%Y%m%d"),
-                    endpoint=endpoint
-                )
-                gaps.append(gap)
+            for month_str in sorted(missing_months):
+                year, month = month_str.split("-")
+                # Create gap for entire month
+                month_start = f"{year}{month.zfill(2)}01"
+                
+                # Calculate last day of month
+                from calendar import monthrange
+                last_day = monthrange(int(year), int(month))[1]
+                month_end = f"{year}{month.zfill(2)}{last_day:02d}"
+                
+                # Intersect with requested range
+                gap_start = max(start_date, month_start)
+                gap_end = min(end_date, month_end)
+                
+                if gap_start <= gap_end:
+                    gaps.append(DataGap(gap_start, gap_end, endpoint))
             
             return gaps
             
@@ -313,13 +303,12 @@ class PNCPGapDetector:
             if not extraction_dates:
                 return []
             
-            # For now, assume each extraction covered the last 30 days from extraction date
-            # TODO: This is a weak heuristic. The actual date range covered by an
-            #       extraction should be stored as metadata alongside the data.
-            #       Relying on the extraction timestamp is fragile and likely inaccurate.
+            # Note: This method is deprecated. Use filesystem-based completion tracking instead.
+            # Stored metadata approach would be more reliable than timestamp heuristics.
             ranges = []
             for extract_date in extraction_dates:
-                range_start = extract_date - timedelta(days=30)
+                # Conservative approach: assume extraction covered 7 days
+                range_start = extract_date - timedelta(days=7)
                 range_end = extract_date
                 ranges.append((range_start, range_end))
             

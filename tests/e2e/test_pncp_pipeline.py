@@ -1,216 +1,375 @@
-# FIXME: This entire test suite is disabled and outdated.
-# The tests are skipped with the reason "DLT resource naming issue in test environment".
-# Furthermore, the mocking strategy targets a legacy `EndpointExtractor` class
-# that is no longer used in the DLT-based architecture.
-#
-# This suite must be completely rewritten to:
-# 1. Test the new `dlt.sources.rest_api.rest_api_source` based pipeline.
-# 2. Use a modern mocking library like `pytest-httpx` to mock API responses
-#    for the DLT's underlying HTTP client.
-# 3. Test the actual data transformations and the behavior of the gap detector.
-# 4. Remove all skips so that the pipeline is validated in CI.
-#
-# A project without a working test suite is at high risk of regressions.
-import dlt
+"""
+Modern E2E test suite for DLT-based PNCP pipeline.
+Tests the complete extraction pipeline using real DLT components.
+"""
+
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
-import logging
-
-from baliza.pipelines.pncp import pncp_source
-from baliza.legacy.enums import PncpEndpoint, ModalidadeContratacao
-from baliza.legacy.utils.http_client import APIRequest, PNCPResponse # Import APIRequest for type hinting
+import dlt
 import json
-import zlib
+import tempfile
+import shutil
+from pathlib import Path
+from unittest.mock import patch, MagicMock
+from datetime import date, timedelta
 
-@pytest.fixture(autouse=True)
-def mock_prefect_logger():
-    # TODO: This fixture mocks a Prefect logger, but Prefect is no longer
-    #       used in the DLT-based pipeline. This fixture should be removed
-    #       or updated to mock a standard Python logger if logging capture
-    #       is still needed for testing purposes.
-    with patch('prefect.get_run_logger', return_value=logging.getLogger('mock_prefect_logger')):
-        yield
+from baliza.extraction.pipeline import pncp_source, run_structured_extraction
+from baliza.extraction.config import create_pncp_rest_config
+from baliza.extraction.gap_detector import find_extraction_gaps
+from baliza.schemas import ModalidadeContratacao
+from baliza.utils.completion_tracking import mark_extraction_completed, get_completed_extractions
+
 
 @pytest.fixture
-def mock_extractor():
-    """Fixture to mock EndpointExtractor methods."""
-    mock_ext = AsyncMock()
+def temp_output_dir():
+    """Create temporary output directory for testing."""
+    temp_dir = tempfile.mkdtemp()
+    yield temp_dir
+    shutil.rmtree(temp_dir)
+
+
+@pytest.fixture
+def sample_pncp_response():
+    """Sample PNCP API response for mocking."""
+    return {
+        "data": [
+            {
+                "numeroControlePNCP": "12345-2024-001",
+                "anoCompra": 2024,
+                "sequencialCompra": 1,
+                "valorTotalEstimado": 100000.00,
+                "modalidadeId": 6,
+                "modalidadeNome": "Pregão Eletrônico",
+                "situacaoCompraId": "1",
+                "dataPublicacaoPncp": "2024-01-15T10:00:00Z",
+                "orgaoEntidade": {
+                    "cnpj": "12345678000123",
+                    "razaoSocial": "Teste Órgão",
+                    "poderId": "E",
+                    "esferaId": "F"
+                }
+            }
+        ],
+        "totalRegistros": 1,
+        "totalPaginas": 1,
+        "numeroPagina": 1,
+        "paginasRestantes": 0,
+        "empty": False
+    }
+
+
+class TestPNCPPipelineConfig:
+    """Test DLT configuration generation."""
     
-    # Sample data for mocking
-    sample_data_cp = {"data": [{"id": 1, "value": "a"}, {"id": 2, "value": "b"}], "totalRegistros": 2, "totalPaginas": 1, "numeroPagina": 1, "paginasRestantes": 0}
-    sample_data_c = {"data": [{"id": 3, "value": "c"}, {"id": 4, "value": "d"}], "totalRegistros": 2, "totalPaginas": 1, "numeroPagina": 1, "paginasRestantes": 0}
-    sample_data_a = {"data": [{"id": 5, "value": "e"}, {"id": 6, "value": "f"}], "totalRegistros": 2, "totalPaginas": 1, "numeroPagina": 1, "paginasRestantes": 0}
-
-    # Compress sample data
-    compressed_data_cp = zlib.compress(json.dumps(sample_data_cp).encode("utf-8"))
-    compressed_data_c = zlib.compress(json.dumps(sample_data_c).encode("utf-8"))
-    compressed_data_a = zlib.compress(json.dumps(sample_data_a).encode("utf-8"))
-
-    mock_ext.extract_contratacoes_publicacao.return_value = [
-        APIRequest(
-            request_id="test_id_cp1",
-            ingestion_date="2024-01-01",
-            endpoint="contratacoes_publicacao",
-            http_status=200,
-            payload_sha256="abc",
-            payload_size=100,
-            collected_at="2024-01-01T00:00:00",
-            payload_compressed=compressed_data_cp
+    def test_create_basic_config(self):
+        """Test basic REST API config creation."""
+        config = create_pncp_rest_config(
+            start_date="20240101",
+            end_date="20240131"
         )
-    ]
-    mock_ext.extract_contratos.return_value = [
-        APIRequest(
-            request_id="test_id_c1",
-            ingestion_date="2024-01-01",
-            endpoint="contratos",
-            http_status=200,
-            payload_sha256="def",
-            payload_size=100,
-            collected_at="2024-01-01T00:00:00",
-            payload_compressed=compressed_data_c
+        
+        assert "client" in config
+        assert "resources" in config
+        assert config["client"]["base_url"] == "https://pncp.gov.br/api/consulta"
+        assert len(config["resources"]) > 0
+        
+        # Check first resource structure
+        resource = config["resources"][0]
+        assert "name" in resource
+        assert "endpoint" in resource
+        assert "primary_key" in resource
+        assert resource["write_disposition"] == "merge"
+    
+    def test_config_with_modalidades(self):
+        """Test config generation with specific modalidades."""
+        modalidades = [ModalidadeContratacao.PREGAO_ELETRONICO.value]
+        config = create_pncp_rest_config(
+            start_date="20240101",
+            end_date="20240131",
+            modalidades=modalidades
         )
-    ]
-    mock_ext.extract_atas.return_value = [
-        APIRequest(
-            request_id="test_id_a1",
-            ingestion_date="2024-01-01",
-            endpoint="atas",
-            http_status=200,
-            payload_sha256="ghi",
-            payload_size=100,
-            collected_at="2024-01-01T00:00:00",
-            payload_compressed=compressed_data_a
+        
+        # Should have resources for endpoints that require modalidades
+        resource_names = [r["name"] for r in config["resources"]]
+        assert any("contratacoes_publicacao" in name for name in resource_names)
+
+
+class TestGapDetection:
+    """Test gap detection functionality."""
+    
+    def test_find_gaps_no_existing_data(self, temp_output_dir):
+        """Test gap detection when no data exists."""
+        gaps = find_extraction_gaps(
+            start_date="20240101",
+            end_date="20240131",
+            endpoints=["contratacoes_publicacao"]
         )
-    ]
-    return mock_ext
-
-@pytest.mark.skip(reason="DLT resource naming issue in test environment")
-# FIXME: All tests in this file are skipped. This is a critical issue.
-#        The reason "DLT resource naming issue in test environment" needs to be
-#        investigated and resolved. A test suite that is not running provides
-#        a false sense of security.
-@pytest.mark.asyncio
-async def test_pncp_source_creation_and_resources(mock_extractor):
-    """Verify that the pncp_source can be created and its resources are callable."""
-    source = pncp_source(extractor_instance=mock_extractor)
-    assert source is not None
-    assert isinstance(source, dlt.sources.DltSource)
-
-    expected_resource_names = {"contratacoes_publicacao", "contratos", "atas"}
-    actual_resource_names = set(source.resources.keys())
-    assert actual_resource_names == expected_resource_names, \
-        f"Mismatch between expected resources and dlt resources. Missing: {expected_resource_names - actual_resource_names}, Extra: {actual_resource_names - expected_resource_names}"
-
-    for resource_name in expected_resource_names:
-        resource = source.resources[resource_name]
-        assert callable(resource)
-
-@pytest.mark.skip(reason="DLT resource naming issue in test environment")
-@pytest.mark.parametrize("endpoint_name", [endpoint.name for endpoint in PncpEndpoint])
-def test_resource_is_callable(endpoint_name):
-    """Verify that each created resource is a callable function."""
-    source = pncp_source()
-    resource = source.resources[endpoint_name]
-    assert callable(resource)
-
-@pytest.mark.skip(reason="DLT resource naming issue in test environment")
-@pytest.mark.asyncio
-async def test_contratacoes_publicacao_resource_extraction(mock_extractor):
-    """Test extraction from 'contratacoes_publicacao' resource."""
-    pipeline = dlt.pipeline(
-        pipeline_name="test_pncp_pipeline",
-        destination="duckdb", # Use duckdb for testing
-        dataset_name="test_dataset"
-    )
+        
+        assert len(gaps) > 0
+        assert gaps[0].endpoint == "contratacoes_publicacao"
+        assert gaps[0].start_date == "20240101"
+        assert gaps[0].end_date == "20240131"
     
-    # Run the pipeline for a specific resource
-    info = await pipeline.run(
-        pncp_source(extractor_instance=mock_extractor).resources["contratacoes_publicacao"],
-        start_date="20240101",
-        end_date="20240101",
-        modalidade=ModalidadeContratacao.LEILAO_ELETRONICO.value # Pass the int value
-    )
-    
-    # Verify that the extractor method was called
-    mock_extractor.extract_contratacoes_publicacao.assert_called_once_with(
-        data_inicial="20240101",
-        data_final="20240101",
-        modalidade=ModalidadeContratacao.LEILAO_ELETRONICO # The mock expects the Enum
-    )
-    
-    # Verify data was loaded (this is a basic check, more detailed checks would involve querying duckdb)
-    assert info.status == "running" # Pipeline should run without immediate errors
-    # For more robust testing, you'd query the duckdb to check row counts and data content.
+    def test_find_gaps_with_completed_data(self, temp_output_dir):
+        """Test gap detection when some data already exists."""
+        # Mark some extractions as completed
+        mark_extraction_completed(
+            temp_output_dir,
+            "20240101",
+            "20240131", 
+            ["contratacoes_publicacao"]
+        )
+        
+        # Patch the gap detector to use our temp directory
+        with patch('baliza.extraction.gap_detector.get_completed_extractions') as mock_get:
+            mock_get.return_value = get_completed_extractions(temp_output_dir)
+            
+            gaps = find_extraction_gaps(
+                start_date="20240101",
+                end_date="20240131",
+                endpoints=["contratacoes_publicacao"]
+            )
+            
+            # Should have no gaps for completed data
+            assert len(gaps) == 0
 
-@pytest.mark.skip(reason="DLT resource naming issue in test environment")
-@pytest.mark.asyncio
-async def test_contratos_resource_extraction(mock_extractor):
-    """Test extraction from 'contratos' resource."""
-    pipeline = dlt.pipeline(
-        pipeline_name="test_pncp_pipeline",
-        destination="duckdb",
-        dataset_name="test_dataset"
-    )
-    
-    info = await pipeline.run(
-        pncp_source(extractor_instance=mock_extractor).resources["contratos"],
-        start_date="20240101",
-        end_date="20240101"
-    )
-    
-    mock_extractor.extract_contratos.assert_called_once_with(
-        data_inicial="20240101",
-        data_final="20240101"
-    )
-    assert info.status == "running"
 
-@pytest.mark.skip(reason="DLT resource naming issue in test environment")
-@pytest.mark.asyncio
-async def test_atas_resource_extraction(mock_extractor):
-    """Test extraction from 'atas' resource."""
-    pipeline = dlt.pipeline(
-        pipeline_name="test_pncp_pipeline",
-        destination="duckdb",
-        dataset_name="test_dataset"
-    )
+class TestPNCPSource:
+    """Test DLT source creation."""
     
-    info = await pipeline.run(
-        pncp_source(extractor_instance=mock_extractor).resources["atas"],
-        start_date="20240101",
-        end_date="20240101"
-    )
+    @patch('baliza.extraction.pipeline.find_extraction_gaps')
+    def test_source_creation_with_gaps(self, mock_find_gaps):
+        """Test source creation when gaps exist."""
+        from baliza.extraction.gap_detector import DataGap
+        
+        # Mock gaps
+        mock_gaps = [
+            DataGap("20240101", "20240131", "contratacoes_publicacao")
+        ]
+        mock_find_gaps.return_value = mock_gaps
+        
+        source = pncp_source(
+            start_date="20240101",
+            end_date="20240131"
+        )
+        
+        assert source is not None
+        # Source should be created for the gap
+        mock_find_gaps.assert_called_once()
     
-    mock_extractor.extract_atas.assert_called_once_with(
-        data_inicial="20240101",
-        data_final="20240101"
-    )
-    assert info.status == "running"
+    @patch('baliza.extraction.pipeline.find_extraction_gaps')
+    def test_source_creation_no_gaps(self, mock_find_gaps):
+        """Test source creation when no gaps exist."""
+        mock_find_gaps.return_value = []
+        
+        source = pncp_source(
+            start_date="20240101",
+            end_date="20240131"
+        )
+        
+        assert source is not None
+        # Should return empty source
+        mock_find_gaps.assert_called_once()
 
-@pytest.mark.skip(reason="DLT resource naming issue in test environment")
-@pytest.mark.asyncio
-async def test_idempotent_load(mock_extractor):
-    """Test that running the pipeline twice with the same data does not create duplicate records."""
-    pipeline = dlt.pipeline(
-        pipeline_name="test_pncp_idempotent_pipeline",
-        destination="duckdb",
-        dataset_name="test_idempotent_dataset",
-        full_refresh=True # Ensure a clean slate for each test run
-    )
 
-    # First run
-    info_first_run = await pipeline.run(
-        pncp_source(extractor_instance=mock_extractor).resources["contratos"],
-        start_date="20240101",
-        end_date="20240101"
-    )
-    assert info_first_run.status == "running"
-    assert info_first_run.metrics.data_item_counts["contratos"] == 2 # Expect 2 records from mock
+class TestDLTIntegration:
+    """Test DLT pipeline integration."""
+    
+    @pytest.mark.integration
+    @patch('dlt.sources.rest_api.rest_api_source')
+    def test_pipeline_run_mocked(self, mock_rest_api, temp_output_dir, sample_pncp_response):
+        """Test pipeline run with mocked DLT source."""
+        # Create mock DLT source that returns sample data
+        mock_source = MagicMock()
+        mock_resource = MagicMock()
+        mock_resource.__iter__ = lambda x: iter([sample_pncp_response["data"][0]])
+        mock_source.resources = {"contratacoes_publicacao": mock_resource}
+        mock_rest_api.return_value = mock_source
+        
+        # Create pipeline
+        pipeline = dlt.pipeline(
+            pipeline_name="test_pncp",
+            destination="duckdb",
+            dataset_name="test_pncp_data"
+        )
+        
+        # Create source (will use mocked rest_api_source)
+        source = pncp_source(
+            start_date="20240101",
+            end_date="20240131",
+            endpoints=["contratacoes_publicacao"]
+        )
+        
+        # Run pipeline
+        info = pipeline.run(source)
+        
+        # Verify pipeline ran successfully
+        assert info is not None
+        # Note: In real integration, we'd verify data was loaded
+    
+    def test_completion_tracking(self, temp_output_dir):
+        """Test completion tracking functionality."""
+        endpoints = ["contratacoes_publicacao", "contratos"]
+        
+        # Mark extraction as completed
+        mark_extraction_completed(
+            temp_output_dir,
+            "20240101",
+            "20240131",
+            endpoints
+        )
+        
+        # Verify completion was recorded
+        completed = get_completed_extractions(temp_output_dir)
+        
+        for endpoint in endpoints:
+            assert endpoint in completed
+            assert "2024-01" in completed[endpoint]
+        
+        # Check completion marker files exist
+        for endpoint in endpoints:
+            marker_path = Path(temp_output_dir) / endpoint / "2024" / "01" / ".completed"
+            assert marker_path.exists()
 
-    # Second run with the same data
-    info_second_run = await pipeline.run(
-        pncp_source(extractor_instance=mock_extractor).resources["contratos"],
-        start_date="20240101",
-        end_date="20240101"
-    )
-    assert info_second_run.status == "running"
-    assert info_second_run.metrics.data_item_counts["contratos"] == 0 # Expect 0 new records due to deduplication
+
+class TestErrorHandling:
+    """Test error handling and edge cases."""
+    
+    def test_invalid_date_range(self):
+        """Test handling of invalid date ranges."""
+        with pytest.raises((ValueError, TypeError)):
+            create_pncp_rest_config(
+                start_date="invalid",
+                end_date="20240131"
+            )
+    
+    def test_invalid_modalidade(self):
+        """Test handling of invalid modalidade values."""
+        # Should not raise error, but may produce unexpected results
+        config = create_pncp_rest_config(
+            start_date="20240101",
+            end_date="20240131",
+            modalidades=[999]  # Invalid modalidade
+        )
+        
+        assert config is not None
+        # API will handle invalid modalidade values
+
+
+class TestDataTransformation:
+    """Test data transformation and processing steps."""
+    
+    def test_hash_id_generation(self, sample_pncp_response):
+        """Test hash-based ID generation for deduplication."""
+        from baliza.extraction.config import _add_hash_id
+        
+        record = sample_pncp_response["data"][0]
+        processed = _add_hash_id(record)
+        
+        assert "_dlt_id" in processed
+        assert processed["_dlt_id"] is not None
+        assert len(processed["_dlt_id"]) > 0
+        
+        # Hash should be consistent
+        processed2 = _add_hash_id(record)
+        assert processed["_dlt_id"] == processed2["_dlt_id"]
+    
+    def test_metadata_addition(self, sample_pncp_response):
+        """Test metadata addition to records."""
+        from baliza.extraction.config import _add_metadata
+        
+        record = sample_pncp_response["data"][0]
+        processed = _add_metadata(record)
+        
+        assert "_baliza_extracted_at" in processed
+        assert processed["_baliza_extracted_at"] == date.today().isoformat()
+
+
+class TestPerformanceAndScaling:
+    """Test performance considerations and scaling."""
+    
+    def test_large_date_range_handling(self):
+        """Test handling of large date ranges."""
+        # Test 1 year range
+        config = create_pncp_rest_config(
+            start_date="20230101",
+            end_date="20231231"
+        )
+        
+        assert config is not None
+        assert len(config["resources"]) > 0
+        
+        # Resources should have appropriate pagination settings
+        for resource in config["resources"]:
+            params = resource["endpoint"]["params"]
+            assert "tamanhoPagina" in params
+            assert params["tamanhoPagina"] > 0
+    
+    def test_multiple_modalidades(self):
+        """Test handling of multiple modalidades."""
+        all_modalidades = [m.value for m in ModalidadeContratacao]
+        
+        config = create_pncp_rest_config(
+            start_date="20240101",
+            end_date="20240131",
+            modalidades=all_modalidades
+        )
+        
+        assert config is not None
+        # Should handle all modalidades without errors
+
+
+@pytest.mark.integration
+class TestRealAPIIntegration:
+    """Integration tests against real PNCP API (use sparingly)."""
+    
+    @pytest.mark.skip(reason="Real API test - enable for integration testing")
+    def test_real_api_connection(self):
+        """Test actual connection to PNCP API."""
+        import requests
+        
+        # Test basic API connectivity
+        response = requests.get(
+            "https://pncp.gov.br/api/consulta/contratacoes/publicacao",
+            params={
+                "dataInicial": "20240101",
+                "dataFinal": "20240101",
+                "codigoModalidadeContratacao": 6,
+                "tamanhoPagina": 1,
+                "pagina": 1
+            },
+            timeout=30
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "data" in data
+        assert "totalRegistros" in data
+    
+    @pytest.mark.skip(reason="Real API test - enable for integration testing")  
+    def test_full_pipeline_integration(self, temp_output_dir):
+        """Test full pipeline against real API (small dataset)."""
+        # Run extraction for 1 day only
+        yesterday = date.today() - timedelta(days=1)
+        date_str = yesterday.strftime("%Y%m%d")
+        
+        result = run_structured_extraction(
+            start_date=date_str,
+            end_date=date_str,
+            endpoints=["contratacoes_publicacao"],
+            output_dir=temp_output_dir
+        )
+        
+        # Should complete without errors
+        assert result is not None
+        
+        # Check output files were created
+        output_path = Path(temp_output_dir)
+        assert output_path.exists()
+        
+        # Check completion markers
+        completed = get_completed_extractions(temp_output_dir)
+        assert "contratacoes_publicacao" in completed
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

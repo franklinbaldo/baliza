@@ -18,6 +18,7 @@ from typing import List, Optional, Any, Dict
 from .config import create_pncp_rest_config, create_modalidade_resources
 from .gap_detector import find_extraction_gaps, DataGap
 from baliza.schemas import ModalidadeContratacao
+from baliza.utils.completion_tracking import mark_extraction_completed, get_completed_extractions, _get_months_in_range
 
 
 def pncp_source(
@@ -234,83 +235,6 @@ if __name__ == "__main__":
     result = run_priority_extraction(start_str, end_str)
     
     print(f"Extraction completed: {result.metrics}")
-def mark_extraction_completed(output_dir: str, start_date: str, end_date: str, endpoints: List[str]):
-    """Mark extraction as completed for endpoint/month combinations."""
-    base_path = Path(output_dir)
-    
-    # Generate list of months between start and end dates
-    months = _get_months_in_range(start_date, end_date)
-    
-    for endpoint in endpoints:
-        for month in months:
-            endpoint_dir = base_path / endpoint / month
-            endpoint_dir.mkdir(parents=True, exist_ok=True)
-            
-            # Create completion marker
-            completion_file = endpoint_dir / ".completed"
-            completion_data = {
-                "completed_at": datetime.now().isoformat(),
-                "endpoint": endpoint,
-                "month": month,
-                "start_date": start_date,
-                "end_date": end_date,
-                "extractor_version": "2.0-dlt"
-            }
-            
-            with open(completion_file, 'w') as f:
-                json.dump(completion_data, f, indent=2)
-                
-            print(f"✅ Marked {endpoint}/{month} as completed")
-
-
-def is_extraction_completed(output_dir: str, endpoint: str, month: str) -> bool:
-    """Check if extraction is completed for endpoint/month combination."""
-    completion_file = Path(output_dir) / endpoint / month / ".completed"
-    return completion_file.exists()
-
-
-def get_completed_extractions(output_dir: str) -> Dict[str, List[str]]:
-    """Get list of completed extractions organized by endpoint."""
-    base_path = Path(output_dir)
-    completed = {}
-    
-    if not base_path.exists():
-        return completed
-    
-    for endpoint_dir in base_path.iterdir():
-        if endpoint_dir.is_dir():
-            endpoint = endpoint_dir.name
-            completed[endpoint] = []
-            
-            for month_dir in endpoint_dir.iterdir():
-                if month_dir.is_dir() and (month_dir / ".completed").exists():
-                    completed[endpoint].append(month_dir.name)
-    
-    return completed
-
-
-def _get_months_in_range(start_date: str, end_date: str) -> List[str]:
-    """Generate list of YYYY-MM strings between start and end dates."""
-    # Parse dates (assuming YYYYMMDD format)
-    start_year = int(start_date[:4])
-    start_month = int(start_date[4:6])
-    end_year = int(end_date[:4])
-    end_month = int(end_date[4:6])
-    
-    months = []
-    
-    current_year = start_year
-    current_month = start_month
-    
-    while (current_year < end_year) or (current_year == end_year and current_month <= end_month):
-        months.append(f"{current_year:04d}-{current_month:02d}")
-        
-        current_month += 1
-        if current_month > 12:
-            current_month = 1
-            current_year += 1
-    
-    return months
 
 
 def run_structured_extraction(
