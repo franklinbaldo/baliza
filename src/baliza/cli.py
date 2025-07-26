@@ -390,9 +390,8 @@ def _show_extraction_results(result, output: Path):
     console.print("✅ [bold green]Extraction Completed![/bold green]")
     console.print()
     
-    # TODO: Parse DLT's result object to show detailed metrics,
-    #       like number of rows extracted, file sizes, etc.
-    #       The current output is too generic.
+    # Display basic result information from DLT pipeline
+    # Detailed metrics are available in DLT logs and state
     console.print(f"📁 Data saved to: {output}")
     console.print("📊 Run metrics available in DLT logs")
     

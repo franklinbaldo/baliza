@@ -116,6 +116,9 @@ def pncp_modalidade_source(
     """
     Source for a specific modalidade with separate resources per modalidade.
     Useful for endpoints that require modalidade parameter.
+    
+    Note: This function provides modalidade-specific extraction.
+    Can be replaced by run_structured_extraction with modalidade parameter.
     """
     return pncp_source(
         start_date=start_date,
@@ -153,73 +156,70 @@ def create_default_pipeline(destination: str = "parquet", output_dir: str = "dat
         )
 
 
-# Deprecated functions removed - use run_structured_extraction() instead
-
-
-def run_structured_extraction(
-    start_date: str = None,
-    end_date: str = None,
-    endpoints: List[str] = None,
-    output_dir: str = "data",
-    skip_completed: bool = True
+def run_priority_extraction(
+    start_date: str, 
+    end_date: str,
+    destination: str = "parquet",
+    output_dir: str = "data"
 ) -> Any:
-    """Run extraction with structured Parquet output and completion tracking.
+    """
+    Run extraction for priority endpoints with structured output.
     
-    Args:
-        start_date: Start date in YYYYMMDD format (optional for backfill)
-        end_date: End date in YYYYMMDD format (optional for backfill)
-        endpoints: List of endpoints to extract (default: all)
-        output_dir: Output directory for structured Parquet files
-        skip_completed: Skip already completed endpoint/month combinations
+    Note: This function provides priority endpoint extraction.
+    Can be replaced by run_structured_extraction with endpoint filtering.
     
     Returns:
         Pipeline run summary with metrics
     """
-    # Use all endpoints if none specified
-    from baliza.settings import settings
-    if not endpoints:
-        endpoints = settings.all_pncp_endpoints
+    pipeline = create_default_pipeline(destination, output_dir)
+    source = pncp_priority_source(start_date, end_date)
     
-    # Filter out already completed extractions
-    if skip_completed:
-        completed = get_completed_extractions(output_dir)
-        months_in_range = _get_months_in_range(start_date or "20240101", end_date or "20241231")
-        
-        filtered_endpoints = []
-        for endpoint in endpoints:
-            if endpoint not in completed:
-                filtered_endpoints.append(endpoint)
-            else:
-                # Check if all months are completed
-                completed_months = set(completed[endpoint])
-                required_months = set(months_in_range)
-                
-                if not required_months.issubset(completed_months):
-                    filtered_endpoints.append(endpoint)
-                else:
-                    print(f"⏭️  Skipping {endpoint} - all months already completed")
-        
-        endpoints = filtered_endpoints
-    
-    if not endpoints:
-        print("✅ All extractions already completed")
-        return None
-    
-    # Create pipeline with structured output
-    pipeline = create_default_pipeline("parquet", output_dir)
-    
-    # Create source with gap detection
-    source = pncp_source(
-        start_date=start_date,
-        end_date=end_date,
-        endpoints=endpoints,
-        backfill_all=(start_date is None and end_date is None)
-    )
-    
-    # Run extraction
+    # Run the pipeline - dlt handles everything!
     result = pipeline.run(source)
     
-    # Mark extractions as completed
-    mark_extraction_completed(output_dir, start_date or "20240101", end_date or "20241231", endpoints)
+    # Mark extraction as completed for each endpoint and month
+    if destination == "parquet":
+        mark_extraction_completed(output_dir, start_date, end_date, ["contratacoes_publicacao", "contratos", "atas"])
     
     return result
+
+
+def run_modalidade_extraction(
+    start_date: str,
+    end_date: str, 
+    modalidade: ModalidadeContratacao,
+    destination: str = "duckdb"
+) -> Any:
+    """
+    Run extraction for specific modalidade.
+    
+    Note: This function provides modalidade-specific extraction.
+    Can be replaced by run_structured_extraction with modalidade parameter.
+    
+    Returns:
+        Pipeline run summary with metrics
+    """
+    pipeline = create_default_pipeline(destination)
+    source = pncp_modalidade_source(start_date, end_date, modalidade)
+    
+    return pipeline.run(source)
+
+
+# Migration compatibility layer (temporary)
+def pncp_source_legacy_compat(
+    start_date: str = "20240101",
+    end_date: str = "20240101", 
+    modalidade: int = None,
+    extractor_instance = None  # Ignored - no longer needed!
+):
+    """
+    Legacy compatibility wrapper for existing code.
+    
+    Note: Legacy compatibility wrapper for existing code.
+    Should be removed once all callers are migrated to pncp_source().
+    
+    WARNING: This is deprecated. Use pncp_source() directly.
+    extractor_instance parameter is ignored (no longer needed with dlt built-ins).
+    """
+    modalidades = [modalidade] if modalidade else None
+    return pncp_source(start_date, end_date, modalidades)

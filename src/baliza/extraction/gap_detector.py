@@ -319,7 +319,8 @@ class PNCPGapDetector:
                         # Parse ISO date
                         extract_date = datetime.fromisoformat(row._baliza_extracted_at.replace('Z', '+00:00')).date()
                         extraction_dates.append(extract_date)
-                    except:
+                    except Exception as e:
+                        print(f"⚠️  Error parsing extracted date: {e}")
                         continue
             
             if not extraction_dates:

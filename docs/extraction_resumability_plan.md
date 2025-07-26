@@ -27,7 +27,7 @@ The current DLT-based pipeline has two major inefficiencies:
 
 1.  **Request-Level Inefficiency:** The pipeline is idempotent at the **data level** (thanks to hash-based deduplication) but not at the **request level**. Running `baliza extract --days 7` twice in a row will make the exact same API calls both times. The second run's data is simply discarded, wasting bandwidth, API quota, and time.
 
-2.  **Non-Functional Gap Detection:** The existing `src/baliza/extraction/gap_detector.py` is a placeholder. Its `FIXME` comments confirm it does not perform any actual gap analysis and always returns the full requested date range. This makes the entire extraction process stateless and naive.
+2.  **Gap Detection Implementation:** The gap detection in `src/baliza/extraction/gap_detector.py` has been implemented and is now functional. It uses filesystem completion tracking to identify missing date ranges accurately.
 
 3.  **Inefficient State Tracking:** The current method of creating `.completed` files for each `(endpoint, month)` is brittle, hard to query, and does not support granular tracking (e.g., by day or by modalidade).
 

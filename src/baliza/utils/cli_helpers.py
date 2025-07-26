@@ -156,6 +156,8 @@ def get_version_info() -> str:
 
 def format_endpoint_list(endpoints: List[str]) -> str:
     """Format endpoint list for display."""
+    # Basic endpoint list formatting for CLI display
+    # Truncates long lists to keep output readable
     if len(endpoints) <= 3:
         return ", ".join(endpoints)
     else:

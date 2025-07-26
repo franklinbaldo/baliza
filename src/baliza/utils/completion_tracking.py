@@ -122,3 +122,4 @@ def mark_extraction_completed(output_dir: str, start_date: str, end_date: str, e
                 # Extended metrics are tracked in the DLT pipeline state
                 f.write(f"Completed at: {datetime.now().isoformat()}\n")
                 f.write(f"Date range: {start_date} to {end_date}\n")
+

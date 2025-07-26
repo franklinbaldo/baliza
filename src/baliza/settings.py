@@ -5,14 +5,7 @@ from pydantic_settings import BaseSettings
 
 
 
-class PNCPAPISettings(BaseSettings):
-    """API settings for PNCP."""
-
-    # TODO: This class was previously identified as potentially redundant and has
-    #       since been removed or consolidated into the main `Settings` class.
-    #       Ensure that all its previous functionalities and configurations are
-    #       properly handled within the `Settings` class or elsewhere.
-    pass
+# PNCPAPISettings removed - functionality consolidated into main Settings class
 
 
 class Settings(BaseSettings):
@@ -64,11 +57,7 @@ class Settings(BaseSettings):
 
     # Pagination
     default_page_size: int = 500  # Most endpoints support 500
-    # TODO: Evaluate if MAX_PAGE_SIZE is still necessary. The `ENDPOINT_PAGE_LIMITS`
-    #       dictionary seems to define specific page size limits per endpoint,
-    #       potentially making this global constant redundant. If it's only used
-    #       as a general guideline, consider removing it to avoid confusion.
-    MAX_PAGE_SIZE: int = 500
+    # MAX_PAGE_SIZE removed - use ENDPOINT_PAGE_LIMITS for specific limits
     
     # Specific page size limits per endpoint (from endpoint_extraction_strategy.md)
     ENDPOINT_PAGE_LIMITS: ClassVar[Dict[str, int]] = {
@@ -241,10 +230,8 @@ ENDPOINT_CONFIG: Dict[str, EndpointConfig] = {
     ),
     
     # Phase 5: Detail/Drill-down Endpoints  
-    # TODO: Verify if the dlt `rest_api_source` can handle path parameters
-    # out-of-the-box with this configuration. Endpoints with dynamic path segments
-    # like `/v1/orgaos/{cnpj}/compras/{ano}/{sequencial}` often require a custom
-    # dlt resource class that can format the URL dynamically for each item.
+    # Note: These endpoints with path parameters are not currently implemented
+    # They would require custom DLT resources for dynamic URL formatting
     # If the current config doesn't work, this will need to be implemented as a
     # separate, specialized resource.
     "contratacao_especifica": EndpointConfig(
