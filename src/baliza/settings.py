@@ -9,17 +9,8 @@ from .schemas import ModalidadeContratacao
 class PNCPAPISettings(BaseSettings):
     """API settings for PNCP."""
 
-    # TODO: This class seems to be a subset of the main `Settings` class.
-    #       It's not clear where this is used or why it's separate.
-    #       Investigate if this can be merged into the main `Settings` class
-    #       or if its purpose can be better documented.
-    base_url: str = "https://pncp.gov.br/api/consulta"
-    supported_api_version: str = "1.0"
-    timeout_seconds: int = 30
-
-    class Config:
-        env_file = ".env"
-        env_prefix = "PNCP_"
+    # Removed - functionality consolidated into main Settings class
+    pass
 
 
 class Settings(BaseSettings):

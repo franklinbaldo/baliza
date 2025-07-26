@@ -73,7 +73,22 @@ class PNCPGapDetector:
         #        This must be replaced with a proper implementation that queries
         #        DLT state or a metadata store to identify what data has already
         #        been ingested.
-        print(f"🔄 Gap detection temporarily disabled - assuming full extraction needed for {endpoint}")
+        # Use completion markers to determine gaps
+        from .pipeline import get_completed_extractions, _get_months_in_range
+        
+        completed = get_completed_extractions("data")
+        completed_months = set(completed.get(endpoint, []))
+        
+        # Get months needed for this date range
+        months_needed = set(_get_months_in_range(start_date, end_date))
+        
+        # If all months are completed, no gaps
+        if months_needed.issubset(completed_months):
+            print(f"✅ No gaps found for {endpoint} - all data already extracted")
+            return []
+        
+        # Return gap for the requested range
+        print(f"🔄 Gap detected for {endpoint}: {start_date} to {end_date}")
         return [DataGap(start_date, end_date, endpoint)]
     
     def _get_existing_requests_with_pagination(self, table) -> Dict[str, Set[int]]:
