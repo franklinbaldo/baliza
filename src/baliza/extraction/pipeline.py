@@ -378,4 +378,3 @@ def run_structured_extraction(
     mark_extraction_completed(output_dir, start_date or "20240101", end_date or "20241231", endpoints)
     
     return result
-EOF < /dev/null
