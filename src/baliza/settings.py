@@ -92,9 +92,7 @@ class Settings(BaseSettings):
     retention_days_logs: int = 90
 
     # Security
-    # FIXME: The secret_key is hardcoded. This is a major security risk.
-    #        It should be loaded from an environment variable or a secrets management system.
-    secret_key: str = "your-secret-key"
+    secret_key: str = "dev-key-change-in-production"  # Override via BALIZA_SECRET_KEY env var
     enable_authentication: bool = False
 
     # Monitoring
@@ -246,6 +244,12 @@ ENDPOINT_CONFIG: Dict[str, EndpointConfig] = {
     ),
     
     # Phase 5: Detail/Drill-down Endpoints  
+    # TODO: Verify if the dlt `rest_api_source` can handle path parameters
+    # out-of-the-box with this configuration. Endpoints with dynamic path segments
+    # like `/v1/orgaos/{cnpj}/compras/{ano}/{sequencial}` often require a custom
+    # dlt resource class that can format the URL dynamically for each item.
+    # If the current config doesn't work, this will need to be implemented as a
+    # separate, specialized resource.
     "contratacao_especifica": EndpointConfig(
         path="/v1/orgaos/{cnpj}/compras/{ano}/{sequencial}",
         required_params=["cnpj", "ano", "sequencial"],

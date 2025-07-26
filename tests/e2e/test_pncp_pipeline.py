@@ -1,3 +1,16 @@
+# FIXME: This entire test suite is disabled and outdated.
+# The tests are skipped with the reason "DLT resource naming issue in test environment".
+# Furthermore, the mocking strategy targets a legacy `EndpointExtractor` class
+# that is no longer used in the DLT-based architecture.
+#
+# This suite must be completely rewritten to:
+# 1. Test the new `dlt.sources.rest_api.rest_api_source` based pipeline.
+# 2. Use a modern mocking library like `pytest-httpx` to mock API responses
+#    for the DLT's underlying HTTP client.
+# 3. Test the actual data transformations and the behavior of the gap detector.
+# 4. Remove all skips so that the pipeline is validated in CI.
+#
+# A project without a working test suite is at high risk of regressions.
 import dlt
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock

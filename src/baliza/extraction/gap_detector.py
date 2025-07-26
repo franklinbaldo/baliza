@@ -219,9 +219,11 @@ class PNCPGapDetector:
     def _find_endpoint_gaps(self, endpoint: str, start_date: str, end_date: str) -> List[DataGap]:
         """Find gaps for a specific endpoint."""
         try:
-            # Import here to avoid circular imports
-            # Import here to avoid circular imports - we'll need to implement a simple connection
-            # For now, this will be a placeholder until we implement the connection logic
+            # FIXME: The database connection logic is commented out and incomplete.
+            # The comment `from baliza.backend import connect` indicates a refactoring
+            # where the dependency was removed but the logic was not updated.
+            # This function needs a proper way to connect to the DLT destination (e.g., DuckDB)
+            # to query for existing data and identify gaps.
             # from baliza.backend import connect
             pass
             

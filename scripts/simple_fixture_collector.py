@@ -24,6 +24,11 @@ def fetch_api_data(url: str, endpoint_name: str):
     print(f"🔍 Coletando: {endpoint_name}")
     print(f"   URL: {url}")
 
+    # FIXME: This script uses the outdated `urllib` library, which is generally
+    #        discouraged in modern Python development due to its complexity and lack
+    #        of features compared to libraries like `requests` or `httpx`.
+    #        While it's used here to avoid external dependencies, it would be
+    #        better to use a more modern library and manage the dependency.
     try:
         # Create request with proper headers
         req = urllib.request.Request(url)
@@ -75,6 +80,11 @@ def main():
 
     base_url = "https://pncp.gov.br/api/consulta/v1"
 
+    # TODO: The endpoint configurations are hardcoded in this script.
+    #       This is not ideal as it can become out of sync with the main
+    #       application's configuration. This script should import the
+    #       `ENDPOINT_CONFIG` from `baliza.settings` and use it to construct
+    #       the URLs dynamically.
     # Define endpoints to collect
     endpoints = [
         {

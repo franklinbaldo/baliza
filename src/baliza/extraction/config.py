@@ -38,13 +38,17 @@ def create_pncp_rest_config(
         end_date = end_dt.strftime("%Y%m%d")
     
     # Client configuration
-    # FIXME: The User-Agent is hardcoded. It should be dynamic and include
-    #        version information, for example, by reading from pyproject.toml.
-    #        This helps in identifying the client application making requests.
+    # Dynamic User-Agent with version info
+    try:
+        from importlib.metadata import version
+        baliza_version = version("baliza")
+    except ImportError:
+        baliza_version = "2.0.0-dev"
+    
     client_config = {
         "base_url": settings.pncp_api_base_url,
         "headers": {
-            "User-Agent": "Baliza/2.0 DLT Pipeline",
+            "User-Agent": f"Baliza/{baliza_version} DLT Pipeline",
             "Accept": "application/json"
         }
         # Note: timeout would need to be configured through session if needed
@@ -186,9 +190,11 @@ def _add_request_url(record: Dict[str, Any]) -> Dict[str, Any]:
     """
     record_copy = record.copy()
     
-    # Add URL metadata that can be used for request-level deduplication
-    # Note: The actual URL needs to be passed through DLT context
-    # For now, we'll add a placeholder that can be populated during processing
+    # TODO: Plumb the actual request URL from the DLT resource context.
+    # DLT's `rest_api_source` provides context about the request. This function
+    # should be adapted to be a proper processing step that accesses this context
+    # and adds the `request_url` to the record. This is crucial for enabling
+    # request-level deduplication and improving traceability in the future.
     record_copy["_baliza_request_url"] = None  # Will be set by pipeline context
     
     return record_copy
