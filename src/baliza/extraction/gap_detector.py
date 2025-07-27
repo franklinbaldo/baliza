@@ -96,7 +96,6 @@ class PNCPGapDetector:
         missing_months = months_needed - completed_months
 
         if not missing_months:
-            print(f"✅ No gaps found for {endpoint} - all data already extracted")
             return []
 
         # Create precise gaps for each missing month, intersected with requested range
@@ -124,11 +123,9 @@ class PNCPGapDetector:
                     modalidades = [m.value for m in ModalidadeContratacao]
                     for modalidade in modalidades:
                         gaps.append(DataGap(gap_start, gap_end, endpoint, modalidade))
-                        print(f"🔄 Gap detected for {endpoint}: {gap_start} to {gap_end} (modalidade {modalidade})")
                 else:
                     # Standard endpoint - no modalidade required
                     gaps.append(DataGap(gap_start, gap_end, endpoint))
-                    print(f"🔄 Gap detected for {endpoint}: {gap_start} to {gap_end}")
 
         return gaps
 
@@ -538,35 +535,12 @@ def find_extraction_gaps(
     detector = PNCPGapDetector()
 
     if backfill_all or (start_date is None and end_date is None):
-        print("🔍 Detecting gaps for complete historical backfill...")
         gaps = detector.get_backfill_gaps(endpoints)
     else:
-        print(f"🔍 Detecting gaps for date range {start_date} to {end_date}...")
-        if check_pagination:
-            print("   📄 Including pagination gap detection...")
         gaps = detector.find_missing_date_ranges(
             start_date, end_date, endpoints, check_pagination
         )
 
-    if gaps:
-        print(f"📋 Found {len(gaps)} data gaps:")
-        date_gaps = [g for g in gaps if not g.missing_pages]
-        page_gaps = [g for g in gaps if g.missing_pages]
-
-        if date_gaps:
-            print(f"   📅 {len(date_gaps)} date range gaps")
-            for gap in date_gaps[:3]:  # Show first 3
-                print(f"      - {gap}")
-            if len(date_gaps) > 3:
-                print(f"      - ... and {len(date_gaps) - 3} more date gaps")
-
-        if page_gaps:
-            print(f"   📄 {len(page_gaps)} pagination gaps")
-            for gap in page_gaps[:3]:  # Show first 3
-                print(f"      - {gap}")
-            if len(page_gaps) > 3:
-                print(f"      - ... and {len(page_gaps) - 3} more page gaps")
-    else:
-        print("✅ No gaps found - all requested data already exists!")
+    # Gaps are processed silently - progress tracking handled by CLI progress bar
 
     return gaps

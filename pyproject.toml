@@ -23,6 +23,8 @@ dependencies = [
     "pytest>=8.4.1",
     "pytest-asyncio>=1.1.0",
     "pytest-mock>=3.14.1",
+    "enlighten>=1.14.1",
+    "tqdm>=4.67.1",
 ]
 
 [project.optional-dependencies]

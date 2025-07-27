@@ -6,9 +6,10 @@ Default behavior: Extract ALL historical PNCP data (backfill everything).
 """
 
 import typer
+import re
 from rich.console import Console
 from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.progress import Progress, BarColumn, TextColumn, TimeElapsedColumn, TimeRemainingColumn
 from pathlib import Path
 from datetime import date, timedelta
 from typing import Optional
@@ -57,6 +58,10 @@ def extract(
     ),
     # Output options
     output: Path = typer.Option("data/", "--output", "-o", help="Output directory"),
+    # Progress tracking
+    progress: str = typer.Option(
+        "enlighten", "--progress", "-p", help="Progress tracking: enlighten, tqdm, alive_progress, log"
+    ),
     # Utility flags
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),
     dry_run: bool = typer.Option(
@@ -69,12 +74,21 @@ def extract(
     [bold green]By default, extracts monthly data from 2021-01 to present.[/bold green]
 
     Examples:
-      baliza extract                    # Extract monthly from 2021-01 to present (default)
-      baliza extract --days 30         # Last 30 days only
-      baliza extract --date 2025-01    # January 2025 only
-      baliza extract --types contracts # All historical contracts
-      baliza extract --dry-run         # See what would be extracted
+      baliza extract                           # Extract monthly from 2021-01 to present (default)
+      baliza extract --days 30                # Last 30 days only
+      baliza extract --date 2025-01           # January 2025 only
+      baliza extract --types contracts        # All historical contracts
+      baliza extract --progress tqdm          # Use tqdm progress bars
+      baliza extract --progress log           # Log progress to console
+      baliza extract --dry-run                # See what would be extracted
     """
+
+    # Validate progress option
+    valid_progress_options = ["enlighten", "tqdm", "alive_progress", "log"]
+    if progress not in valid_progress_options:
+        console.print(f"[red]Invalid progress option: {progress}[/red]")
+        console.print(f"Valid options: {', '.join(valid_progress_options)}")
+        raise typer.Exit(1)
 
     # Determine date range based on options
     start_date, end_date = parse_date_options(
@@ -97,73 +111,94 @@ def extract(
     output.mkdir(parents=True, exist_ok=True)
 
     # Run extraction
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        console=console,
-    ) as progress:
-        task = progress.add_task("🔄 Extracting PNCP data...", total=None)
+    try:
+        console.print("🔄 Starting PNCP data extraction...")
+        
+        # Create DLT pipeline with built-in progress tracking
+        pipeline = create_default_pipeline("parquet", str(output), progress)
 
-        try:
-            # Create DLT pipeline with structured output
-            pipeline = create_default_pipeline("parquet", str(output))
-
-            # Check if this is a backfill operation (use monthly sources for better isolation)
-            if start_date is None and end_date is None:
-                # Monthly backfill - each month is processed independently
-                monthly_sources = pncp_monthly_sources(
-                    start_date=start_date, 
-                    end_date=end_date, 
-                    endpoints=endpoints,
-                    backfill_all=True
-                )
-                
-                progress.update(task, description=f"🔄 Processing {len(monthly_sources)} monthly sources...")
-                
-                total_results = []
-                failed_months = []
+        # Check if this is a backfill operation (use monthly sources for better isolation)
+        if start_date is None and end_date is None:
+            # Monthly backfill - each month is processed independently
+            monthly_sources = pncp_monthly_sources(
+                start_date=start_date, 
+                end_date=end_date, 
+                endpoints=endpoints,
+                backfill_all=True
+            )
+            
+            total_results = []
+            failed_months = []
+            
+            # Count unique months vs total sources (month×modalidade combinations)
+            unique_months = set()
+            for source in monthly_sources:
+                # Extract month from source name (e.g., "pncp_contratacoes_publicacao_20210101_mod1" -> "202101")
+                if hasattr(source, 'name'):
+                    source_name = source.name
+                    # Extract YYYYMMDD and convert to YYYYMM
+                    match = re.search(r'_(\d{8})_', source_name)
+                    if match:
+                        date_str = match.group(1)
+                        month_str = date_str[:6]  # YYYYMM
+                        unique_months.add(month_str)
+            
+            console.print(f"📊 Processing {len(unique_months)} months ({len(monthly_sources)} sources total)")
+            
+            # Use Rich progress bar for source processing
+            with Progress(
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+                TextColumn("({task.completed}/{task.total})"),
+                TimeElapsedColumn(),
+                TimeRemainingColumn(),
+                console=console,
+            ) as progress_bar:
+                task = progress_bar.add_task("Processing sources", total=len(monthly_sources))
                 
                 for i, source in enumerate(monthly_sources, 1):
-                    progress.update(task, description=f"🔄 Processing month {i}/{len(monthly_sources)}...")
+                    source_name = getattr(source, 'name', f'source_{i}')
                     try:
                         result = pipeline.run(source)
                         total_results.append(result)
-                        console.print(f"   ✅ Month {i}/{len(monthly_sources)} completed")
+                        progress_bar.update(task, advance=1, description=f"✅ {source_name}")
                     except Exception as e:
-                        failed_months.append((i, str(e)))
-                        console.print(f"   ❌ Month {i}/{len(monthly_sources)} failed: {e}")
-                        # Continue with next month instead of failing entire process
-                
-                # Report results
-                if failed_months:
-                    console.print(f"⚠️  {len(failed_months)} months failed:")
-                    for month_num, error in failed_months[:3]:  # Show first 3 failures
-                        console.print(f"   Month {month_num}: {error}")
-                    if len(failed_months) > 3:
-                        console.print(f"   ... and {len(failed_months) - 3} more")
-                
-                # Use the last successful result for display
-                result = total_results[-1] if total_results else None
-            else:
-                # Single date range - use standard source
-                source = pncp_source(
-                    start_date=start_date, end_date=end_date, endpoints=endpoints
-                )
-                result = pipeline.run(source)
+                        failed_months.append((source_name, str(e)))
+                        progress_bar.update(task, advance=1, description=f"❌ {source_name} failed")
+                        console.print(f"[red]Error in {source_name}: {e}[/red]")
+                        # Continue with next source instead of failing entire process
+            
+            # Report results
+            if failed_months:
+                console.print(f"⚠️  {len(failed_months)} sources failed:")
+                for source_name, error in failed_months[:5]:  # Show first 5 failures with details
+                    console.print(f"   {source_name}: {error}")
+                if len(failed_months) > 5:
+                    console.print(f"   ... and {len(failed_months) - 5} more failures")
+            
+            # Use the last successful result for display
+            result = total_results[-1] if total_results else None
+        else:
+            # Single date range - use standard source
+            source = pncp_source(
+                start_date=start_date, end_date=end_date, endpoints=endpoints
+            )
+            result = pipeline.run(source)
 
-            # Mark extractions as completed
-            if start_date and end_date:
-                mark_extraction_completed(str(output), start_date, end_date, endpoints)
+        # Mark extractions as completed
+        if start_date and end_date:
+            mark_extraction_completed(str(output), start_date, end_date, endpoints)
 
-            progress.update(task, description="✅ Extraction completed!")
+        console.print("✅ Extraction completed!")
 
-            # Show results
-            show_extraction_results(result, str(output))
+        # Show results
+        show_extraction_results(result, str(output))
 
-        except Exception as e:
-            progress.update(task, description="❌ Extraction failed!")
-            console.print(f"[red]Error: {e}[/red]")
-            raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"❌ Extraction failed!")
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(1)
 
 
 @app.command()
@@ -198,14 +233,21 @@ def info():
     console.print(f"  Default Date Range: {settings.default_date_range_days} days")
     console.print()
 
+    # Progress tracking options
+    console.print("🎯 [bold]Progress Tracking Options[/bold]")
+    console.print("  --progress enlighten      # Visual progress bars with logging (default)")
+    console.print("  --progress tqdm           # Popular Python progress bars") 
+    console.print("  --progress alive_progress # Animated progress bars")
+    console.print("  --progress log            # Console/log output only")
+    console.print()
+
     # Usage examples
     console.print("💡 [bold]Quick Start Examples[/bold]")
-    console.print("  baliza extract                    # Extract monthly from 2021-01 to present")
-    console.print("  baliza extract --days 7           # Last week only")
-    console.print("  baliza extract --types contracts  # All historical contracts")
-    console.print(
-        "  baliza extract --dry-run          # Preview what would be extracted"
-    )
+    console.print("  baliza extract                       # Extract monthly from 2021-01 to present")
+    console.print("  baliza extract --days 7              # Last week only")
+    console.print("  baliza extract --types contracts     # All historical contracts")
+    console.print("  baliza extract --progress tqdm       # Use tqdm progress bars")
+    console.print("  baliza extract --dry-run             # Preview what would be extracted")
 
 
 @app.command()

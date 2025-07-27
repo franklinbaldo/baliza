@@ -58,12 +58,13 @@ class Settings(BaseSettings):
     default_page_size: int = 500  # Most endpoints support 500
     # MAX_PAGE_SIZE removed - use ENDPOINT_PAGE_LIMITS for specific limits
 
-    # Specific page size limits per endpoint (from endpoint_extraction_strategy.md)
+    # Specific page size limits per endpoint (from API testing)
     ENDPOINT_PAGE_LIMITS: ClassVar[Dict[str, int]] = {
         "contratacoes_publicacao": 50,  # Max 50 (required modalidade param)
+        "contratacoes_atualizacao": 50,  # Max 50 (required modalidade param)
         "contratos": 500,  # Max 500
         "atas": 500,  # Max 500
-        "instrumentos_cobranca": 100,  # Max 100 (if we add this endpoint later)
+        "instrumentoscobranca_inclusao": 50,  # Max 50 (confirmed from API testing)
         # Default 500 for other endpoints
     }
 
@@ -243,8 +244,8 @@ ENDPOINT_CONFIG: Dict[str, EndpointConfig] = {
         path="/v1/instrumentoscobranca/inclusao",
         required_params=["dataInicial", "dataFinal", "pagina"],
         optional_params=["tipoInstrumentoCobranca", "cnpjOrgao", "tamanhoPagina"],
-        page_size_limits=PageSizeLimits(min=10, max=100),
-        default_page_size=100,
+        page_size_limits=PageSizeLimits(min=10, max=50),
+        default_page_size=50,
         priority=8,
         requires_modalidade=False,
         sync_type="incremental",

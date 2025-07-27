@@ -1,5 +1,5 @@
 # DuckDB database
-/data/baliza.duckdb
+data/*
 
 # Python virtual environment
 .venv/

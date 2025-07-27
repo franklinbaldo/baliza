@@ -54,29 +54,22 @@ def pncp_source(
 
     # If no gaps, return empty source
     if not gaps:
-        print("✅ No missing data found - skipping extraction")
         return _empty_pncp_source()
 
     # Create sources for each gap
     sources = []
+    
     for gap in gaps:
-        print(f"🔄 Creating source for gap: {gap}")
-
         # Determine modalidades for this gap
         gap_modalidades = None
         if gap.modalidade:
             # Single modalidade for this gap
             gap_modalidades = [gap.modalidade]
-            print(f"   📅 Fetching {gap.start_date} to {gap.end_date} (modalidade {gap.modalidade})")
         elif gap.missing_pages:
             # Specific pages needed - create targeted requests
-            print(
-                f"   📄 Fetching specific pages: {gap.missing_pages[:5]}{'...' if len(gap.missing_pages) > 5 else ''}"
-            )
             gap_modalidades = modalidades
         else:
             # Full date range needed - fetch all pages
-            print(f"   📅 Fetching full date range: {gap.start_date} to {gap.end_date}")
             gap_modalidades = modalidades
 
         config = create_pncp_rest_config(gap.start_date, gap.end_date, gap_modalidades)
@@ -185,19 +178,29 @@ def pncp_all_modalidades_source(start_date: str, end_date: str):
 
 
 # Convenience functions for common use cases
-def create_default_pipeline(destination: str = "parquet", output_dir: str = "data"):
-    """Create structured pipeline with Parquet export by endpoint and month."""
+def create_default_pipeline(destination: str = "parquet", output_dir: str = "data", progress: str = "enlighten"):
+    """Create structured pipeline with Parquet export by endpoint and month.
+    
+    Args:
+        destination: Destination type (default: "parquet")
+        output_dir: Output directory for data (default: "data")
+        progress: Progress tracking mode - enlighten, tqdm, alive_progress, or log (default: "enlighten")
+    """
     if destination == "parquet":
         # Use filesystem destination for structured Parquet export
         dest = filesystem(bucket_url=output_dir, layout="{table_name}/{load_id}")
         return dlt.pipeline(
-            pipeline_name="baliza_pncp", destination=dest, dataset_name="pncp_raw"
+            pipeline_name="baliza_pncp", 
+            destination=dest, 
+            dataset_name="pncp_raw",
+            progress=progress
         )
     else:
         return dlt.pipeline(
             pipeline_name="baliza_pncp",
             destination=destination,
             dataset_name="pncp_data",
+            progress=progress
         )
 
 
@@ -206,6 +209,7 @@ def run_priority_extraction(
     end_date: str,
     destination: str = "parquet",
     output_dir: str = "data",
+    progress: str = "enlighten",
 ) -> Any:
     """
     Run extraction for priority endpoints with structured output.
@@ -216,7 +220,7 @@ def run_priority_extraction(
     Returns:
         Pipeline run summary with metrics
     """
-    pipeline = create_default_pipeline(destination, output_dir)
+    pipeline = create_default_pipeline(destination, output_dir, progress)
     source = pncp_priority_source(start_date, end_date)
 
     # Run the pipeline - dlt handles everything!
@@ -239,6 +243,7 @@ def run_modalidade_extraction(
     end_date: str,
     modalidade: ModalidadeContratacao,
     destination: str = "duckdb",
+    progress: str = "enlighten",
 ) -> Any:
     """
     Run extraction for specific modalidade.
@@ -249,7 +254,7 @@ def run_modalidade_extraction(
     Returns:
         Pipeline run summary with metrics
     """
-    pipeline = create_default_pipeline(destination)
+    pipeline = create_default_pipeline(destination, progress=progress)
     source = pncp_modalidade_source(start_date, end_date, modalidade)
 
     return pipeline.run(source)
