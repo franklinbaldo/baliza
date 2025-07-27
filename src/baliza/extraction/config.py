@@ -8,6 +8,13 @@ from typing import Dict, Any, List
 from baliza.settings import ENDPOINT_CONFIG, settings
 from baliza.schemas import ModalidadeContratacao
 from baliza.utils import hash_sha256
+from baliza.models import (
+    PaginaRetornoRecuperarCompraPublicacaoDTO,
+    PaginaRetornoRecuperarContratoDTO, 
+    PaginaRetornoAtaRegistroPrecoPeriodoDTO,
+    PaginaRetornoConsultarInstrumentoCobrancaDTO,
+    PaginaRetornoPlanoContratacaoComItensDoUsuarioDTO
+)
 
 
 def create_pncp_rest_config(
@@ -81,7 +88,14 @@ def create_pncp_rest_config(
                 ]
             },
             "primary_key": "_dlt_id",  # Will be added by processing step
-            "write_disposition": "merge",  # Deduplication based on hash
+            "write_disposition": "append",  # Use append for filesystem destination (merge not supported)
+            "columns": {
+                # Define column types for commonly missing fields to avoid inference warnings
+                "unidade_sub_rogada": {"data_type": "text", "nullable": True},
+                "orgao_sub_rogado": {"data_type": "text", "nullable": True},
+                "_dlt_id": {"data_type": "text", "nullable": False},
+                "_baliza_extracted_at": {"data_type": "date", "nullable": False}
+            },
             "processing_steps": [
                 {
                     "map": _add_hash_id  # Map function for deduplication

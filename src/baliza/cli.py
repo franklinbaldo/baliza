@@ -7,12 +7,21 @@ Default behavior: Extract ALL historical PNCP data (backfill everything).
 
 import typer
 import re
+import warnings
 from rich.console import Console
 from rich.table import Table
 from rich.progress import Progress, BarColumn, TextColumn, TimeElapsedColumn, TimeRemainingColumn
 from pathlib import Path
 from datetime import date, timedelta
 from typing import Optional
+
+# Suppress common DLT warnings for cleaner output
+warnings.filterwarnings("ignore", message=".*psutil dependency is not installed.*")
+warnings.filterwarnings("ignore", message=".*merge.*write disposition.*cannot be met.*")
+
+# Configure logging to suppress DLT warnings
+import logging
+logging.getLogger("dlt").setLevel(logging.ERROR)
 
 from .extraction.pipeline import create_default_pipeline, pncp_source, pncp_monthly_sources
 from .utils.completion_tracking import (
