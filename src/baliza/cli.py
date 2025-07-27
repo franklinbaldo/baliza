@@ -14,17 +14,22 @@ from datetime import date, timedelta
 from typing import Optional
 
 from .extraction.pipeline import create_default_pipeline, pncp_source
-from .utils.completion_tracking import get_completed_extractions, mark_extraction_completed
+from .utils.completion_tracking import (
+    get_completed_extractions,
+    mark_extraction_completed,
+)
 from .settings import settings
 from .utils.cli_helpers import (
-    parse_date_options, parse_data_types, show_extraction_plan, 
-    show_extraction_results
+    parse_date_options,
+    parse_data_types,
+    show_extraction_plan,
+    show_extraction_results,
 )
 
 app = typer.Typer(
     name="baliza",
     help="🚀 PNCP Data Extraction to Parquet Files",
-    rich_markup_mode="rich"
+    rich_markup_mode="rich",
 )
 console = Console()
 
@@ -33,117 +38,93 @@ console = Console()
 def extract(
     # Smart date options (pick one) - DEFAULT: backfill everything
     backfill_all: bool = typer.Option(
-        True, 
-        "--backfill/--no-backfill", 
-        help="Extract all available historical data (default)"
+        True,
+        "--backfill/--no-backfill",
+        help="Extract all available historical data (default)",
     ),
     days: Optional[int] = typer.Option(
-        None, 
-        "--days", "-d", 
-        help="Extract last N days (overrides backfill)"
+        None, "--days", "-d", help="Extract last N days (overrides backfill)"
     ),
     date_input: Optional[str] = typer.Option(
-        None, 
-        "--date", 
-        help="Date (YYYY-MM-DD, YYYY-MM) (overrides backfill)"
+        None, "--date", help="Date (YYYY-MM-DD, YYYY-MM) (overrides backfill)"
     ),
     date_range: Optional[str] = typer.Option(
-        None, 
-        "--range", "-r", 
-        help="Date range (YYYY-MM:YYYY-MM) (overrides backfill)"
+        None, "--range", "-r", help="Date range (YYYY-MM:YYYY-MM) (overrides backfill)"
     ),
-    
     # Data selection
     types: str = typer.Option(
-        "all", 
-        "--types", "-t", 
-        help="Data types: all,contracts,publications,agreements"
+        "all", "--types", "-t", help="Data types: all,contracts,publications,agreements"
     ),
-    
-    # Output options  
-    output: Path = typer.Option(
-        "data/", 
-        "--output", "-o", 
-        help="Output directory"
-    ),
-    
+    # Output options
+    output: Path = typer.Option("data/", "--output", "-o", help="Output directory"),
     # Utility flags
-    verbose: bool = typer.Option(
-        False, 
-        "--verbose", "-v", 
-        help="Verbose output"
-    ),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),
     dry_run: bool = typer.Option(
-        False, 
-        "--dry-run", 
-        help="Show what would be extracted"
-    )
+        False, "--dry-run", help="Show what would be extracted"
+    ),
 ):
     """
-    Extract PNCP data to Parquet files. 
-    
+    Extract PNCP data to Parquet files.
+
     [bold green]By default, backfills all available historical data.[/bold green]
-    
+
     Examples:
       baliza extract                    # Extract ALL historical data (default)
-      baliza extract --days 30         # Last 30 days only  
+      baliza extract --days 30         # Last 30 days only
       baliza extract --date 2025-01    # January 2025 only
       baliza extract --types contracts # All historical contracts
       baliza extract --dry-run         # See what would be extracted
     """
-    
+
     # Determine date range based on options
     start_date, end_date = parse_date_options(
         backfill_all, days, date_input, date_range
     )
-    
+
     # Parse data types - split comma-separated string into list
     types_list = [t.strip() for t in types.split(",")] if types != "all" else ["all"]
     endpoints_config = parse_data_types(types_list)
     endpoints = endpoints_config["endpoints"]
-    
+
     # Show extraction plan
     show_extraction_plan(start_date, end_date, endpoints)
-    
+
     if dry_run:
         console.print("✅ Dry run completed - no data extracted")
         return
-    
+
     # Create output directory
     output.mkdir(parents=True, exist_ok=True)
-    
+
     # Run extraction
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
-        console=console
+        console=console,
     ) as progress:
-        
         task = progress.add_task("🔄 Extracting PNCP data...", total=None)
-        
+
         try:
             # Create DLT pipeline with structured output
             pipeline = create_default_pipeline("parquet", str(output))
-            
+
             # Create source with gap detection - only fetches missing data
             source = pncp_source(
-                start_date=start_date,
-                end_date=end_date,
-                endpoints=endpoints
+                start_date=start_date, end_date=end_date, endpoints=endpoints
             )
-            
+
             # Run extraction
             result = pipeline.run(source)
-            
+
             # Mark extractions as completed
             if start_date and end_date:
                 mark_extraction_completed(str(output), start_date, end_date, endpoints)
-            
+
             progress.update(task, description="✅ Extraction completed!")
-            
+
             # Show results
             show_extraction_results(result, str(output))
-            
+
         except Exception as e:
             progress.update(task, description="❌ Extraction failed!")
             console.print(f"[red]Error: {e}[/red]")
@@ -153,18 +134,18 @@ def extract(
 @app.command()
 def info():
     """Show information about available data types and configuration."""
-    
+
     console.print("📊 [bold]PNCP Data Extraction Information[/bold]")
     console.print()
-    
+
     # Data types table
     table = Table(title="Available Data Types")
     table.add_column("Type", style="cyan", no_wrap=True)
     table.add_column("Description", style="white")
     table.add_column("PNCP Endpoint", style="dim")
-    
+
     table.add_row("contracts", "Contract data", "contratos")
-    table.add_row("publications", "Contract publications", "contratacoes_publicacao") 
+    table.add_row("publications", "Contract publications", "contratacoes_publicacao")
     table.add_row("agreements", "Agreement records", "atas")
     table.add_row("updates", "Update sync endpoints", "*_atualizacao")
     table.add_row("proposals", "Proposal data", "contratacoes_proposta")
@@ -172,22 +153,24 @@ def info():
     table.add_row("pca", "Annual contracting plans", "pca*")
     # table.add_row("details", "Specific contract details", "contratacao_especifica")  # Disabled
     table.add_row("all", "ALL 11 data types (default)", "All PNCP endpoints")
-    
+
     console.print(table)
     console.print()
-    
+
     # Configuration info
     console.print("⚙️  [bold]Configuration[/bold]")
     console.print(f"  PNCP API Base URL: {settings.pncp_api_base_url}")
     console.print(f"  Default Date Range: {settings.default_date_range_days} days")
     console.print()
-    
+
     # Usage examples
     console.print("💡 [bold]Quick Start Examples[/bold]")
     console.print("  baliza extract                    # Extract ALL historical data")
-    console.print("  baliza extract --days 7           # Last week only")  
+    console.print("  baliza extract --days 7           # Last week only")
     console.print("  baliza extract --types contracts  # All historical contracts")
-    console.print("  baliza extract --dry-run          # Preview what would be extracted")
+    console.print(
+        "  baliza extract --dry-run          # Preview what would be extracted"
+    )
 
 
 @app.command()
@@ -196,10 +179,11 @@ def version():
     # Note: Version retrieved from package metadata or dev fallback
     try:
         from importlib.metadata import version
+
         baliza_version = version("baliza")
     except ImportError:
         baliza_version = "2.0.0-dev"
-    
+
     console.print(f"🚀 **Baliza** v{baliza_version}")
     console.print("   DLT-powered PNCP extraction pipeline")
 
@@ -207,55 +191,55 @@ def version():
 @app.command()
 def status(
     output: Path = typer.Option(
-        "data/", 
-        "--output", "-o", 
-        help="Output directory to check"
-    )
+        "data/", "--output", "-o", help="Output directory to check"
+    ),
 ):
     """Show status of completed extractions."""
-    
+
     console.print("📊 [bold]Extraction Status[/bold]")
     console.print()
-    
+
     completed = get_completed_extractions(str(output))
-    
+
     if not completed:
         console.print("❌ No completed extractions found")
         console.print(f"   Check output directory: {output}")
         return
-    
+
     # Note: Enhanced status reporting could show data quality metrics, file sizes, etc.
     #       For each completed endpoint, consider displaying:
     #       - The full date range covered (min_date to max_date).
     #       - The total number of records extracted (if available from metadata).
     #       - The total size of the extracted data.
     #       This would provide a more comprehensive overview of the extracted data.
-    
+
     # Create status table
     table = Table(title="Completed Extractions")
     table.add_column("Endpoint", style="cyan", no_wrap=True)
     table.add_column("Months Completed", style="green")
     table.add_column("Total", style="white", justify="center")
-    
+
     total_months = 0
     for endpoint, months in completed.items():
         months_str = ", ".join(sorted(months)[:3])  # Show first 3 months
         if len(months) > 3:
             months_str += f" +{len(months) - 3} more"
-        
+
         table.add_row(endpoint, months_str, str(len(months)))
         total_months += len(months)
-    
+
     console.print(table)
     console.print()
-    console.print(f"✅ [bold green]{len(completed)} endpoints[/bold green] with [bold green]{total_months} months[/bold green] completed")
+    console.print(
+        f"✅ [bold green]{len(completed)} endpoints[/bold green] with [bold green]{total_months} months[/bold green] completed"
+    )
     console.print(f"📁 Output directory: {output}")
-
 
     #       This can be done using `importlib.metadata` or by reading the file.
     console.print("🚀 [bold]Baliza PNCP Data Extractor[/bold]")
     try:
         from importlib.metadata import version
+
         baliza_version = version("baliza")
     except ImportError:
         baliza_version = "2.0.0-dev"
@@ -264,27 +248,27 @@ def status(
 
 
 def _parse_date_options(
-    backfill_all: bool, 
-    days: Optional[int], 
-    date_input: Optional[str], 
-    date_range: Optional[str]
+    backfill_all: bool,
+    days: Optional[int],
+    date_input: Optional[str],
+    date_range: Optional[str],
 ) -> tuple[Optional[str], Optional[str]]:
     """Parse date options into start_date, end_date."""
-    
+
     # If any specific option is provided, disable backfill
     if days or date_input or date_range:
         backfill_all = False
-    
+
     if backfill_all:
         # Backfill everything - let gap detector determine range
         return None, None
-    
+
     if days:
         # Last N days
         end_dt = date.today()
         start_dt = end_dt - timedelta(days=days)
         return start_dt.strftime("%Y%m%d"), end_dt.strftime("%Y%m%d")
-    
+
     if date_input:
         # Single date or month
         if len(date_input) == 7:  # YYYY-MM
@@ -299,24 +283,24 @@ def _parse_date_options(
             start_dt = end_dt = date.fromisoformat(date_input)
         else:
             raise typer.BadParameter(f"Invalid date format: {date_input}")
-        
+
         return start_dt.strftime("%Y%m%d"), end_dt.strftime("%Y%m%d")
-    
+
     if date_range:
         # Date range YYYY-MM:YYYY-MM
         start_str, end_str = date_range.split(":")
         start_year, start_month = start_str.split("-")
         end_year, end_month = end_str.split("-")
-        
+
         start_dt = date(int(start_year), int(start_month), 1)
         # Last day of end month
         if int(end_month) == 12:
             end_dt = date(int(end_year) + 1, 1, 1) - timedelta(days=1)
         else:
             end_dt = date(int(end_year), int(end_month) + 1, 1) - timedelta(days=1)
-        
+
         return start_dt.strftime("%Y%m%d"), end_dt.strftime("%Y%m%d")
-    
+
     # Default: last 7 days
     end_dt = date.today()
     start_dt = end_dt - timedelta(days=7)
@@ -328,18 +312,22 @@ def _parse_data_types(types: str) -> list[str]:
     if types == "all":
         # Return ALL 12 endpoints - no phase restrictions!
         return settings.all_pncp_endpoints
-    
+
     type_mapping = {
         "contracts": "contratos",
-        "publications": "contratacoes_publicacao", 
+        "publications": "contratacoes_publicacao",
         "agreements": "atas",
-        "updates": ["contratacoes_atualizacao", "contratos_atualizacao", "atas_atualizacao"],
+        "updates": [
+            "contratacoes_atualizacao",
+            "contratos_atualizacao",
+            "atas_atualizacao",
+        ],
         "proposals": "contratacoes_proposta",
         "charges": "instrumentoscobranca_inclusao",
         "pca": ["pca", "pca_usuario", "pca_atualizacao"],
         # "details": "contratacao_especifica"  # Disabled: requires specific params
     }
-    
+
     endpoints = []
     for type_name in types.split(","):
         type_name = type_name.strip()
@@ -350,58 +338,62 @@ def _parse_data_types(types: str) -> list[str]:
             else:
                 endpoints.append(mapped)
         else:
-            raise typer.BadParameter(f"Unknown data type: {type_name}. Available: {', '.join(type_mapping.keys())}")
-    
+            raise typer.BadParameter(
+                f"Unknown data type: {type_name}. Available: {', '.join(type_mapping.keys())}"
+            )
+
     return endpoints
 
 
 def _show_extraction_plan(
-    start_date: Optional[str], 
-    end_date: Optional[str], 
-    endpoints: list[str], 
+    start_date: Optional[str],
+    end_date: Optional[str],
+    endpoints: list[str],
     output: Path,
-    dry_run: bool
+    dry_run: bool,
 ):
     """Show extraction plan to user."""
-    
+
     console.print("📋 [bold]Extraction Plan[/bold]")
-    
+
     # Date range
     if start_date and end_date:
         console.print(f"  📅 Date Range: {start_date} to {end_date}")
     else:
-        console.print("  📅 Date Range: [bold green]ALL HISTORICAL DATA (backfill)[/bold green]")
-    
+        console.print(
+            "  📅 Date Range: [bold green]ALL HISTORICAL DATA (backfill)[/bold green]"
+        )
+
     # Endpoints
     endpoint_names = {
         "contratos": "Contracts",
-        "contratacoes_publicacao": "Publications", 
-        "atas": "Agreements"
+        "contratacoes_publicacao": "Publications",
+        "atas": "Agreements",
     }
-    
+
     endpoint_list = [endpoint_names.get(ep, ep) for ep in endpoints]
     console.print(f"  📊 Data Types: {', '.join(endpoint_list)}")
-    
+
     # Output
     console.print(f"  📁 Output Directory: {output}")
-    
+
     if dry_run:
         console.print("  🔍 [yellow]DRY RUN - No data will be extracted[/yellow]")
-    
+
     console.print()
 
 
 def _show_extraction_results(result, output: Path):
     """Show extraction results."""
-    
+
     console.print("✅ [bold green]Extraction Completed![/bold green]")
     console.print()
-    
+
     # Display basic result information from DLT pipeline
     # Detailed metrics are available in DLT logs and state
     console.print(f"📁 Data saved to: {output}")
     console.print("📊 Run metrics available in DLT logs")
-    
+
     # Show next steps
     console.print()
     console.print("💡 [bold]Next Steps[/bold]")

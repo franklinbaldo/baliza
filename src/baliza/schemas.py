@@ -8,6 +8,7 @@ from typing import Type, Dict, List, Union, Optional
 
 class InvalidEnumValueError(ValueError):
     """Raised when an invalid value is provided for an enum."""
+
     pass
 
 
@@ -356,7 +357,7 @@ class SituacaoCompra(str, Enum):
     Representa a situação da compra/contratação (versão string da API).
     Baseado na seção 6.3 e 6.4 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md, que lista códigos de situação.
     Conforme OpenAPI, são strings: "1", "2", "3", "4".
-    
+
     Note: This exists alongside SituacaoContratacao (int enum) because the API
     returns string values while internal processing may use integers.
     """
@@ -379,17 +380,19 @@ class IndicadorOrcamentoSigiloso(str, Enum):
 
 
 # Enum utilities (mantidas para possíveis usos futuros ou compatibilidade)
-def get_enum_by_value(enum_class: Type[Enum], value: Union[int, str], strict: bool = False) -> Optional[Enum]:
+def get_enum_by_value(
+    enum_class: Type[Enum], value: Union[int, str], strict: bool = False
+) -> Optional[Enum]:
     """Get enum member by value.
-    
+
     Args:
         enum_class: The enum class to search
         value: The value to find
         strict: If True, raises InvalidEnumValueError for invalid values
-        
+
     Returns:
         Enum member if found, None otherwise (unless strict=True)
-        
+
     Raises:
         InvalidEnumValueError: If strict=True and value is invalid
     """
@@ -467,6 +470,7 @@ class PncpEndpoint(str, Enum):
     Os valores devem corresponder às chaves em ENDPOINT_CONFIG no config.py e aos caminhos da API
     (seção 6 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md).
     """
+
     CONTRATACOES_PUBLICACAO = "contratacoes_publicacao"
     CONTRATOS = "contratos"
     ATAS = "atas"

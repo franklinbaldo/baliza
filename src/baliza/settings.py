@@ -4,7 +4,6 @@ from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 
 
-
 # PNCPAPISettings removed - functionality consolidated into main Settings class
 
 
@@ -42,7 +41,7 @@ class Settings(BaseSettings):
     # All 12 PNCP Endpoints (no phases)
     all_pncp_endpoints: List[str] = [
         "contratacoes_publicacao",
-        "contratacoes_atualizacao", 
+        "contratacoes_atualizacao",
         "contratacoes_proposta",
         "contratos",
         "contratos_atualizacao",
@@ -58,13 +57,13 @@ class Settings(BaseSettings):
     # Pagination
     default_page_size: int = 500  # Most endpoints support 500
     # MAX_PAGE_SIZE removed - use ENDPOINT_PAGE_LIMITS for specific limits
-    
+
     # Specific page size limits per endpoint (from endpoint_extraction_strategy.md)
     ENDPOINT_PAGE_LIMITS: ClassVar[Dict[str, int]] = {
-        "contratacoes_publicacao": 50,   # Max 50 (required modalidade param)
-        "contratos": 500,                # Max 500
-        "atas": 500,                     # Max 500
-        "instrumentos_cobranca": 100,    # Max 100 (if we add this endpoint later)
+        "contratacoes_publicacao": 50,  # Max 50 (required modalidade param)
+        "contratos": 500,  # Max 500
+        "atas": 500,  # Max 500
+        "instrumentos_cobranca": 100,  # Max 100 (if we add this endpoint later)
         # Default 500 for other endpoints
     }
 
@@ -78,7 +77,9 @@ class Settings(BaseSettings):
     retention_days_logs: int = 90
 
     # Security
-    secret_key: str = "dev-key-change-in-production"  # Override via BALIZA_SECRET_KEY env var
+    secret_key: str = (
+        "dev-key-change-in-production"  # Override via BALIZA_SECRET_KEY env var
+    )
     enable_authentication: bool = False
 
     # Monitoring
@@ -117,8 +118,21 @@ ENDPOINT_CONFIG: Dict[str, EndpointConfig] = {
     # Phase 1: Core Publication Endpoints
     "contratacoes_publicacao": EndpointConfig(
         path="/v1/contratacoes/publicacao",
-        required_params=["dataInicial", "dataFinal", "codigoModalidadeContratacao", "pagina"],
-        optional_params=["codigoModoDisputa", "uf", "codigoMunicipioIbge", "cnpj", "codigoUnidadeAdministrativa", "idUsuario", "tamanhoPagina"],
+        required_params=[
+            "dataInicial",
+            "dataFinal",
+            "codigoModalidadeContratacao",
+            "pagina",
+        ],
+        optional_params=[
+            "codigoModoDisputa",
+            "uf",
+            "codigoMunicipioIbge",
+            "cnpj",
+            "codigoUnidadeAdministrativa",
+            "idUsuario",
+            "tamanhoPagina",
+        ],
         page_size_limits=PageSizeLimits(min=10, max=50),
         default_page_size=50,
         priority=1,
@@ -127,7 +141,12 @@ ENDPOINT_CONFIG: Dict[str, EndpointConfig] = {
     "contratos": EndpointConfig(
         path="/v1/contratos",
         required_params=["dataInicial", "dataFinal", "pagina"],
-        optional_params=["cnpjOrgao", "codigoUnidadeAdministrativa", "usuarioId", "tamanhoPagina"],
+        optional_params=[
+            "cnpjOrgao",
+            "codigoUnidadeAdministrativa",
+            "usuarioId",
+            "tamanhoPagina",
+        ],
         page_size_limits=PageSizeLimits(min=10, max=500),
         default_page_size=500,
         priority=2,
@@ -136,18 +155,35 @@ ENDPOINT_CONFIG: Dict[str, EndpointConfig] = {
     "atas": EndpointConfig(
         path="/v1/atas",
         required_params=["dataInicial", "dataFinal", "pagina"],
-        optional_params=["idUsuario", "cnpj", "codigoUnidadeAdministrativa", "tamanhoPagina"],
+        optional_params=[
+            "idUsuario",
+            "cnpj",
+            "codigoUnidadeAdministrativa",
+            "tamanhoPagina",
+        ],
         page_size_limits=PageSizeLimits(min=10, max=500),
         default_page_size=500,
         priority=3,
         requires_modalidade=False,
     ),
-    
     # Phase 2: Update/Sync Endpoints
     "contratacoes_atualizacao": EndpointConfig(
         path="/v1/contratacoes/atualizacao",
-        required_params=["dataInicial", "dataFinal", "codigoModalidadeContratacao", "pagina"],
-        optional_params=["codigoModoDisputa", "uf", "codigoMunicipioIbge", "cnpj", "codigoUnidadeAdministrativa", "idUsuario", "tamanhoPagina"],
+        required_params=[
+            "dataInicial",
+            "dataFinal",
+            "codigoModalidadeContratacao",
+            "pagina",
+        ],
+        optional_params=[
+            "codigoModoDisputa",
+            "uf",
+            "codigoMunicipioIbge",
+            "cnpj",
+            "codigoUnidadeAdministrativa",
+            "idUsuario",
+            "tamanhoPagina",
+        ],
         page_size_limits=PageSizeLimits(min=10, max=50),
         default_page_size=50,
         priority=4,
@@ -157,7 +193,12 @@ ENDPOINT_CONFIG: Dict[str, EndpointConfig] = {
     "contratos_atualizacao": EndpointConfig(
         path="/v1/contratos/atualizacao",
         required_params=["dataInicial", "dataFinal", "pagina"],
-        optional_params=["cnpjOrgao", "codigoUnidadeAdministrativa", "usuarioId", "tamanhoPagina"],
+        optional_params=[
+            "cnpjOrgao",
+            "codigoUnidadeAdministrativa",
+            "usuarioId",
+            "tamanhoPagina",
+        ],
         page_size_limits=PageSizeLimits(min=10, max=500),
         default_page_size=500,
         priority=5,
@@ -167,19 +208,31 @@ ENDPOINT_CONFIG: Dict[str, EndpointConfig] = {
     "atas_atualizacao": EndpointConfig(
         path="/v1/atas/atualizacao",
         required_params=["dataInicial", "dataFinal", "pagina"],
-        optional_params=["idUsuario", "cnpj", "codigoUnidadeAdministrativa", "tamanhoPagina"],
+        optional_params=[
+            "idUsuario",
+            "cnpj",
+            "codigoUnidadeAdministrativa",
+            "tamanhoPagina",
+        ],
         page_size_limits=PageSizeLimits(min=10, max=500),
         default_page_size=500,
         priority=6,
         requires_modalidade=False,
         sync_type="incremental",
     ),
-    
     # Phase 3: Specialized Endpoints
     "contratacoes_proposta": EndpointConfig(
         path="/v1/contratacoes/proposta",
         required_params=["dataFinal", "pagina"],
-        optional_params=["codigoModalidadeContratacao", "uf", "codigoMunicipioIbge", "cnpj", "codigoUnidadeAdministrativa", "idUsuario", "tamanhoPagina"],
+        optional_params=[
+            "codigoModalidadeContratacao",
+            "uf",
+            "codigoMunicipioIbge",
+            "cnpj",
+            "codigoUnidadeAdministrativa",
+            "idUsuario",
+            "tamanhoPagina",
+        ],
         page_size_limits=PageSizeLimits(min=10, max=500),
         default_page_size=500,
         priority=7,
@@ -196,7 +249,6 @@ ENDPOINT_CONFIG: Dict[str, EndpointConfig] = {
         requires_modalidade=False,
         sync_type="incremental",
     ),
-    
     # Phase 4: PCA (Plano de Contratação Anual) Endpoints
     "pca": EndpointConfig(
         path="/v1/pca/",
@@ -228,8 +280,7 @@ ENDPOINT_CONFIG: Dict[str, EndpointConfig] = {
         requires_modalidade=False,
         sync_type="incremental",
     ),
-    
-    # Phase 5: Detail/Drill-down Endpoints  
+    # Phase 5: Detail/Drill-down Endpoints
     # Note: These endpoints with path parameters are not currently implemented
     # They would require custom DLT resources for dynamic URL formatting
     # If the current config doesn't work, this will need to be implemented as a
