@@ -8,6 +8,14 @@ from typing import Dict, Any, List
 from baliza.settings import ENDPOINT_CONFIG, settings
 from baliza.schemas import ModalidadeContratacao
 from baliza.utils import hash_sha256
+
+# Parameter variations discovered through API testing
+# These contain actual data and should be extracted comprehensively
+MODALIDADES_WITH_DATA = [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]  # From contratacoes_proposta testing
+CLASSIFICATION_CODES_WITH_DATA = ['00', '01', '02', '03', '04', '05', '10', '11', '12', '20', '21', '30', '40', '50', '60', '70', '80', '90', '99']
+YEARS_WITH_DATA = [2024, 2025]
+USER_IDS_WITH_DATA = [3, 5, 100]
+
 from baliza.models import (
     PaginaRetornoRecuperarCompraPublicacaoDTO,
     PaginaRetornoRecuperarContratoDTO, 
@@ -86,54 +94,156 @@ def create_pncp_rest_config(
 
         # Get Pydantic model for this endpoint if available
         pydantic_model = endpoint_models.get(endpoint_name)
-
-        # Base resource configuration
-        resource = {
-            "name": endpoint_name,
-            "endpoint": {
-                "path": endpoint_config.path,
-                "method": "GET",
-                "params": _build_endpoint_params(
-                    endpoint_config, start_date, end_date, modalidades, page_size
-                ),
-                "paginator": _get_paginator_config(endpoint_config),
-                "data_selector": "data",  # PNCP responses have data array
-                "response_actions": [
+        
+        # Generate parameter variations for endpoints that support them
+        parameter_variations = _get_parameter_variations(endpoint_name, endpoint_config, modalidades)
+        
+        # Create a resource for each parameter variation
+        for variation in parameter_variations:
+            variation_name = variation["name"]
+            variation_params = variation["params"]
+            
+            # Base resource configuration
+            resource = {
+                "name": variation_name,
+                "endpoint": {
+                    "path": endpoint_config.path,
+                    "method": "GET",
+                    "params": _build_endpoint_params_with_variation(
+                        endpoint_config, start_date, end_date, variation_params, page_size
+                    ),
+                    "paginator": _get_paginator_config(endpoint_config),
+                    "data_selector": "data",  # PNCP responses have data array
+                    "response_actions": [
+                        {
+                            "status_code": 204,
+                            "action": "ignore"  # Canonical DLT way: 204 No Content is success with no data
+                        }
+                    ]
+                },
+                "write_disposition": "replace",  # Use replace to avoid merge strategy warnings
+                "processing_steps": [
                     {
-                        "status_code": 204,
-                        "action": "ignore"  # Canonical DLT way: 204 No Content is success with no data
-                    }
-                ]
-            },
-            "write_disposition": "append",  # Filesystem destination only supports append/replace, not merge
-            "processing_steps": [
-                {
-                    "map": _add_hash_id  # Map function for deduplication
-                },
-                {
-                    "map": _add_metadata  # Map function for metadata
-                },
-            ],
-            # Note: Incremental loading handled by gap detection instead of DLT incremental
-        }
-
-        # Add Pydantic model for schema definition if available
-        if pydantic_model:
-            # DLT supports Pydantic models via the columns parameter
-            # This provides type hints and schema validation
-            resource["columns"] = pydantic_model
-        else:
-            # Fallback: Define column types for commonly missing fields to avoid inference warnings
-            resource["columns"] = {
-                "unidade_sub_rogada": {"data_type": "text", "nullable": True},
-                "orgao_sub_rogado": {"data_type": "text", "nullable": True},
-                "_dlt_id": {"data_type": "text", "nullable": False},
-                "_baliza_extracted_at": {"data_type": "date", "nullable": False}
+                        "map": _add_hash_id  # Map function for deduplication
+                    },
+                    {
+                        "map": _add_metadata  # Map function for metadata
+                    },
+                ],
+                # Note: Incremental loading handled by gap detection instead of DLT incremental
             }
 
-        resources.append(resource)
+            # Add Pydantic model for schema definition if available
+            if pydantic_model:
+                # DLT supports Pydantic models via the columns parameter
+                # This provides type hints and schema validation
+                resource["columns"] = pydantic_model
+            else:
+                # Fallback: Define column types for commonly missing fields to avoid inference warnings
+                resource["columns"] = {
+                    "unidade_sub_rogada": {"data_type": "text", "nullable": True},
+                    "orgao_sub_rogado": {"data_type": "text", "nullable": True},
+                    "_dlt_id": {"data_type": "text", "nullable": False},
+                    "_baliza_extracted_at": {"data_type": "date", "nullable": False}
+                }
+
+            resources.append(resource)
 
     return {"client": client_config, "resources": resources}
+
+
+def _get_parameter_variations(endpoint_name: str, endpoint_config, modalidades: List[int] = None) -> List[Dict[str, Any]]:
+    """
+    Generate parameter variations for endpoints that support multiple values.
+    
+    Returns list of variations, each with 'name' and 'params' keys.
+    """
+    variations = []
+    
+    # Handle endpoints with modalidade variations
+    if endpoint_config.requires_modalidade:
+        # Use all modalidades with data for comprehensive extraction
+        target_modalidades = MODALIDADES_WITH_DATA
+        
+        for modalidade in target_modalidades:
+            variation_name = f"{endpoint_name}_mod{modalidade}"
+            variation_params = {"codigoModalidadeContratacao": modalidade}
+            variations.append({
+                "name": variation_name,
+                "params": variation_params
+            })
+    
+    # Handle PCA endpoints with classification code variations
+    elif "pca/" in endpoint_config.path:
+        for year in YEARS_WITH_DATA:
+            for classification_code in CLASSIFICATION_CODES_WITH_DATA:
+                variation_name = f"{endpoint_name}_{year}_class{classification_code}"
+                variation_params = {
+                    "anoPca": year,
+                    "codigoClassificacaoSuperior": classification_code
+                }
+                variations.append({
+                    "name": variation_name,
+                    "params": variation_params
+                })
+    
+    # Handle PCA usuario endpoint with user ID variations
+    elif "pca/usuario" in endpoint_config.path:
+        for year in YEARS_WITH_DATA:
+            for user_id in USER_IDS_WITH_DATA:
+                variation_name = f"{endpoint_name}_{year}_user{user_id}"
+                variation_params = {
+                    "anoPca": year,
+                    "idUsuario": user_id
+                }
+                variations.append({
+                    "name": variation_name,
+                    "params": variation_params
+                })
+    
+    # Handle contratacoes_proposta with optional modalidade variations
+    elif "proposta" in endpoint_config.path:
+        # Base variation without modalidade
+        variations.append({
+            "name": endpoint_name,
+            "params": {}
+        })
+        
+        # Additional variations with modalidades that have data
+        for modalidade in MODALIDADES_WITH_DATA:
+            variation_name = f"{endpoint_name}_mod{modalidade}"
+            variation_params = {"codigoModalidadeContratacao": modalidade}
+            variations.append({
+                "name": variation_name,
+                "params": variation_params
+            })
+    
+    # Default: single variation for endpoints without parameter variations
+    else:
+        variations.append({
+            "name": endpoint_name,
+            "params": {}
+        })
+    
+    return variations
+
+
+def _build_endpoint_params_with_variation(
+    endpoint_config,
+    start_date: str,
+    end_date: str,
+    variation_params: Dict[str, Any],
+    page_size: int = None,
+) -> Dict[str, Any]:
+    """Build parameters for an endpoint including parameter variations."""
+    
+    # Start with base parameters
+    params = _build_endpoint_params(endpoint_config, start_date, end_date, [], page_size)
+    
+    # Override/add variation-specific parameters
+    params.update(variation_params)
+    
+    return params
 
 
 def _build_endpoint_params(
@@ -155,11 +265,53 @@ def _build_endpoint_params(
         "pagina": 1,  # Will be handled by paginator
     }
 
-    # Add date parameters if required
-    if "dataInicial" in endpoint_config.required_params:
-        params["dataInicial"] = start_date
-    if "dataFinal" in endpoint_config.required_params:
-        params["dataFinal"] = end_date
+    # Special handling for specific endpoints based on API requirements
+    endpoint_path = endpoint_config.path
+    
+    # Handle contratacoes/proposta - requires dataFinal >= current date
+    if "proposta" in endpoint_path:
+        # Use a future date for proposta endpoint (needs dataFinal >= today)
+        from datetime import date, timedelta
+        future_date = (date.today() + timedelta(days=365*5)).strftime("%Y%m%d")  # 5 years in future
+        params["dataFinal"] = future_date
+        # Don't add dataInicial for proposta endpoint
+        
+    # Handle instrumentoscobranca/inclusao - needs recent dates within 30-day window
+    elif "instrumentoscobranca" in endpoint_path:
+        from datetime import date, timedelta
+        today = date.today()
+        thirty_days_ago = today - timedelta(days=30)
+        params["dataInicial"] = thirty_days_ago.strftime("%Y%m%d")
+        params["dataFinal"] = today.strftime("%Y%m%d")
+        
+    # Handle PCA endpoints - need special parameters
+    elif "pca/" in endpoint_path:
+        from datetime import date
+        current_year = date.today().year
+        params["anoPca"] = current_year
+        params["codigoClassificacaoSuperior"] = "00"  # Default classification code
+        # Don't add date parameters for base pca endpoint
+        
+    elif "pca/usuario" in endpoint_path:
+        from datetime import date
+        current_year = date.today().year
+        params["anoPca"] = current_year
+        params["idUsuario"] = 1  # Default user ID
+        # Don't add date parameters for pca/usuario endpoint
+        
+    elif "pca/atualizacao" in endpoint_path:
+        from datetime import date, timedelta
+        today = date.today()
+        thirty_days_ago = today - timedelta(days=30)
+        params["dataInicio"] = thirty_days_ago.strftime("%Y%m%d")
+        params["dataFim"] = today.strftime("%Y%m%d")
+        
+    else:
+        # Standard date parameter handling for other endpoints
+        if "dataInicial" in endpoint_config.required_params:
+            params["dataInicial"] = start_date
+        if "dataFinal" in endpoint_config.required_params:
+            params["dataFinal"] = end_date
 
     # Add modalidade if required and provided
     if endpoint_config.requires_modalidade and modalidades:

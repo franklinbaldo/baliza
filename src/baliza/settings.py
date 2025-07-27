@@ -62,6 +62,7 @@ class Settings(BaseSettings):
     ENDPOINT_PAGE_LIMITS: ClassVar[Dict[str, int]] = {
         "contratacoes_publicacao": 50,  # Max 50 (required modalidade param)
         "contratacoes_atualizacao": 50,  # Max 50 (required modalidade param)
+        "contratacoes_proposta": 50,  # Max 50 (from API error testing)
         "contratos": 500,  # Max 500
         "atas": 500,  # Max 500
         "instrumentoscobranca_inclusao": 50,  # Max 50 (confirmed from API testing)
