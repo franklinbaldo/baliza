@@ -123,6 +123,8 @@ def mark_extraction_completed(
                 #       such as the number of records extracted, the DLT load ID,
                 #       or a hash of the extracted data. This would enhance the
                 #       resumability logic and provide more detailed status reporting.
+                #       DLT's `LoadInfo` object, available after a pipeline run, contains
+                #       much of this information and could be passed here.
                 f.write(f"Completed at: {datetime.now().isoformat()}\n")
                 f.write(f"Date range: {start_date} to {end_date}\n")
 

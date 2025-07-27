@@ -14,6 +14,16 @@ def test_placeholder():
     """Basic test to ensure the test file is not empty."""
     assert True
 
+# TODO: Add more comprehensive E2E tests for DLT's incremental loading and state management.
+#       This should include scenarios where:
+#       - Data is extracted incrementally over multiple runs.
+#       - Gaps are correctly identified and filled.
+#       - DLT's internal state is correctly managed and persisted.
+#       - Data deduplication and schema evolution are handled as expected.
+#       - Tests for different write dispositions (append, merge, replace) if applicable.
+#       - Tests for error handling and retry mechanisms within the DLT pipeline.
+
+
 
 def test_pncp_source_with_no_gaps():
     """Test that pncp_source returns empty source when no gaps exist."""

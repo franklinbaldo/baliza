@@ -145,6 +145,8 @@ def _build_endpoint_params(
         #       to handle one modalidade at a time. The current implementation
         #       is misleading if a list of modalities is provided and only the
         #       first one is used. This needs to be clarified or refactored.
+        #       Consider using dlt.sources to create separate resources for each modalidade
+        #       or a custom dlt.resource generator that yields data for each modalidade.
         params["codigoModalidadeContratacao"] = modalidades[0]
     
     return params

@@ -133,6 +133,11 @@ class PNCPGapDetector:
         """
         Get existing requests with pagination info.
         Returns dict of {date_string: set_of_pages}
+
+        TODO: Refactor to leverage DLT's internal state and incremental loading capabilities
+              more directly. Instead of inferring from `_baliza_extracted_at` and making
+              assumptions about page ranges, DLT's state could track the last successfully
+              extracted page for a given date/endpoint, enabling more precise gap detection.
         """
         try:
             # Query to get unique combinations of date and page from successful extractions

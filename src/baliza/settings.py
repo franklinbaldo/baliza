@@ -116,6 +116,9 @@ class EndpointConfig(BaseModel):
 
 # ALL 12 PNCP ENDPOINTS - Clean definitions without duplicates
 ENDPOINT_CONFIG: Dict[str, EndpointConfig] = {
+    # TODO: Explore how DLT's source and resource definitions can leverage this
+    #       ENDPOINT_CONFIG more directly to dynamically generate resources
+    #       and their parameters, reducing hardcoding in the pipeline.
     # Phase 1: Core Publication Endpoints
     "contratacoes_publicacao": EndpointConfig(
         path="/v1/contratacoes/publicacao",

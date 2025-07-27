@@ -17,6 +17,7 @@ from typing import Optional
 
 # Suppress common DLT warnings for cleaner output
 warnings.filterwarnings("ignore", message=".*psutil dependency is not installed.*")
+# FIXME: Investigate why "merge write disposition cannot be met" warning appears and address root cause or configure DLT to avoid it.
 warnings.filterwarnings("ignore", message=".*merge.*write disposition.*cannot be met.*")
 
 # Configure logging to suppress DLT warnings
@@ -129,6 +130,9 @@ def extract(
         # Check if this is a backfill operation (use monthly sources for better isolation)
         if start_date is None and end_date is None:
             # Monthly backfill - each month is processed independently
+            # TODO: Explore using DLT's incremental loading features (e.g., @dlt.incremental)
+            # within pncp_monthly_sources to manage state and simplify date range generation,
+            # potentially reducing the need for manual month iteration here.
             monthly_sources = pncp_monthly_sources(
                 start_date=start_date, 
                 end_date=end_date, 

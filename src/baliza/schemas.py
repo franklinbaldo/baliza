@@ -498,6 +498,9 @@ class PncpEndpoint(str, Enum):
     Representa os endpoints da API PNCP.
     Os valores devem corresponder às chaves em ENDPOINT_CONFIG no config.py e aos caminhos da API
     (seção 6 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md).
+
+    FIXME: Consider dynamically generating this enum from the OpenAPI specification
+           to ensure it's always up-to-date with the PNCP API endpoints.
     """
 
     CONTRATACOES_PUBLICACAO = "contratacoes_publicacao"

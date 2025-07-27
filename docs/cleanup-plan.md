@@ -416,3 +416,7 @@ baliza info                               # Helper information
 8. **🚀 Fast**: No complex setup or configuration files needed
 
 **Result**: Professional, maintainable repository with intuitive CLI, clear English naming, and logical organization for PNCP data extraction to Parquet files.
+
+# TODO: Update this document to reflect the new `FIXME` and `TODO` comments added to the codebase,
+#       especially those related to improving `dlt` usage and integration. This will ensure
+#       the documentation accurately reflects areas for future development and optimization.

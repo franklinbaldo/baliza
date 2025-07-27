@@ -130,6 +130,10 @@ def pncp_monthly_sources(
     Returns:
         List of DLT sources, one per month
     """
+    # TODO: Revisit this function. The `pncp_source` now returns a list of sources
+    #       when `return_all_sources=True`. This pattern might be simplified if
+    #       `pncp_source` itself could yield multiple resources directly, allowing
+    #       DLT to manage the iteration over months/modalidades more natively.
     return pncp_source(
         start_date=start_date,
         end_date=end_date,

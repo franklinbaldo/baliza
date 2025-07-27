@@ -183,7 +183,10 @@ def show_extraction_results(result: Any, output_dir: str = None):
     if output_dir:
         console.print(f"   Output directory: {output_dir}")
 
-    # TODO: Enhanced metrics parsing could be added here when DLT result structure is better understood
+    # TODO: Leverage DLT's `LoadInfo` object (the `result` parameter) to provide more detailed
+    #       metrics and insights from the extraction. This includes information about
+    #       loaded rows, file sizes, and any errors encountered during the load phase.
+    #       Refer to DLT documentation on `LoadInfo` for available attributes.
 
 
 def get_version_info() -> str:

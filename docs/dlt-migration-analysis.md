@@ -289,3 +289,7 @@ The "legacy preservation" structure enables safe rollback at any point.
 ---
 
 **Conclusion**: The revised plan abandons the "preserve everything" approach in favor of "preserve data definitions, rewrite execution layer". This is more realistic given the Prefect context dependencies and will result in cleaner, more maintainable code.
+
+# TODO: Update this document to reflect the new `FIXME` and `TODO` comments added to the codebase,
+#       especially those related to improving `dlt` usage and integration. This will ensure
+#       the documentation accurately reflects areas for future development and optimization.
