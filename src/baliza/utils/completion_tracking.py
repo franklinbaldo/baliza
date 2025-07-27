@@ -4,8 +4,9 @@ Extracted from pipeline.py to break circular dependencies.
 """
 
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 from datetime import datetime
+from dlt.pipeline.typing import LoadInfo # Import LoadInfo
 
 # Note: Using pathlib throughout for modern Python practices
 

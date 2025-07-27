@@ -58,6 +58,21 @@ def create_pncp_rest_config(
         # Note: DLT doesn't provide request-level caching, so we implement deduplication at data level
     }
 
+    # Endpoint to Pydantic model mapping for schema communication
+    endpoint_models = {
+        "contratacoes_publicacao": PaginaRetornoRecuperarCompraPublicacaoDTO,
+        "contratos": PaginaRetornoRecuperarContratoDTO,
+        "atas": PaginaRetornoAtaRegistroPrecoPeriodoDTO,
+        "contratacoes_atualizacao": PaginaRetornoRecuperarCompraPublicacaoDTO,
+        "contratos_atualizacao": PaginaRetornoRecuperarContratoDTO,
+        "atas_atualizacao": PaginaRetornoAtaRegistroPrecoPeriodoDTO,
+        "instrumentoscobranca_inclusao": PaginaRetornoConsultarInstrumentoCobrancaDTO,
+        "pca": PaginaRetornoPlanoContratacaoComItensDoUsuarioDTO,
+        "pca_usuario": PaginaRetornoPlanoContratacaoComItensDoUsuarioDTO,
+        "pca_atualizacao": PaginaRetornoPlanoContratacaoComItensDoUsuarioDTO,
+        # Note: contratacoes_proposta and contratacao_especifica endpoints don't have specific models yet
+    }
+
     # Build resources from ENDPOINT_CONFIG
     resources = []
 
@@ -68,6 +83,9 @@ def create_pncp_rest_config(
         page_size = settings.ENDPOINT_PAGE_LIMITS.get(
             endpoint_name, settings.default_page_size
         )
+
+        # Get Pydantic model for this endpoint if available
+        pydantic_model = endpoint_models.get(endpoint_name)
 
         # Base resource configuration
         resource = {
@@ -89,13 +107,6 @@ def create_pncp_rest_config(
             },
             "primary_key": "_dlt_id",  # Will be added by processing step
             "write_disposition": "append",  # Use append for filesystem destination (merge not supported)
-            "columns": {
-                # Define column types for commonly missing fields to avoid inference warnings
-                "unidade_sub_rogada": {"data_type": "text", "nullable": True},
-                "orgao_sub_rogado": {"data_type": "text", "nullable": True},
-                "_dlt_id": {"data_type": "text", "nullable": False},
-                "_baliza_extracted_at": {"data_type": "date", "nullable": False}
-            },
             "processing_steps": [
                 {
                     "map": _add_hash_id  # Map function for deduplication
@@ -106,6 +117,20 @@ def create_pncp_rest_config(
             ],
             # Note: Incremental loading handled by gap detection instead of DLT incremental
         }
+
+        # Add Pydantic model for schema definition if available
+        if pydantic_model:
+            # DLT supports Pydantic models via the columns parameter
+            # This provides type hints and schema validation
+            resource["columns"] = pydantic_model
+        else:
+            # Fallback: Define column types for commonly missing fields to avoid inference warnings
+            resource["columns"] = {
+                "unidade_sub_rogada": {"data_type": "text", "nullable": True},
+                "orgao_sub_rogado": {"data_type": "text", "nullable": True},
+                "_dlt_id": {"data_type": "text", "nullable": False},
+                "_baliza_extracted_at": {"data_type": "date", "nullable": False}
+            }
 
         resources.append(resource)
 
