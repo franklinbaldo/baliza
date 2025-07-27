@@ -105,8 +105,7 @@ def create_pncp_rest_config(
                     }
                 ]
             },
-            "primary_key": "_dlt_id",  # Will be added by processing step
-            "write_disposition": "append",  # Use append for filesystem destination (merge not supported)
+            "write_disposition": "append",  # Filesystem destination only supports append/replace, not merge
             "processing_steps": [
                 {
                     "map": _add_hash_id  # Map function for deduplication
@@ -164,14 +163,9 @@ def _build_endpoint_params(
 
     # Add modalidade if required and provided
     if endpoint_config.requires_modalidade and modalidades:
-        # TODO: This logic only uses the first modalidade from the list.
-        #       For endpoints that require a modalidade, the system should either
-        #       iterate through them and create separate requests or be designed
-        #       to handle one modalidade at a time. The current implementation
-        #       is misleading if a list of modalities is provided and only the
-        #       first one is used. This needs to be clarified or refactored.
-        #       Consider using dlt.sources to create separate resources for each modalidade
-        #       or a custom dlt.resource generator that yields data for each modalidade.
+        # Note: This function handles single modalidade per request by design.
+        # Multiple modalidades are handled by the gap detector creating separate gaps,
+        # each with a single modalidade, implementing the month × modalidade matrix pattern.
         params["codigoModalidadeContratacao"] = modalidades[0]
     
     return params

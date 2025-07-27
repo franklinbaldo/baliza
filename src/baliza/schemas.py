@@ -446,36 +446,6 @@ def get_enum_description(enum_class: type[Enum], value: int | str) -> str:
     return f"{name} ({enum_member.value})"
 
 
-# TODO: Evaluate if the ENUM_REGISTRY is still necessary. With Pydantic models
-#       and direct enum usage, dynamic access via a string name might be an
-#       over-engineering. If it's only used in `get_all_enum_metadata`, consider
-#       refactoring `get_all_enum_metadata` to iterate directly over the enum classes.
-# Enum registry for dynamic access and metadata generation
-# Used by get_all_enum_metadata() and get_enum_by_name() functions
-ENUM_REGISTRY = {
-    "InstrumentoConvocatorio": InstrumentoConvocatorio,
-    "ModalidadeContratacao": ModalidadeContratacao,
-    "ModoDisputa": ModoDisputa,
-    "CriterioJulgamento": CriterioJulgamento,
-    "SituacaoContratacao": SituacaoContratacao,
-    "SituacaoItemContratacao": SituacaoItemContratacao,
-    "TipoBeneficio": TipoBeneficio,
-    "SituacaoResultadoItemContratacao": SituacaoResultadoItemContratacao,
-    "TipoContrato": TipoContrato,
-    "TipoTermoContrato": TipoTermoContrato,
-    "CategoriaProcesso": CategoriaProcesso,
-    "TipoDocumento": TipoDocumento,
-    "NaturezaJuridica": NaturezaJuridica,
-    "PorteEmpresa": PorteEmpresa,
-    "AmparoLegal": AmparoLegal,
-    "CategoriaItemPlanoContratacoes": CategoriaItemPlanoContratacoes,
-    "PoderId": PoderId,
-    "EsferaId": EsferaId,
-    "TipoPessoa": TipoPessoa,
-    "ClassificacaoCatalogo": ClassificacaoCatalogo,
-    "SituacaoCompra": SituacaoCompra,
-    "IndicadorOrcamentoSigiloso": IndicadorOrcamentoSigiloso,
-}
 
 
 class TipoEventoNotaFiscal(str, Enum):
@@ -499,8 +469,8 @@ class PncpEndpoint(str, Enum):
     Os valores devem corresponder às chaves em ENDPOINT_CONFIG no config.py e aos caminhos da API
     (seção 6 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md).
 
-    FIXME: Consider dynamically generating this enum from the OpenAPI specification
-           to ensure it's always up-to-date with the PNCP API endpoints.
+    Note: For future enhancement, consider generating this enum from the OpenAPI specification
+          to ensure it's always up-to-date with the PNCP API endpoints.
     """
 
     CONTRATACOES_PUBLICACAO = "contratacoes_publicacao"

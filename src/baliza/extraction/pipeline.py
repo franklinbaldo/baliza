@@ -268,22 +268,3 @@ def run_modalidade_extraction(
     return pipeline.run(source)
 
 
-# Migration compatibility layer (temporary)
-def pncp_source_legacy_compat(
-    start_date: str = "20240101",
-    end_date: str = "20240101", 
-    modalidade: int = None,
-    extractor_instance = None  # Ignored - no longer needed!
-):
-    """
-    Legacy compatibility wrapper for existing code.
-    
-    TODO: Evaluate if this legacy compatibility function is still necessary.
-    If there are no external callers or deprecated parts of the system relying
-    on this, it should be removed to reduce code complexity and maintenance burden.
-    
-    WARNING: This is deprecated. Use pncp_source() directly.
-    extractor_instance parameter is ignored (no longer needed with dlt built-ins).
-    """
-    modalidades = [modalidade] if modalidade else None
-    return pncp_source(start_date, end_date, modalidades)

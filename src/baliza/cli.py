@@ -17,7 +17,8 @@ from typing import Optional
 
 # Suppress common DLT warnings for cleaner output
 warnings.filterwarnings("ignore", message=".*psutil dependency is not installed.*")
-# FIXME: Investigate why "merge write disposition cannot be met" warning appears and address root cause or configure DLT to avoid it.
+# Note: DLT filesystem destination doesn't support merge disposition natively (only append/replace)
+# We've removed primary_key from config to prevent DLT from trying to use merge mode
 warnings.filterwarnings("ignore", message=".*merge.*write disposition.*cannot be met.*")
 
 # Configure logging to suppress DLT warnings
