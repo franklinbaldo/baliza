@@ -73,6 +73,12 @@ def create_pncp_rest_config(
                 ),
                 "paginator": _get_paginator_config(endpoint_config),
                 "data_selector": "data",  # PNCP responses have data array
+                "response_actions": [
+                    {
+                        "status_code": 204,
+                        "action": "ignore"  # Canonical DLT way: 204 No Content is success with no data
+                    }
+                ]
             },
             "primary_key": "_dlt_id",  # Will be added by processing step
             "write_disposition": "merge",  # Deduplication based on hash

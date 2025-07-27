@@ -162,6 +162,7 @@ def extract(
                     try:
                         result = pipeline.run(source)
                         total_results.append(result)
+                        # 204 responses are handled by DLT as success with no data - this is correct behavior
                         progress_bar.update(task, advance=1, description=f"✅ {source_name}")
                     except Exception as e:
                         failed_months.append((source_name, str(e)))
