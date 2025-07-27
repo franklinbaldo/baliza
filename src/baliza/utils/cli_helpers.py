@@ -183,7 +183,7 @@ def show_extraction_results(result: Any, output_dir: str = None):
     if output_dir:
         console.print(f"   Output directory: {output_dir}")
 
-    # Note: Enhanced metrics parsing could be added here when DLT result structure is better understood
+    # TODO: Enhanced metrics parsing could be added here when DLT result structure is better understood
 
 
 def get_version_info() -> str:
@@ -198,8 +198,10 @@ def get_version_info() -> str:
 
 def format_endpoint_list(endpoints: List[str]) -> str:
     """Format endpoint list for display."""
-    # Basic endpoint list formatting for CLI display
-    # Truncates long lists to keep output readable
+    # TODO: This function provides a basic formatting for endpoint lists.
+    #       Consider using a more robust or configurable method for formatting
+    #       lists, especially if the number of endpoints grows or if different
+    #       display styles are required (e.g., bullet points, numbered lists).
     if len(endpoints) <= 3:
         return ", ".join(endpoints)
     else:

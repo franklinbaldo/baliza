@@ -26,6 +26,7 @@ def pncp_source(
     modalidades: List[int] = None,
     endpoints: List[str] = None,
     backfill_all: bool = False,
+    return_all_sources: bool = False,
 ):
     """
     Create PNCP data source with smart gap detection.
@@ -37,9 +38,10 @@ def pncp_source(
         modalidades: List of modalidade IDs to process
         endpoints: List of endpoint names to include (default: priority endpoints)
         backfill_all: If True, fetch all historical data gaps
+        return_all_sources: If True, return list of all sources for monthly processing
 
     Returns:
-        DLT source ready for pipeline execution
+        DLT source ready for pipeline execution, or list of sources if return_all_sources=True
     """
 
     # Find gaps in existing data
@@ -60,18 +62,24 @@ def pncp_source(
     for gap in gaps:
         print(f"🔄 Creating source for gap: {gap}")
 
-        if gap.missing_pages:
+        # Determine modalidades for this gap
+        gap_modalidades = None
+        if gap.modalidade:
+            # Single modalidade for this gap
+            gap_modalidades = [gap.modalidade]
+            print(f"   📅 Fetching {gap.start_date} to {gap.end_date} (modalidade {gap.modalidade})")
+        elif gap.missing_pages:
             # Specific pages needed - create targeted requests
             print(
                 f"   📄 Fetching specific pages: {gap.missing_pages[:5]}{'...' if len(gap.missing_pages) > 5 else ''}"
             )
-            # Note: Specific page requests would require custom DLT resource implementation.
-            # For now, we fetch the entire date range when any pages are missing.
-            config = create_pncp_rest_config(gap.start_date, gap.end_date, modalidades)
+            gap_modalidades = modalidades
         else:
             # Full date range needed - fetch all pages
             print(f"   📅 Fetching full date range: {gap.start_date} to {gap.end_date}")
-            config = create_pncp_rest_config(gap.start_date, gap.end_date, modalidades)
+            gap_modalidades = modalidades
+
+        config = create_pncp_rest_config(gap.start_date, gap.end_date, gap_modalidades)
 
         # Filter to only this endpoint
         config["resources"] = [
@@ -79,14 +87,24 @@ def pncp_source(
         ]
 
         if config["resources"]:
-            gap_source = rest_api_source(
-                config, name=f"pncp_{gap.endpoint}_{gap.start_date}"
-            )
+            # Create unique source name including modalidade if present
+            source_name = f"pncp_{gap.endpoint}_{gap.start_date}"
+            if gap.modalidade:
+                source_name += f"_mod{gap.modalidade}"
+            
+            gap_source = rest_api_source(config, name=source_name)
             sources.append(gap_source)
 
-    # Combine all gap sources
-    # For now, return the first source (DLT will handle merging in pipeline)
-    return sources[0] if sources else _empty_pncp_source()
+    # Handle return format based on parameter
+    if not sources:
+        return [_empty_pncp_source()] if return_all_sources else _empty_pncp_source()
+    
+    if return_all_sources:
+        # Return all sources for monthly processing - each month is independent
+        return sources
+    else:
+        # Legacy behavior - return single source (for existing code compatibility)
+        return sources[0]
 
 
 def _empty_pncp_source():
@@ -98,6 +116,34 @@ def _empty_pncp_source():
         return []
 
     return empty_pncp()
+
+
+def pncp_monthly_sources(
+    start_date: str = None,
+    end_date: str = None,
+    endpoints: List[str] = None,
+    backfill_all: bool = False,
+):
+    """
+    Create multiple PNCP sources for monthly extraction.
+    Each month becomes an independent DLT source for better isolation and error handling.
+    
+    Args:
+        start_date: Start date in YYYYMMDD format
+        end_date: End date in YYYYMMDD format
+        endpoints: List of endpoint names to include
+        backfill_all: If True, fetch all historical monthly gaps from 2021-01
+        
+    Returns:
+        List of DLT sources, one per month
+    """
+    return pncp_source(
+        start_date=start_date,
+        end_date=end_date,
+        endpoints=endpoints,
+        backfill_all=backfill_all,
+        return_all_sources=True
+    )
 
 
 def pncp_priority_source(start_date: str, end_date: str):
@@ -212,16 +258,17 @@ def run_modalidade_extraction(
 # Migration compatibility layer (temporary)
 def pncp_source_legacy_compat(
     start_date: str = "20240101",
-    end_date: str = "20240101",
+    end_date: str = "20240101", 
     modalidade: int = None,
-    extractor_instance=None,  # Ignored - no longer needed!
+    extractor_instance = None  # Ignored - no longer needed!
 ):
     """
     Legacy compatibility wrapper for existing code.
-
-    Note: Legacy compatibility wrapper for existing code.
-    Should be removed once all callers are migrated to pncp_source().
-
+    
+    TODO: Evaluate if this legacy compatibility function is still necessary.
+    If there are no external callers or deprecated parts of the system relying
+    on this, it should be removed to reduce code complexity and maintenance burden.
+    
     WARNING: This is deprecated. Use pncp_source() directly.
     extractor_instance parameter is ignored (no longer needed with dlt built-ins).
     """

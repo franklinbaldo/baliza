@@ -125,3 +125,4 @@ def mark_extraction_completed(
                 #       resumability logic and provide more detailed status reporting.
                 f.write(f"Completed at: {datetime.now().isoformat()}\n")
                 f.write(f"Date range: {start_date} to {end_date}\n")
+

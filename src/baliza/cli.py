@@ -13,7 +13,7 @@ from pathlib import Path
 from datetime import date, timedelta
 from typing import Optional
 
-from .extraction.pipeline import create_default_pipeline, pncp_source
+from .extraction.pipeline import create_default_pipeline, pncp_source, pncp_monthly_sources
 from .utils.completion_tracking import (
     get_completed_extractions,
     mark_extraction_completed,
@@ -40,7 +40,7 @@ def extract(
     backfill_all: bool = typer.Option(
         True,
         "--backfill/--no-backfill",
-        help="Extract all available historical data (default)",
+        help="Extract monthly data from 2021-01 to present (default)",
     ),
     days: Optional[int] = typer.Option(
         None, "--days", "-d", help="Extract last N days (overrides backfill)"
@@ -66,10 +66,10 @@ def extract(
     """
     Extract PNCP data to Parquet files.
 
-    [bold green]By default, backfills all available historical data.[/bold green]
+    [bold green]By default, extracts monthly data from 2021-01 to present.[/bold green]
 
     Examples:
-      baliza extract                    # Extract ALL historical data (default)
+      baliza extract                    # Extract monthly from 2021-01 to present (default)
       baliza extract --days 30         # Last 30 days only
       baliza extract --date 2025-01    # January 2025 only
       baliza extract --types contracts # All historical contracts
@@ -108,13 +108,48 @@ def extract(
             # Create DLT pipeline with structured output
             pipeline = create_default_pipeline("parquet", str(output))
 
-            # Create source with gap detection - only fetches missing data
-            source = pncp_source(
-                start_date=start_date, end_date=end_date, endpoints=endpoints
-            )
-
-            # Run extraction
-            result = pipeline.run(source)
+            # Check if this is a backfill operation (use monthly sources for better isolation)
+            if start_date is None and end_date is None:
+                # Monthly backfill - each month is processed independently
+                monthly_sources = pncp_monthly_sources(
+                    start_date=start_date, 
+                    end_date=end_date, 
+                    endpoints=endpoints,
+                    backfill_all=True
+                )
+                
+                progress.update(task, description=f"🔄 Processing {len(monthly_sources)} monthly sources...")
+                
+                total_results = []
+                failed_months = []
+                
+                for i, source in enumerate(monthly_sources, 1):
+                    progress.update(task, description=f"🔄 Processing month {i}/{len(monthly_sources)}...")
+                    try:
+                        result = pipeline.run(source)
+                        total_results.append(result)
+                        console.print(f"   ✅ Month {i}/{len(monthly_sources)} completed")
+                    except Exception as e:
+                        failed_months.append((i, str(e)))
+                        console.print(f"   ❌ Month {i}/{len(monthly_sources)} failed: {e}")
+                        # Continue with next month instead of failing entire process
+                
+                # Report results
+                if failed_months:
+                    console.print(f"⚠️  {len(failed_months)} months failed:")
+                    for month_num, error in failed_months[:3]:  # Show first 3 failures
+                        console.print(f"   Month {month_num}: {error}")
+                    if len(failed_months) > 3:
+                        console.print(f"   ... and {len(failed_months) - 3} more")
+                
+                # Use the last successful result for display
+                result = total_results[-1] if total_results else None
+            else:
+                # Single date range - use standard source
+                source = pncp_source(
+                    start_date=start_date, end_date=end_date, endpoints=endpoints
+                )
+                result = pipeline.run(source)
 
             # Mark extractions as completed
             if start_date and end_date:
@@ -165,7 +200,7 @@ def info():
 
     # Usage examples
     console.print("💡 [bold]Quick Start Examples[/bold]")
-    console.print("  baliza extract                    # Extract ALL historical data")
+    console.print("  baliza extract                    # Extract monthly from 2021-01 to present")
     console.print("  baliza extract --days 7           # Last week only")
     console.print("  baliza extract --types contracts  # All historical contracts")
     console.print(

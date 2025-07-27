@@ -114,8 +114,21 @@ class PNCPGapDetector:
             gap_end = min(end_date, month_end)
 
             if gap_start <= gap_end:
-                gaps.append(DataGap(gap_start, gap_end, endpoint))
-                print(f"🔄 Gap detected for {endpoint}: {gap_start} to {gap_end}")
+                # Check if this endpoint requires modalidade
+                from baliza.settings import ENDPOINT_CONFIG
+                from baliza.schemas import ModalidadeContratacao
+                
+                endpoint_config = ENDPOINT_CONFIG.get(endpoint)
+                if endpoint_config and endpoint_config.requires_modalidade:
+                    # Create separate gaps for each modalidade
+                    modalidades = [m.value for m in ModalidadeContratacao]
+                    for modalidade in modalidades:
+                        gaps.append(DataGap(gap_start, gap_end, endpoint, modalidade))
+                        print(f"🔄 Gap detected for {endpoint}: {gap_start} to {gap_end} (modalidade {modalidade})")
+                else:
+                    # Standard endpoint - no modalidade required
+                    gaps.append(DataGap(gap_start, gap_end, endpoint))
+                    print(f"🔄 Gap detected for {endpoint}: {gap_start} to {gap_end}")
 
         return gaps
 
@@ -311,7 +324,19 @@ class PNCPGapDetector:
                 gap_end = min(end_date, month_end)
 
                 if gap_start <= gap_end:
-                    gaps.append(DataGap(gap_start, gap_end, endpoint))
+                    # Check if this endpoint requires modalidade
+                    from baliza.settings import ENDPOINT_CONFIG
+                    from baliza.schemas import ModalidadeContratacao
+                    
+                    endpoint_config = ENDPOINT_CONFIG.get(endpoint)
+                    if endpoint_config and endpoint_config.requires_modalidade:
+                        # Create separate gaps for each modalidade
+                        modalidades = [m.value for m in ModalidadeContratacao]
+                        for modalidade in modalidades:
+                            gaps.append(DataGap(gap_start, gap_end, endpoint, modalidade))
+                    else:
+                        # Standard endpoint - no modalidade required
+                        gaps.append(DataGap(gap_start, gap_end, endpoint))
 
             return gaps
 
@@ -434,6 +459,7 @@ class PNCPGapDetector:
     def get_backfill_gaps(self, endpoints: List[str] = None) -> List[DataGap]:
         """
         Get all gaps for a complete backfill on monthly basis from 2021-01 to present.
+        For endpoints that require modalidade, creates separate gaps for each month × modalidade combination.
 
         Args:
             endpoints: List of endpoints to check (default: all)
@@ -443,6 +469,10 @@ class PNCPGapDetector:
         """
         if not endpoints:
             endpoints = self.endpoints
+
+        # Import here to avoid circular imports
+        from baliza.settings import ENDPOINT_CONFIG
+        from baliza.schemas import ModalidadeContratacao
 
         # Start from 2021-01 and process month by month to present
         from calendar import monthrange
@@ -464,7 +494,16 @@ class PNCPGapDetector:
 
             # Create gaps for each endpoint for this month
             for endpoint in endpoints:
-                gaps.append(DataGap(month_start, month_end, endpoint))
+                endpoint_config = ENDPOINT_CONFIG.get(endpoint)
+                
+                if endpoint_config and endpoint_config.requires_modalidade:
+                    # Create separate gaps for each modalidade (1-13)
+                    modalidades = [m.value for m in ModalidadeContratacao]
+                    for modalidade in modalidades:
+                        gaps.append(DataGap(month_start, month_end, endpoint, modalidade))
+                else:
+                    # Standard endpoint - no modalidade required
+                    gaps.append(DataGap(month_start, month_end, endpoint))
 
             # Move to next month
             if current_month == 12:

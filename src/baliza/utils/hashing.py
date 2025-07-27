@@ -22,3 +22,7 @@ def hash_sha256(data: Any) -> str:
     """
     json_str = json.dumps(data, sort_keys=True, ensure_ascii=False)
     return hashlib.sha256(json_str.encode("utf-8")).hexdigest()
+
+# TODO: Consider adding a more generic hashing function that allows specifying
+#       the hashing algorithm (e.g., MD5, SHA1, SHA256, SHA512) as a parameter.
+#       This would make the module more flexible for different hashing needs.

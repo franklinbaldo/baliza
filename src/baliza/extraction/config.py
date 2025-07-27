@@ -119,11 +119,14 @@ def _build_endpoint_params(
 
     # Add modalidade if required and provided
     if endpoint_config.requires_modalidade and modalidades:
-        # Note: This function builds params for a single resource. For multiple modalidades,
-        # the pipeline creates separate resources using create_modalidade_resources().
-        # Here we use the first modalidade as this function is called per resource.
+        # TODO: This logic only uses the first modalidade from the list.
+        #       For endpoints that require a modalidade, the system should either
+        #       iterate through them and create separate requests or be designed
+        #       to handle one modalidade at a time. The current implementation
+        #       is misleading if a list of modalities is provided and only the
+        #       first one is used. This needs to be clarified or refactored.
         params["codigoModalidadeContratacao"] = modalidades[0]
-
+    
     return params
 
 
