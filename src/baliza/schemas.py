@@ -198,6 +198,75 @@ class TipoDocumento(int, Enum):
     RELATORIO_FINAL_DE_CONTRATO = 18
 
 
+class ClassificacaoSuperior(str, Enum):
+    """
+    Representa os códigos de classificação superior para PCA (Plano de Contratações Anual).
+    
+    Classificação Superior refere-se ao código da Classe do material ou Grupo do serviço 
+    conforme catálogos de materiais e serviços utilizados pelos portais de compras.
+    É um parâmetro de agrupamento que permite filtrar itens do PCA por categoria ampla.
+    
+    Baseado na seção 6.1 e 6.2 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md (Consultar Itens de PCA por Classificação Superior).
+    Valores descobertos via API testing dos códigos que contêm dados reais.
+    """
+    
+    CLASSE_00 = "00"
+    CLASSE_01 = "01" 
+    CLASSE_02 = "02"
+    CLASSE_03 = "03"
+    CLASSE_04 = "04"
+    CLASSE_05 = "05"
+    CLASSE_10 = "10"
+    CLASSE_11 = "11"
+    CLASSE_12 = "12"
+    CLASSE_20 = "20"
+    CLASSE_21 = "21"
+    CLASSE_30 = "30"
+    CLASSE_40 = "40"
+    CLASSE_50 = "50"
+    CLASSE_60 = "60"
+    CLASSE_70 = "70"
+    CLASSE_80 = "80"
+    CLASSE_90 = "90"
+    CLASSE_99 = "99"
+
+
+# Anos PCA - função dinâmica em vez de enum para flexibilidade com anos futuros
+def get_anos_pca_disponiveis(ano_inicial: int = 2021) -> List[int]:
+    """
+    Retorna lista de anos de PCA disponíveis no sistema.
+    
+    Args:
+        ano_inicial: Ano de início da operação do PNCP (default: 2021)
+    
+    Returns:
+        Lista de anos desde ano_inicial até ano atual + 1 (para permitir planejamento futuro)
+        
+    Baseado na seção 6.1 e 6.2 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md (parâmetro anoPca).
+    """
+    from datetime import date
+    ano_atual = date.today().year
+    # Inclui ano atual + 1 para permitir PCA do próximo ano
+    return list(range(ano_inicial, ano_atual + 2))
+
+
+class UsuarioSistema(int, Enum):
+    """
+    Representa os IDs de usuários/sistemas integrados ao PNCP.
+    Baseado na seção 5.17 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md (Identificador de Usuário).
+    Valores descobertos via API testing e exemplos fornecidos no manual.
+    """
+    
+    USUARIO_1 = 1
+    USUARIO_2 = 2
+    USUARIO_3 = 3
+    USUARIO_4 = 4
+    USUARIO_5 = 5
+    USUARIO_36 = 36
+    USUARIO_100 = 100
+    USUARIO_194035 = 194035
+
+
 class NaturezaJuridica(str, Enum):
     """
     Representa as naturezas jurídicas.

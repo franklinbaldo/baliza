@@ -6,16 +6,8 @@ Converts legacy ENDPOINT_CONFIG to dlt REST API format
 from datetime import date, timedelta
 from typing import Dict, Any, List
 from baliza.settings import ENDPOINT_CONFIG, settings
-from baliza.schemas import ModalidadeContratacao
+from baliza.schemas import ModalidadeContratacao, ClassificacaoSuperior, UsuarioSistema, get_anos_pca_disponiveis
 from baliza.utils import hash_sha256
-
-# Parameter variations discovered through API testing
-# These contain actual data and should be extracted comprehensively
-MODALIDADES_WITH_DATA = [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]  # From contratacoes_proposta testing
-CLASSIFICATION_CODES_WITH_DATA = ['00', '01', '02', '03', '04', '05', '10', '11', '12', '20', '21', '30', '40', '50', '60', '70', '80', '90', '99']
-YEARS_WITH_DATA = [2024, 2025]
-USER_IDS_WITH_DATA = [3, 5, 100]
-
 from baliza.models import (
     PaginaRetornoRecuperarCompraPublicacaoDTO,
     PaginaRetornoRecuperarContratoDTO, 
@@ -23,6 +15,32 @@ from baliza.models import (
     PaginaRetornoConsultarInstrumentoCobrancaDTO,
     PaginaRetornoPlanoContratacaoComItensDoUsuarioDTO
 )
+
+# Parameter variations using enums - much cleaner and type-safe!
+# Modalidades that have data (excluding modalidade 2 which returned no results)
+MODALIDADES_WITH_DATA = [
+    ModalidadeContratacao.LEILAO_ELETRONICO,
+    ModalidadeContratacao.CONCURSO, 
+    ModalidadeContratacao.CONCORRENCIA_ELETRONICA,
+    ModalidadeContratacao.CONCORRENCIA_PRESENCIAL,
+    ModalidadeContratacao.PREGAO_ELETRONICO,
+    ModalidadeContratacao.PREGAO_PRESENCIAL,
+    ModalidadeContratacao.DISPENSA_DE_LICITACAO,
+    ModalidadeContratacao.INEXIGIBILIDADE,
+    ModalidadeContratacao.MANIFESTACAO_DE_INTERESSE,
+    ModalidadeContratacao.PRE_QUALIFICACAO,
+    ModalidadeContratacao.CREDENCIAMENTO,
+    ModalidadeContratacao.LEILAO_PRESENCIAL,
+]
+
+# All classification codes that contain data
+CLASSIFICATION_CODES_WITH_DATA = [code.value for code in ClassificacaoSuperior]
+
+# All years since PNCP launch (dynamic function for future years)
+YEARS_WITH_DATA = get_anos_pca_disponiveis()
+
+# All known user system IDs 
+USER_IDS_WITH_DATA = [user.value for user in UsuarioSistema]
 
 
 def create_pncp_rest_config(
@@ -117,7 +135,11 @@ def create_pncp_rest_config(
                     "response_actions": [
                         {
                             "status_code": 204,
-                            "action": "ignore"  # Canonical DLT way: 204 No Content is success with no data
+                            "action": "ignore"  # 204 No Content: valid response with no data
+                        },
+                        {
+                            "status_code": 404,
+                            "action": "ignore"  # 404 Not Found: no data for this parameter combination (normal)
                         }
                     ]
                 },
@@ -166,8 +188,8 @@ def _get_parameter_variations(endpoint_name: str, endpoint_config, modalidades: 
         target_modalidades = MODALIDADES_WITH_DATA
         
         for modalidade in target_modalidades:
-            variation_name = f"{endpoint_name}_mod{modalidade}"
-            variation_params = {"codigoModalidadeContratacao": modalidade}
+            variation_name = f"{endpoint_name}_mod{modalidade.value}"
+            variation_params = {"codigoModalidadeContratacao": modalidade.value}
             variations.append({
                 "name": variation_name,
                 "params": variation_params
@@ -211,8 +233,8 @@ def _get_parameter_variations(endpoint_name: str, endpoint_config, modalidades: 
         
         # Additional variations with modalidades that have data
         for modalidade in MODALIDADES_WITH_DATA:
-            variation_name = f"{endpoint_name}_mod{modalidade}"
-            variation_params = {"codigoModalidadeContratacao": modalidade}
+            variation_name = f"{endpoint_name}_mod{modalidade.value}"
+            variation_params = {"codigoModalidadeContratacao": modalidade.value}
             variations.append({
                 "name": variation_name,
                 "params": variation_params
