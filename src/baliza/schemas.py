@@ -426,15 +426,23 @@ class SituacaoCompra(str, Enum):
     Representa a situação da compra/contratação (versão string da API).
     Baseado na seção 6.3 e 6.4 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md, que lista códigos de situação.
     Conforme OpenAPI, são strings: "1", "2", "3", "4".
-
-    Note: This exists alongside SituacaoContratacao (int enum) because the API
-    returns string values while internal processing may use integers.
+    
+    Note: API implementation bug - API returns integers but OpenAPI spec expects strings.
+    This enum handles both cases with a validator.
     """
 
     DIVULGADA_NO_PNCP = "1"
     REVOGADA = "2"
     ANULADA = "3"
     SUSPENSA = "4"
+    
+    @classmethod
+    def _missing_(cls, value):
+        """Handle API returning integers instead of strings as per OpenAPI spec."""
+        if isinstance(value, int):
+            # Convert integer to string to match enum values
+            return cls(str(value))
+        return None
 
 
 class IndicadorOrcamentoSigiloso(str, Enum):

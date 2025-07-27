@@ -173,21 +173,12 @@ def extract(
             
             console.print(f"📊 Processing {len(unique_months)} months ({len(monthly_sources)} sources total)")
             
-            # Use concurrent processing for much faster extraction
+            # Process sources sequentially to avoid signal handling issues in threads
             def process_source(source):
                 """Process a single source and return result tuple."""
                 source_name = getattr(source, 'name', f'source_{id(source)}')
                 try:
-                    # Each thread needs its own pipeline instance with unique name to avoid state conflicts
-                    thread_id = threading.get_ident()
-                    unique_pipeline_name = f"baliza_pncp_{thread_id}"
-                    thread_pipeline = dlt.pipeline(
-                        pipeline_name=unique_pipeline_name,
-                        destination=filesystem(bucket_url=str(output), layout="{table_name}/{load_id}"),
-                        dataset_name="pncp_raw",
-                        progress=progress
-                    )
-                    result = thread_pipeline.run(source)
+                    result = pipeline.run(source)
                     return source_name, result, None
                 except Exception as e:
                     return source_name, None, str(e)
@@ -202,30 +193,22 @@ def extract(
                 TimeRemainingColumn(),
                 console=console,
             ) as progress_bar:
-                task = progress_bar.add_task("Processing sources concurrently", total=len(monthly_sources))
+                task = progress_bar.add_task("Processing sources sequentially", total=len(monthly_sources))
                 
-                # Use ThreadPoolExecutor for concurrent processing
-                # Limit workers to avoid overwhelming the API and system
-                effective_workers = min(max_workers, len(monthly_sources))
+                console.print("🔄 Processing sources sequentially (concurrent mode disabled due to signal handling issues)")
                 
-                console.print(f"🚀 Using {effective_workers} concurrent workers")
-                
-                with ThreadPoolExecutor(max_workers=effective_workers) as executor:
-                    # Submit all sources for processing
-                    future_to_source = {executor.submit(process_source, source): source for source in monthly_sources}
+                # Process sources sequentially to avoid signal handling issues
+                for source in monthly_sources:
+                    source_name, result, error = process_source(source)
                     
-                    # Process completed futures as they finish
-                    for future in as_completed(future_to_source):
-                        source_name, result, error = future.result()
-                        
-                        if error:
-                            failed_months.append((source_name, error))
-                            progress_bar.update(task, advance=1, description=f"❌ {source_name} failed")
-                            console.print(f"[red]Error in {source_name}: {error}[/red]")
-                        else:
-                            total_results.append(result)
-                            progress_bar.update(task, advance=1, description=f"✅ {source_name}")
-                            # 204 responses are handled by DLT as success with no data - this is correct behavior
+                    if error:
+                        failed_months.append((source_name, error))
+                        progress_bar.update(task, advance=1, description=f"❌ {source_name} failed")
+                        console.print(f"[red]Error in {source_name}: {error}[/red]")
+                    else:
+                        total_results.append(result)
+                        progress_bar.update(task, advance=1, description=f"✅ {source_name}")
+                        # 204 responses are handled by DLT as success with no data - this is correct behavior
             
             # Report results
             if failed_months:
