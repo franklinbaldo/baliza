@@ -52,7 +52,7 @@ class Settings(BaseSettings):
         "pca",
         "pca_usuario",
         "pca_atualizacao",
-        "contratacao_especifica",
+        # "contratacao_especifica",  # Disabled: requires specific cnpj/ano/sequencial params
     ]
 
     # Pagination

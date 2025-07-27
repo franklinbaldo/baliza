@@ -13,10 +13,8 @@ from pathlib import Path
 from datetime import date, timedelta
 from typing import Optional
 
-from .extraction.pipeline import (
-    run_structured_extraction,
-    get_completed_extractions
-)
+from .extraction.pipeline import create_default_pipeline, pncp_source
+from .utils.completion_tracking import get_completed_extractions, mark_extraction_completed
 from .settings import settings
 from .utils.cli_helpers import (
     parse_date_options, parse_data_types, show_extraction_plan, 
@@ -99,8 +97,9 @@ def extract(
         backfill_all, days, date_input, date_range
     )
     
-    # Parse data types
-    endpoints_config = parse_data_types(types)
+    # Parse data types - split comma-separated string into list
+    types_list = [t.strip() for t in types.split(",")] if types != "all" else ["all"]
+    endpoints_config = parse_data_types(types_list)
     endpoints = endpoints_config["endpoints"]
     
     # Show extraction plan
@@ -123,14 +122,22 @@ def extract(
         task = progress.add_task("🔄 Extracting PNCP data...", total=None)
         
         try:
-            # Run structured extraction with completion tracking
-            result = run_structured_extraction(
+            # Create DLT pipeline with structured output
+            pipeline = create_default_pipeline("parquet", str(output))
+            
+            # Create source with gap detection - only fetches missing data
+            source = pncp_source(
                 start_date=start_date,
                 end_date=end_date,
-                endpoints=endpoints,
-                output_dir=str(output),
-                skip_completed=True
+                endpoints=endpoints
             )
+            
+            # Run extraction
+            result = pipeline.run(source)
+            
+            # Mark extractions as completed
+            if start_date and end_date:
+                mark_extraction_completed(str(output), start_date, end_date, endpoints)
             
             progress.update(task, description="✅ Extraction completed!")
             
@@ -163,8 +170,8 @@ def info():
     table.add_row("proposals", "Proposal data", "contratacoes_proposta")
     table.add_row("charges", "Collection instruments", "instrumentoscobranca_inclusao")
     table.add_row("pca", "Annual contracting plans", "pca*")
-    table.add_row("details", "Specific contract details", "contratacao_especifica")
-    table.add_row("all", "ALL 12 data types (default)", "All PNCP endpoints")
+    # table.add_row("details", "Specific contract details", "contratacao_especifica")  # Disabled
+    table.add_row("all", "ALL 11 data types (default)", "All PNCP endpoints")
     
     console.print(table)
     console.print()
@@ -330,7 +337,7 @@ def _parse_data_types(types: str) -> list[str]:
         "proposals": "contratacoes_proposta",
         "charges": "instrumentoscobranca_inclusao",
         "pca": ["pca", "pca_usuario", "pca_atualizacao"],
-        "details": "contratacao_especifica"
+        # "details": "contratacao_especifica"  # Disabled: requires specific params
     }
     
     endpoints = []

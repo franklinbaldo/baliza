@@ -1,6 +1,5 @@
 """
-Utility functions for BALIZA.
-Centralized collection of general-purpose helper functions.
+Hashing utilities for BALIZA.
 """
 
 import hashlib

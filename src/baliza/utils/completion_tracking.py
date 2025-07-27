@@ -118,8 +118,11 @@ def mark_extraction_completed(output_dir: str, start_date: str, end_date: str, e
             
             marker_path = marker_dir / ".completed"
             with marker_path.open("w") as f:
-                # Marker file contains basic completion metadata
-                # Extended metrics are tracked in the DLT pipeline state
+                # TODO: Consider adding more metadata to the .completed marker file,
+                #       such as the number of records extracted, the DLT load ID,
+                #       or a hash of the extracted data. This would enhance the
+                #       resumability logic and provide more detailed status reporting.
                 f.write(f"Completed at: {datetime.now().isoformat()}\n")
                 f.write(f"Date range: {start_date} to {end_date}\n")
+
 

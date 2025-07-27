@@ -5,7 +5,7 @@ Tests the complete extraction pipeline using real DLT components.
 
 import pytest
 from unittest.mock import patch
-from baliza.extraction.pipeline import pncp_source, run_structured_extraction
+from baliza.extraction.pipeline import pncp_source
 from baliza.extraction.gap_detector import find_extraction_gaps, DataGap
 from baliza.extraction.config import create_pncp_rest_config
 
@@ -91,25 +91,19 @@ def test_gap_detection_various_date_ranges(start_date, end_date):
         assert isinstance(gaps, list)
 
 
-def test_run_structured_extraction_no_endpoints():
-    """Test structured extraction with no endpoints specified."""
-    with patch('baliza.extraction.pipeline.create_default_pipeline') as mock_pipeline:
-        with patch('baliza.extraction.pipeline.pncp_source') as mock_source:
-            with patch('baliza.utils.completion_tracking.get_completed_extractions') as mock_completed:
-                
-                mock_completed.return_value = {
-                    "contratos": ["2024-01"],
-                    "atas": ["2024-01"]
-                }
-                
-                result = run_structured_extraction(
-                    start_date="20240101",
-                    end_date="20240131",
-                    endpoints=[]
-                )
-                
-                # Should handle empty endpoints gracefully
-                assert result is None
+def test_pncp_source_with_empty_endpoints():
+    """Test pncp_source with empty endpoints list."""
+    with patch('baliza.extraction.pipeline.find_extraction_gaps') as mock_gaps:
+        mock_gaps.return_value = []  # No gaps found
+        
+        source = pncp_source(
+            start_date="20240101",
+            end_date="20240131",
+            endpoints=[]
+        )
+        
+        # Should return empty source when no endpoints specified
+        assert source is not None
 
 
 def test_config_endpoint_params():

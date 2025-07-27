@@ -42,13 +42,16 @@ def parse_date_options(
     date_range: Optional[str]
 ) -> tuple[Optional[str], Optional[str]]:
     """Parse date options into start_date, end_date."""
+    # If any specific option is provided, disable backfill
+    if days or date_input or date_range:
+        backfill_all = False
+    
     if backfill_all:
         return None, None
     
     if date_range:
         try:
             start_str, end_str = date_range.split(":")
-            # Support multiple date formats: YYYYMMDD, YYYY-MM-DD, YYYY-MM
             start_str = _normalize_date_format(start_str)
             end_str = _normalize_date_format(end_str)
             return start_str, end_str
@@ -57,7 +60,19 @@ def parse_date_options(
             raise typer.BadParameter(f"Date range must be in format YYYYMMDD:YYYYMMDD, YYYY-MM-DD:YYYY-MM-DD, or YYYY-MM:YYYY-MM. Error: {e}")
     
     if date_input:
-        return date_input, date_input
+        # Handle month format (YYYY-MM) vs day format (YYYY-MM-DD)
+        if len(date_input.strip()) == 7 and date_input.count('-') == 1:
+            # Month format - extract entire month
+            from calendar import monthrange
+            year, month = date_input.split('-')
+            start_date = f"{year}{month.zfill(2)}01"
+            last_day = monthrange(int(year), int(month))[1]
+            end_date = f"{year}{month.zfill(2)}{last_day:02d}"
+            return start_date, end_date
+        else:
+            # Day format or YYYYMMDD
+            normalized_date = _normalize_date_format(date_input)
+            return normalized_date, normalized_date
     
     if days:
         end_date = date.today()
@@ -73,6 +88,9 @@ def parse_date_options(
 def parse_data_types(data_types: Optional[List[str]]) -> Dict[str, List[int]]:
     """Parse data types into endpoint configuration."""
     type_mapping = {
+        "all": ["contratacoes_publicacao", "contratos", "atas", "contratacoes_atualizacao", 
+                "contratos_atualizacao", "atas_atualizacao", "contratacoes_proposta",
+                "instrumentoscobranca_inclusao", "pca", "pca_usuario", "pca_atualizacao"],
         "compras": ["contratacoes_publicacao"],
         "contratos": ["contratos"],
         "atas": ["atas"],
@@ -80,7 +98,7 @@ def parse_data_types(data_types: Optional[List[str]]) -> Dict[str, List[int]]:
         "propostas": ["contratacoes_proposta"],
         "instrumentos": ["instrumentoscobranca_inclusao"],
         "pca": ["pca", "pca_usuario", "pca_atualizacao"],
-        "especifica": ["contratacao_especifica"]
+        # "especifica": ["contratacao_especifica"]  # Disabled: requires specific params
     }
     
     if not data_types:
