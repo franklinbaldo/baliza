@@ -14,6 +14,8 @@ from rich.progress import Progress, BarColumn, TextColumn, TimeElapsedColumn, Ti
 from pathlib import Path
 from datetime import date, timedelta
 from typing import Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
 # Suppress common DLT warnings for cleaner output
 warnings.filterwarnings("ignore", message=".*psutil dependency is not installed.*")
@@ -26,6 +28,8 @@ import logging
 logging.getLogger("dlt").setLevel(logging.ERROR)
 
 from .extraction.pipeline import create_default_pipeline, pncp_source, pncp_monthly_sources
+import dlt
+from dlt.destinations import filesystem
 from .utils.completion_tracking import (
     get_completed_extractions,
     mark_extraction_completed,
@@ -73,6 +77,10 @@ def extract(
     progress: str = typer.Option(
         "enlighten", "--progress", "-p", help="Progress tracking: enlighten, tqdm, alive_progress, log"
     ),
+    # Performance options
+    max_workers: int = typer.Option(
+        4, "--workers", "-w", help="Number of concurrent workers (1-8, default: 4)"
+    ),
     # Utility flags
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),
     dry_run: bool = typer.Option(
@@ -89,6 +97,7 @@ def extract(
       baliza extract --days 30                # Last 30 days only
       baliza extract --date 2025-01           # January 2025 only
       baliza extract --types contracts        # All historical contracts
+      baliza extract --workers 8              # Use 8 concurrent workers (faster)
       baliza extract --progress tqdm          # Use tqdm progress bars
       baliza extract --progress log           # Log progress to console
       baliza extract --dry-run                # See what would be extracted
@@ -99,6 +108,11 @@ def extract(
     if progress not in valid_progress_options:
         console.print(f"[red]Invalid progress option: {progress}[/red]")
         console.print(f"Valid options: {', '.join(valid_progress_options)}")
+        raise typer.Exit(1)
+    
+    # Validate max_workers
+    if max_workers < 1 or max_workers > 8:
+        console.print(f"[red]Invalid max_workers: {max_workers}. Must be between 1-8[/red]")
         raise typer.Exit(1)
 
     # Determine date range based on options
@@ -159,7 +173,26 @@ def extract(
             
             console.print(f"📊 Processing {len(unique_months)} months ({len(monthly_sources)} sources total)")
             
-            # Use Rich progress bar for source processing
+            # Use concurrent processing for much faster extraction
+            def process_source(source):
+                """Process a single source and return result tuple."""
+                source_name = getattr(source, 'name', f'source_{id(source)}')
+                try:
+                    # Each thread needs its own pipeline instance with unique name to avoid state conflicts
+                    thread_id = threading.get_ident()
+                    unique_pipeline_name = f"baliza_pncp_{thread_id}"
+                    thread_pipeline = dlt.pipeline(
+                        pipeline_name=unique_pipeline_name,
+                        destination=filesystem(bucket_url=str(output), layout="{table_name}/{load_id}"),
+                        dataset_name="pncp_raw",
+                        progress=progress
+                    )
+                    result = thread_pipeline.run(source)
+                    return source_name, result, None
+                except Exception as e:
+                    return source_name, None, str(e)
+            
+            # Use Rich progress bar for concurrent source processing
             with Progress(
                 TextColumn("[progress.description]{task.description}"),
                 BarColumn(),
@@ -169,20 +202,30 @@ def extract(
                 TimeRemainingColumn(),
                 console=console,
             ) as progress_bar:
-                task = progress_bar.add_task("Processing sources", total=len(monthly_sources))
+                task = progress_bar.add_task("Processing sources concurrently", total=len(monthly_sources))
                 
-                for i, source in enumerate(monthly_sources, 1):
-                    source_name = getattr(source, 'name', f'source_{i}')
-                    try:
-                        result = pipeline.run(source)
-                        total_results.append(result)
-                        # 204 responses are handled by DLT as success with no data - this is correct behavior
-                        progress_bar.update(task, advance=1, description=f"✅ {source_name}")
-                    except Exception as e:
-                        failed_months.append((source_name, str(e)))
-                        progress_bar.update(task, advance=1, description=f"❌ {source_name} failed")
-                        console.print(f"[red]Error in {source_name}: {e}[/red]")
-                        # Continue with next source instead of failing entire process
+                # Use ThreadPoolExecutor for concurrent processing
+                # Limit workers to avoid overwhelming the API and system
+                effective_workers = min(max_workers, len(monthly_sources))
+                
+                console.print(f"🚀 Using {effective_workers} concurrent workers")
+                
+                with ThreadPoolExecutor(max_workers=effective_workers) as executor:
+                    # Submit all sources for processing
+                    future_to_source = {executor.submit(process_source, source): source for source in monthly_sources}
+                    
+                    # Process completed futures as they finish
+                    for future in as_completed(future_to_source):
+                        source_name, result, error = future.result()
+                        
+                        if error:
+                            failed_months.append((source_name, error))
+                            progress_bar.update(task, advance=1, description=f"❌ {source_name} failed")
+                            console.print(f"[red]Error in {source_name}: {error}[/red]")
+                        else:
+                            total_results.append(result)
+                            progress_bar.update(task, advance=1, description=f"✅ {source_name}")
+                            # 204 responses are handled by DLT as success with no data - this is correct behavior
             
             # Report results
             if failed_months:

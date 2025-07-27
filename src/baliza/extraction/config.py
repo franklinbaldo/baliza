@@ -110,9 +110,6 @@ def create_pncp_rest_config(
             endpoint_name, settings.default_page_size
         )
 
-        # Get Pydantic model for this endpoint if available
-        pydantic_model = endpoint_models.get(endpoint_name)
-        
         # Generate parameter variations for endpoints that support them
         parameter_variations = _get_parameter_variations(endpoint_name, endpoint_config, modalidades)
         
@@ -120,6 +117,11 @@ def create_pncp_rest_config(
         for variation in parameter_variations:
             variation_name = variation["name"]
             variation_params = variation["params"]
+            
+            # Get Pydantic model for this variation based on base endpoint name
+            # For variations like "contratos_mod1", use the base endpoint name "contratos"
+            base_endpoint = variation_name.split('_mod')[0].split('_20')[0]
+            pydantic_model = endpoint_models.get(base_endpoint)
             
             # Base resource configuration
             resource = {
@@ -143,7 +145,8 @@ def create_pncp_rest_config(
                         }
                     ]
                 },
-                "write_disposition": "replace",  # Use replace to avoid merge strategy warnings
+                "write_disposition": "replace",  # Force replace to avoid merge strategy warnings
+                "schema_contract": "evolve",  # Use simple evolve mode for maximum flexibility
                 "processing_steps": [
                     {
                         "map": _add_hash_id  # Map function for deduplication
@@ -155,19 +158,34 @@ def create_pncp_rest_config(
                 # Note: Incremental loading handled by gap detection instead of DLT incremental
             }
 
-            # Add Pydantic model for schema definition if available
-            if pydantic_model:
-                # DLT supports Pydantic models via the columns parameter
-                # This provides type hints and schema validation
+            # Use hybrid approach: Pydantic models for endpoints that work, permissive for others
+            # Based on validation testing, some endpoints have accurate models, others don't
+            
+            endpoints_with_working_models = ["atas", "atas_atualizacao"]
+            
+            if base_endpoint in endpoints_with_working_models and pydantic_model:
+                # Use Pydantic model for endpoints we've validated
                 resource["columns"] = pydantic_model
             else:
-                # Fallback: Define column types for commonly missing fields to avoid inference warnings
+                # Use permissive schema for endpoints with incomplete/incorrect Pydantic models
                 resource["columns"] = {
+                    "_dlt_id": {"data_type": "text", "nullable": False},
+                    "_baliza_extracted_at": {"data_type": "date", "nullable": False},
+                    # Common optional fields from API responses that frequently cause warnings
                     "unidade_sub_rogada": {"data_type": "text", "nullable": True},
                     "orgao_sub_rogado": {"data_type": "text", "nullable": True},
-                    "_dlt_id": {"data_type": "text", "nullable": False},
-                    "_baliza_extracted_at": {"data_type": "date", "nullable": False}
+                    "ni_fornecedor_sub_contratado": {"data_type": "text", "nullable": True},
+                    "nome_fornecedor_sub_contratado": {"data_type": "text", "nullable": True},
+                    "tipo_pessoa_sub_contratada": {"data_type": "text", "nullable": True},
+                    "identificador_cipi": {"data_type": "text", "nullable": True},
+                    "url_cipi": {"data_type": "text", "nullable": True},
+                    "data_cancelamento": {"data_type": "text", "nullable": True},
+                    "cnpj_orgao_subrogado": {"data_type": "text", "nullable": True},
+                    "nome_orgao_subrogado": {"data_type": "text", "nullable": True},
+                    "codigo_unidade_orgao_subrogado": {"data_type": "text", "nullable": True},
+                    "nome_unidade_orgao_subrogado": {"data_type": "text", "nullable": True},
                 }
+            # Note: Additional fields will be allowed due to schema_contract: "evolve"
 
             resources.append(resource)
 
