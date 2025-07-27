@@ -10,7 +10,7 @@ Smart Gap Detection:
 
 import dlt
 from dlt.sources.rest_api import rest_api_source
-from dlt.destinations import filesystem
+from dlt.destinations import filesystem, duckdb
 from typing import List, Any
 from .config import create_pncp_rest_config
 from .gap_detector import find_extraction_gaps
@@ -130,10 +130,6 @@ def pncp_monthly_sources(
     Returns:
         List of DLT sources, one per month
     """
-    # TODO: Revisit this function. The `pncp_source` now returns a list of sources
-    #       when `return_all_sources=True`. This pattern might be simplified if
-    #       `pncp_source` itself could yield multiple resources directly, allowing
-    #       DLT to manage the iteration over months/modalidades more natively.
     return pncp_source(
         start_date=start_date,
         end_date=end_date,
@@ -197,6 +193,14 @@ def create_default_pipeline(destination: str = "parquet", output_dir: str = "dat
             pipeline_name="baliza_pncp", 
             destination=dest, 
             dataset_name="pncp_raw",
+            progress=progress
+        )
+    elif destination == "duckdb":
+        # Use DuckDB destination
+        return dlt.pipeline(
+            pipeline_name="baliza_pncp",
+            destination=duckdb(),
+            dataset_name="pncp_data",
             progress=progress
         )
     else:
