@@ -48,18 +48,56 @@ def test_endpoint_pydantic_model(endpoint_path: str, params: dict, model_class, 
             
         except ValidationError as e:
             print(f"   ❌ Pydantic model validation: FAILED")
-            print(f"   📋 Validation errors:")
-            for error in e.errors():
-                print(f"      - {error['loc']}: {error['msg']}")
+            print(f"   📋 Detailed validation errors:")
             
-            # Show sample of actual data fields vs model fields
+            # Analyze specific field values causing errors
+            problematic_fields = {}
+            for error in e.errors():
+                field_path = ' -> '.join(str(x) for x in error['loc'])
+                if field_path not in problematic_fields:
+                    problematic_fields[field_path] = []
+                problematic_fields[field_path].append(error['msg'])
+            
+            for field_path, errors in problematic_fields.items():
+                print(f"      ❌ {field_path}:")
+                for error_msg in set(errors):  # Remove duplicates
+                    print(f"         - {error_msg}")
+                
+                # Show actual values for this field
+                if data.get('data') and len(data['data']) > 0:
+                    field_parts = field_path.split(' -> ')
+                    if len(field_parts) >= 3 and field_parts[0] == 'data':
+                        try:
+                            record_index = int(field_parts[1])
+                            field_name = field_parts[2]
+                            if record_index < len(data['data']):
+                                actual_value = data['data'][record_index].get(field_name)
+                                print(f"         📍 Actual value: {repr(actual_value)} (type: {type(actual_value).__name__})")
+                                
+                                # For enum errors, show all unique values found
+                                if "Input should be" in errors[0] and "enum" in errors[0].lower():
+                                    unique_values = set()
+                                    for record in data['data'][:20]:  # Check first 20 records
+                                        if field_name in record:
+                                            unique_values.add(repr(record[field_name]))
+                                    print(f"         📋 All values found: {', '.join(sorted(unique_values))}")
+                        except (ValueError, IndexError, KeyError):
+                            pass
+            
+            # Show sample of actual data structure
             if data.get('data') and len(data['data']) > 0:
                 sample_record = data['data'][0]
-                print(f"   📄 Sample API response fields:")
-                for field in sorted(sample_record.keys())[:10]:  # Show first 10 fields
-                    print(f"      - {field}: {type(sample_record[field]).__name__}")
-                if len(sample_record.keys()) > 10:
-                    print(f"      ... and {len(sample_record.keys()) - 10} more fields")
+                print(f"   📄 Sample API response structure (first record):")
+                for field in sorted(sample_record.keys())[:15]:  # Show first 15 fields
+                    value = sample_record[field]
+                    if value is None:
+                        print(f"      - {field}: null")
+                    elif isinstance(value, (dict, list)):
+                        print(f"      - {field}: {type(value).__name__} ({len(value)} items)" if hasattr(value, '__len__') else f"      - {field}: {type(value).__name__}")
+                    else:
+                        print(f"      - {field}: {repr(value)} ({type(value).__name__})")
+                if len(sample_record.keys()) > 15:
+                    print(f"      ... and {len(sample_record.keys()) - 15} more fields")
                     
     except Exception as e:
         print(f"   💥 Request failed: {e}")
