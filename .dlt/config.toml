@@ -4,97 +4,103 @@
 [runtime]
 # Nível de log para debug durante desenvolvimento
 log_level = "INFO"
-# Usa progress bars para feedback visual
+# Usa progress bars para feedback visual (opções: enlighten, tqdm, alive_progress, log)
 progress = "log"
+# Inclui o corpo das respostas de erro HTTP nos logs para depuração
+http_show_error_body = true
 
-[sources.baliza]
-# Base URL for the PNCP API - ambiente de produção
-base_url = "https://pncp.gov.br/api/consulta"
+[sources.baliza_source] # Nome do seu dlt source em src/baliza/pipeline.py
+# Base URL para a API PNCP - será carregada de secrets.toml
+# base_url = "https://pncp.gov.br/api/consulta" # Removido daqui, vai para secrets.toml
 
 # Configurações de schema para lidar com drift
 [schema]
-# Permite adicionar novas colunas mas não altera tipos existentes
+# Permite adicionar novas colunas mas não altera tipos existentes (mais seguro)
 update_mode = "primitives_merge"
 # Habilita evolução automática do schema durante desenvolvimento
 evolution = true
-# Aplica contratos de schema definidos nos modelos Pydantic
-[schema.contract]
-data_type = "freeze"  # Valida que colunas requeridas existem
-columns = "evolve"    # Permite novas colunas não mapeadas
+# Aplica contratos de schema definidos nos modelos Pydantic (se usados)
+# [schema.contract] # Descomente e ajuste se for usar validação estrita com Pydantic
+# data_type = "freeze"
+# columns = "evolve"
 
-# Configurações de estado para evitar crescimento descontrolado
+# Configurações de estado para evitar crescimento descontrolado em backfills longos
 [state]
-# Remove hashes de deduplicação após 14 dias
+# Remove hashes de deduplicação após 14 dias para manter o estado enxuto
 trim_unique_hashes_days = 14
-# Limita o tamanho máximo do arquivo de estado (8MB)
-max_state_bytes = 8000000
-# Compacta o estado periodicamente
+# Limita o tamanho máximo do arquivo de estado (8MB é um bom ponto de partida)
+max_state_bytes = 8_000_000 # 8MB
+# Compacta o estado periodicamente para otimizar uso de disco
 compress = true
 
-# Configurações do escritor de dados para performance
+# Configurações do escritor de dados para performance (cargas paralelas)
 [data_writer]
-# Rotaciona arquivos após 50k registros para paralelizar cargas
-file_max_items = 50000
+# Rotaciona arquivos após 50k registros para que o loader possa processá-los em paralelo
+file_max_items = 50_000
 # Rotaciona arquivos após 4MB para evitar arquivos muito grandes
-file_max_bytes = 4194304  # 4MB
-# Usa buffer em memória para melhor performance
-buffer_max_items = 10000
+file_max_bytes = 4_194_304 # 4MB
+# Usa buffer em memória para melhor performance (menos I/O em disco)
+buffer_max_items = 10_000
 # Formato de arquivo otimizado para análise
 file_format = "parquet"
 
-# Configurações de normalize para otimizar processamento
+# Configurações de normalize para otimizar processamento antes da carga
 [normalize]
-# Processa até 10k itens por worker
+# Número de workers para processar dados em paralelo (ajuste conforme CPU)
 workers = 4
-max_items_per_chunk = 10000
-# Usa compressão para reduzir uso de disco
+# Tamanho máximo de itens por chunk para processamento
+max_items_per_chunk = 10_000
+# Usa compressão para reduzir uso de disco durante a normalização
 loader_file_format = "parquet"
 
 # Configurações específicas para DuckDB (destino padrão)
 [destination.duckdb]
-# Localização do banco de dados
+# Localização do banco de dados DuckDB
 database_path = "data/baliza.duckdb"
-# Otimizações de performance
+# Otimizações de performance do DuckDB
 [destination.duckdb.config]
-memory_limit = "2GB"     # Usa mais memória para performance
-threads = 4              # Habilita paralelismo
+memory_limit = "2GB"     # Aloca mais memória para DuckDB se disponível
+threads = 4              # Habilita paralelismo dentro do DuckDB
 default_order = "ASC"    # Otimiza para workloads analíticos
 
-# Configurações de retry para APIs instáveis
+# Configurações de retry e timeout para APIs instáveis
 [extract]
-# Retry automático em caso de falhas temporárias
+# Número de tentativas em caso de falhas temporárias
 retry_count = 3
+# Atraso entre as tentativas
 retry_delay = 5
-# Timeout padrão para requisições HTTP
-timeout = 300  # 5 minutos
+# Timeout padrão para requisições HTTP em segundos (5 minutos)
+timeout = 300 
 
-# Configurações específicas para REST API source
-[sources.rest_api]
-# Configurações de rate limiting para ser respeitoso com a API
+# Configurações específicas para REST API source (se você não usar globalmente no client)
+[sources.rest_api] # Este é um bloco opcional, para configs globais de rest_api_source
+# Timeout para requisições específicas do REST API source (se diferente do global)
 request_timeout = 120
+# Máximo de tentativas de requisição HTTP
 request_max_attempts = 3
+# Fator de backoff exponencial para retries
 request_backoff_factor = 2
-# Headers padrão para identificação
+# Headers padrão para identificação da sua aplicação (importante para conformidade da API)
 [sources.rest_api.request_headers]
-"User-Agent" = "Baliza/1.0 (Data Pipeline)"
+"User-Agent" = "Baliza/1.0 (Data Pipeline - https://github.com/franklinbaldo/baliza)"
 
-# Configuração de logging específica para debugging
+# Configuração de logging específica para debugging e auditoria
 [logging]
 # Log level para diferentes componentes
 level = "INFO"
-# Formato de log estruturado
+# Formato de log estruturado para facilitar parse por ferramentas
 format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-# Salva logs em arquivo para auditoria
+# Salva logs em arquivo para auditoria futura
 to_file = true
 file_path = "logs/baliza.log"
 
-# Configurações de pipeline para diferentes ambientes
+# Configurações de pipeline para diferentes ambientes ou execuções
 [pipeline]
-# Nome padrão do pipeline
+# Nome padrão do pipeline (aparece nos logs do dlt)
 name = "baliza_pncp"
-# Dataset padrão
+# Nome do dataset no destino (ex: schema no DuckDB/Postgres, dataset no BigQuery)
 dataset_name = "pncp_data"
-# Exporta schema para análise
+# Exporta o schema para um caminho (útil para auditoria e CI/CD)
 export_schema_path = "schemas/export"
-# Ativa validação de dados
-enable_validation = true
+# Ativa validação de dados em runtime (pode ter impacto na performance)
+enable_validation = false # Desativar em produção para performance, usar em dev/CI.
