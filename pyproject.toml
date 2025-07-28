@@ -5,7 +5,8 @@ description = "Streamlined PNCP data extraction to Parquet using DLT pipeline."
 authors = [{ name = "Franklin Baldo", email = "frank@franklinbaldo.com" }]
 requires-python = ">=3.11"
 dependencies = [
-    "dlt[duckdb,cli]",
+    "dlt[cli,duckdb,parquet,rest-api]>=0.5.0",
+    "pyarrow>=21.0.0",
 ]
 
 [dependency-groups]

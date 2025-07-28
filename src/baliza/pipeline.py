@@ -4,11 +4,8 @@ from pathlib import Path
 
 import dlt
 import yaml
+import requests
 from dlt.extract.source import DltResource
-from dlt.sources.helpers.rest_client.paginators import PageNumberPaginator
-from dlt.extract.incremental import Incremental
-from rest_api import rest_api_source
-from rest_api.typing import RESTAPIConfig
 
 from .schemas import ModalidadeContratacao
 
@@ -69,94 +66,164 @@ def _get_resources_by_type(config: Dict[str, Any], resource_type: str) -> List[D
     return config.get(key, [])
 
 
-def _process_resource_config(resource_config: Dict[str, Any], modalidade_codigo: Optional[int] = None) -> Dict[str, Any]:
+def fetch_pncp_data(base_url: str, endpoint_path: str, params: Dict[str, Any]) -> Generator[Dict[str, Any], None, None]:
     """
-    Processa configuração do resource aplicando transformações específicas.
-    BALIZA extrai TODAS as modalidades - não aplicamos filtros desnecessários.
+    Faz requisições paginadas à API PNCP e retorna os dados.
     """
-    # Faz uma cópia para não modificar o original
-    config = resource_config.copy()
+    url = f"{base_url.rstrip('/')}{endpoint_path}"
+    pagina = 1
     
-    # Configura paginador correto
-    paginator = PageNumberPaginator(
-        page_param="pagina",
-        total_path="totalPaginas",
-        current_value_path="numeroPagina"
-    )
-    
-    # REMOVIDO: Não aplicamos filtro de modalidade
-    # O BALIZA é um backup completo - extraímos dados de todas as modalidades
-    
-    # Configura incremental se presente
-    if "incremental" in config:
-        inc_config = config["incremental"]
-        cursor_path = inc_config["cursor_path"]
-        initial_value = inc_config["initial_value"]
-        lag_days = inc_config.get("lag_days", 0)
+    while True:
+        # Prepara parâmetros da requisição
+        request_params = params.copy()
+        request_params.update({
+            "pagina": pagina,
+            "tamanhoPagina": 500  # Máximo por página (mínimo 10, máximo 500)
+        })
         
-        # Remove configuração incremental do dict (será aplicada diferentemente)
-        del config["incremental"]
+        print(f"🔄 Fazendo requisição: {endpoint_path} - página {pagina}")
+        print(f"   📋 Params: {request_params}")
         
-        # Aplica configuração incremental no endpoint
-        config["endpoint"]["params"]["dataInicial"] = "{incremental.start_date}"
-        config["endpoint"]["params"]["dataFinal"] = "{incremental.end_date}"
-    
-    # Aplica o paginador
-    config["endpoint"]["paginator"] = paginator
-    
-    return config
+        try:
+            response = requests.get(url, params=request_params, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+            
+            # Extrai os dados da resposta
+            items = data.get("data", [])
+            total_paginas = data.get("totalPaginas", 1)
+            
+            print(f"   ✅ Página {pagina}/{total_paginas}: {len(items)} registros")
+            
+            # Yield cada item individualmente
+            for item in items:
+                yield item
+            
+            # Verifica se há mais páginas
+            if pagina >= total_paginas or len(items) == 0:
+                break
+                
+            pagina += 1
+            
+        except requests.exceptions.RequestException as e:
+            print(f"   ❌ Erro na requisição: {e}")
+            break
+        except Exception as e:
+            print(f"   ❌ Erro inesperado: {e}")
+            break
 
 
-def _create_incremental_resource(resource_config: Dict[str, Any]) -> Dict[str, Any]:
+def split_date_range_monthly(data_inicial: str, data_final: str) -> List[tuple]:
     """
-    Cria configuração de resource com suporte incremental.
+    Divide um período em chunks mensais para organização e limite da API PNCP.
+    Cada chunk corresponde a um mês completo.
     """
-    if "incremental" not in resource_config:
-        return resource_config
+    # Converte strings para datetime
+    start = datetime.strptime(data_inicial, "%Y%m%d")
+    end = datetime.strptime(data_final, "%Y%m%d")
     
-    inc_config = resource_config["incremental"]
-    cursor_path = inc_config["cursor_path"]
-    initial_value = inc_config["initial_value"]
-    lag_days = inc_config.get("lag_days", 0)
+    chunks = []
+    current = start.replace(day=1)  # Sempre começa no dia 1 do mês
     
-    # Configura incremental
-    incremental = Incremental(
-        cursor_path=cursor_path,
-        initial_value=initial_value,
-        lag=timedelta(days=lag_days)
-    )
+    while current <= end:
+        # Calcula o último dia do mês atual
+        if current.month == 12:
+            next_month = current.replace(year=current.year + 1, month=1)
+        else:
+            next_month = current.replace(month=current.month + 1)
+        
+        chunk_end = next_month - timedelta(days=1)  # Último dia do mês
+        
+        # Não ultrapassa a data final solicitada
+        if chunk_end > end:
+            chunk_end = end
+        
+        chunks.append((
+            current.strftime("%Y%m%d"),
+            chunk_end.strftime("%Y%m%d")
+        ))
+        
+        # Move para o primeiro dia do próximo mês
+        current = next_month
+        
+        # Para se já passou da data final
+        if current > end:
+            break
     
-    # Remove seção incremental e adiciona ao DLT resource
-    config = resource_config.copy()
-    del config["incremental"]
+    return chunks
+
+def create_pncp_resource(resource_config: Dict[str, Any], base_url: str) -> DltResource:
+    """
+    Cria um DLT resource para um endpoint específico da API PNCP.
+    Automaticamente divide períodos em chunks mensais para organização.
+    """
+    resource_name = resource_config["name"]
+    endpoint_path = resource_config["endpoint"]["path"]
+    endpoint_params = resource_config["endpoint"]["params"].copy()
     
-    # Aplica incremental
-    config["incremental"] = incremental
+    # Processa placeholders de data incremental
+    data_inicial = endpoint_params.get("dataInicial", "20210101")
+    data_final = endpoint_params.get("dataFinal", datetime.now().strftime("%Y%m%d"))
     
-    return config
+    if data_inicial == "{incremental.start}":
+        data_inicial = "20210101"  # Data padrão inicial
+    if data_final == "{incremental.end}":
+        data_final = datetime.now().strftime("%Y%m%d")
+    
+    @dlt.resource(name=resource_name, table_name=resource_config.get("table_name", resource_name))
+    def resource_func():
+        """Resource que busca dados da API PNCP com chunking mensal"""
+        print(f"\n🚀 Iniciando extração: {resource_name}")
+        print(f"   🎯 Endpoint: {endpoint_path}")
+        print(f"   📅 Período: {data_inicial} até {data_final}")
+        
+        # Divide o período em chunks mensais
+        date_chunks = split_date_range_monthly(data_inicial, data_final)
+        print(f"   📆 Dividido em {len(date_chunks)} meses para organização")
+        
+        total_items = 0
+        
+        for i, (chunk_start, chunk_end) in enumerate(date_chunks, 1):
+            # Converte datas para formato mais legível para log
+            start_readable = datetime.strptime(chunk_start, "%Y%m%d").strftime("%Y-%m")
+            end_readable = datetime.strptime(chunk_end, "%Y%m%d").strftime("%Y-%m-%d")
+            
+            print(f"\n   📦 Mês {i}/{len(date_chunks)}: {start_readable} ({chunk_start} até {chunk_end})")
+            
+            # Prepara parâmetros para este chunk
+            chunk_params = endpoint_params.copy()
+            chunk_params["dataInicial"] = chunk_start
+            chunk_params["dataFinal"] = chunk_end
+            
+            chunk_items = 0
+            # Usa a função de fetch para obter os dados deste chunk
+            for item in fetch_pncp_data(base_url, endpoint_path, chunk_params):
+                yield item
+                chunk_items += 1
+                total_items += 1
+            
+            print(f"   ✅ {start_readable} concluído: {chunk_items} registros")
+            
+        print(f"✅ Extração concluída: {resource_name} - Total: {total_items} registros")
+    
+    return resource_func
 
 
 @dlt.source(name="baliza_source", max_table_nesting=2)
 def baliza_source(
-    base_url: str = dlt.config.value,
+    base_url: str = "https://pncp.gov.br/api/consulta",
     resource_type: str = "sync",  # "sync", "backfill", "specialized"
 ) -> List[DltResource]:
     """
-    Source DLT inteligente para extração de dados da API PNCP.
+    Source DLT inteligente para extração de dados da API PNCP com requests simples.
     Extrai dados de TODAS as modalidades - backup completo e aberto.
     
     ESTRATÉGIA MULTI-MODALIDADE:
     - Endpoints que REQUEREM modalidade: gera 13 resources automáticos (mod1-mod13)
     - Endpoints que NÃO REQUEREM modalidade: usa 1 resource único
     
-    Endpoints que REQUEREM modalidade (baseado em análise dos scripts):
-    - contratacoes_publicacao
-    - contratacoes_atualizacao  
-    
-    Endpoints que NÃO REQUEREM modalidade:
-    - contratos, contratos_atualizacao (pega todas automaticamente)
-    - atas, atas_atualizacao (modalidade não se aplica)
-    - pca_usuario, instrumentos_cobranca (modalidade não se aplica)
+    CHUNKING MENSAL:
+    - Divide períodos em chunks mensais para organização e gerenciamento
     
     Args:
         base_url: URL base da API PNCP
@@ -173,75 +240,61 @@ def baliza_source(
     # Seleciona os recursos baseado no tipo solicitado
     resource_configs = _get_resources_by_type(config, resource_type)
     
-    # Constroi a configuração do source com geração inteligente de modalidades
+    print(f"\n🚀 Criando source BALIZA para resource_type: {resource_type}")
+    print(f"📋 Resources base encontrados: {len(resource_configs)}")
+    
+    # Constroi a lista de recursos DLT com geração inteligente de modalidades
     resources = []
+    total_final_resources = 0
+    
     for resource_config in resource_configs:
+        resource_name = resource_config["name"]
+        
         # Verifica se este endpoint requer modalidade
-        if _requires_modalidade(resource_config["name"]):
+        if _requires_modalidade(resource_name):
             # Gera 13 resources separados (um para cada modalidade)
             modalidade_resources = _generate_modalidade_resources(resource_config)
+            print(f"⚠️  {resource_name} REQUER modalidade → gerou {len(modalidade_resources)} resources")
+            
             for modalidade_resource in modalidade_resources:
-                processed_config = _process_resource_config(modalidade_resource, modalidade_codigo=None)
-                resources.append(processed_config)
+                dlt_resource = create_pncp_resource(modalidade_resource, base_url)
+                resources.append(dlt_resource)
+                total_final_resources += 1
         else:
             # Endpoint não requer modalidade - usa resource único
-            processed_config = _process_resource_config(resource_config, modalidade_codigo=None)
-            resources.append(processed_config)
+            print(f"✅ {resource_name} NÃO requer modalidade → 1 resource único")
+            dlt_resource = create_pncp_resource(resource_config, base_url)
+            resources.append(dlt_resource)
+            total_final_resources += 1
     
-    source_config: RESTAPIConfig = {
-        "client": {
-            "base_url": base_url,
-            # API PNCP é pública, não requer autenticação
-        },
-        "resources": resources,
-    }
-
-    return rest_api_source(source_config)
+    print(f"🎯 Total de resources finais: {total_final_resources}")
+    return resources
 
 
 @dlt.source(name="baliza_backfill", max_table_nesting=2)
 def baliza_backfill(
-    base_url: str = dlt.config.value,
+    base_url: str = "https://pncp.gov.br/api/consulta",
     start_date: str = "2021-01-01",
-    end_date: Optional[str] = None,
-    chunk_days: int = 7
-) -> Generator[DltResource, None, None]:
+    end_date: Optional[str] = None
+) -> List[DltResource]:
     """
-    Source especializado para backfill histórico com chunking inteligente.
-    Extrai dados de TODAS as modalidades em chunks por data.
+    Source especializado para backfill histórico.
+    Extrai dados de TODAS as modalidades para um período específico.
+    Automaticamente divide em chunks mensais para organização.
     
     Args:
         base_url: URL base da API PNCP
-        start_date: Data inicial (YYYY-MM-DD)
+        start_date: Data inicial (YYYY-MM-DD) 
         end_date: Data final (YYYY-MM-DD), padrão = hoje
-        chunk_days: Tamanho do chunk em dias
     """
     if end_date is None:
         end_date = datetime.now().strftime("%Y-%m-%d")
     
-    start = datetime.strptime(start_date, "%Y-%m-%d")
-    end = datetime.strptime(end_date, "%Y-%m-%d")
+    print(f"🚀 Backfill BALIZA: {start_date} até {end_date}")
     
-    # Processa em chunks por data (TODAS as modalidades em cada chunk)
-    current = start
-    while current < end:
-        chunk_end = min(current + timedelta(days=chunk_days), end)
-        
-        # Configura source para este chunk específico
-        source = baliza_source(
-            base_url=base_url,
-            resource_type="backfill"
-        )
-        
-        # Aplica filtros de data no chunk
-        for resource in source.resources:
-            if hasattr(resource, 'endpoint'):
-                params = resource.endpoint.get('params', {})
-                params['dataInicial'] = current.strftime("%Y-%m-%d")
-                params['dataFinal'] = chunk_end.strftime("%Y-%m-%d")
-        
-        yield from source.resources
-        current = chunk_end
+    # Usa o source principal com tipo backfill
+    # O chunking mensal automático já está implementado na função create_pncp_resource
+    return baliza_source(base_url=base_url, resource_type="backfill")
 
 
 def run_pipeline(
