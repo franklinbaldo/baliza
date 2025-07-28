@@ -8,6 +8,7 @@ log_level = "INFO"
 progress = "log"
 # Inclui o corpo das respostas de erro HTTP nos logs para depuração
 http_show_error_body = true
+dlthub_telemetry = true
 
 [sources.baliza_source] # Nome do seu dlt source em src/baliza/pipeline.py
 # Base URL para a API PNCP - será carregada de secrets.toml

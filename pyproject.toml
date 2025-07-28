@@ -5,10 +5,11 @@ description = "Streamlined PNCP data extraction to Parquet using DLT pipeline."
 authors = [{ name = "Franklin Baldo", email = "frank@franklinbaldo.com" }]
 requires-python = ">=3.11"
 dependencies = [
-    "dlt[all]",
+    "dlt[duckdb]",
     "pyarrow",
     "typer",
     "PyYAML",
+    "duckdb",
 ]
 
 [dependency-groups]
@@ -21,4 +22,4 @@ dev = [
     "requests",
 ]
 [project.scripts]
-baliza = "baliza.cli:app"
+baliza = "src.baliza.cli:app"
