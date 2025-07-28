@@ -1,9 +1,100 @@
+# DLT Configuration for Baliza Pipeline
+# Configurações otimizadas para extração PNCP
+
 [runtime]
-log_level="INFO"
+# Nível de log para debug durante desenvolvimento
+log_level = "INFO"
+# Usa progress bars para feedback visual
+progress = "log"
 
 [sources.baliza]
-# Base URL for the API
-base_url = "https://pncp.gov.br/api/consulta/"
+# Base URL for the PNCP API - ambiente de produção
+base_url = "https://pncp.gov.br/api/consulta"
 
-# Alternative servers found in openapi spec:
-# base_url = "http://localhost:8080/pncp-consulta"
+# Configurações de schema para lidar com drift
+[schema]
+# Permite adicionar novas colunas mas não altera tipos existentes
+update_mode = "primitives_merge"
+# Habilita evolução automática do schema durante desenvolvimento
+evolution = true
+# Aplica contratos de schema definidos nos modelos Pydantic
+[schema.contract]
+data_type = "freeze"  # Valida que colunas requeridas existem
+columns = "evolve"    # Permite novas colunas não mapeadas
+
+# Configurações de estado para evitar crescimento descontrolado
+[state]
+# Remove hashes de deduplicação após 14 dias
+trim_unique_hashes_days = 14
+# Limita o tamanho máximo do arquivo de estado (8MB)
+max_state_bytes = 8000000
+# Compacta o estado periodicamente
+compress = true
+
+# Configurações do escritor de dados para performance
+[data_writer]
+# Rotaciona arquivos após 50k registros para paralelizar cargas
+file_max_items = 50000
+# Rotaciona arquivos após 4MB para evitar arquivos muito grandes
+file_max_bytes = 4194304  # 4MB
+# Usa buffer em memória para melhor performance
+buffer_max_items = 10000
+# Formato de arquivo otimizado para análise
+file_format = "parquet"
+
+# Configurações de normalize para otimizar processamento
+[normalize]
+# Processa até 10k itens por worker
+workers = 4
+max_items_per_chunk = 10000
+# Usa compressão para reduzir uso de disco
+loader_file_format = "parquet"
+
+# Configurações específicas para DuckDB (destino padrão)
+[destination.duckdb]
+# Localização do banco de dados
+database_path = "data/baliza.duckdb"
+# Otimizações de performance
+[destination.duckdb.config]
+memory_limit = "2GB"     # Usa mais memória para performance
+threads = 4              # Habilita paralelismo
+default_order = "ASC"    # Otimiza para workloads analíticos
+
+# Configurações de retry para APIs instáveis
+[extract]
+# Retry automático em caso de falhas temporárias
+retry_count = 3
+retry_delay = 5
+# Timeout padrão para requisições HTTP
+timeout = 300  # 5 minutos
+
+# Configurações específicas para REST API source
+[sources.rest_api]
+# Configurações de rate limiting para ser respeitoso com a API
+request_timeout = 120
+request_max_attempts = 3
+request_backoff_factor = 2
+# Headers padrão para identificação
+[sources.rest_api.request_headers]
+"User-Agent" = "Baliza/1.0 (Data Pipeline)"
+
+# Configuração de logging específica para debugging
+[logging]
+# Log level para diferentes componentes
+level = "INFO"
+# Formato de log estruturado
+format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+# Salva logs em arquivo para auditoria
+to_file = true
+file_path = "logs/baliza.log"
+
+# Configurações de pipeline para diferentes ambientes
+[pipeline]
+# Nome padrão do pipeline
+name = "baliza_pncp"
+# Dataset padrão
+dataset_name = "pncp_data"
+# Exporta schema para análise
+export_schema_path = "schemas/export"
+# Ativa validação de dados
+enable_validation = true

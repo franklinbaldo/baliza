@@ -1,0 +1,155 @@
+# PNCP API Resources Configuration
+# Configuração dos endpoints da API PNCP para extração via DLT
+# Baseado na documentação MANUAL-PNCP-CONSULTAS-VERSAO-1.md
+
+# Recursos de sincronização contínua (atualizações incrementais)
+sync_resources:
+  - name: "contratacoes_atualizacao"
+    table_name: "contratacao_publicacao"
+    primary_key: "numeroControlePNCP"
+    write_disposition: "merge"
+    endpoint:
+      path: "/v1/contratacoes/atualizacao"
+      data_selector: "data"
+      params:
+        dataInicial: "{incremental.start}"
+        dataFinal: "{incremental.end}"
+        codigoModalidadeContratacao: 6  # Pregão Eletrônico (mais comum)
+        pagina: 1
+        tamanhoPagina: 500
+    incremental:
+      cursor_path: "dataAtualizacao"
+      initial_value: "2021-01-01T00:00:00Z"
+      lag_days: 1
+      
+  - name: "contratos_atualizacao"
+    table_name: "contrato"
+    primary_key: "numeroControlePNCP"
+    write_disposition: "merge"
+    endpoint:
+      path: "/v1/contratos/atualizacao"
+      data_selector: "data"
+      params:
+        dataInicial: "{incremental.start}"
+        dataFinal: "{incremental.end}"
+        pagina: 1
+        tamanhoPagina: 500
+    incremental:
+      cursor_path: "dataAtualizacao"
+      initial_value: "2021-01-01T00:00:00Z"
+      lag_days: 1
+
+  - name: "atas_atualizacao"
+    table_name: "ata_registro_preco"
+    primary_key: "numeroControlePNCPAta"
+    write_disposition: "merge"
+    endpoint:
+      path: "/v1/atas/atualizacao"
+      data_selector: "data"
+      params:
+        dataInicial: "{incremental.start}"
+        dataFinal: "{incremental.end}"
+        pagina: 1
+        tamanhoPagina: 500
+    incremental:
+      cursor_path: "dataAtualizacao"
+      initial_value: "2021-01-01T00:00:00Z"
+      lag_days: 1
+
+# Recursos de backfill (cargas históricas com chunking)
+backfill_resources:
+  - name: "contratacoes_publicacao"
+    table_name: "contratacao_publicacao"
+    primary_key: "numeroControlePNCP"
+    write_disposition: "replace"
+    endpoint:
+      path: "/v1/contratacoes/publicacao"
+      data_selector: "data"
+      params:
+        dataInicial: "{date_range.start}"
+        dataFinal: "{date_range.end}"
+        codigoModalidadeContratacao: 6
+        pagina: 1
+        tamanhoPagina: 500
+    date_range:
+      start_date: "2021-01-01"
+      end_date: "2024-12-31"
+      chunk_days: 7
+
+  - name: "contratos"
+    table_name: "contrato"
+    primary_key: "numeroControlePNCP"
+    write_disposition: "replace"
+    endpoint:
+      path: "/v1/contratos"
+      data_selector: "data"
+      params:
+        dataInicial: "{date_range.start}"
+        dataFinal: "{date_range.end}"
+        pagina: 1
+        tamanhoPagina: 500
+    date_range:
+      start_date: "2021-01-01"
+      end_date: "2024-12-31"
+      chunk_days: 7
+
+  - name: "atas"
+    table_name: "ata_registro_preco"
+    primary_key: "numeroControlePNCPAta"
+    write_disposition: "replace"
+    endpoint:
+      path: "/v1/atas"
+      data_selector: "data"
+      params:
+        dataInicial: "{date_range.start}"
+        dataFinal: "{date_range.end}"
+        pagina: 1
+        tamanhoPagina: 500
+    date_range:
+      start_date: "2021-01-01"
+      end_date: "2024-12-31"
+      chunk_days: 7
+
+# Recursos especializados (PCA e outros)
+specialized_resources:
+  - name: "pca_usuario"
+    table_name: "plano_contratacao"
+    primary_key: "idPcaPncp"
+    write_disposition: "replace"
+    endpoint:
+      path: "/v1/pca/usuario"
+      data_selector: "data"
+      params:
+        anoPca: 2024
+        idUsuario: 1
+        pagina: 1
+        tamanhoPagina: 500
+
+  - name: "instrumentos_cobranca"
+    table_name: "instrumento_cobranca"
+    primary_key: ["cnpj", "ano", "sequencialContrato", "sequencialInstrumentoCobranca"]
+    write_disposition: "merge"
+    endpoint:
+      path: "/v1/instrumentoscobranca/inclusao"
+      data_selector: "data"
+      params:
+        dataInicial: "{incremental.start}"
+        dataFinal: "{incremental.end}"
+        pagina: 1
+        tamanhoPagina: 500
+    incremental:
+      cursor_path: "dataInclusao"
+      initial_value: "2021-01-01T00:00:00Z"
+      lag_days: 1
+
+# Configurações de modalidades mais utilizadas
+modalidades_principais:
+  - codigo: 6
+    nome: "Pregão Eletrônico"
+    descricao: "Modalidade mais comum para compras públicas"
+  - codigo: 4
+    nome: "Concorrência Eletrônica"
+    descricao: "Para contratos de maior valor"
+  - codigo: 8
+    nome: "Dispensa de Licitação"
+    descricao: "Contratações diretas"

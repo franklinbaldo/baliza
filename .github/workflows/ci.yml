@@ -1,0 +1,325 @@
+name: Baliza CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Executa diariamente às 06:00 UTC para detectar quebras da API
+    - cron: '0 6 * * *'
+
+env:
+  PYTHON_VERSION: '3.12'
+  DLT_PROJECT_DIR: '/tmp/dlt_test'
+
+jobs:
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff mypy
+          pip install -e .
+
+      - name: Run Ruff (linting)
+        run: ruff check src/ tests/
+
+      - name: Run Ruff (formatting)
+        run: ruff format --check src/ tests/
+
+      - name: Run MyPy (type checking)
+        run: mypy src/baliza/ --ignore-missing-imports
+
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-cov
+          pip install -e .
+
+      - name: Create test directories
+        run: |
+          mkdir -p data logs schemas/export
+          mkdir -p ${{ env.DLT_PROJECT_DIR }}
+
+      - name: Run unit tests
+        run: |
+          pytest tests/ -v --cov=src/baliza --cov-report=xml --cov-report=term
+        env:
+          DLT_PROJECT_DIR: ${{ env.DLT_PROJECT_DIR }}
+
+      - name: Upload coverage to Codecov
+        if: success()
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false
+
+  smoke_test:
+    name: Smoke Test (Config Validation)
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Create required directories
+        run: |
+          mkdir -p data logs schemas/export
+          mkdir -p ${{ env.DLT_PROJECT_DIR }}
+
+      - name: Validate pipeline configuration
+        run: |
+          python -c "
+          from src.baliza.pipeline import baliza_source
+          import yaml
+          
+          # Testa carregamento da configuração YAML
+          with open('config/pncp_resources.yaml', 'r') as f:
+              config = yaml.safe_load(f)
+              print(f'Configuração carregada: {len(config.get(\"sync_resources\", []))} sync resources')
+          
+          # Testa criação do source
+          source = baliza_source(
+              base_url='https://pncp.gov.br/api/consulta',
+              resource_type='sync',
+              modalidade_codigo=6
+          )
+          print('✅ Source criado com sucesso')
+          print(f'✅ Recursos configurados: {len(list(source.resources)) if hasattr(source, \"resources\") else \"N/A\"}')"
+        env:
+          DLT_PROJECT_DIR: ${{ env.DLT_PROJECT_DIR }}
+
+  integration_test:
+    name: Integration Test (API Connectivity)
+    runs-on: ubuntu-latest
+    needs: smoke_test
+    if: github.event_name == 'schedule' || contains(github.event.head_commit.message, '[test-api]')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pytest
+          pip install -e .
+
+      - name: Test API connectivity
+        run: |
+          python -c "
+          import requests
+          import json
+          
+          # Testa conectividade com API PNCP
+          base_url = 'https://pncp.gov.br/api/consulta'
+          
+          try:
+              response = requests.get(
+                  f'{base_url}/v1/contratacoes/publicacao',
+                  params={
+                      'dataInicial': '2024-01-01',
+                      'dataFinal': '2024-01-02', 
+                      'codigoModalidadeContratacao': 6,
+                      'pagina': 1,
+                      'tamanhoPagina': 5
+                  },
+                  timeout=30
+              )
+              
+              if response.status_code == 200:
+                  data = response.json()
+                  print(f'✅ API respondeu com {response.status_code}')
+                  print(f'✅ Estrutura válida: data={\"data\" in data}, totalPaginas={\"totalPaginas\" in data}')
+                  print(f'✅ Total de registros: {data.get(\"totalRegistros\", \"N/A\")}')
+              else:
+                  print(f'❌ API retornou status {response.status_code}')
+                  print(f'Response: {response.text[:200]}')
+                  exit(1)
+                  
+          except Exception as e:
+              print(f'❌ Erro na conectividade: {e}')
+              exit(1)
+          "
+
+      - name: Run integration tests
+        run: |
+          pytest tests/ -v -m integration --tb=short
+        env:
+          DLT_PROJECT_DIR: ${{ env.DLT_PROJECT_DIR }}
+
+  pipeline_dry_run:
+    name: Pipeline Dry Run
+    runs-on: ubuntu-latest
+    needs: smoke_test
+    if: github.ref == 'refs/heads/main' || contains(github.event.head_commit.message, '[test-pipeline]')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Create required directories
+        run: |
+          mkdir -p data logs schemas/export
+          mkdir -p ${{ env.DLT_PROJECT_DIR }}
+
+      - name: Run pipeline dry run
+        run: |
+          python -c "
+          from src.baliza.pipeline import run_pipeline
+          
+          # Executa dry run do pipeline
+          try:
+              info = run_pipeline(
+                  destination='duckdb',
+                  dataset_name='test_data',
+                  resource_type='sync'
+              )
+              print('✅ Pipeline dry run executado com sucesso')
+              
+          except Exception as e:
+              print(f'❌ Pipeline dry run falhou: {e}')
+              import traceback
+              traceback.print_exc()
+              exit(1)
+          "
+        env:
+          DLT_PROJECT_DIR: ${{ env.DLT_PROJECT_DIR }}
+
+  security_scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install bandit
+        run: pip install bandit[toml]
+
+      - name: Run security scan
+        run: |
+          bandit -r src/ -f json -o bandit-report.json || true
+          bandit -r src/ --severity-level medium
+
+      - name: Upload security report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-report
+          path: bandit-report.json
+
+  release:
+    name: Release Pipeline
+    runs-on: ubuntu-latest
+    needs: [test, smoke_test]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Build package
+        run: python -m build
+
+      - name: Create GitHub Release
+        if: success()
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ github.run_number }}
+          release_name: Release v${{ github.run_number }}
+          body: |
+            Automated release from CI/CD pipeline
+            
+            Changes in this release:
+            - Pipeline improvements and optimizations
+            - Configuration updates
+            - Bug fixes and performance enhancements
+          draft: false
+          prerelease: false
+
+  notification:
+    name: Notify Results
+    runs-on: ubuntu-latest
+    needs: [test, smoke_test, integration_test, pipeline_dry_run]
+    if: always()
+    steps:
+      - name: Notify on success
+        if: needs.test.result == 'success' && needs.smoke_test.result == 'success'
+        run: |
+          echo "✅ Pipeline Baliza - Todos os testes passaram"
+          echo "Commit: ${{ github.sha }}"
+          echo "Branch: ${{ github.ref }}"
+
+      - name: Notify on failure
+        if: needs.test.result == 'failure' || needs.smoke_test.result == 'failure'
+        run: |
+          echo "❌ Pipeline Baliza - Falhas detectadas"
+          echo "Commit: ${{ github.sha }}"
+          echo "Branch: ${{ github.ref }}"
+          exit 1

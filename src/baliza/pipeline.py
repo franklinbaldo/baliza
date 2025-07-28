@@ -1,267 +1,238 @@
-from typing import List
+from typing import List, Dict, Any, Optional, Generator
+from datetime import datetime, timedelta
+from pathlib import Path
 
 import dlt
+import yaml
 from dlt.extract.source import DltResource
+from dlt.sources.helpers.rest_client.paginators import PageNumberPaginator
+from dlt.sources.incremental import Incremental
 from rest_api import rest_api_source
 from rest_api.typing import RESTAPIConfig
 
 
+def _get_resources_by_type(config: Dict[str, Any], resource_type: str) -> List[Dict[str, Any]]:
+    """
+    Seleciona recursos baseado no tipo: sync, backfill, ou specialized.
+    """
+    type_mapping = {
+        "sync": "sync_resources",
+        "backfill": "backfill_resources", 
+        "specialized": "specialized_resources"
+    }
+    
+    key = type_mapping.get(resource_type, "sync_resources")
+    return config.get(key, [])
+
+
+def _process_resource_config(resource_config: Dict[str, Any], modalidade_codigo: Optional[int]) -> Dict[str, Any]:
+    """
+    Processa configuração do resource aplicando transformações específicas.
+    """
+    # Faz uma cópia para não modificar o original
+    config = resource_config.copy()
+    
+    # Configura paginador correto
+    paginator = PageNumberPaginator(
+        page_param="pagina",
+        total_path="totalPaginas",
+        current_value_path="numeroPagina"
+    )
+    
+    # Aplica modalidade se especificada e se o endpoint suporta
+    endpoint_params = config["endpoint"]["params"]
+    if modalidade_codigo and "codigoModalidadeContratacao" in str(endpoint_params):
+        endpoint_params["codigoModalidadeContratacao"] = modalidade_codigo
+    
+    # Configura incremental se presente
+    if "incremental" in config:
+        inc_config = config["incremental"]
+        cursor_path = inc_config["cursor_path"]
+        initial_value = inc_config["initial_value"]
+        lag_days = inc_config.get("lag_days", 0)
+        
+        # Remove configuração incremental do dict (será aplicada diferentemente)
+        del config["incremental"]
+        
+        # Aplica configuração incremental no endpoint
+        config["endpoint"]["params"]["dataInicial"] = "{incremental.start_date}"
+        config["endpoint"]["params"]["dataFinal"] = "{incremental.end_date}"
+    
+    # Aplica o paginador
+    config["endpoint"]["paginator"] = paginator
+    
+    return config
+
+
+def _create_incremental_resource(resource_config: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Cria configuração de resource com suporte incremental.
+    """
+    if "incremental" not in resource_config:
+        return resource_config
+    
+    inc_config = resource_config["incremental"]
+    cursor_path = inc_config["cursor_path"]
+    initial_value = inc_config["initial_value"]
+    lag_days = inc_config.get("lag_days", 0)
+    
+    # Configura incremental
+    incremental = Incremental(
+        cursor_path=cursor_path,
+        initial_value=initial_value,
+        lag=timedelta(days=lag_days)
+    )
+    
+    # Remove seção incremental e adiciona ao DLT resource
+    config = resource_config.copy()
+    del config["incremental"]
+    
+    # Aplica incremental
+    config["incremental"] = incremental
+    
+    return config
+
+
 @dlt.source(name="baliza_source", max_table_nesting=2)
 def baliza_source(
-    token: str = dlt.secrets.value,
     base_url: str = dlt.config.value,
+    resource_type: str = "sync",  # "sync", "backfill", "specialized"
+    modalidade_codigo: Optional[int] = 6,  # Pregão Eletrônico por padrão
 ) -> List[DltResource]:
-
-    # source configuration
+    """
+    Source DLT inteligente para extração de dados da API PNCP.
+    
+    Args:
+        base_url: URL base da API PNCP
+        resource_type: Tipo de recursos a extrair (sync, backfill, specialized)
+        modalidade_codigo: Código da modalidade de contratação (6 = Pregão Eletrônico)
+    
+    Returns:
+        Lista de recursos DLT configurados
+    """
+    # Carrega configuração dos recursos do arquivo YAML
+    config_path = Path(__file__).parent.parent.parent / "config" / "pncp_resources.yaml"
+    with open(config_path, 'r', encoding='utf-8') as f:
+        config = yaml.safe_load(f)
+    
+    # Seleciona os recursos baseado no tipo solicitado
+    resource_configs = _get_resources_by_type(config, resource_type)
+    
+    # Constroi a configuração do source
+    resources = []
+    for resource_config in resource_configs:
+        # Aplica transformações específicas baseadas no tipo
+        processed_config = _process_resource_config(resource_config, modalidade_codigo)
+        resources.append(processed_config)
+    
     source_config: RESTAPIConfig = {
         "client": {
             "base_url": base_url,
-            "auth": {
-                "type": "bearer",
-                "token": token,
-            },
+            # API PNCP é pública, não requer autenticação
         },
-        "resources": [
-            {
-                "name": "atas",
-                "table_name": "ata_registro_preco_periodo_dto",
-                "endpoint": {
-                    "data_selector": "data",
-                    "path": "/v1/atas",
-                    "params": {
-                        "dataInicial": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        "dataFinal": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        "pagina": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        # the parameters below can optionally be configured
-                        # "idUsuario": "OPTIONAL_CONFIG",
-                        # "cnpj": "OPTIONAL_CONFIG",
-                        # "codigoUnidadeAdministrativa": "OPTIONAL_CONFIG",
-                        # "tamanhoPagina": "OPTIONAL_CONFIG",
-                    },
-                    "paginator": "auto",
-                },
-            },
-            {
-                "name": "atas_atualizacao",
-                "table_name": "ata_registro_preco_periodo_dto",
-                "endpoint": {
-                    "data_selector": "data",
-                    "path": "/v1/atas/atualizacao",
-                    "params": {
-                        "dataInicial": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        "dataFinal": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        "pagina": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        # the parameters below can optionally be configured
-                        # "idUsuario": "OPTIONAL_CONFIG",
-                        # "cnpj": "OPTIONAL_CONFIG",
-                        # "codigoUnidadeAdministrativa": "OPTIONAL_CONFIG",
-                        # "tamanhoPagina": "OPTIONAL_CONFIG",
-                    },
-                    "paginator": "auto",
-                },
-            },
-            {
-                "name": "instrumentoscobranca_inclusao",
-                "table_name": "consultar_instrumento_cobranca_dto",
-                "endpoint": {
-                    "data_selector": "data",
-                    "path": "/v1/instrumentoscobranca/inclusao",
-                    "params": {
-                        "dataInicial": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        "dataFinal": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        "pagina": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        # the parameters below can optionally be configured
-                        # "tipoInstrumentoCobranca": "OPTIONAL_CONFIG",
-                        # "cnpjOrgao": "OPTIONAL_CONFIG",
-                        # "tamanhoPagina": "OPTIONAL_CONFIG",
-                    },
-                    "paginator": "auto",
-                },
-            },
-            {
-                "name": "pca_usuario",
-                "table_name": "plano_contratacao_com_itens_do_usuario_dto",
-                "endpoint": {
-                    "data_selector": "data",
-                    "path": "/v1/pca/usuario",
-                    "params": {
-                        "anoPca": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        "idUsuario": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        "pagina": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        # the parameters below can optionally be configured
-                        # "codigoClassificacaoSuperior": "OPTIONAL_CONFIG",
-                        # "cnpj": "OPTIONAL_CONFIG",
-                        # "tamanhoPagina": "OPTIONAL_CONFIG",
-                    },
-                    "paginator": "auto",
-                },
-            },
-            {
-                "name": "pca_atualizacao",
-                "table_name": "plano_contratacao_com_itens_do_usuario_dto",
-                "endpoint": {
-                    "data_selector": "data",
-                    "path": "/v1/pca/atualizacao",
-                    "params": {
-                        "dataInicio": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        "dataFim": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        "pagina": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        # the parameters below can optionally be configured
-                        # "cnpj": "OPTIONAL_CONFIG",
-                        # "codigoUnidade": "OPTIONAL_CONFIG",
-                        # "tamanhoPagina": "OPTIONAL_CONFIG",
-                    },
-                    "paginator": "auto",
-                },
-            },
-            {
-                "name": "pca",
-                "table_name": "plano_contratacao_com_itens_do_usuario_dto",
-                "endpoint": {
-                    "data_selector": "data",
-                    "path": "/v1/pca/",
-                    "params": {
-                        "anoPca": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        "codigoClassificacaoSuperior": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        "pagina": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        # the parameters below can optionally be configured
-                        # "tamanhoPagina": "OPTIONAL_CONFIG",
-                    },
-                    "paginator": "auto",
-                },
-            },
-            {
-                "name": "orgaos_compras",
-                "table_name": "recuperar_compra_dto",
-                "endpoint": {
-                    "data_selector": "$",
-                    "path": "/v1/orgaos/{cnpj}/compras/{ano}/{sequencial}",
-                    "params": {
-                        "cnpj": "FILL_ME_IN",  # TODO: fill in required path parameter
-                        "ano": "FILL_ME_IN",  # TODO: fill in required path parameter
-                        "sequencial": "FILL_ME_IN",  # TODO: fill in required path parameter
-                    },
-                    "paginator": "auto",
-                },
-            },
-            {
-                "name": "contratacoes_publicacao",
-                "table_name": "recuperar_compra_publicacao_dto",
-                "endpoint": {
-                    "data_selector": "data",
-                    "path": "/v1/contratacoes/publicacao",
-                    "params": {
-                        "dataInicial": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        "dataFinal": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        "codigoModalidadeContratacao": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        "pagina": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        # the parameters below can optionally be configured
-                        # "codigoModoDisputa": "OPTIONAL_CONFIG",
-                        # "uf": "OPTIONAL_CONFIG",
-                        # "codigoMunicipioIbge": "OPTIONAL_CONFIG",
-                        # "cnpj": "OPTIONAL_CONFIG",
-                        # "codigoUnidadeAdministrativa": "OPTIONAL_CONFIG",
-                        # "idUsuario": "OPTIONAL_CONFIG",
-                        # "tamanhoPagina": "OPTIONAL_CONFIG",
-                    },
-                    "paginator": "auto",
-                },
-            },
-            {
-                "name": "contratacoes_proposta",
-                "table_name": "recuperar_compra_publicacao_dto",
-                "endpoint": {
-                    "data_selector": "data",
-                    "path": "/v1/contratacoes/proposta",
-                    "params": {
-                        "dataFinal": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        "pagina": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        # the parameters below can optionally be configured
-                        # "codigoModalidadeContratacao": "OPTIONAL_CONFIG",
-                        # "uf": "OPTIONAL_CONFIG",
-                        # "codigoMunicipioIbge": "OPTIONAL_CONFIG",
-                        # "cnpj": "OPTIONAL_CONFIG",
-                        # "codigoUnidadeAdministrativa": "OPTIONAL_CONFIG",
-                        # "idUsuario": "OPTIONAL_CONFIG",
-                        # "tamanhoPagina": "OPTIONAL_CONFIG",
-                    },
-                    "paginator": "auto",
-                },
-            },
-            {
-                "name": "contratacoes_atualizacao",
-                "table_name": "recuperar_compra_publicacao_dto",
-                "endpoint": {
-                    "data_selector": "data",
-                    "path": "/v1/contratacoes/atualizacao",
-                    "params": {
-                        "dataInicial": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        "dataFinal": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        "codigoModalidadeContratacao": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        "pagina": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        # the parameters below can optionally be configured
-                        # "codigoModoDisputa": "OPTIONAL_CONFIG",
-                        # "uf": "OPTIONAL_CONFIG",
-                        # "codigoMunicipioIbge": "OPTIONAL_CONFIG",
-                        # "cnpj": "OPTIONAL_CONFIG",
-                        # "codigoUnidadeAdministrativa": "OPTIONAL_CONFIG",
-                        # "idUsuario": "OPTIONAL_CONFIG",
-                        # "tamanhoPagina": "OPTIONAL_CONFIG",
-                    },
-                    "paginator": "auto",
-                },
-            },
-            {
-                "name": "contratos",
-                "table_name": "recuperar_contrato_dto",
-                "endpoint": {
-                    "data_selector": "data",
-                    "path": "/v1/contratos",
-                    "params": {
-                        "dataInicial": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        "dataFinal": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        "pagina": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        # the parameters below can optionally be configured
-                        # "cnpjOrgao": "OPTIONAL_CONFIG",
-                        # "codigoUnidadeAdministrativa": "OPTIONAL_CONFIG",
-                        # "usuarioId": "OPTIONAL_CONFIG",
-                        # "tamanhoPagina": "OPTIONAL_CONFIG",
-                    },
-                    "paginator": "auto",
-                },
-            },
-            {
-                "name": "contratos_atualizacao",
-                "table_name": "recuperar_contrato_dto",
-                "endpoint": {
-                    "data_selector": "data",
-                    "path": "/v1/contratos/atualizacao",
-                    "params": {
-                        "dataInicial": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        "dataFinal": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        "pagina": "FILL_ME_IN",  # TODO: fill in required query parameter
-                        # the parameters below can optionally be configured
-                        # "cnpjOrgao": "OPTIONAL_CONFIG",
-                        # "codigoUnidadeAdministrativa": "OPTIONAL_CONFIG",
-                        # "usuarioId": "OPTIONAL_CONFIG",
-                        # "tamanhoPagina": "OPTIONAL_CONFIG",
-                    },
-                    "paginator": "auto",
-                },
-            },
-        ],
+        "resources": resources,
     }
 
     return rest_api_source(source_config)
 
-if __name__ == "__main__":
+
+@dlt.source(name="baliza_backfill", max_table_nesting=2)
+def baliza_backfill(
+    base_url: str = dlt.config.value,
+    start_date: str = "2021-01-01",
+    end_date: Optional[str] = None,
+    chunk_days: int = 7,
+    modalidades: Optional[List[int]] = None
+) -> Generator[DltResource, None, None]:
+    """
+    Source especializado para backfill histórico com chunking inteligente.
+    
+    Args:
+        base_url: URL base da API PNCP
+        start_date: Data inicial (YYYY-MM-DD)
+        end_date: Data final (YYYY-MM-DD), padrão = hoje
+        chunk_days: Tamanho do chunk em dias
+        modalidades: Lista de códigos de modalidade a processar
+    """
+    if end_date is None:
+        end_date = datetime.now().strftime("%Y-%m-%d")
+    
+    if modalidades is None:
+        modalidades = [6, 4, 8]  # Pregão Eletrônico, Concorrência, Dispensa
+    
+    start = datetime.strptime(start_date, "%Y-%m-%d")
+    end = datetime.strptime(end_date, "%Y-%m-%d")
+    
+    # Processa em chunks para cada modalidade
+    for modalidade in modalidades:
+        current = start
+        while current < end:
+            chunk_end = min(current + timedelta(days=chunk_days), end)
+            
+            # Configura source para este chunk específico
+            source = baliza_source(
+                base_url=base_url,
+                resource_type="backfill",
+                modalidade_codigo=modalidade
+            )
+            
+            # Aplica filtros de data no chunk
+            for resource in source.resources:
+                if hasattr(resource, 'endpoint'):
+                    params = resource.endpoint.get('params', {})
+                    params['dataInicial'] = current.strftime("%Y-%m-%d")
+                    params['dataFinal'] = chunk_end.strftime("%Y-%m-%d")
+            
+            yield from source.resources
+            current = chunk_end
+
+
+def run_pipeline(
+    destination: str = "duckdb",
+    dataset_name: str = "pncp_data",
+    resource_type: str = "sync",
+    **kwargs
+):
+    """
+    Executa o pipeline com configurações otimizadas.
+    """
+    # Cria diretórios necessários
+    Path("data").mkdir(exist_ok=True)
+    Path("logs").mkdir(exist_ok=True)
+    Path("schemas/export").mkdir(parents=True, exist_ok=True)
+    
+    # Configura pipeline
     pipeline = dlt.pipeline(
-        pipeline_name="baliza_pipeline",
-        destination='duckdb',
-        dataset_name="baliza_data",
+        pipeline_name="baliza_pncp",
+        destination=destination,
+        dataset_name=dataset_name,
         progress="log",
         export_schema_path="schemas/export"
     )
-    source = baliza_source()
+    
+    # Seleciona source baseado no tipo
+    if resource_type == "backfill":
+        source = baliza_backfill(**kwargs)
+    else:
+        source = baliza_source(resource_type=resource_type, **kwargs)
+    
+    # Executa pipeline
     info = pipeline.run(source)
+    
+    print("\n=== Pipeline Executado com Sucesso ===")
+    print(f"Destination: {destination}")
+    print(f"Dataset: {dataset_name}")
+    print(f"Resources processados: {len(info.load_packages[0].jobs) if info.load_packages else 0}")
+    print("Schema path: schemas/export")
+    
+    return info
+
+
+if __name__ == "__main__":
+    # Execução padrão: sync incremental
+    info = run_pipeline(
+        destination="duckdb",
+        dataset_name="pncp_data", 
+        resource_type="sync"
+    )
     print(info)

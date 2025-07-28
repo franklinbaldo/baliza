@@ -11,8 +11,12 @@ dependencies = [
 [dependency-groups]
 dev = [
     "mypy",
-    "pre-commit",
+    "pre-commit", 
     "ruff",
+    "pytest",
+    "pytest-cov",
+    "requests",
+    "PyYAML",
 ]
 [project.scripts]
 baliza = "baliza.cli:app"
