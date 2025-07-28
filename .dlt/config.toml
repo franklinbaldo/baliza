@@ -1,0 +1,9 @@
+[runtime]
+log_level="INFO"
+
+[sources.baliza]
+# Base URL for the API
+base_url = "/api/consulta"
+
+# Alternative servers found in openapi spec:
+# base_url = "http://localhost:8080/pncp-consulta"
