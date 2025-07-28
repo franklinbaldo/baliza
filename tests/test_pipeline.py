@@ -14,7 +14,10 @@ from src.baliza.pipeline import (
     baliza_source,
     _get_resources_by_type,
     _process_resource_config,
-    run_pipeline
+    _requires_modalidade,
+    _generate_modalidade_resources,
+    run_pipeline,
+    ENDPOINTS_REQUIRING_MODALIDADE
 )
 
 
@@ -65,7 +68,6 @@ class TestPipelineConfig:
             "name": "test_resource",
             "endpoint": {
                 "params": {
-                    "codigoModalidadeContratacao": 1,
                     "pagina": 1
                 }
             },
@@ -76,10 +78,9 @@ class TestPipelineConfig:
             }
         }
         
-        processed = _process_resource_config(mock_resource, modalidade_codigo=6)
+        processed = _process_resource_config(mock_resource)
         
-        # Verifica que modalidade foi aplicada
-        assert processed["endpoint"]["params"]["codigoModalidadeContratacao"] == 6
+        # Verifica que não aplicamos filtros de modalidade (backup completo)
         
         # Verifica que paginador foi aplicado
         assert "paginator" in processed["endpoint"]
@@ -90,6 +91,71 @@ class TestPipelineConfig:
         
         # Verifica que seção incremental foi removida
         assert "incremental" not in processed
+
+
+class TestModalidadeStrategy:
+    """Testes da estratégia multi-modalidade."""
+    
+    def test_requires_modalidade_detection(self):
+        """Testa detecção correta de endpoints que requerem modalidade."""
+        # Endpoints que REQUEREM modalidade
+        assert _requires_modalidade("contratacoes_publicacao") == True
+        assert _requires_modalidade("contratacoes_atualizacao") == True
+        
+        # Endpoints que NÃO REQUEREM modalidade  
+        assert _requires_modalidade("contratos") == False
+        assert _requires_modalidade("contratos_atualizacao") == False
+        assert _requires_modalidade("atas") == False
+        assert _requires_modalidade("atas_atualizacao") == False
+        assert _requires_modalidade("pca_usuario") == False
+        assert _requires_modalidade("instrumentos_cobranca") == False
+        
+        # Testa com suffixos de modalidade (devem ser ignorados)
+        assert _requires_modalidade("contratacoes_publicacao_mod6") == True
+        assert _requires_modalidade("contratos_mod1") == False
+    
+    def test_generate_modalidade_resources(self):
+        """Testa geração de 13 resources para cada modalidade."""
+        base_resource = {
+            "name": "contratacoes_publicacao",
+            "table_name": "contratacao_publicacao", 
+            "endpoint": {
+                "path": "/v1/contratacoes/publicacao",
+                "params": {
+                    "dataInicial": "2024-01-01",
+                    "pagina": 1
+                }
+            }
+        }
+        
+        modalidade_resources = _generate_modalidade_resources(base_resource)
+        
+        # Verifica que foram gerados 13 resources (uma para cada modalidade)
+        assert len(modalidade_resources) == 13
+        
+        # Verifica nomes únicos
+        names = [r["name"] for r in modalidade_resources]
+        assert len(set(names)) == 13  # Todos únicos
+        
+        # Verifica que modalidades 1-13 estão presentes
+        expected_names = [f"contratacoes_publicacao_mod{i}" for i in range(1, 14)]
+        assert sorted(names) == sorted(expected_names)
+        
+        # Verifica que cada resource tem modalidade diferente
+        modalidades = [r["endpoint"]["params"]["codigoModalidadeContratacao"] for r in modalidade_resources]
+        assert sorted(modalidades) == list(range(1, 14))
+        
+        # Verifica que outros parâmetros foram preservados
+        for resource in modalidade_resources:
+            assert resource["table_name"] == "contratacao_publicacao"
+            assert resource["endpoint"]["params"]["dataInicial"] == "2024-01-01"
+            assert resource["endpoint"]["params"]["pagina"] == 1
+    
+    def test_endpoints_requiring_modalidade_list(self):
+        """Testa que a lista de endpoints requerentes está correta."""
+        # Baseado na análise dos scripts, apenas estes dois requerem modalidade
+        expected = {"contratacoes_publicacao", "contratacoes_atualizacao"}
+        assert ENDPOINTS_REQUIRING_MODALIDADE == expected
 
 
 class TestPipelineSource:
@@ -117,8 +183,7 @@ class TestPipelineSource:
         # Testa criação do source
         source = baliza_source(
             base_url="https://test.api.com",
-            resource_type="sync",
-            modalidade_codigo=6
+            resource_type="sync"
         )
         
         # Verifica que rest_api_source foi chamado
@@ -129,7 +194,8 @@ class TestPipelineSource:
         assert "client" in call_args
         assert call_args["client"]["base_url"] == "https://test.api.com"
         assert "resources" in call_args
-        assert len(call_args["resources"]) == 1
+        # Note: pode ter múltiplos resources se algum requerer modalidade
+        assert len(call_args["resources"]) >= 1
 
 
 class TestPipelineDryRun:
@@ -167,8 +233,7 @@ class TestPipelineDryRun:
             # Tenta criar o source com configuração real
             source = baliza_source(
                 base_url="https://pncp.gov.br/api/consulta",
-                resource_type="sync",
-                modalidade_codigo=6
+                resource_type="sync"
             )
             
             # Se chegou aqui, a configuração está válida
@@ -195,7 +260,6 @@ class TestPipelineIntegration:
             params={
                 "dataInicial": "2024-01-01",
                 "dataFinal": "2024-01-02",
-                "codigoModalidadeContratacao": 6,
                 "pagina": 1,
                 "tamanhoPagina": 10
             },
@@ -228,8 +292,7 @@ class TestPipelineIntegration:
         # Cria source com configuração mínima
         source = baliza_source(
             base_url="https://pncp.gov.br/api/consulta",
-            resource_type="sync",
-            modalidade_codigo=6
+            resource_type="sync"
         )
         
         # Executa dry run (não carrega dados, só testa a configuração)

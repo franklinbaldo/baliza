@@ -101,7 +101,7 @@ from src.baliza.pipeline import run_pipeline
 info = run_pipeline(
     destination="duckdb",
     dataset_name="pncp_data", 
-    resource_type="sync"  # Só processa dados novos/alterados
+    resource_type="sync"  # Backup completo - TODAS as modalidades
 )
 
 # Backfill histórico com chunks inteligentes  
@@ -121,6 +121,7 @@ info = run_pipeline(resource_type="specialized")
 - 🔄 **Incremental real** - só busca dados que mudaram
 - 📊 **Schema evolution** - se adapta a mudanças na API
 - 🛡️ **Retry automático** - resiliente a falhas temporárias
+- 🎯 **Backup completo** - extrai dados de TODAS as 13 modalidades com estratégia inteligente
 
 ## 🔧 Arquitetura Moderna e Simplificada
 
@@ -154,6 +155,21 @@ O pipeline agora inclui **todos os 10 ajustes críticos** para nível profission
 8. ✅ **Testes Smoke**: Validação automática de configuração
 9. ✅ **CI/CD Completo**: GitHub Actions com detecção de quebras
 10. ✅ **Performance Tuning**: Configurações otimizadas para produção
+
+### 🎯 **ESTRATÉGIA MULTI-MODALIDADE INTELIGENTE**
+
+**Problema:** Alguns endpoints da API PNCP **requerem** parâmetro modalidade, outros **não**.
+
+**Solução:** Pipeline detecta automaticamente e aplica estratégia apropriada:
+
+- **Endpoints que REQUEREM modalidade**: Gera 13 resources automáticos (mod1-mod13)
+  - `contratacoes_publicacao` → `contratacoes_publicacao_mod1` até `mod13`
+  - `contratacoes_atualizacao` → `contratacoes_atualizacao_mod1` até `mod13`
+
+- **Endpoints que NÃO REQUEREM modalidade**: Usa 1 resource único
+  - `contratos`, `atas`, `pca_usuario` → pega todas as modalidades automaticamente
+
+**Resultado:** Backup 100% completo sem requisições desnecessárias!
 
 **Nova Estrutura do Pipeline:**
 ```
