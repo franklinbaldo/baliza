@@ -10,7 +10,6 @@ import yaml
 from pathlib import Path
 from typing import List, Dict, Any, Sequence
 from dlt.extract.source import DltResource
-from dlt.sources.helpers.rest_client.paginators import PageNumberPaginator
 from datetime import datetime
 
 from .schemas import ModalidadeContratacao
@@ -53,7 +52,10 @@ def _generate_modalidade_resources(base_resource: Dict[str, Any]) -> List[Dict[s
             resource["endpoint"]["params"] = {}
             
         resource["endpoint"]["params"]["codigoModalidadeContratacao"] = modalidade.value
-        resources.append(resource)
+        
+        # Aplicar conversão de formato do DLT
+        converted_resource = _convert_to_rest_api_format(resource)
+        resources.append(converted_resource)
     
     return resources
 
@@ -79,9 +81,55 @@ def _prepare_resources_for_dlt(resources: List[Dict[str, Any]]) -> List[Dict[str
         if _requires_modalidade(resource_config["name"]):
             prepared.extend(_generate_modalidade_resources(resource_config))
         else:
-            prepared.append(resource_config)
+            prepared.append(_convert_to_rest_api_format(resource_config))
     
     return prepared
+
+
+def _convert_to_rest_api_format(resource_config: Dict[str, Any]) -> Dict[str, Any]:
+    """Converte configuração do YAML para o formato do rest_api_source."""
+    import copy
+    
+    converted = copy.deepcopy(resource_config)
+    
+    # Mover configuração incremental para dentro do endpoint se existir
+    if "incremental" in converted:
+        incremental_config = converted.pop("incremental")
+        
+        # Configurar parâmetros incrementais no endpoint usando placeholders
+        if "endpoint" not in converted:
+            converted["endpoint"] = {}
+        if "params" not in converted["endpoint"]:
+            converted["endpoint"]["params"] = {}
+            
+        # Substituir placeholders pelos corretos do DLT 1.14.1
+        params_to_update = {}
+        params_to_delete = []
+        
+        for param_name, param_value in converted["endpoint"]["params"].items():
+            if param_value == "{incremental.start}":
+                params_to_update[param_name] = {
+                    "type": "incremental",
+                    "cursor_path": incremental_config["cursor_path"],
+                    "initial_value": incremental_config["initial_value"]
+                }
+            elif param_value == "{incremental.end}":
+                # Para dataFinal, usar a mesma configuração incremental mas como end_value
+                params_to_update[param_name] = {
+                    "type": "incremental",
+                    "cursor_path": incremental_config["cursor_path"],
+                    "initial_value": incremental_config["initial_value"],
+                    "end_value": None  # Permite que o DLT use o valor atual como fim
+                }
+        
+        # Aplicar as mudanças
+        for param_name, param_config in params_to_update.items():
+            converted["endpoint"]["params"][param_name] = param_config
+        
+        for param_name in params_to_delete:
+            del converted["endpoint"]["params"][param_name]
+    
+    return converted
 
 
 # =============================================================================
@@ -108,21 +156,23 @@ def pncp_source(resource_type: str = "sync") -> Sequence[DltResource]:
     # 2. Preparar recursos (expandir modalidades quando necessário)
     final_resources = _prepare_resources_for_dlt(base_resources)
     
-    # 3. Configurar cliente e paginação
+    # 3. Configurar cliente e paginação correta para o DLT 1.14.1
     source_config = {
         "client": {
             "base_url": dlt.secrets["sources.baliza_source.base_url"],
-            "paginator": PageNumberPaginator(
-                page_param="pagina",
-                total_path="totalPaginas",
-                maximum_page=2000  # Limite de segurança
-            ),
+            "paginator": {
+                "type": "page_number",
+                "page_param": "pagina",
+                "total_path": "totalPaginas",
+                "base_page": 1,  # API PNCP começa na página 1
+                "maximum_page": 2000
+            },
         },
         "resources": final_resources
     }
     
     # 4. Deixar o dlt fazer a mágica!
-    # O rest_api_source interpretará os placeholders "{incremental.start}" etc.
+    # O rest_api_source interpretará os placeholders "{incremental.start}" etc.  
     return rest_api_source(source_config)
 
 
@@ -189,10 +239,12 @@ def pncp_backfill_resource(
                 chunk_source_config = {
                     "client": {
                         "base_url": dlt.secrets["sources.baliza_source.base_url"],
-                        "paginator": PageNumberPaginator(
-                            page_param="pagina", 
-                            total_path="totalPaginas"
-                        )
+                        "paginator": {
+                            "type": "page_number",
+                            "page_param": "pagina", 
+                            "total_path": "totalPaginas",
+                            "base_page": 1  # API PNCP começa na página 1
+                        }
                     },
                     "resources": [config_copy]
                 }

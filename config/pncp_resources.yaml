@@ -22,10 +22,10 @@ sync_resources:
         dataFinal: "{incremental.end}"
         # codigoModalidadeContratacao: SERÁ ADICIONADO AUTOMATICAMENTE (1-13)
         pagina: 1
-        tamanhoPagina: 500
+        tamanhoPagina: 100
     incremental:
       cursor_path: "dataAtualizacao"
-      initial_value: "2021-01-01T00:00:00Z"
+      initial_value: "20240101"
       lag_days: 1
       
   # ✅ NÃO REQUER MODALIDADE - resource único (pega todas automaticamente)
@@ -41,10 +41,10 @@ sync_resources:
         dataFinal: "{incremental.end}"
         # SEM codigoModalidadeContratacao - endpoint pega todas as modalidades
         pagina: 1
-        tamanhoPagina: 500
+        tamanhoPagina: 100
     incremental:
       cursor_path: "dataAtualizacao"
-      initial_value: "2021-01-01T00:00:00Z"
+      initial_value: "20240101"
       lag_days: 1
 
   # ✅ NÃO REQUER MODALIDADE - modalidade não se aplica a atas
@@ -60,10 +60,10 @@ sync_resources:
         dataFinal: "{incremental.end}"
         # SEM codigoModalidadeContratacao - não se aplica a atas
         pagina: 1
-        tamanhoPagina: 500
+        tamanhoPagina: 100
     incremental:
       cursor_path: "dataAtualizacao"
-      initial_value: "2021-01-01T00:00:00Z"
+      initial_value: "20240101"
       lag_days: 1
 
 # Recursos de backfill (cargas históricas com chunking)
@@ -81,7 +81,7 @@ backfill_resources:
         dataFinal: "{date_range.end}"
         # codigoModalidadeContratacao: SERÁ ADICIONADO AUTOMATICAMENTE (1-13)
         pagina: 1
-        tamanhoPagina: 500
+        tamanhoPagina: 100
     date_range:
       start_date: "2021-01-01"
       end_date: "2024-12-31"
@@ -100,7 +100,7 @@ backfill_resources:
         dataFinal: "{date_range.end}"
         # SEM codigoModalidadeContratacao - endpoint pega todas as modalidades
         pagina: 1
-        tamanhoPagina: 500
+        tamanhoPagina: 100
     date_range:
       start_date: "2021-01-01"
       end_date: "2024-12-31"
@@ -119,7 +119,7 @@ backfill_resources:
         dataFinal: "{date_range.end}"
         # SEM codigoModalidadeContratacao - não se aplica a atas
         pagina: 1
-        tamanhoPagina: 500
+        tamanhoPagina: 100
     date_range:
       start_date: "2021-01-01"
       end_date: "2024-12-31"
@@ -139,7 +139,7 @@ specialized_resources:
         anoPca: 2024
         idUsuario: 1
         pagina: 1
-        tamanhoPagina: 500
+        tamanhoPagina: 100
 
   # ✅ NÃO REQUER MODALIDADE - instrumentos de cobrança não têm modalidade
   - name: "instrumentos_cobranca"
@@ -153,10 +153,10 @@ specialized_resources:
         dataInicial: "{incremental.start}"
         dataFinal: "{incremental.end}"
         pagina: 1
-        tamanhoPagina: 500
+        tamanhoPagina: 100
     incremental:
       cursor_path: "dataInclusao"
-      initial_value: "2021-01-01T00:00:00Z"
+      initial_value: "20240101"
       lag_days: 1
 
 # =============================================================================
