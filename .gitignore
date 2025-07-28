@@ -13,5 +13,5 @@ __pycache__/
 .vscode/
 src/baliza.egg-info/
 uv.lock
-repomix-output.xml
+repomix-output.*
 data/catalog.yml
