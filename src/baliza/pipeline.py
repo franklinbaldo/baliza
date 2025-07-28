@@ -5,7 +5,7 @@ Esta versão elimina a duplicação de código e delega 100% do trabalho
 pesado para o dlt rest_api_source, como recomendado pela documentação.
 """
 
-from typing import Any, Optional, List, Dict, Sequence
+from typing import Any, Optional, List, Dict, Generator
 
 import dlt
 import yaml
@@ -22,11 +22,44 @@ from datetime import datetime
 
 from .schemas import ModalidadeContratacao
 from .utils.time import date_range_slicer
+from .models import (
+    RecuperarCompraDTO,
+    RecuperarContratoDTO,
+    PlanoContratacaoComItensDoUsuarioDTO,
+    RecuperarCompraPublicacaoDTO,
+    ConsultarInstrumentoCobrancaDTO,
+    AtaRegistroPrecoPeriodoDTO,
+    PaginaRetornoRecuperarCompraPublicacaoDTO,
+    PaginaRetornoRecuperarContratoDTO,
+    PaginaRetornoPlanoContratacaoComItensDoUsuarioDTO,
+    PaginaRetornoConsultarInstrumentoCobrancaDTO,
+    PaginaRetornoAtaRegistroPrecoPeriodoDTO,
+)
 
 
 # =============================================================================
 # CONFIGURAÇÃO E HELPERS
 # =============================================================================
+
+# Mapeamento de recursos para modelos Pydantic
+RESOURCE_PYDANTIC_MAPPING = {
+    # Recursos de contratações
+    "contratacoes": RecuperarCompraDTO,
+    "contratacoes_publicacao": RecuperarCompraPublicacaoDTO,
+    "contratacoes_atualizacao": RecuperarCompraDTO,
+    
+    # Recursos de contratos
+    "contratos": RecuperarContratoDTO,
+    
+    # Recursos de planos de contratação
+    "planos_contratacao": PlanoContratacaoComItensDoUsuarioDTO,
+    
+    # Recursos de instrumentos de cobrança
+    "instrumentos_cobranca": ConsultarInstrumentoCobrancaDTO,
+    
+    # Recursos de atas de registro de preço
+    "atas_registro_preco": AtaRegistroPrecoPeriodoDTO,
+}
 
 def _load_yaml_config() -> Dict[str, Any]:
     """Carrega a configuração do YAML."""
@@ -61,7 +94,9 @@ def _generate_modalidade_resources(base_resource: Dict[str, Any]) -> List[Dict[s
             
         resource["endpoint"]["params"]["codigoModalidadeContratacao"] = modalidade.value
         
-        resources.append(resource)
+        # Aplicar configuração Pydantic ao resource de modalidade
+        pydantic_resource = _create_pydantic_resource(resource)
+        resources.append(pydantic_resource)
     
     return resources
 
@@ -87,9 +122,80 @@ def _prepare_resources_for_dlt(resources: List[Dict[str, Any]]) -> List[Dict[str
         if _requires_modalidade(resource_config["name"]):
             prepared.extend(_generate_modalidade_resources(resource_config))
         else:
-            prepared.append(_convert_to_rest_api_format(resource_config))
+            prepared.append(_create_pydantic_resource(resource_config))
     
     return prepared
+
+
+def _get_pydantic_model_for_resource(resource_name: str) -> Optional[Any]:
+    """Retorna o modelo Pydantic correspondente ao resource."""
+    # Remove sufixo de modalidade se presente
+    base_name = resource_name.split('_mod')[0] if '_mod' in resource_name else resource_name
+    return RESOURCE_PYDANTIC_MAPPING.get(base_name)
+
+
+def _create_pydantic_resource(resource_config: Dict[str, Any]) -> Dict[str, Any]:
+    """Cria resource com schema Pydantic e nested hints."""
+    import copy
+    
+    converted = copy.deepcopy(resource_config)
+    resource_name = converted["name"]
+    
+    # Obter modelo Pydantic correspondente
+    pydantic_model = _get_pydantic_model_for_resource(resource_name)
+    
+    if pydantic_model:
+        # Configurar modelo Pydantic com DLT
+        converted["columns"] = pydantic_model
+        
+        # Configurar nested hints para campos complexos
+        nested_hints = _get_nested_hints_for_model(pydantic_model)
+        if nested_hints:
+            converted["nested_hints"] = nested_hints
+            
+        # Configurar schema contract para data quality
+        converted["schema_contract"] = {
+            "columns": "evolve",  # Permite novos campos mas valida tipos
+            "data_type": "evolve"  # Permite evolução de tipos compatíveis
+        }
+        
+        # Aplicar transformações de data quality do Pydantic
+        print(f"✅ Configurado schema Pydantic para resource: {resource_name}")
+    
+    return _convert_to_rest_api_format(converted)
+
+
+def _get_nested_hints_for_model(model_class: Any) -> Dict[str, Any]:
+    """Gera nested hints baseado no modelo Pydantic."""
+    nested_hints = {}
+    
+    # Mapear campos complexos conhecidos para nested tables
+    complex_fields = {
+        "orgaoEntidade": {"columns": {"cnpj": {"data_type": "text"}}},
+        "unidadeOrgao": {"columns": {"codigoUnidade": {"data_type": "text"}}},
+        "amparoLegal": {"columns": {"codigo": {"data_type": "bigint"}}},
+        "fontesOrcamentarias": {
+            "columns": {
+                "codigo": {"data_type": "bigint"},
+                "nome": {"data_type": "text"},
+                "dataInclusao": {"data_type": "timestamp"}
+            }
+        },
+        "itens": {
+            "columns": {
+                "numeroItem": {"data_type": "bigint"},
+                "valorTotal": {"data_type": "decimal"}
+            }
+        }
+    }
+    
+    # Aplicar hints apenas para campos que existem no modelo
+    if hasattr(model_class, '__annotations__'):
+        for field_name in model_class.__annotations__.keys():
+            if field_name in complex_fields:
+                nested_hints[field_name] = complex_fields[field_name]
+    
+    return nested_hints
 
 
 def _convert_to_rest_api_format(resource_config: Dict[str, Any]) -> Dict[str, Any]:
@@ -130,25 +236,29 @@ def _convert_to_rest_api_format(resource_config: Dict[str, Any]) -> Dict[str, An
 def pncp_source(
     resource_type: str = "sync",
     base_url: Optional[str] = dlt.secrets.value
-) -> Any:
+) -> Generator[DltResource, None, None]:
     """
-    Fonte dlt declarativa para a API do PNCP.
+    Fonte dlt declarativa para a API do PNCP com validação Pydantic.
     
-    Lê a configuração do YAML, expande modalidades quando necessário,
-    e delega toda a extração para o rest_api_source nativo do dlt.
+    Lê a configuração do YAML, aplica modelos Pydantic para validação,
+    expande modalidades quando necessário, e delega toda a extração 
+    para o rest_api_source nativo do dlt.
     
     Args:
         resource_type: Tipo de resource ('sync', 'backfill', 'specialized')
         base_url: URL base da API PNCP
+        
+    Yields:
+        DltResource: Resources configurados com schema Pydantic
     """
     # 1. Carregar configuração do YAML
     config = _load_yaml_config()
     base_resources = _get_resources_by_type(config, resource_type)
     
-    # 2. Preparar recursos (expandir modalidades quando necessário)
+    # 2. Preparar recursos com Pydantic (expandir modalidades quando necessário)
     final_resources = _prepare_resources_for_dlt(base_resources)
     
-    # 3. Criar configuração usando RESTAPIConfig para type hints
+    # 3. Criar configuração usando RESTAPIConfig com validação Pydantic
     api_config: RESTAPIConfig = {
         "client": {
             "base_url": base_url or dlt.secrets["sources.baliza_source.base_url"],
@@ -162,6 +272,7 @@ def pncp_source(
         },
         "resource_defaults": {
             "write_disposition": "merge",
+            "max_table_nesting": 2,  # Controlar profundidade de nested tables
             "endpoint": {
                 "params": {
                     "tamanhoPagina": 500,
@@ -171,7 +282,7 @@ def pncp_source(
         "resources": final_resources
     }
     
-    # 4. Usar rest_api_resources como no boilerplate
+    # 4. Retornar resources com validação Pydantic aplicada
     yield from rest_api_resources(api_config)
 
 
@@ -285,7 +396,7 @@ def run_sync_pipeline(
     destination: str = "duckdb",
     dataset_name: str = "pncp_data"
 ):
-    """Executa o pipeline de sincronização contínua."""
+    """Executa o pipeline de sincronização contínua com validação Pydantic."""
     # Verificar conectividade primeiro
     check_pncp_connection()
     
@@ -299,9 +410,9 @@ def run_sync_pipeline(
     
     source = pncp_source(resource_type="sync")
     
-    print("🚀 Executando pipeline de sincronização...")
+    print("🚀 Executando pipeline de sincronização com validação Pydantic...")
     info = pipeline.run(source)
-    print("✅ Sincronização concluída!")
+    print("✅ Sincronização concluída com data quality validado!")
     print(info)
     return info
 
