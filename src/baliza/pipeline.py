@@ -135,34 +135,30 @@ def _get_pydantic_model_for_resource(resource_name: str) -> Optional[Any]:
 
 
 def _create_pydantic_resource(resource_config: Dict[str, Any]) -> Dict[str, Any]:
-    """Cria resource com schema Pydantic e nested hints."""
+    """Cria resource simplificado compatível com DLT REST API."""
     import copy
     
     converted = copy.deepcopy(resource_config)
     resource_name = converted["name"]
     
-    # Obter modelo Pydantic correspondente
-    pydantic_model = _get_pydantic_model_for_resource(resource_name)
+    # Manter apenas campos aceitos pelo DLT REST API
+    clean_resource = {
+        "name": converted["name"],
+        "endpoint": converted["endpoint"]
+    }
     
-    if pydantic_model:
-        # Configurar modelo Pydantic com DLT
-        converted["columns"] = pydantic_model
-        
-        # Configurar nested hints para campos complexos
-        nested_hints = _get_nested_hints_for_model(pydantic_model)
-        if nested_hints:
-            converted["nested_hints"] = nested_hints
-            
-        # Configurar schema contract para data quality
-        converted["schema_contract"] = {
-            "columns": "evolve",  # Permite novos campos mas valida tipos
-            "data_type": "evolve"  # Permite evolução de tipos compatíveis
-        }
-        
-        # Aplicar transformações de data quality do Pydantic
-        print(f"✅ Configurado schema Pydantic para resource: {resource_name}")
+    # Adicionar write_disposition se especificado
+    if "write_disposition" in converted:
+        clean_resource["write_disposition"] = converted["write_disposition"]
     
-    return _convert_to_rest_api_format(converted)
+    # Adicionar primary_key se especificado  
+    if "primary_key" in converted:
+        clean_resource["primary_key"] = converted["primary_key"]
+        
+    # Log da configuração
+    print(f"✅ Configurado resource: {resource_name}")
+    
+    return clean_resource
 
 
 def _get_nested_hints_for_model(model_class: Any) -> Dict[str, Any]:
@@ -204,26 +200,18 @@ def _convert_to_rest_api_format(resource_config: Dict[str, Any]) -> Dict[str, An
     
     converted = copy.deepcopy(resource_config)
     
-    # Configuração incremental já no formato correto do DLT
-    if "incremental" in converted and "endpoint" in converted:
-        incremental_config = converted["incremental"]
+    # Configuração incremental no formato correto do DLT 1.x
+    if "incremental" in converted["endpoint"]:
+        incremental_config = converted["endpoint"]["incremental"]
         
-        # Configurar incremental diretamente no endpoint
-        if "params" in converted["endpoint"]:
-            for param_name, param_value in converted["endpoint"]["params"].items():
-                if param_value == "{incremental.start_value}":
-                    converted["endpoint"]["incremental"] = {
-                        "cursor_path": incremental_config["cursor_path"],
-                        "initial_value": incremental_config["initial_value"]
-                    }
-                    converted["endpoint"]["params"][param_name] = "{incremental.start_value}"
-                elif param_value == "{incremental.end}":
-                    # Para dataFinal, usar data atual
-                    today = datetime.now().strftime("%Y%m%d")
-                    converted["endpoint"]["params"][param_name] = today
+        # Mover configuração incremental para o nível do resource
+        converted["incremental"] = dlt.sources.incremental(
+            cursor_path=incremental_config["cursor_path"],
+            initial_value=incremental_config["initial_value"]
+        )
         
-        # Remove incremental do nível superior após mover para endpoint
-        del converted["incremental"]
+        # Remove incremental do endpoint
+        del converted["endpoint"]["incremental"]
     
     return converted
 
@@ -378,10 +366,18 @@ def check_pncp_connection() -> None:
     """Verifica conectividade com a API PNCP."""
     source = pncp_source(resource_type="sync")
     
-    # Tenta conectar com um endpoint básico
+    # Obter o primeiro resource disponível para teste
+    resources = list(source)
+    if not resources:
+        raise ConnectionError("Nenhum resource configurado")
+    
+    first_resource = resources[0]
+    resource_name = first_resource.name
+    
+    # Tenta conectar com o primeiro resource
     (can_connect, error_msg) = check_connection(
         source,
-        "contratacoes"  # endpoint básico para teste
+        resource_name
     )
     
     if not can_connect:

@@ -18,15 +18,14 @@ sync_resources:
       path: "/v1/contratacoes/atualizacao"
       data_selector: "data"
       params:
-        dataInicial: "{incremental.start}"
-        dataFinal: "{incremental.end}"
+        dataInicial: "20240101"  # Será substituído por incremental
+        dataFinal: "20241231"    # Data atual será aplicada
         # codigoModalidadeContratacao: SERÁ ADICIONADO AUTOMATICAMENTE (1-13)
         pagina: 1
-        tamanhoPagina: 100
-    incremental:
-      cursor_path: "dataAtualizacao"
-      initial_value: "20240101"
-      lag_days: 1
+        tamanhoPagina: 50
+      incremental:
+        cursor_path: "dataAtualizacao"
+        initial_value: "20240101"
       
   # ✅ NÃO REQUER MODALIDADE - resource único (pega todas automaticamente)
   - name: "contratos_atualizacao"
@@ -37,15 +36,14 @@ sync_resources:
       path: "/v1/contratos/atualizacao"
       data_selector: "data"
       params:
-        dataInicial: "{incremental.start}"
-        dataFinal: "{incremental.end}"
+        dataInicial: "20240101"  # Será substituído por incremental
+        dataFinal: "20241231"    # Data atual será aplicada
         # SEM codigoModalidadeContratacao - endpoint pega todas as modalidades
         pagina: 1
-        tamanhoPagina: 100
-    incremental:
-      cursor_path: "dataAtualizacao"
-      initial_value: "20240101"
-      lag_days: 1
+        tamanhoPagina: 50
+      incremental:
+        cursor_path: "dataAtualizacao"
+        initial_value: "20240101"
 
   # ✅ NÃO REQUER MODALIDADE - modalidade não se aplica a atas
   - name: "atas_atualizacao"
@@ -56,15 +54,14 @@ sync_resources:
       path: "/v1/atas/atualizacao"
       data_selector: "data"
       params:
-        dataInicial: "{incremental.start}"
-        dataFinal: "{incremental.end}"
+        dataInicial: "20240101"  # Será substituído por incremental
+        dataFinal: "20241231"    # Data atual será aplicada
         # SEM codigoModalidadeContratacao - não se aplica a atas
         pagina: 1
-        tamanhoPagina: 100
-    incremental:
-      cursor_path: "dataAtualizacao"
-      initial_value: "20240101"
-      lag_days: 1
+        tamanhoPagina: 50
+      incremental:
+        cursor_path: "dataAtualizacao"
+        initial_value: "20240101"
 
 # Recursos de backfill (cargas históricas com chunking)
 backfill_resources:
@@ -77,15 +74,11 @@ backfill_resources:
       path: "/v1/contratacoes/publicacao"
       data_selector: "data"
       params:
-        dataInicial: "{date_range.start}"
-        dataFinal: "{date_range.end}"
+        dataInicial: "20240101"  # Será ajustado dinamicamente
+        dataFinal: "20241231"    # Será ajustado dinamicamente
         # codigoModalidadeContratacao: SERÁ ADICIONADO AUTOMATICAMENTE (1-13)
         pagina: 1
-        tamanhoPagina: 100
-    date_range:
-      start_date: "2021-01-01"
-      end_date: "2024-12-31"
-      chunk_days: 7
+        tamanhoPagina: 50
 
   # ✅ NÃO REQUER MODALIDADE - resource único (pega todas automaticamente)
   - name: "contratos"
@@ -96,15 +89,11 @@ backfill_resources:
       path: "/v1/contratos"
       data_selector: "data"
       params:
-        dataInicial: "{date_range.start}"
-        dataFinal: "{date_range.end}"
+        dataInicial: "20240101"  # Será ajustado dinamicamente
+        dataFinal: "20241231"    # Será ajustado dinamicamente
         # SEM codigoModalidadeContratacao - endpoint pega todas as modalidades
         pagina: 1
-        tamanhoPagina: 100
-    date_range:
-      start_date: "2021-01-01"
-      end_date: "2024-12-31"
-      chunk_days: 7
+        tamanhoPagina: 50
 
   # ✅ NÃO REQUER MODALIDADE - modalidade não se aplica a atas
   - name: "atas"
@@ -115,15 +104,11 @@ backfill_resources:
       path: "/v1/atas"
       data_selector: "data"
       params:
-        dataInicial: "{date_range.start}"
-        dataFinal: "{date_range.end}"
+        dataInicial: "20240101"  # Será ajustado dinamicamente
+        dataFinal: "20241231"    # Será ajustado dinamicamente
         # SEM codigoModalidadeContratacao - não se aplica a atas
         pagina: 1
-        tamanhoPagina: 100
-    date_range:
-      start_date: "2021-01-01"
-      end_date: "2024-12-31"
-      chunk_days: 7
+        tamanhoPagina: 50
 
 # Recursos especializados (PCA e outros)
 specialized_resources:
@@ -139,7 +124,7 @@ specialized_resources:
         anoPca: 2024
         idUsuario: 1
         pagina: 1
-        tamanhoPagina: 100
+        tamanhoPagina: 50
 
   # ✅ NÃO REQUER MODALIDADE - instrumentos de cobrança não têm modalidade
   - name: "instrumentos_cobranca"
@@ -150,14 +135,13 @@ specialized_resources:
       path: "/v1/instrumentoscobranca/inclusao"
       data_selector: "data"
       params:
-        dataInicial: "{incremental.start}"
-        dataFinal: "{incremental.end}"
+        dataInicial: "20240101"  # Será substituído por incremental
+        dataFinal: "20241231"    # Data atual será aplicada
         pagina: 1
-        tamanhoPagina: 100
-    incremental:
-      cursor_path: "dataInclusao"
-      initial_value: "20240101"
-      lag_days: 1
+        tamanhoPagina: 50
+      incremental:
+        cursor_path: "dataInclusao"
+        initial_value: "20240101"
 
 # =============================================================================
 # RESUMO DA ESTRATÉGIA MULTI-MODALIDADE
