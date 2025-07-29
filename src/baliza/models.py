@@ -5,10 +5,15 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from enum import Enum
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
+
+from .enums import (
+    IndicadorOrcamentoSigiloso,
+    SituacaoCompra,
+    TipoPessoa,
+)
 
 
 class RespostaErroValidacaoDTO(BaseModel):
@@ -56,17 +61,8 @@ class RecuperarAmparoLegalDTO(BaseModel):
     codigo: Optional[int] = None
 
 
-class IndicadorOrcamentoSigiloso(Enum):
-    COMPRA_SEM_SIGILO = 'COMPRA_SEM_SIGILO'
-    COMPRA_PARCIALMENTE_SIGILOSA = 'COMPRA_PARCIALMENTE_SIGILOSA'
-    COMPRA_TOTALMENTE_SIGILOSA = 'COMPRA_TOTALMENTE_SIGILOSA'
 
 
-class SituacaoCompraId(Enum):
-    field_1 = '1'
-    field_2 = '2'
-    field_3 = '3'
-    field_4 = '4'
 
 
 class RecuperarOrgaoEntidadeDTO(BaseModel):
@@ -132,16 +128,8 @@ class NotaFiscalEletronicaConsultaDTO(BaseModel):
     eventos: Optional[List[EventoNotaFiscalConsultaDTO]] = None
 
 
-class TipoPessoa(Enum):
-    PJ = 'PJ'
-    PF = 'PF'
-    PE = 'PE'
 
 
-class TipoPessoaSubContratada(Enum):
-    PJ = 'PJ'
-    PF = 'PF'
-    PE = 'PE'
 
 
 class TipoContrato(BaseModel):
@@ -196,7 +184,7 @@ class RecuperarCompraPublicacaoDTO(BaseModel):
     tipoInstrumentoConvocatorioCodigo: Optional[int] = None
     tipoInstrumentoConvocatorioNome: Optional[str] = None
     fontesOrcamentarias: Optional[List[ContratacaoFonteOrcamentariaDTO]] = None
-    situacaoCompraId: Optional[SituacaoCompraId] = None
+    situacaoCompraId: Optional[SituacaoCompra] = None
     situacaoCompraNome: Optional[str] = None
     usuarioNome: Optional[str] = None
 
@@ -288,7 +276,7 @@ class RecuperarCompraDTO(BaseModel):
     dataEncerramentoProposta: Optional[datetime] = Field(
         None, example='2025-07-11T13:08:48'
     )
-    situacaoCompraId: Optional[SituacaoCompraId] = None
+    situacaoCompraId: Optional[SituacaoCompra] = None
     situacaoCompraNome: Optional[str] = None
     existeResultado: Optional[bool] = None
     dataInclusao: Optional[datetime] = Field(None, example='2025-07-11T13:08:48')
@@ -327,7 +315,7 @@ class RecuperarContratoDTO(BaseModel):
     receita: Optional[bool] = None
     numeroParcelas: Optional[int] = None
     numeroRetificacao: Optional[int] = None
-    tipoPessoaSubContratada: Optional[TipoPessoaSubContratada] = None
+    tipoPessoaSubContratada: Optional[TipoPessoa] = None
     objetoContrato: Optional[str] = None
     valorInicial: Optional[float] = None
     valorParcela: Optional[float] = None
