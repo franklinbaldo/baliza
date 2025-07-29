@@ -1,30 +1,26 @@
-"""
-Utilitários de tempo para o pipeline Baliza.
-"""
-
 from datetime import datetime, timedelta
-from typing import Generator, Tuple
-
+from typing import Iterator, Tuple
 
 def date_range_slicer(
-    start_date: datetime, end_date: datetime, chunk_size_days: int
-) -> Generator[Tuple[str, str], None, None]:
+    start_date: datetime,
+    end_date: datetime,
+    chunk_days: int = 7
+) -> Iterator[Tuple[datetime, datetime]]:
     """
-    Fatia um período de tempo em chunks menores para processamento paralelo.
+    Slices a date range into smaller chunks.
 
     Args:
-        start_date: Data inicial
-        end_date: Data final
-        chunk_size_days: Tamanho do chunk em dias
+        start_date: The start of the date range.
+        end_date: The end of the date range.
+        chunk_days: The size of each chunk in days.
 
     Yields:
-        Tuplas (start_str, end_str) no formato 'YYYYMMDD'
+        A tuple with the start and end of each chunk.
     """
-    current = start_date
-
-    while current <= end_date:
-        chunk_end = min(current + timedelta(days=chunk_size_days - 1), end_date)
-
-        yield (current.strftime("%Y%m%d"), chunk_end.strftime("%Y%m%d"))
-
-        current = chunk_end + timedelta(days=1)
+    current_date = start_date
+    while current_date < end_date:
+        chunk_end_date = current_date + timedelta(days=chunk_days - 1)
+        if chunk_end_date > end_date:
+            chunk_end_date = end_date
+        yield current_date, chunk_end_date
+        current_date += timedelta(days=chunk_days)

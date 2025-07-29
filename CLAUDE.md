@@ -1,112 +1,110 @@
-# CLAUDE.md
+# 📝 Guia do Desenvolvedor (Claude) para o Projeto BALIZA
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Este documento é seu guia para entender e trabalhar no projeto BALIZA. Ele detalha a arquitetura, as decisões de design e como você, como assistente de IA, pode contribuir de forma eficaz.
 
-## Essential Commands
+## 🎯 Visão Geral da Arquitetura
 
-**Always use `uv` for package management and command execution:**
+O BALIZA v2.0 adota uma arquitetura de ELT (Extract, Load, Transform) moderna, utilizando `dlt` para a extração e carregamento, e o próprio DuckDB para a transformação.
 
-```bash
-# Install dependencies and setup environment
-uv sync
+```mermaid
+graph TD
+    subgraph "Extract & Load (EL)"
+        A[PNCP API] -->|dlt rest_api source| B(Raw Data Tables);
+        B --> C{baliza.duckdb};
+    end
 
-# Run CLI commands
-uv run baliza sync                    # Incremental sync from PNCP API
-uv run baliza backfill 20240101 20240331  # Historical data backfill
-uv run baliza status                  # Check pipeline configuration
-uv run baliza info                    # Show available resources
+    subgraph "Transform (T)"
+        C -->|dlt resource w/ SQL| D[Consolidated Views];
+    end
 
-# Development commands
-uv run python -m pytest              # Run tests
-uv run ruff check                     # Lint code
-uv run ruff format                    # Format code
-uv run mypy src/                      # Type checking
+    subgraph "Análise"
+        D -->|SQL Queries| E[Jupyter, PowerBI, etc.];
+    end
 
-# Run single test
-uv run python -m pytest tests/test_pipeline.py::TestPipelineConfig::test_yaml_config_exists_and_valid
+    style B fill:#f9f,stroke:#333,stroke-width:2px
+    style D fill:#ccf,stroke:#333,stroke-width:2px
 ```
 
-## Architecture Overview
+**Componentes Principais:**
 
-**BALIZA** is a Brazilian public procurement data extraction tool that interfaces with the PNCP (Portal Nacional de Contratações Públicas) API using **DLT (Data Load Tool)** as the core pipeline engine.
+1.  **`resources.py`**: Define a configuração declarativa para a fonte `dlt.sources.rest_api`. É o coração da extração, definindo endpoints e parâmetros.
+2.  **`pipeline.py`**: Contém os pipelines `dlt` para:
+    *   **Ingestão (`pncp_source`, `pncp_backfill_resource`):** Carrega dados brutos da API para tabelas de preparo (`_publicacao`).
+    *   **Transformação (`create_consolidated_views`):** Executa SQL para criar views unificadas a partir dos dados brutos.
+3.  **`models.py`**: Modelos Pydantic que definem o esquema esperado dos dados da API. Usados pelo `dlt` para validação em tempo de execução.
+4.  **`cli.py`**: Interface de linha de comando (Typer) que orquestra a execução dos pipelines.
 
-### Core Architecture Components
+## 🌊 Fluxo de Dados (Layered Data Modeling)
 
-1. **DLT Pipeline Engine** (`src/baliza/pipeline.py`):
-   - Main extraction logic using `rest_api_source` from DLT
-   - Pydantic models for schema validation and data quality
-   - Multi-modality strategy for PNCP API endpoints
-   - Automatic resource expansion for different procurement types (modalidades)
+A principal decisão de design é a separação dos dados em camadas, o que garante rastreabilidade e resiliência.
 
-2. **Pydantic Models** (`src/baliza/models.py`):
-   - Complete data models for all PNCP API responses
-   - Field validators for data quality (e.g., `coerce_situacao_compra_id`)
-   - Nested models for complex data structures (orgaoEntidade, unidadeOrgao)
+1.  **Camada Bruta (Raw Layer):**
+    *   **Tabelas:** `contratos_publicacao`, `atas_publicacao`, etc.
+    *   **Propósito:** Armazenar uma cópia exata e imutável dos dados como eles vêm da API. `_publicacao` contém o histórico completo (backfill).
+    *   **Sua Tarefa:** Ao modificar a ingestão, garanta que os dados brutos sejam sempre anexados a essas tabelas sem transformação.
 
-3. **Configuration System**:
-   - `config/pncp_resources.yaml`: Endpoint definitions and parameters
-   - `.dlt/config.toml`: DLT pipeline optimizations and performance settings
-   - `.dlt/secrets.toml`: API base URL and credentials (not in repo)
+2.  **Camada de Conciliação (Staging/View Layer):**
+    *   **Views:** `v_contratos_recentes`, `v_atas_recentes`, etc.
+    *   **Propósito:** Unificar os dados das tabelas `_publicacao`, deduplicar e apresentar a versão mais recente de cada registro para o usuário final.
+    *   **Sua Tarefa:** A lógica de conciliação (usando `ROW_NUMBER()` e `PARTITION BY`) está no recurso `create_consolidated_views` em `pipeline.py`. Se um novo endpoint for adicionado, você deve criar a lógica de view correspondente aqui.
 
-4. **CLI Interface** (`src/baliza/cli.py`):
-   - Typer-based CLI with intuitive commands
-   - Sync (incremental) vs backfill (historical) modes
-   - Built-in validation and error handling
+## 🛠️ Como Trabalhar no Código
 
-### Multi-Modality Strategy
+### Modificando a Extração de Dados
 
-The PNCP API has **13 procurement modalities** (modalidades 1-13). The pipeline automatically handles this:
+**Cenário:** Adicionar um novo endpoint da API do PNCP (ex: `/v1/planos`).
 
-- **Endpoints requiring modality parameter**: Automatically expands to 13 separate resources
-  - `contratacoes_publicacao` → `contratacoes_publicacao_mod1` through `mod13`
-  - `contratacoes_atualizacao` → `contratacoes_atualizacao_mod1` through `mod13`
+1.  **Modele a Resposta (`models.py`):** Crie um novo modelo Pydantic, `PlanoDTO`, que corresponda à estrutura JSON do novo endpoint.
+2.  **Defina o Recurso (`resources.py`):**
+    *   Adicione o novo endpoint à função `_create_backfill_resources`.
+    *   Defina o `table_name` (ex: `planos_publicacao`).
+3.  **Aplique o Schema (`pipeline.py`):** No `pncp_source`, adicione uma condição para aplicar o `PlanoDTO` ao novo recurso.
+    ```python
+    # em pipeline.py, dentro de pncp_source
+    if "planos" in resource.name:
+        resource.apply_hints(columns=PlanoDTO)
+    ```
+4.  **Crie a View de Conciliação (`pipeline.py`):**
+    *   No recurso `create_consolidated_views`, adicione uma nova string SQL para criar a `v_planos_recentes`.
+    *   Siga o padrão `UNION ALL` + `ROW_NUMBER()` para unificar `planos_publicacao`.
 
-- **Endpoints not requiring modality**: Single resource fetches all modalities
-  - `contratos`, `atas`, `pca_usuario`, etc.
+### Modificando a Lógica de Transformação
 
-This ensures 100% complete data extraction without unnecessary API calls.
+**Cenário:** Alterar como os contratos são deduplicados.
 
-### Key Data Flow
+1.  **Localize a Lógica:** Abra `pipeline.py` e encontre o recurso `create_consolidated_views`.
+2.  **Edite a SQL:** Modifique a string SQL para a `CREATE OR REPLACE VIEW v_contratos_recentes`.
+3.  **Teste a Transformação:** Execute `baliza transform` no CLI. Isso irá recriar a view sem precisar baixar os dados novamente, tornando o ciclo de desenvolvimento muito mais rápido.
 
-```
-PNCP API → DLT REST Source → Pydantic Validation → Nested Hints Processing → DuckDB/Parquet
-```
+## ✅ Testes e Verificação
 
-1. **Extraction**: DLT `rest_api_source` handles pagination, retries, and state management
-2. **Validation**: Pydantic models ensure data quality and type safety
-3. **Schema Management**: Nested hints control how complex objects become tables
-4. **Storage**: Default to DuckDB with Parquet export for analysis
+Embora os testes automatizados não estejam no escopo inicial, é crucial que você verifique suas alterações manualmente.
 
-### Critical Integration Points
+1.  **Limpe o Ambiente:** Antes de testar, remova o banco de dados antigo para garantir um estado limpo.
+    ```bash
+    rm baliza.duckdb baliza.duckdb.wal
+    ```
+2.  **Execute o Backfill (Pequeno Período):**
+    ```bash
+    python -m baliza.cli backfill --start-date 20240101 --end-date 20240102
+    ```
+3.  **Inspecione o Banco de Dados:**
+    ```bash
+    # Inicie o DuckDB CLI
+    duckdb baliza.duckdb
 
-- **Resource-to-Model Mapping**: `RESOURCE_PYDANTIC_MAPPING` in `pipeline.py` connects YAML resources to Pydantic models
-- **Nested Table Control**: `_get_nested_hints_for_model()` defines how nested objects become separate tables
-- **Schema Contracts**: Configured for data evolution (`columns: "evolve"`) to handle API changes
-- **Incremental Loading**: Uses `dataAtualizacao` cursors with proper lag settings
+    # Verifique as tabelas brutas
+    .tables
+    SELECT COUNT(*) FROM contratos_publicacao;
 
-### Configuration Files Structure
+    # Verifique as views
+    SELECT COUNT(*) FROM v_contratos_recentes;
+    ```
 
-- `config/pncp_resources.yaml`: Defines API endpoints, parameters, and incremental settings
-- `.dlt/config.toml`: Performance tuning, retry policies, and destination settings
-- `.dlt/secrets.toml`: Contains `base_url = "https://pncp.gov.br/api/consulta"`
+## 🚨 Pontos de Atenção
 
-### Testing Strategy
+*   **Nunca transforme os dados brutos:** A camada bruta é sagrada. Todas as transformações devem ocorrer na camada de views.
+*   **Mantenha a consistência:** Ao adicionar novos recursos, siga o padrão existente (`_publicacao`, `v_..._recentes`).
+*   **Use o CLI para testar:** O CLI (`backfill`, `transform`) é a maneira mais confiável de testar o fluxo completo.
 
-- **Smoke tests**: Verify configuration validity and API compatibility
-- **Resource expansion tests**: Ensure modality logic works correctly
-- **Mock-based**: Tests use mocked API responses to avoid external dependencies
-
-### Performance Optimizations
-
-- **Parallel processing**: 4 workers for normalization, threaded DuckDB
-- **File rotation**: 50k items per file for parallel loading
-- **State management**: Compressed state with 14-day hash trimming
-- **Memory limits**: 2GB DuckDB, 4MB file chunks, 10k buffer items
-
-## Development Notes
-
-- All Pydantic models include comprehensive docstrings with JSON examples
-- Field validators handle API inconsistencies (e.g., integer vs string IDs)
-- The pipeline automatically logs Pydantic schema configuration for debugging
-- Use `max_table_nesting: 2` to control nested table depth
-- Schema contracts allow data evolution while maintaining type safety
+Este guia deve fornecer tudo o que você precisa para trabalhar de forma autônoma e eficaz no projeto BALIZA. Lembre-se, o objetivo é criar um pipeline de dados robusto, transparente e fácil de manter.
