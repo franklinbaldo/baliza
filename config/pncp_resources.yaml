@@ -22,7 +22,7 @@ sync_resources:
         dataFinal: "20241231"    # Data atual será aplicada
         # codigoModalidadeContratacao: SERÁ ADICIONADO AUTOMATICAMENTE (1-13)
         pagina: 1
-        tamanhoPagina: 50
+        tamanhoPagina: 500
       incremental:
         cursor_path: "dataAtualizacao"
         initial_value: "20240101"
@@ -40,7 +40,7 @@ sync_resources:
         dataFinal: "20241231"    # Data atual será aplicada
         # SEM codigoModalidadeContratacao - endpoint pega todas as modalidades
         pagina: 1
-        tamanhoPagina: 50
+        tamanhoPagina: 500
       incremental:
         cursor_path: "dataAtualizacao"
         initial_value: "20240101"
@@ -58,7 +58,7 @@ sync_resources:
         dataFinal: "20241231"    # Data atual será aplicada
         # SEM codigoModalidadeContratacao - não se aplica a atas
         pagina: 1
-        tamanhoPagina: 50
+        tamanhoPagina: 500
       incremental:
         cursor_path: "dataAtualizacao"
         initial_value: "20240101"
@@ -78,7 +78,7 @@ backfill_resources:
         dataFinal: "20241231"    # Será ajustado dinamicamente
         # codigoModalidadeContratacao: SERÁ ADICIONADO AUTOMATICAMENTE (1-13)
         pagina: 1
-        tamanhoPagina: 50
+        tamanhoPagina: 500
 
   # ✅ NÃO REQUER MODALIDADE - resource único (pega todas automaticamente)
   - name: "contratos"
@@ -93,7 +93,7 @@ backfill_resources:
         dataFinal: "20241231"    # Será ajustado dinamicamente
         # SEM codigoModalidadeContratacao - endpoint pega todas as modalidades
         pagina: 1
-        tamanhoPagina: 50
+        tamanhoPagina: 500
 
   # ✅ NÃO REQUER MODALIDADE - modalidade não se aplica a atas
   - name: "atas"
@@ -108,7 +108,7 @@ backfill_resources:
         dataFinal: "20241231"    # Será ajustado dinamicamente
         # SEM codigoModalidadeContratacao - não se aplica a atas
         pagina: 1
-        tamanhoPagina: 50
+        tamanhoPagina: 500
 
 # Recursos especializados (PCA e outros)
 specialized_resources:
@@ -124,7 +124,7 @@ specialized_resources:
         anoPca: 2024
         idUsuario: 1
         pagina: 1
-        tamanhoPagina: 50
+        tamanhoPagina: 500
 
   # ✅ NÃO REQUER MODALIDADE - instrumentos de cobrança não têm modalidade
   - name: "instrumentos_cobranca"
@@ -138,7 +138,7 @@ specialized_resources:
         dataInicial: "20240101"  # Será substituído por incremental
         dataFinal: "20241231"    # Data atual será aplicada
         pagina: 1
-        tamanhoPagina: 50
+        tamanhoPagina: 500
       incremental:
         cursor_path: "dataInclusao"
         initial_value: "20240101"

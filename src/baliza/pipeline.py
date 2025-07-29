@@ -252,7 +252,6 @@ def pncp_source(
                 "page_param": "pagina",
                 "total_path": "totalPaginas",
                 "base_page": 1,
-                "maximum_page": 2000,
             },
         },
         "resource_defaults": {
