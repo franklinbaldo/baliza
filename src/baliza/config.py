@@ -1,7 +1,7 @@
 # src/baliza/config.py
 
 from typing import List, Dict, Any, Tuple
-from .schemas import ModalidadeContratacao
+from .enums import ModalidadeContratacao
 
 # =============================================================================
 # DEFINIÇÃO DECLARATIVA DOS RESOURCES

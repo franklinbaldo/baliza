@@ -20,7 +20,7 @@ from dlt.sources.rest_api import (
 )
 from datetime import datetime
 
-from .schemas import ModalidadeContratacao
+from .enums import ModalidadeContratacao
 from .utils.time import date_range_slicer
 from .models import (
     RecuperarCompraDTO,

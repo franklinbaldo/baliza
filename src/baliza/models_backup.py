@@ -2,7 +2,7 @@ from typing import List, Optional, Union
 
 from pydantic import BaseModel, field_validator
 
-from .schemas import (
+from .enums import (
     IndicadorOrcamentoSigiloso,
     SituacaoCompra,
     TipoEventoNotaFiscal,

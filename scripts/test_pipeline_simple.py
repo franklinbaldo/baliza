@@ -22,7 +22,7 @@ def _requires_modalidade(resource_name: str) -> bool:
 
 def _generate_modalidade_resources(base_resource):
     """Gera 13 resources para cada modalidade."""
-    from src.baliza.schemas import ModalidadeContratacao
+    from src.baliza.enums import ModalidadeContratacao
     import copy
     
     resources = []

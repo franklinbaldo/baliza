@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional, Generator
 
 # Import das funções do pipeline original
-from src.baliza.schemas import ModalidadeContratacao
+from src.baliza.enums import ModalidadeContratacao
 
 # Simula as funções do pipeline original
 ENDPOINTS_REQUIRING_MODALIDADE = {
