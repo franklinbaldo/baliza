@@ -8,7 +8,6 @@ pesado para o dlt rest_api_source, como recomendado pela documentação.
 from typing import Any, Optional, List, Dict, Generator
 
 import dlt
-import yaml
 from pathlib import Path
 from dlt.extract.source import DltResource
 from dlt.sources.rest_api import (
@@ -21,6 +20,7 @@ from datetime import datetime
 
 from .enums import ModalidadeContratacao
 from .utils.time import date_range_slicer
+from .resources import prepare_resources_for_dlt, get_resource_summary
 from .models import (
     RecuperarCompraDTO,
     RecuperarContratoDTO,
@@ -52,77 +52,7 @@ RESOURCE_PYDANTIC_MAPPING = {
 }
 
 
-def _load_yaml_config() -> Dict[str, Any]:
-    """Carrega a configuração do YAML."""
-    config_path = Path(__file__).parent.parent.parent / "config" / "pncp_resources.yaml"
-    with open(config_path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
-
-
-def _requires_modalidade(resource_name: str) -> bool:
-    """Verifica se um resource requer parâmetro de modalidade."""
-    endpoints_requiring_modalidade = {
-        "contratacoes_publicacao",
-        "contratacoes_atualizacao",
-    }
-    base_name = (
-        resource_name.split("_mod")[0] if "_mod" in resource_name else resource_name
-    )
-    return base_name in endpoints_requiring_modalidade
-
-
-def _generate_modalidade_resources(
-    base_resource: Dict[str, Any],
-) -> List[Dict[str, Any]]:
-    """Gera 13 resources separados para cada modalidade (1-13)."""
-    import copy
-
-    resources = []
-
-    for modalidade in ModalidadeContratacao:
-        resource = copy.deepcopy(base_resource)
-        resource["name"] = f"{base_resource['name']}_mod{modalidade.value}"
-
-        if "endpoint" not in resource:
-            resource["endpoint"] = {}
-        if "params" not in resource["endpoint"]:
-            resource["endpoint"]["params"] = {}
-
-        resource["endpoint"]["params"]["codigoModalidadeContratacao"] = modalidade.value
-
-        # Aplicar configuração Pydantic ao resource de modalidade
-        pydantic_resource = _create_pydantic_resource(resource)
-        resources.append(pydantic_resource)
-
-    return resources
-
-
-def _get_resources_by_type(
-    config: Dict[str, Any], resource_type: str
-) -> List[Dict[str, Any]]:
-    """Seleciona recursos baseado no tipo: sync, backfill, ou specialized."""
-    type_mapping = {
-        "sync": "sync_resources",
-        "backfill": "backfill_resources",
-        "specialized": "specialized_resources",
-    }
-
-    key = type_mapping.get(resource_type, "sync_resources")
-    return config.get(key, [])
-
-
-def _prepare_resources_for_dlt(resources: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Prepara recursos do YAML para o formato esperado pelo rest_api_source."""
-    prepared = []
-
-    for resource_config in resources:
-        # Se requer modalidade, expande para 13 resources
-        if _requires_modalidade(resource_config["name"]):
-            prepared.extend(_generate_modalidade_resources(resource_config))
-        else:
-            prepared.append(_create_pydantic_resource(resource_config))
-
-    return prepared
+# Legacy functions removed - now using Python resources from resources.py
 
 
 def _get_pydantic_model_for_resource(resource_name: str) -> Optional[Any]:
@@ -225,7 +155,7 @@ def pncp_source(
     """
     Fonte dlt declarativa para a API do PNCP com validação Pydantic.
 
-    Lê a configuração do YAML, aplica modelos Pydantic para validação,
+    Usa configuração Python tipada, aplica modelos Pydantic para validação,
     expande modalidades quando necessário, e delega toda a extração
     para o rest_api_source nativo do dlt.
 
@@ -236,12 +166,8 @@ def pncp_source(
     Yields:
         DltResource: Resources configurados com schema Pydantic
     """
-    # 1. Carregar configuração do YAML
-    config = _load_yaml_config()
-    base_resources = _get_resources_by_type(config, resource_type)
-
-    # 2. Preparar recursos com Pydantic (expandir modalidades quando necessário)
-    final_resources = _prepare_resources_for_dlt(base_resources)
+    # 1. Preparar recursos usando configuração Python (com modalidade expansion)
+    final_resources = prepare_resources_for_dlt(resource_type)
 
     # 3. Criar configuração usando RESTAPIConfig com validação Pydantic
     api_config: RESTAPIConfig = {
@@ -257,11 +183,6 @@ def pncp_source(
         "resource_defaults": {
             "write_disposition": "merge",
             "max_table_nesting": 2,  # Controlar profundidade de nested tables
-            "endpoint": {
-                "params": {
-                    "tamanhoPagina": 500,
-                },
-            },
         },
         "resources": final_resources,
     }
@@ -287,16 +208,12 @@ def pncp_backfill_resource(start_date_str: str, end_date_str: str, chunk_days: i
         chunk_days: Tamanho de cada fatia em dias
     """
 
-    # Estado para resumibilidade
-    state = dlt.state()
-    completed_chunks = state.setdefault("completed_chunks", {}).setdefault(
-        "pncp_backfill", []
-    )
+    # Estado para resumibilidade - usando current resource state API
+    state = dlt.current.resource_state()
+    completed_chunks = state.setdefault("completed_chunks", [])
 
-    # Carregar configuração de backfill
-    config = _load_yaml_config()
-    backfill_resources = _get_resources_by_type(config, "backfill")
-    final_resources = _prepare_resources_for_dlt(backfill_resources)
+    # Carregar configuração de backfill usando Python resources
+    final_resources = prepare_resources_for_dlt("backfill")
 
     # Converter datas
     start_dt = datetime.strptime(start_date_str, "%Y%m%d")
@@ -321,8 +238,9 @@ def pncp_backfill_resource(start_date_str: str, end_date_str: str, chunk_days: i
 
                 # Atualizar parâmetros de data
                 config_copy = config.copy()
-                config_copy["endpoint"]["params"]["dataInicial"] = start
-                config_copy["endpoint"]["params"]["dataFinal"] = end
+                if "endpoint" in config_copy and "params" in config_copy["endpoint"]:
+                    config_copy["endpoint"]["params"]["dataInicial"] = start
+                    config_copy["endpoint"]["params"]["dataFinal"] = end
 
                 # Configuração do source para este chunk
                 chunk_source_config = {
@@ -342,7 +260,7 @@ def pncp_backfill_resource(start_date_str: str, end_date_str: str, chunk_days: i
                 yield from rest_api_source(chunk_source_config)
 
                 # Marcar como concluído após sucesso
-                dlt.state()["completed_chunks"]["pncp_backfill"].append(id)
+                dlt.current.resource_state()["completed_chunks"].append(id)
                 print("✅ Fatia concluída:", id)
 
             # Entregar o trabalho para o pool de threads do dlt

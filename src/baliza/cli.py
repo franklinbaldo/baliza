@@ -130,12 +130,9 @@ def status():
     typer.echo("=" * 50)
 
     # Verificar configurações
-    config_path = Path("config/pncp_resources.yaml")
     secrets_path = Path(".dlt/secrets.toml")
 
-    typer.echo(
-        f"Configuração YAML: {'✅' if config_path.exists() else '❌'} {config_path}"
-    )
+    typer.echo("Configuração Resources: ✅ Python-based (resources.py)")
     typer.echo(f"Secrets DLT: {'✅' if secrets_path.exists() else '❌'} {secrets_path}")
 
     # Verificar diretórios de dados
@@ -153,38 +150,26 @@ def info():
     """
     Mostra informações sobre os recursos disponíveis.
     """
-    from .pipeline import (
-        _load_yaml_config,
-        _get_resources_by_type,
-        _requires_modalidade,
-    )
+    from .resources import get_resource_summary
 
     typer.echo("📋 Recursos Configurados")
     typer.echo("=" * 50)
 
     try:
-        config = _load_yaml_config()
+        summary = get_resource_summary()
 
-        for resource_type in ["sync", "backfill", "specialized"]:
-            resources = _get_resources_by_type(config, resource_type)
-            if not resources:
-                continue
-
+        for resource_type, info in summary.items():
             typer.echo(
-                f"\n🔹 {resource_type.upper()} ({len(resources)} recursos base):"
+                f"\n🔹 {resource_type.upper()} ({info['base_resources']} recursos base):"
             )
 
-            total_final = 0
-            for resource in resources:
-                name = resource["name"]
-                requires_mod = _requires_modalidade(name)
-                final_count = 13 if requires_mod else 1
-                total_final += final_count
+            for resource in info["resources"]:
+                status = "⚠️  MODALIDADE (13x)" if resource["requires_modalidade"] else "✅ ÚNICO"
+                incremental = "📈 INCREMENTAL" if resource["has_incremental"] else "📦 FULL"
+                typer.echo(f"   • {resource['name']} - {status} - {incremental}")
+                typer.echo(f"     Table: {resource['table']} | Page Size: {resource['page_size']}")
 
-                status = "⚠️  MODALIDADE (13x)" if requires_mod else "✅ ÚNICO"
-                typer.echo(f"   • {name} - {status}")
-
-            typer.echo(f"   📊 Total final: {total_final} resources")
+            typer.echo(f"   📊 Total final: {info['final_resources']} resources")
 
     except Exception as e:
         typer.echo(f"❌ Erro ao carregar configuração: {e}", err=True)
