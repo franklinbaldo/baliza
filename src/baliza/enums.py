@@ -201,17 +201,17 @@ class TipoDocumento(int, Enum):
 class ClassificacaoSuperior(str, Enum):
     """
     Representa os códigos de classificação superior para PCA (Plano de Contratações Anual).
-    
-    Classificação Superior refere-se ao código da Classe do material ou Grupo do serviço 
+
+    Classificação Superior refere-se ao código da Classe do material ou Grupo do serviço
     conforme catálogos de materiais e serviços utilizados pelos portais de compras.
     É um parâmetro de agrupamento que permite filtrar itens do PCA por categoria ampla.
-    
+
     Baseado na seção 6.1 e 6.2 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md (Consultar Itens de PCA por Classificação Superior).
     Valores descobertos via API testing dos códigos que contêm dados reais.
     """
-    
+
     CLASSE_00 = "00"
-    CLASSE_01 = "01" 
+    CLASSE_01 = "01"
     CLASSE_02 = "02"
     CLASSE_03 = "03"
     CLASSE_04 = "04"
@@ -235,16 +235,17 @@ class ClassificacaoSuperior(str, Enum):
 def get_anos_pca_disponiveis(ano_inicial: int = 2021) -> List[int]:
     """
     Retorna lista de anos de PCA disponíveis no sistema.
-    
+
     Args:
         ano_inicial: Ano de início da operação do PNCP (default: 2021)
-    
+
     Returns:
         Lista de anos desde ano_inicial até ano atual + 1 (para permitir planejamento futuro)
-        
+
     Baseado na seção 6.1 e 6.2 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md (parâmetro anoPca).
     """
     from datetime import date
+
     ano_atual = date.today().year
     # Inclui ano atual + 1 para permitir PCA do próximo ano
     return list(range(ano_inicial, ano_atual + 2))
@@ -256,7 +257,7 @@ class UsuarioSistema(int, Enum):
     Baseado na seção 5.17 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md (Identificador de Usuário).
     Valores descobertos via API testing e exemplos fornecidos no manual.
     """
-    
+
     USUARIO_1 = 1
     USUARIO_2 = 2
     USUARIO_3 = 3
@@ -426,7 +427,7 @@ class SituacaoCompra(str, Enum):
     Representa a situação da compra/contratação (versão string da API).
     Baseado na seção 6.3 e 6.4 do MANUAL-PNCP-CONSULTAS-VERSAO-1.md, que lista códigos de situação.
     Conforme OpenAPI, são strings: "1", "2", "3", "4".
-    
+
     Note: API implementation bug - API returns integers but OpenAPI spec expects strings.
     This enum handles both cases with a validator.
     """
@@ -435,7 +436,7 @@ class SituacaoCompra(str, Enum):
     REVOGADA = "2"
     ANULADA = "3"
     SUSPENSA = "4"
-    
+
     @classmethod
     def _missing_(cls, value):
         """Handle API returning integers instead of strings as per OpenAPI spec."""
@@ -521,8 +522,6 @@ def get_enum_description(enum_class: type[Enum], value: int | str) -> str:
     # Fallback to the previous implementation
     name = enum_member.name.replace("_", " ").title()
     return f"{name} ({enum_member.value})"
-
-
 
 
 class TipoEventoNotaFiscal(str, Enum):

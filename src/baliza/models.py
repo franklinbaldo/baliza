@@ -29,9 +29,9 @@ class PlanoContratacaoItemDTO(BaseModel):
     quantidadeEstimada: Optional[float] = None
     descricaoItem: Optional[str] = None
     pdmCodigo: Optional[str] = None
-    dataInclusao: Optional[datetime] = Field(None, example='2025-07-11T13:08:48')
+    dataInclusao: Optional[datetime] = Field(None, example="2025-07-11T13:08:48")
     numeroItem: Optional[int] = None
-    dataAtualizacao: Optional[datetime] = Field(None, example='2025-07-11T13:08:48')
+    dataAtualizacao: Optional[datetime] = Field(None, example="2025-07-11T13:08:48")
     valorTotal: Optional[float] = None
     pdmDescricao: Optional[str] = None
     codigoItem: Optional[str] = None
@@ -52,17 +52,13 @@ class ContratacaoFonteOrcamentariaDTO(BaseModel):
     codigo: Optional[int] = None
     nome: Optional[str] = None
     descricao: Optional[str] = None
-    dataInclusao: Optional[datetime] = Field(None, example='2025-07-11T13:08:48')
+    dataInclusao: Optional[datetime] = Field(None, example="2025-07-11T13:08:48")
 
 
 class RecuperarAmparoLegalDTO(BaseModel):
     descricao: Optional[str] = None
     nome: Optional[str] = None
     codigo: Optional[int] = None
-
-
-
-
 
 
 class RecuperarOrgaoEntidadeDTO(BaseModel):
@@ -122,14 +118,10 @@ class NotaFiscalEletronicaConsultaDTO(BaseModel):
     valorNotaFiscal: Optional[str] = None
     tipoEventoMaisRecente: Optional[str] = None
     dataTipoEventoMaisRecente: Optional[str] = None
-    dataInclusao: Optional[datetime] = Field(None, example='2025-07-11T13:08:48')
-    dataAtualizacao: Optional[datetime] = Field(None, example='2025-07-11T13:08:48')
+    dataInclusao: Optional[datetime] = Field(None, example="2025-07-11T13:08:48")
+    dataAtualizacao: Optional[datetime] = Field(None, example="2025-07-11T13:08:48")
     itens: Optional[List[ItemNotaFiscalConsultaDTO]] = None
     eventos: Optional[List[EventoNotaFiscalConsultaDTO]] = None
-
-
-
-
 
 
 class TipoContrato(BaseModel):
@@ -141,8 +133,8 @@ class TipoInstrumentoCobrancaDTO(BaseModel):
     id: Optional[int] = None
     nome: Optional[str] = None
     descricao: Optional[str] = None
-    dataInclusao: Optional[datetime] = Field(None, example='2025-07-11T13:08:48')
-    dataAtualizacao: Optional[datetime] = Field(None, example='2025-07-11T13:08:48')
+    dataInclusao: Optional[datetime] = Field(None, example="2025-07-11T13:08:48")
+    dataAtualizacao: Optional[datetime] = Field(None, example="2025-07-11T13:08:48")
     statusAtivo: Optional[bool] = None
 
 
@@ -151,17 +143,17 @@ class RecuperarCompraPublicacaoDTO(BaseModel):
     orgaoEntidade: Optional[RecuperarOrgaoEntidadeDTO] = None
     anoCompra: Optional[int] = None
     sequencialCompra: Optional[int] = None
-    dataInclusao: Optional[datetime] = Field(None, example='2025-07-11T13:08:48')
-    dataPublicacaoPncp: Optional[datetime] = Field(None, example='2025-07-11T13:08:48')
-    dataAtualizacao: Optional[datetime] = Field(None, example='2025-07-11T13:08:48')
+    dataInclusao: Optional[datetime] = Field(None, example="2025-07-11T13:08:48")
+    dataPublicacaoPncp: Optional[datetime] = Field(None, example="2025-07-11T13:08:48")
+    dataAtualizacao: Optional[datetime] = Field(None, example="2025-07-11T13:08:48")
     numeroCompra: Optional[str] = None
     unidadeOrgao: Optional[RecuperarUnidadeOrgaoDTO] = None
     amparoLegal: Optional[RecuperarAmparoLegalDTO] = None
     dataAberturaProposta: Optional[datetime] = Field(
-        None, example='2025-07-11T13:08:48'
+        None, example="2025-07-11T13:08:48"
     )
     dataEncerramentoProposta: Optional[datetime] = Field(
-        None, example='2025-07-11T13:08:48'
+        None, example="2025-07-11T13:08:48"
     )
     informacaoComplementar: Optional[str] = None
     processo: Optional[str] = None
@@ -175,7 +167,7 @@ class RecuperarCompraPublicacaoDTO(BaseModel):
     numeroControlePNCP: Optional[str] = None
     modalidadeId: Optional[int] = None
     dataAtualizacaoGlobal: Optional[datetime] = Field(
-        None, example='2025-07-11T13:08:48'
+        None, example="2025-07-11T13:08:48"
     )
     modoDisputaId: Optional[int] = None
     valorTotalEstimado: Optional[float] = None
@@ -195,15 +187,15 @@ class AtaRegistroPrecoPeriodoDTO(BaseModel):
     anoAta: Optional[int] = None
     numeroControlePNCPCompra: Optional[str] = None
     cancelado: Optional[bool] = None
-    dataCancelamento: Optional[datetime] = Field(None, example='2025-07-11T13:08:48')
-    dataAssinatura: Optional[datetime] = Field(None, example='2025-07-11T13:08:48')
-    vigenciaInicio: Optional[datetime] = Field(None, example='2025-07-11T13:08:48')
-    vigenciaFim: Optional[datetime] = Field(None, example='2025-07-11T13:08:48')
-    dataPublicacaoPncp: Optional[datetime] = Field(None, example='2025-07-11T13:08:48')
-    dataInclusao: Optional[datetime] = Field(None, example='2025-07-11T13:08:48')
-    dataAtualizacao: Optional[datetime] = Field(None, example='2025-07-11T13:08:48')
+    dataCancelamento: Optional[datetime] = Field(None, example="2025-07-11T13:08:48")
+    dataAssinatura: Optional[datetime] = Field(None, example="2025-07-11T13:08:48")
+    vigenciaInicio: Optional[datetime] = Field(None, example="2025-07-11T13:08:48")
+    vigenciaFim: Optional[datetime] = Field(None, example="2025-07-11T13:08:48")
+    dataPublicacaoPncp: Optional[datetime] = Field(None, example="2025-07-11T13:08:48")
+    dataInclusao: Optional[datetime] = Field(None, example="2025-07-11T13:08:48")
+    dataAtualizacao: Optional[datetime] = Field(None, example="2025-07-11T13:08:48")
     dataAtualizacaoGlobal: Optional[datetime] = Field(
-        None, example='2025-07-11T13:08:48'
+        None, example="2025-07-11T13:08:48"
     )
     usuario: Optional[str] = None
     objetoContratacao: Optional[str] = None
@@ -233,9 +225,9 @@ class PlanoContratacaoComItensDoUsuarioDTO(BaseModel):
     anoPca: Optional[int] = None
     orgaoEntidadeRazaoSocial: Optional[str] = None
     orgaoEntidadeCnpj: Optional[str] = None
-    dataPublicacaoPNCP: Optional[datetime] = Field(None, example='2025-07-11T13:08:48')
+    dataPublicacaoPNCP: Optional[datetime] = Field(None, example="2025-07-11T13:08:48")
     dataAtualizacaoGlobalPCA: Optional[datetime] = Field(
-        None, example='2025-07-11T13:08:48'
+        None, example="2025-07-11T13:08:48"
     )
     idPcaPncp: Optional[str] = None
 
@@ -269,20 +261,20 @@ class RecuperarCompraDTO(BaseModel):
     informacaoComplementar: Optional[str] = None
     srp: Optional[bool] = None
     fontesOrcamentarias: Optional[List[ContratacaoFonteOrcamentariaDTO]] = None
-    dataPublicacaoPncp: Optional[datetime] = Field(None, example='2025-07-11T13:08:48')
+    dataPublicacaoPncp: Optional[datetime] = Field(None, example="2025-07-11T13:08:48")
     dataAberturaProposta: Optional[datetime] = Field(
-        None, example='2025-07-11T13:08:48'
+        None, example="2025-07-11T13:08:48"
     )
     dataEncerramentoProposta: Optional[datetime] = Field(
-        None, example='2025-07-11T13:08:48'
+        None, example="2025-07-11T13:08:48"
     )
     situacaoCompraId: Optional[SituacaoCompra] = None
     situacaoCompraNome: Optional[str] = None
     existeResultado: Optional[bool] = None
-    dataInclusao: Optional[datetime] = Field(None, example='2025-07-11T13:08:48')
-    dataAtualizacao: Optional[datetime] = Field(None, example='2025-07-11T13:08:48')
+    dataInclusao: Optional[datetime] = Field(None, example="2025-07-11T13:08:48")
+    dataAtualizacao: Optional[datetime] = Field(None, example="2025-07-11T13:08:48")
     dataAtualizacaoGlobal: Optional[datetime] = Field(
-        None, example='2025-07-11T13:08:48'
+        None, example="2025-07-11T13:08:48"
     )
     usuarioNome: Optional[str] = None
 
@@ -300,8 +292,8 @@ class RecuperarContratoDTO(BaseModel):
     tipoPessoa: Optional[TipoPessoa] = None
     orgaoEntidade: Optional[RecuperarOrgaoEntidadeDTO] = None
     categoriaProcesso: Optional[Categoria] = None
-    dataPublicacaoPncp: Optional[datetime] = Field(None, example='2025-07-11T13:08:48')
-    dataAtualizacao: Optional[datetime] = Field(None, example='2025-07-11T13:08:48')
+    dataPublicacaoPncp: Optional[datetime] = Field(None, example="2025-07-11T13:08:48")
+    dataAtualizacao: Optional[datetime] = Field(None, example="2025-07-11T13:08:48")
     sequencialContrato: Optional[int] = None
     unidadeOrgao: Optional[RecuperarUnidadeOrgaoDTO] = None
     informacaoComplementar: Optional[str] = None
@@ -322,7 +314,7 @@ class RecuperarContratoDTO(BaseModel):
     valorGlobal: Optional[float] = None
     valorAcumulado: Optional[float] = None
     dataAtualizacaoGlobal: Optional[datetime] = Field(
-        None, example='2025-07-11T13:08:48'
+        None, example="2025-07-11T13:08:48"
     )
     identificadorCipi: Optional[str] = None
     urlCipi: Optional[str] = None
@@ -367,12 +359,12 @@ class ConsultarInstrumentoCobrancaDTO(BaseModel):
     observacao: Optional[str] = None
     chaveNFe: Optional[str] = None
     fonteNFe: Optional[int] = None
-    dataConsultaNFe: Optional[datetime] = Field(None, example='2025-07-11T13:08:48')
+    dataConsultaNFe: Optional[datetime] = Field(None, example="2025-07-11T13:08:48")
     statusResponseNFe: Optional[str] = None
     jsonResponseNFe: Optional[str] = None
     notaFiscalEletronica: Optional[NotaFiscalEletronicaConsultaDTO] = None
-    dataInclusao: Optional[datetime] = Field(None, example='2025-07-11T13:08:48')
-    dataAtualizacao: Optional[datetime] = Field(None, example='2025-07-11T13:08:48')
+    dataInclusao: Optional[datetime] = Field(None, example="2025-07-11T13:08:48")
+    dataAtualizacao: Optional[datetime] = Field(None, example="2025-07-11T13:08:48")
     recuperarContratoDTO: Optional[RecuperarContratoDTO] = None
 
 
