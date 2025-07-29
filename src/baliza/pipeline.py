@@ -5,7 +5,7 @@ Esta versão elimina a duplicação de código e delega 100% do trabalho
 pesado para o dlt rest_api_source, como recomendado pela documentação.
 """
 
-from typing import Any, Optional, List, Dict, Generator
+from typing import Optional, Generator
 
 import dlt
 from pathlib import Path
@@ -20,7 +20,7 @@ from datetime import datetime
 
 from .enums import ModalidadeContratacao
 from .utils.time import date_range_slicer
-from .resources import prepare_resources_for_dlt, get_resource_summary
+from .resources import prepare_resources_for_dlt, get_resource_summary, create_pncp_rest_config
 from .models import (
     RecuperarCompraDTO,
     RecuperarContratoDTO,
@@ -52,95 +52,7 @@ RESOURCE_PYDANTIC_MAPPING = {
 }
 
 
-# Legacy functions removed - now using Python resources from resources.py
-
-
-def _get_pydantic_model_for_resource(resource_name: str) -> Optional[Any]:
-    """Retorna o modelo Pydantic correspondente ao resource."""
-    # Remove sufixo de modalidade se presente
-    base_name = (
-        resource_name.split("_mod")[0] if "_mod" in resource_name else resource_name
-    )
-    return RESOURCE_PYDANTIC_MAPPING.get(base_name)
-
-
-def _create_pydantic_resource(resource_config: Dict[str, Any]) -> Dict[str, Any]:
-    """Cria resource simplificado compatível com DLT REST API."""
-    import copy
-
-    converted = copy.deepcopy(resource_config)
-    resource_name = converted["name"]
-
-    # Manter apenas campos aceitos pelo DLT REST API
-    clean_resource = {"name": converted["name"], "endpoint": converted["endpoint"]}
-
-    # Adicionar write_disposition se especificado
-    if "write_disposition" in converted:
-        clean_resource["write_disposition"] = converted["write_disposition"]
-
-    # Adicionar primary_key se especificado
-    if "primary_key" in converted:
-        clean_resource["primary_key"] = converted["primary_key"]
-
-    # Log da configuração
-    print(f"✅ Configurado resource: {resource_name}")
-
-    return clean_resource
-
-
-def _get_nested_hints_for_model(model_class: Any) -> Dict[str, Any]:
-    """Gera nested hints baseado no modelo Pydantic."""
-    nested_hints = {}
-
-    # Mapear campos complexos conhecidos para nested tables
-    complex_fields = {
-        "orgaoEntidade": {"columns": {"cnpj": {"data_type": "text"}}},
-        "unidadeOrgao": {"columns": {"codigoUnidade": {"data_type": "text"}}},
-        "amparoLegal": {"columns": {"codigo": {"data_type": "bigint"}}},
-        "fontesOrcamentarias": {
-            "columns": {
-                "codigo": {"data_type": "bigint"},
-                "nome": {"data_type": "text"},
-                "dataInclusao": {"data_type": "timestamp"},
-            }
-        },
-        "itens": {
-            "columns": {
-                "numeroItem": {"data_type": "bigint"},
-                "valorTotal": {"data_type": "decimal"},
-            }
-        },
-    }
-
-    # Aplicar hints apenas para campos que existem no modelo
-    if hasattr(model_class, "__annotations__"):
-        for field_name in model_class.__annotations__.keys():
-            if field_name in complex_fields:
-                nested_hints[field_name] = complex_fields[field_name]
-
-    return nested_hints
-
-
-def _convert_to_rest_api_format(resource_config: Dict[str, Any]) -> Dict[str, Any]:
-    """Converte configuração do YAML para o formato do rest_api_source."""
-    import copy
-
-    converted = copy.deepcopy(resource_config)
-
-    # Configuração incremental no formato correto do DLT 1.x
-    if "incremental" in converted["endpoint"]:
-        incremental_config = converted["endpoint"]["incremental"]
-
-        # Mover configuração incremental para o nível do resource
-        converted["incremental"] = dlt.sources.incremental(
-            cursor_path=incremental_config["cursor_path"],
-            initial_value=incremental_config["initial_value"],
-        )
-
-        # Remove incremental do endpoint
-        del converted["endpoint"]["incremental"]
-
-    return converted
+# Legacy functions removed - modernized configuration now uses direct DLT patterns
 
 
 # =============================================================================
@@ -155,9 +67,9 @@ def pncp_source(
     """
     Fonte dlt declarativa para a API do PNCP com validação Pydantic.
 
-    Usa configuração Python tipada, aplica modelos Pydantic para validação,
-    expande modalidades quando necessário, e delega toda a extração
-    para o rest_api_source nativo do dlt.
+    Uses modernized DLT REST API configuration with direct RESTAPIConfig usage,
+    eliminating custom abstraction layers and implementing modern incremental
+    loading with placeholder syntax.
 
     Args:
         resource_type: Tipo de resource ('sync', 'backfill', 'specialized')
@@ -166,28 +78,13 @@ def pncp_source(
     Yields:
         DltResource: Resources configurados com schema Pydantic
     """
-    # 1. Preparar recursos usando configuração Python (com modalidade expansion)
-    final_resources = prepare_resources_for_dlt(resource_type)
+    # Get base URL
+    api_base_url = base_url or dlt.secrets["sources.baliza_source.base_url"]
+    
+    # Create modernized RESTAPIConfig directly (DLT best practices)
+    api_config = create_pncp_rest_config(resource_type, api_base_url)
 
-    # 3. Criar configuração usando RESTAPIConfig com validação Pydantic
-    api_config: RESTAPIConfig = {
-        "client": {
-            "base_url": base_url or dlt.secrets["sources.baliza_source.base_url"],
-            "paginator": {
-                "type": "page_number",
-                "page_param": "pagina",
-                "total_path": "totalPaginas",
-                "base_page": 1,
-            },
-        },
-        "resource_defaults": {
-            "write_disposition": "merge",
-            "max_table_nesting": 2,  # Controlar profundidade de nested tables
-        },
-        "resources": final_resources,
-    }
-
-    # 4. Retornar resources com validação Pydantic aplicada
+    # Return resources using modern DLT configuration
     yield from rest_api_resources(api_config)
 
 
@@ -212,8 +109,12 @@ def pncp_backfill_resource(start_date_str: str, end_date_str: str, chunk_days: i
     state = dlt.current.resource_state()
     completed_chunks = state.setdefault("completed_chunks", [])
 
-    # Carregar configuração de backfill usando Python resources
-    final_resources = prepare_resources_for_dlt("backfill")
+    # Get base URL for API calls
+    api_base_url = dlt.secrets["sources.baliza_source.base_url"]
+    
+    # Use modernized REST configuration for backfill
+    api_config = create_pncp_rest_config("backfill", api_base_url)
+    final_resources = api_config["resources"]
 
     # Converter datas
     start_dt = datetime.strptime(start_date_str, "%Y%m%d")
@@ -236,23 +137,16 @@ def pncp_backfill_resource(start_date_str: str, end_date_str: str, chunk_days: i
             ):
                 print("📦 Processando fatia:", id)
 
-                # Atualizar parâmetros de data
+                # Atualizar parâmetros de data no formato modernizado
                 config_copy = config.copy()
                 if "endpoint" in config_copy and "params" in config_copy["endpoint"]:
                     config_copy["endpoint"]["params"]["dataInicial"] = start
                     config_copy["endpoint"]["params"]["dataFinal"] = end
 
-                # Configuração do source para este chunk
+                # Configuração do source para este chunk (usando estrutura modernizada)
                 chunk_source_config = {
-                    "client": {
-                        "base_url": dlt.secrets["sources.baliza_source.base_url"],
-                        "paginator": {
-                            "type": "page_number",
-                            "page_param": "pagina",
-                            "total_path": "totalPaginas",
-                            "base_page": 1,  # API PNCP começa na página 1
-                        },
-                    },
+                    "client": api_config["client"],  # Use same client config as main
+                    "resource_defaults": api_config["resource_defaults"],
                     "resources": [config_copy],
                 }
 

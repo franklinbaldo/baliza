@@ -43,17 +43,17 @@ class ResourceConfig:
 # =============================================================================
 
 PAGE_SIZE_LIMITS = {
-    # Modalidade-requiring endpoints (limited to 50)
+    # Modalidade-requiring endpoints (based on PNCP API testing)
     "contratacoes_publicacao": 50,
     "contratacoes_atualizacao": 50,
     
-    # Non-modalidade endpoints (can use 500)
+    # Non-modalidade endpoints (based on PNCP API testing)
     "contratos": 500,
     "contratos_atualizacao": 500,
     "atas": 500,
     "atas_atualizacao": 500,
     
-    # Specialized endpoints (limited to 50)
+    # Specialized endpoints (based on PNCP API testing)
     "pca_usuario": 50,
     "instrumentos_cobranca": 50,
 }
@@ -234,7 +234,243 @@ def create_specialized_resources() -> List[ResourceConfig]:
 
 
 # =============================================================================
-# MAIN RESOURCE FACTORY
+# MODERNIZED DLT REST API CONFIGURATION (DLT Best Practices)
+# =============================================================================
+
+def create_pncp_rest_config(resource_type: str, base_url: str) -> Dict[str, Any]:
+    """
+    Create modernized RESTAPIConfig using DLT best practices.
+    
+    This replaces the custom abstraction layer with direct DLT configuration,
+    using modern incremental loading with placeholder syntax.
+    
+    Args:
+        resource_type: 'sync', 'backfill', or 'specialized'
+        base_url: PNCP API base URL
+        
+    Returns:
+        RESTAPIConfig dictionary ready for rest_api_source()
+    """
+    
+    # Base client configuration
+    config = {
+        "client": {
+            "base_url": base_url,
+            "paginator": {
+                "type": "page_number",
+                "page_param": "pagina", 
+                "total_path": "totalPaginas",
+                "base_page": 1,
+            },
+        },
+        "resource_defaults": {
+            "write_disposition": "merge",
+            "max_table_nesting": 2,
+        },
+        "resources": []
+    }
+    
+    # Add resources based on type
+    if resource_type == "sync":
+        config["resources"].extend(_create_sync_rest_resources())
+    elif resource_type == "backfill":
+        config["resources"].extend(_create_backfill_rest_resources())
+    elif resource_type == "specialized":
+        config["resources"].extend(_create_specialized_rest_resources())
+    else:
+        raise ValueError(f"Unknown resource type: {resource_type}")
+    
+    return config
+
+
+def _create_sync_rest_resources() -> List[Dict[str, Any]]:
+    """Create sync resources using modern DLT REST API format."""
+    resources = []
+    
+    # Contratações Atualização (with modalidade expansion)
+    for modalidade in ModalidadeContratacao:
+        resources.append({
+            "name": f"contratacoes_atualizacao_mod{modalidade.value}",
+            "table_name": "contratacao_atualizacao",
+            "endpoint": {
+                "path": "/v1/contratacoes/atualizacao",
+                "data_selector": "data",
+                "params": {
+                    "pagina": 1,
+                    "tamanhoPagina": PAGE_SIZE_LIMITS["contratacoes_atualizacao"],
+                    "codigoModalidadeContratacao": int(modalidade.value),
+                    "dataInicial": "{incremental.last_value}",
+                    "dataFinal": "20241231",
+                },
+                "incremental": {
+                    "cursor_path": "dataAtualizacao",
+                    "initial_value": "20240101",
+                }
+            },
+            "write_disposition": "merge",
+            "primary_key": "numeroControlePNCP",
+        })
+    
+    # Contratos Atualização (single resource)
+    resources.append({
+        "name": "contratos_atualizacao",
+        "table_name": "contrato_atualizacao", 
+        "endpoint": {
+            "path": "/v1/contratos/atualizacao",
+            "data_selector": "data",
+            "params": {
+                "pagina": 1,
+                "tamanhoPagina": PAGE_SIZE_LIMITS["contratos_atualizacao"],
+                "dataInicial": "{incremental.last_value}",
+                "dataFinal": "20241231",
+            },
+            "incremental": {
+                "cursor_path": "dataAtualizacao", 
+                "initial_value": "20240101",
+            }
+        },
+        "write_disposition": "merge",
+        "primary_key": "numeroControlePNCP",
+    })
+    
+    # Atas Atualização (single resource)
+    resources.append({
+        "name": "atas_atualizacao",
+        "table_name": "ata_registro_preco_atualizacao",
+        "endpoint": {
+            "path": "/v1/atas/atualizacao",
+            "data_selector": "data", 
+            "params": {
+                "pagina": 1,
+                "tamanhoPagina": PAGE_SIZE_LIMITS["atas_atualizacao"],
+                "dataInicial": "{incremental.last_value}",
+                "dataFinal": "20241231",
+            },
+            "incremental": {
+                "cursor_path": "dataAtualizacao",
+                "initial_value": "20240101",
+            }
+        },
+        "write_disposition": "merge", 
+        "primary_key": "numeroControlePNCPAta",
+    })
+    
+    return resources
+
+
+def _create_backfill_rest_resources() -> List[Dict[str, Any]]:
+    """Create backfill resources using modern DLT REST API format."""
+    resources = []
+    
+    # Contratações Publicação (with modalidade expansion) 
+    for modalidade in ModalidadeContratacao:
+        resources.append({
+            "name": f"contratacoes_publicacao_mod{modalidade.value}",
+            "table_name": "contratacao_publicacao",
+            "endpoint": {
+                "path": "/v1/contratacoes/publicacao",
+                "data_selector": "data",
+                "params": {
+                    "pagina": 1,
+                    "tamanhoPagina": PAGE_SIZE_LIMITS["contratacoes_publicacao"],
+                    "codigoModalidadeContratacao": int(modalidade.value),
+                    # Note: backfill will update these dates dynamically
+                    "dataInicial": "20240101",
+                    "dataFinal": "20241231",
+                }
+            },
+            "write_disposition": "replace",
+            "primary_key": "numeroControlePNCP",
+        })
+    
+    # Contratos (single resource)
+    resources.append({
+        "name": "contratos",
+        "table_name": "contrato",
+        "endpoint": {
+            "path": "/v1/contratos", 
+            "data_selector": "data",
+            "params": {
+                "pagina": 1,
+                "tamanhoPagina": PAGE_SIZE_LIMITS["contratos"],
+                "dataInicial": "20240101",
+                "dataFinal": "20241231",
+            }
+        },
+        "write_disposition": "replace",
+        "primary_key": "numeroControlePNCP",
+    })
+    
+    # Atas (single resource)
+    resources.append({
+        "name": "atas",
+        "table_name": "ata_registro_preco",
+        "endpoint": {
+            "path": "/v1/atas",
+            "data_selector": "data",
+            "params": {
+                "pagina": 1,
+                "tamanhoPagina": PAGE_SIZE_LIMITS["atas"],
+                "dataInicial": "20240101", 
+                "dataFinal": "20241231",
+            }
+        },
+        "write_disposition": "replace",
+        "primary_key": "numeroControlePNCPAta",
+    })
+    
+    return resources
+
+
+def _create_specialized_rest_resources() -> List[Dict[str, Any]]:
+    """Create specialized resources using modern DLT REST API format."""
+    resources = []
+    
+    # PCA Usuario
+    resources.append({
+        "name": "pca_usuario",
+        "table_name": "plano_contratacao",
+        "endpoint": {
+            "path": "/v1/pca/usuario",
+            "data_selector": "data",
+            "params": {
+                "pagina": 1, 
+                "tamanhoPagina": PAGE_SIZE_LIMITS["pca_usuario"],
+                "anoPca": datetime.now().year,
+                "idUsuario": 1,
+            }
+        },
+        "write_disposition": "replace",
+        "primary_key": "idPcaPncp",
+    })
+    
+    # Instrumentos de Cobrança
+    resources.append({
+        "name": "instrumentos_cobranca",
+        "table_name": "instrumento_cobranca",
+        "endpoint": {
+            "path": "/v1/instrumentoscobranca/inclusao",
+            "data_selector": "data",
+            "params": {
+                "pagina": 1,
+                "tamanhoPagina": PAGE_SIZE_LIMITS["instrumentos_cobranca"],
+                "dataInicial": "{incremental.last_value}",
+                "dataFinal": "20241231",
+            },
+            "incremental": {
+                "cursor_path": "dataInclusao",
+                "initial_value": "20240101",
+            }
+        },
+        "write_disposition": "merge",
+        "primary_key": ["cnpj", "ano", "sequencialContrato", "sequencialInstrumentoCobranca"],
+    })
+    
+    return resources
+
+
+# =============================================================================
+# LEGACY RESOURCE FACTORY (for backward compatibility)
 # =============================================================================
 
 def get_resources_by_type(resource_type: str) -> List[ResourceConfig]:
