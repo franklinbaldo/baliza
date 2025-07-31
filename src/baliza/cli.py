@@ -1,22 +1,112 @@
 """
-Interface de linha de comando para o Baliza.
+Interface de linha de comando simplificada para o Baliza.
 
-Fornece comandos simples para executar sincronização e backfill.
+Comando único e inteligente para extração autônoma de dados PNCP.
 """
 
 import typer
 from pathlib import Path
+from typing import Optional, List
 
-from .pipeline import run_monthly_pipeline, run_backfill_pipeline
+from .pipeline import run_intelligent_pipeline, run_monthly_pipeline, run_backfill_pipeline
 
 app = typer.Typer(
     name="baliza",
-    help="Pipeline de extração de dados da API PNCP",
+    help="Pipeline autônomo de extração de dados da API PNCP",
     add_completion=False,
 )
 
 
 @app.command()
+def run(
+    destination: str = typer.Option(
+        "duckdb", help="Destino dos dados (duckdb, postgresql, etc.)"
+    ),
+    dataset: str = typer.Option("pncp_data", help="Nome do dataset/schema"),
+    pipeline_name: str = typer.Option("baliza_autonomous", help="Nome do pipeline"),
+    exclude_modalidades: str = typer.Option(
+        "", 
+        help="Modalidades para excluir (ex: '2,7,8' ou '2,9,10,11,12,13' para modalidades com pouco dados)"
+    ),
+    full_rebuild: bool = typer.Option(
+        False, "--full-rebuild", help="Ignora o estado e reprocessa todos os meses"
+    ),
+):
+    """
+    Executa o pipeline autônomo e idempotente do Baliza.
+
+    Este comando único processa automaticamente todos os meses necessários,
+    de Janeiro 2021 até o último mês completo, pulando meses já processados.
+    
+    O estado é mantido no banco de dados de destino, tornando o processo
+    completamente resumível e robusto para execução em produção.
+    
+    Por padrão, processa todas as 13 modalidades. Use --exclude-modalidades 
+    para excluir modalidades específicas que podem ter poucos dados.
+    
+    Exemplos:
+      baliza run                                    # Execução padrão
+      baliza run --exclude-modalidades "2,7,8"     # Exclui modalidades específicas  
+      baliza run --full-rebuild                     # Reprocessa todos os meses
+      baliza run --destination postgresql          # Usa PostgreSQL como destino
+    """
+    # Parse exclude_modalidades parameter
+    exclude_modalidades_list: Optional[List[int]] = None
+    if exclude_modalidades.strip():
+        try:
+            exclude_modalidades_list = [int(x.strip()) for x in exclude_modalidades.split(",")]
+            # Validate modalidades are in valid range (1-13)
+            for modalidade in exclude_modalidades_list:
+                if modalidade < 1 or modalidade > 13:
+                    typer.echo(f"❌ Erro: Modalidade {modalidade} deve estar entre 1 e 13", err=True)
+                    raise typer.Exit(1)
+        except ValueError:
+            typer.echo("❌ Erro: Modalidades devem ser números separados por vírgula (ex: '2,7,8')", err=True)
+            raise typer.Exit(1)
+
+    typer.echo("🚀 Iniciando Baliza - Pipeline Autônomo PNCP")
+    typer.echo("=" * 50)
+    typer.echo(f"   Destino: {destination}")
+    typer.echo(f"   Dataset: {dataset}")
+    typer.echo(f"   Pipeline: {pipeline_name}")
+    if exclude_modalidades_list:
+        typer.echo(f"   Modalidades excluídas: {exclude_modalidades_list}")
+    if full_rebuild:
+        typer.echo("   Modo: Full rebuild (reprocessar todos os meses)")
+    typer.echo()
+
+    try:
+        info = run_intelligent_pipeline(
+            destination=destination,
+            dataset_name=dataset,
+            pipeline_name=pipeline_name,
+            exclude_modalidades=exclude_modalidades_list,
+            full_rebuild=full_rebuild,
+        )
+
+        if info is None:
+            typer.echo("🎯 Pipeline já está atualizado - nenhuma ação necessária!")
+        else:
+            typer.echo("🎉 Pipeline autônomo concluído com sucesso!")
+            if info and info.load_packages:
+                rows_loaded = sum(
+                    job.job_file_info.rows_in_table or 0
+                    for package in info.load_packages
+                    for job in package.jobs
+                )
+                typer.echo(f"   Última execução carregou: {rows_loaded:,} linhas")
+
+    except Exception as e:
+        typer.echo(f"❌ Erro no pipeline autônomo: {e}", err=True)
+        typer.echo("💡 Dica: Execute novamente para continuar do ponto onde parou")
+        raise typer.Exit(1)
+
+
+# =============================================================================
+# COMANDOS LEGACY (mantidos para compatibilidade)
+# =============================================================================
+
+@app.command(hidden=True)
 def monthly(
     year_month: str = typer.Argument(..., help="Ano e mês (formato: YYYYMM)"),
     destination: str = typer.Option(
@@ -55,7 +145,6 @@ def monthly(
         typer.echo("❌ Erro: Ano e mês devem conter apenas números", err=True)
         raise typer.Exit(1)
 
-    year = int(year_month[:4])
     month = int(year_month[4:])
     
     if month < 1 or month > 12:
@@ -108,7 +197,7 @@ def monthly(
         raise typer.Exit(1)
 
 
-@app.command()
+@app.command(hidden=True)
 def backfill(
     start_date: str = typer.Argument(..., help="Data inicial (formato: YYYYMMDD)"),
     end_date: str = typer.Argument(..., help="Data final (formato: YYYYMMDD)"),

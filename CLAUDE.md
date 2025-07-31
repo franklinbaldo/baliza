@@ -10,9 +10,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Install dependencies and setup environment
 uv sync
 
-# Run CLI commands
-uv run baliza sync                    # Incremental sync from PNCP API
-uv run baliza backfill 20240101 20240331  # Historical data backfill
+# Main command - Autonomous and idempotent pipeline
+uv run baliza run                     # Process all months since 2021-01 automatically
+uv run baliza run --full-rebuild      # Reprocess all months from scratch
+uv run baliza run --exclude-modalidades "2,7,8"  # Exclude specific modalidades
+
+# Status and information commands
 uv run baliza status                  # Check pipeline configuration
 uv run baliza info                    # Show available resources
 
@@ -32,26 +35,36 @@ uv run python -m pytest tests/test_pipeline.py::TestPipelineConfig::test_yaml_co
 
 ### Core Architecture Components
 
-1. **DLT Pipeline Engine** (`src/baliza/pipeline.py`):
+1. **Intelligent Pipeline Orchestrator** (`src/baliza/pipeline.py`):
+   - Single autonomous `run_intelligent_pipeline()` function
+   - Programmatically configures DLT state backend via `dlt.config`
+   - Month-by-month processing with database-backed state management
+   - Automatic calculation of months to process (2021-01 to last complete month)
+   - Built-in resumability and idempotence
+
+2. **DLT Pipeline Engine** (`src/baliza/pipeline.py`):
    - Main extraction logic using `rest_api_source` from DLT
    - Pydantic models for schema validation and data quality
    - Multi-modality strategy for PNCP API endpoints
    - Automatic resource expansion for different procurement types (modalidades)
 
-2. **Pydantic Models** (`src/baliza/models.py`):
+3. **Pydantic Models** (`src/baliza/models.py`):
    - Complete data models for all PNCP API responses
    - Field validators for data quality (e.g., `coerce_situacao_compra_id`)
    - Nested models for complex data structures (orgaoEntidade, unidadeOrgao)
 
-3. **Configuration System**:
+4. **Python-First Configuration**:
+   - All critical configuration is set programmatically in Python code
+   - State backend dynamically configured to match data destination
    - `config/pncp_resources.yaml`: Endpoint definitions and parameters
-   - `.dlt/config.toml`: DLT pipeline optimizations and performance settings
    - `.dlt/secrets.toml`: API base URL and credentials (not in repo)
+   - No manual `.dlt/config.toml` editing required
 
-4. **CLI Interface** (`src/baliza/cli.py`):
-   - Typer-based CLI with intuitive commands
-   - Sync (incremental) vs backfill (historical) modes
+5. **Simplified CLI Interface** (`src/baliza/cli.py`):
+   - Single primary command: `baliza run`
+   - Legacy commands hidden but maintained for compatibility
    - Built-in validation and error handling
+   - Zero-configuration operation for end users
 
 ### Multi-Modality Strategy
 
@@ -69,26 +82,43 @@ This ensures 100% complete data extraction without unnecessary API calls.
 ### Key Data Flow
 
 ```
-PNCP API → DLT REST Source → Pydantic Validation → Nested Hints Processing → DuckDB/Parquet
+Autonomous Orchestrator → Month Selection → State Check → PNCP API → DLT REST Source → Pydantic Validation → Database Storage
 ```
 
-1. **Extraction**: DLT `rest_api_source` handles pagination, retries, and state management
-2. **Validation**: Pydantic models ensure data quality and type safety
-3. **Schema Management**: Nested hints control how complex objects become tables
-4. **Storage**: Default to DuckDB with Parquet export for analysis
+1. **Orchestration**: Intelligent pipeline calculates months to process and checks database state
+2. **Extraction**: DLT `rest_api_source` handles pagination, retries, and API communication  
+3. **Validation**: Pydantic models ensure data quality and type safety
+4. **State Management**: Progress stored in database alongside data for perfect consistency
+5. **Storage**: Default to DuckDB with Parquet export for analysis
+
+### Autonomous State Management
+
+The pipeline uses DLT's built-in state management with programmatic configuration:
+
+- **Database-Backed State**: `dlt.config["state.backend"] = destination` automatically configured
+- **Month Tracking**: `pipeline.state["completed_months"]` contains list of processed months (format: "YYYYMM")
+- **Atomic Updates**: State is updated after each successful month processing
+- **Perfect Resumability**: Interrupted pipelines automatically continue from last completed month
+- **Production Ready**: State lives in database alongside data, perfect for containers and schedulers
 
 ### Critical Integration Points
 
 - **Resource-to-Model Mapping**: `RESOURCE_PYDANTIC_MAPPING` in `pipeline.py` connects YAML resources to Pydantic models
-- **Nested Table Control**: `_get_nested_hints_for_model()` defines how nested objects become separate tables
+- **Intelligent Orchestration**: `run_intelligent_pipeline()` is the single entry point for all data processing
+- **Month Calculation**: `_get_months_to_process()` determines work needed from 2021-01 to last complete month
+- **State Backend Config**: Programmatically set via `dlt.config` to match data destination
 - **Schema Contracts**: Configured for data evolution (`columns: "evolve"`) to handle API changes
-- **Incremental Loading**: Uses `dataAtualizacao` cursors with proper lag settings
 
-### Configuration Files Structure
+### Configuration Structure
 
-- `config/pncp_resources.yaml`: Defines API endpoints, parameters, and incremental settings
-- `.dlt/config.toml`: Performance tuning, retry policies, and destination settings
-- `.dlt/secrets.toml`: Contains `base_url = "https://pncp.gov.br/api/consulta"`
+**Python-First Configuration (Zero manual config required):**
+- **State Backend**: Automatically configured via `dlt.config["state.backend"] = destination`
+- **Pipeline Settings**: All critical settings defined programmatically in `run_intelligent_pipeline()`
+
+**File-Based Configuration (minimal):**
+- `config/pncp_resources.yaml`: API endpoint definitions and parameters
+- `.dlt/secrets.toml`: Contains `base_url = "https://pncp.gov.br/api/consulta"` (only file users need to create)
+- `.dlt/config.toml`: Optional performance tuning (not required for basic operation)
 
 ### Testing Strategy
 

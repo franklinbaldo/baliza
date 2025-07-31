@@ -8,20 +8,18 @@ pesado para o dlt rest_api_source, como recomendado pela documentação.
 from typing import Optional, Generator
 
 import dlt
-from pathlib import Path
 from dlt.extract.source import DltResource
 from dlt.sources.rest_api import (
-    RESTAPIConfig,
     check_connection,
     rest_api_resources,
     rest_api_source,
 )
 from datetime import datetime, date
 import calendar
+from typing import List
 
-from .enums import ModalidadeContratacao
 from .utils.time import date_range_slicer
-from .resources import prepare_resources_for_dlt, get_resource_summary, create_pncp_rest_config
+from .resources import create_pncp_rest_config
 from .models import (
     RecuperarCompraDTO,
     RecuperarContratoDTO,
@@ -278,6 +276,153 @@ def run_backfill_pipeline(
     return info
 
 
+# =============================================================================
+# ORQUESTRADOR INTELIGENTE PARA COMANDO ÚNICO 'baliza run'
+# =============================================================================
+
+
+def _get_months_to_process() -> List[str]:
+    """
+    Calcula todos os meses que devem ser processados, de 202101 até o mês anterior ao atual.
+    
+    Returns:
+        Lista de strings no formato YYYYMM
+    """
+    start_year = 2021
+    start_month = 1
+    
+    today = date.today()
+    # Processamos até o mês anterior ao atual (mês atual pode não estar completo)
+    if today.month == 1:
+        end_year = today.year - 1
+        end_month = 12
+    else:
+        end_year = today.year
+        end_month = today.month - 1
+    
+    months = []
+    current_year = start_year
+    current_month = start_month
+    
+    while (current_year < end_year) or (current_year == end_year and current_month <= end_month):
+        months.append(f"{current_year:04d}{current_month:02d}")
+        
+        current_month += 1
+        if current_month > 12:
+            current_month = 1
+            current_year += 1
+    
+    return months
+
+
+def run_intelligent_pipeline(
+    destination: str = "duckdb",
+    dataset_name: str = "pncp_data",
+    pipeline_name: str = "baliza_autonomous",
+    exclude_modalidades: Optional[List[int]] = None,
+    full_rebuild: bool = False,
+):
+    """
+    Orquestrador inteligente que processa todos os meses necessários de forma idempotente.
+    
+    Args:
+        destination: Destino dos dados (duckdb, postgresql, etc.)
+        dataset_name: Nome do dataset/schema
+        pipeline_name: Nome do pipeline
+        exclude_modalidades: Lista de modalidades para excluir
+        full_rebuild: Se True, ignora o estado e reprocessa todos os meses
+    
+    Returns:
+        Informações sobre a execução do pipeline
+    """
+    # Configurar o state backend programaticamente para usar o mesmo destino dos dados
+    dlt.config["state.backend"] = destination
+    
+    print("🗓️  Calculando meses para processar...")
+    months_to_process = _get_months_to_process()
+    
+    if not months_to_process:
+        print("✅ Nenhum mês para processar. Dados já estão atualizados.")
+        return None
+    
+    print(f"📅 Período: {months_to_process[0]} até {months_to_process[-1]} ({len(months_to_process)} meses)")
+    
+    # Inicializar pipeline
+    pipeline = dlt.pipeline(
+        pipeline_name=pipeline_name,
+        destination=destination,
+        dataset_name=dataset_name,
+        progress="log",
+        export_schema_path="schemas/export",
+    )
+    
+    # Carregar estado (lista de meses concluídos)
+    if full_rebuild:
+        print("🔄 Modo full-rebuild: resetando estado...")
+        pipeline.state["completed_months"] = []
+    
+    completed_months = pipeline.state.get("completed_months", [])
+    print(f"📊 Meses já processados: {len(completed_months)}")
+    
+    # Determinar meses que ainda precisam ser processados
+    pending_months = [month for month in months_to_process if month not in completed_months]
+    
+    if not pending_months:
+        print("✅ Todos os meses já foram processados. Pipeline atualizado.")
+        return None
+    
+    print(f"⏳ Meses pendentes: {len(pending_months)}")
+    
+    # Verificar conectividade antes de começar
+    print("🔗 Verificando conectividade com API PNCP...")
+    check_pncp_connection(pending_months[0], exclude_modalidades)
+    
+    # Processar cada mês pendente
+    last_info = None
+    for i, month in enumerate(pending_months, 1):
+        print(f"⏳ Processando mês {month} ({i}/{len(pending_months)})...")
+        
+        try:
+            # Verificar se o mês pode ser processado
+            _check_month_completion(month)
+            
+            # Executar extração para este mês
+            source = pncp_source(
+                resource_type="monthly", 
+                year_month=month, 
+                exclude_modalidades=exclude_modalidades
+            )
+            
+            info = pipeline.run(source)
+            
+            # Marcar mês como concluído no estado
+            if "completed_months" not in pipeline.state:
+                pipeline.state["completed_months"] = []
+            pipeline.state["completed_months"].append(month)
+            
+            print(f"✅ Mês {month} concluído com sucesso.")
+            
+            if info and info.load_packages:
+                rows_loaded = sum(
+                    job.job_file_info.rows_in_table or 0
+                    for package in info.load_packages
+                    for job in package.jobs
+                )
+                print(f"   Linhas carregadas: {rows_loaded:,}")
+            
+            last_info = info
+            
+        except Exception as e:
+            print(f"❌ Erro ao processar mês {month}: {e}")
+            print("   Progresso salvo até o mês anterior. Execute novamente para continuar.")
+            raise
+    
+    print(f"🎉 Pipeline concluído! Processados {len(pending_months)} novos meses.")
+    print(f"📊 Total de meses concluídos: {len(pipeline.state.get('completed_months', []))}")
+    
+    return last_info
+
+
 if __name__ == "__main__":
-    # Exemplo de uso
-    run_sync_pipeline()
+    # Exemplo de uso do novo orquestrador
+    run_intelligent_pipeline()
