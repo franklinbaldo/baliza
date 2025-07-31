@@ -238,7 +238,7 @@ def create_specialized_resources() -> List[ResourceConfig]:
 # MODERNIZED DLT REST API CONFIGURATION (DLT Best Practices)
 # =============================================================================
 
-def create_pncp_rest_config(resource_type: str, base_url: str, year_month: Optional[str] = None) -> Dict[str, Any]:
+def create_pncp_rest_config(resource_type: str, base_url: str, year_month: Optional[str] = None, exclude_modalidades: Optional[List[int]] = None) -> Dict[str, Any]:
     """
     Create modernized RESTAPIConfig using DLT best practices.
     
@@ -249,6 +249,7 @@ def create_pncp_rest_config(resource_type: str, base_url: str, year_month: Optio
         resource_type: 'monthly', 'backfill', or 'specialized'
         base_url: PNCP API base URL
         year_month: Year and month for extraction (YYYYMM format)
+        exclude_modalidades: List of modalidades to skip (e.g., [2, 7, 8])
         
     Returns:
         RESTAPIConfig dictionary ready for rest_api_source()
@@ -274,7 +275,7 @@ def create_pncp_rest_config(resource_type: str, base_url: str, year_month: Optio
     
     # Add resources based on type
     if resource_type == "monthly":
-        config["resources"].extend(_create_monthly_rest_resources(year_month))
+        config["resources"].extend(_create_monthly_rest_resources(year_month, exclude_modalidades))
     elif resource_type == "backfill":
         config["resources"].extend(_create_backfill_rest_resources())
     elif resource_type == "specialized":
@@ -311,7 +312,7 @@ def _get_month_date_range(year_month: str) -> tuple[str, str]:
     return first_day, last_day
 
 
-def _create_monthly_rest_resources(year_month: Optional[str]) -> List[Dict[str, Any]]:
+def _create_monthly_rest_resources(year_month: Optional[str], exclude_modalidades: Optional[List[int]] = None) -> List[Dict[str, Any]]:
     """Create monthly resources using modern DLT REST API format."""
     if not year_month:
         raise ValueError("year_month é obrigatório para extração mensal")
@@ -319,12 +320,17 @@ def _create_monthly_rest_resources(year_month: Optional[str]) -> List[Dict[str, 
     data_inicial, data_final = _get_month_date_range(year_month)
     resources = []
     
-    # For testing, start with just modalidade 1 to ensure it works
-    # Later we can expand to all modalidades: [1, 3, 4, 5, 6]
-    common_modalidades = [1]
+    # Use all modalidades by default, excluding those specified
+    exclude_modalidades = exclude_modalidades or []
+    all_modalidades = [modalidade.value for modalidade in ModalidadeContratacao]
+    active_modalidades = [m for m in all_modalidades if m not in exclude_modalidades]
     
-    # Contratações Publicação (with common modalidades only) - dados do mês
-    for modalidade_value in common_modalidades:
+    print(f"📋 Processando modalidades: {active_modalidades}")
+    if exclude_modalidades:
+        print(f"🚫 Modalidades excluídas: {exclude_modalidades}")
+    
+    # Contratações Publicação (with all active modalidades) - dados do mês
+    for modalidade_value in active_modalidades:
         resources.append({
             "name": f"contratacoes_publicacao_mod{modalidade_value}",
             "table_name": "contratacao_publicacao",

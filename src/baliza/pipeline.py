@@ -65,7 +65,8 @@ RESOURCE_PYDANTIC_MAPPING = {
 def pncp_source(
     resource_type: str = "monthly", 
     base_url: Optional[str] = dlt.secrets.value,
-    year_month: Optional[str] = None
+    year_month: Optional[str] = None,
+    exclude_modalidades: Optional[list[int]] = None
 ) -> Generator[DltResource, None, None]:
     """
     Fonte dlt declarativa para a API do PNCP com validação Pydantic.
@@ -77,6 +78,7 @@ def pncp_source(
         resource_type: Tipo de resource ('monthly', 'backfill', 'specialized')
         base_url: URL base da API PNCP
         year_month: Ano e mês para extração (formato YYYYMM)
+        exclude_modalidades: Lista de modalidades para excluir (ex: [2, 7, 8])
 
     Yields:
         DltResource: Resources configurados com schema Pydantic
@@ -85,7 +87,7 @@ def pncp_source(
     api_base_url = base_url or dlt.secrets["sources.baliza_source.base_url"]
     
     # Create modernized RESTAPIConfig directly (DLT best practices)
-    api_config = create_pncp_rest_config(resource_type, api_base_url, year_month)
+    api_config = create_pncp_rest_config(resource_type, api_base_url, year_month, exclude_modalidades)
 
     # Return resources using modern DLT configuration
     yield from rest_api_resources(api_config)
@@ -169,9 +171,9 @@ def pncp_backfill_resource(start_date_str: str, end_date_str: str, chunk_days: i
 # =============================================================================
 
 
-def check_pncp_connection(year_month: Optional[str] = None) -> None:
+def check_pncp_connection(year_month: Optional[str] = None, exclude_modalidades: Optional[list[int]] = None) -> None:
     """Verifica conectividade com a API PNCP."""
-    source = pncp_source(resource_type="monthly", year_month=year_month or "202406")
+    source = pncp_source(resource_type="monthly", year_month=year_month or "202406", exclude_modalidades=exclude_modalidades)
 
     # Obter o primeiro resource disponível para teste
     resources = list(source)
@@ -224,13 +226,14 @@ def run_monthly_pipeline(
     pipeline_name: str = "baliza_pncp_monthly",
     destination: str = "duckdb",
     dataset_name: str = "pncp_data",
+    exclude_modalidades: Optional[list[int]] = None,
 ):
     """Executa o pipeline de extração mensal com validação Pydantic."""
     # Verificar se o mês pode ser processado
     _check_month_completion(year_month)
     
     # Verificar conectividade primeiro
-    check_pncp_connection(year_month)
+    check_pncp_connection(year_month, exclude_modalidades)
 
     pipeline = dlt.pipeline(
         pipeline_name=pipeline_name,
@@ -240,7 +243,7 @@ def run_monthly_pipeline(
         export_schema_path="schemas/export",
     )
 
-    source = pncp_source(resource_type="monthly", year_month=year_month)
+    source = pncp_source(resource_type="monthly", year_month=year_month, exclude_modalidades=exclude_modalidades)
 
     print(f"🚀 Executando pipeline mensal para {year_month} com validação Pydantic...")
     info = pipeline.run(source)

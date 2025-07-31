@@ -24,6 +24,10 @@ def monthly(
     ),
     dataset: str = typer.Option("pncp_data", help="Nome do dataset/schema"),
     pipeline_name: str = typer.Option("baliza_pncp_monthly", help="Nome do pipeline"),
+    exclude_modalidades: str = typer.Option(
+        "", 
+        help="Modalidades para excluir (ex: '2,7,8' ou '2,9,10,11,12,13' para modalidades com pouco dados)"
+    ),
 ):
     """
     Executa extração mensal dos dados da API PNCP.
@@ -31,9 +35,14 @@ def monthly(
     Este comando extrai dados de um mês específico, aguardando automaticamente
     que o mês termine antes de processar dados do mês atual.
     
+    Por padrão, processa todas as 13 modalidades. Use --exclude-modalidades 
+    para excluir modalidades específicas que podem ter poucos dados ou causar 
+    problemas (ex: modalidades 2, 7, 8, 9, 10, 11, 12, 13).
+    
     Exemplos:
-      baliza monthly 202407  # Julho de 2024
-      baliza monthly 202412  # Dezembro de 2024
+      baliza monthly 202407  # Julho 2024, todas modalidades
+      baliza monthly 202407 --exclude-modalidades "2,7,8"  # Exclui modalidades 2, 7, 8
+      baliza monthly 202412 --exclude-modalidades "9,10,11,12,13"  # Só modalidades 1-8
     """
     # Validação básica de formato
     if len(year_month) != 6:
@@ -53,11 +62,27 @@ def monthly(
         typer.echo("❌ Erro: Mês deve estar entre 01 e 12", err=True)
         raise typer.Exit(1)
 
+    # Parse exclude_modalidades parameter
+    exclude_modalidades_list = []
+    if exclude_modalidades.strip():
+        try:
+            exclude_modalidades_list = [int(x.strip()) for x in exclude_modalidades.split(",")]
+            # Validate modalidades are in valid range (1-13)
+            for modalidade in exclude_modalidades_list:
+                if modalidade < 1 or modalidade > 13:
+                    typer.echo(f"❌ Erro: Modalidade {modalidade} deve estar entre 1 e 13", err=True)
+                    raise typer.Exit(1)
+        except ValueError:
+            typer.echo("❌ Erro: Modalidades devem ser números separados por vírgula (ex: '2,7,8')", err=True)
+            raise typer.Exit(1)
+
     typer.echo("🚀 Iniciando extração mensal...")
     typer.echo(f"   Período: {year_month}")
     typer.echo(f"   Destino: {destination}")
     typer.echo(f"   Dataset: {dataset}")
     typer.echo(f"   Pipeline: {pipeline_name}")
+    if exclude_modalidades_list:
+        typer.echo(f"   Modalidades excluídas: {exclude_modalidades_list}")
     typer.echo()
 
     try:
@@ -65,7 +90,8 @@ def monthly(
             year_month=year_month,
             pipeline_name=pipeline_name, 
             destination=destination, 
-            dataset_name=dataset
+            dataset_name=dataset,
+            exclude_modalidades=exclude_modalidades_list
         )
 
         typer.echo("✅ Extração mensal concluída com sucesso!")
