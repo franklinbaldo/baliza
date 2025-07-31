@@ -13,6 +13,7 @@ Key Architecture Decisions:
 from dataclasses import dataclass
 from typing import List, Optional, Union, Dict, Any
 from datetime import datetime
+import calendar
 
 from .enums import ModalidadeContratacao
 
@@ -43,17 +44,17 @@ class ResourceConfig:
 # =============================================================================
 
 PAGE_SIZE_LIMITS = {
-    # Modalidade-requiring endpoints (based on PNCP API testing)
+    # Modalidade-requiring endpoints (minimum 10, optimal tested values)
     "contratacoes_publicacao": 50,
     "contratacoes_atualizacao": 50,
     
     # Non-modalidade endpoints (based on PNCP API testing)
-    "contratos": 500,
-    "contratos_atualizacao": 500,
-    "atas": 500,
-    "atas_atualizacao": 500,
+    "contratos": 100,  # Reduced from 500 for better reliability
+    "contratos_atualizacao": 100,
+    "atas": 100,  # Reduced from 500 for better reliability
+    "atas_atualizacao": 100,
     
-    # Specialized endpoints (based on PNCP API testing)
+    # Specialized endpoints (minimum 10 required)
     "pca_usuario": 50,
     "instrumentos_cobranca": 50,
 }
@@ -237,16 +238,17 @@ def create_specialized_resources() -> List[ResourceConfig]:
 # MODERNIZED DLT REST API CONFIGURATION (DLT Best Practices)
 # =============================================================================
 
-def create_pncp_rest_config(resource_type: str, base_url: str) -> Dict[str, Any]:
+def create_pncp_rest_config(resource_type: str, base_url: str, year_month: Optional[str] = None) -> Dict[str, Any]:
     """
     Create modernized RESTAPIConfig using DLT best practices.
     
     This replaces the custom abstraction layer with direct DLT configuration,
-    using modern incremental loading with placeholder syntax.
+    using monthly extraction instead of sync.
     
     Args:
-        resource_type: 'sync', 'backfill', or 'specialized'
+        resource_type: 'monthly', 'backfill', or 'specialized'
         base_url: PNCP API base URL
+        year_month: Year and month for extraction (YYYYMM format)
         
     Returns:
         RESTAPIConfig dictionary ready for rest_api_source()
@@ -271,8 +273,8 @@ def create_pncp_rest_config(resource_type: str, base_url: str) -> Dict[str, Any]
     }
     
     # Add resources based on type
-    if resource_type == "sync":
-        config["resources"].extend(_create_sync_rest_resources())
+    if resource_type == "monthly":
+        config["resources"].extend(_create_monthly_rest_resources(year_month))
     elif resource_type == "backfill":
         config["resources"].extend(_create_backfill_rest_resources())
     elif resource_type == "specialized":
@@ -283,75 +285,97 @@ def create_pncp_rest_config(resource_type: str, base_url: str) -> Dict[str, Any]
     return config
 
 
-def _create_sync_rest_resources() -> List[Dict[str, Any]]:
-    """Create sync resources using modern DLT REST API format."""
+def _get_month_date_range(year_month: str) -> tuple[str, str]:
+    """
+    Converte YYYYMM para range de datas do mês no formato YYYYMMDD.
+    
+    Args:
+        year_month: Ano e mês no formato YYYYMM
+        
+    Returns:
+        Tupla (data_inicial, data_final) no formato YYYYMMDD
+    """
+    if not year_month:
+        raise ValueError("year_month é obrigatório para extração mensal")
+        
+    year = int(year_month[:4])
+    month = int(year_month[4:])
+    
+    # Primeiro dia do mês
+    first_day = f"{year:04d}{month:02d}01"
+    
+    # Último dia do mês
+    last_day_of_month = calendar.monthrange(year, month)[1]
+    last_day = f"{year:04d}{month:02d}{last_day_of_month:02d}"
+    
+    return first_day, last_day
+
+
+def _create_monthly_rest_resources(year_month: Optional[str]) -> List[Dict[str, Any]]:
+    """Create monthly resources using modern DLT REST API format."""
+    if not year_month:
+        raise ValueError("year_month é obrigatório para extração mensal")
+    
+    data_inicial, data_final = _get_month_date_range(year_month)
     resources = []
     
-    # Contratações Atualização (with modalidade expansion)
-    for modalidade in ModalidadeContratacao:
+    # For testing, start with just modalidade 1 to ensure it works
+    # Later we can expand to all modalidades: [1, 3, 4, 5, 6]
+    common_modalidades = [1]
+    
+    # Contratações Publicação (with common modalidades only) - dados do mês
+    for modalidade_value in common_modalidades:
         resources.append({
-            "name": f"contratacoes_atualizacao_mod{modalidade.value}",
-            "table_name": "contratacao_atualizacao",
+            "name": f"contratacoes_publicacao_mod{modalidade_value}",
+            "table_name": "contratacao_publicacao",
             "endpoint": {
-                "path": "/v1/contratacoes/atualizacao",
+                "path": "/v1/contratacoes/publicacao",
                 "data_selector": "data",
                 "params": {
                     "pagina": 1,
-                    "tamanhoPagina": PAGE_SIZE_LIMITS["contratacoes_atualizacao"],
-                    "codigoModalidadeContratacao": int(modalidade.value),
-                    "dataInicial": "{incremental.last_value}",
-                    "dataFinal": "20241231",
-                },
-                "incremental": {
-                    "cursor_path": "dataAtualizacao",
-                    "initial_value": "20240101",
+                    "tamanhoPagina": PAGE_SIZE_LIMITS["contratacoes_publicacao"],
+                    "codigoModalidadeContratacao": int(modalidade_value),
+                    "dataInicial": data_inicial,
+                    "dataFinal": data_final,
                 }
             },
-            "write_disposition": "merge",
+            "write_disposition": "replace",
             "primary_key": "numeroControlePNCP",
         })
     
-    # Contratos Atualização (single resource)
+    # Contratos (single resource) - dados do mês
     resources.append({
-        "name": "contratos_atualizacao",
-        "table_name": "contrato_atualizacao", 
+        "name": "contratos",
+        "table_name": "contrato", 
         "endpoint": {
-            "path": "/v1/contratos/atualizacao",
+            "path": "/v1/contratos",
             "data_selector": "data",
             "params": {
                 "pagina": 1,
-                "tamanhoPagina": PAGE_SIZE_LIMITS["contratos_atualizacao"],
-                "dataInicial": "{incremental.last_value}",
-                "dataFinal": "20241231",
-            },
-            "incremental": {
-                "cursor_path": "dataAtualizacao", 
-                "initial_value": "20240101",
+                "tamanhoPagina": PAGE_SIZE_LIMITS["contratos"],
+                "dataInicial": data_inicial,
+                "dataFinal": data_final,
             }
         },
-        "write_disposition": "merge",
+        "write_disposition": "replace",
         "primary_key": "numeroControlePNCP",
     })
     
-    # Atas Atualização (single resource)
+    # Atas (single resource) - dados do mês
     resources.append({
-        "name": "atas_atualizacao",
-        "table_name": "ata_registro_preco_atualizacao",
+        "name": "atas",
+        "table_name": "ata_registro_preco",
         "endpoint": {
-            "path": "/v1/atas/atualizacao",
+            "path": "/v1/atas",
             "data_selector": "data", 
             "params": {
                 "pagina": 1,
-                "tamanhoPagina": PAGE_SIZE_LIMITS["atas_atualizacao"],
-                "dataInicial": "{incremental.last_value}",
-                "dataFinal": "20241231",
-            },
-            "incremental": {
-                "cursor_path": "dataAtualizacao",
-                "initial_value": "20240101",
+                "tamanhoPagina": PAGE_SIZE_LIMITS["atas"],
+                "dataInicial": data_inicial,
+                "dataFinal": data_final,
             }
         },
-        "write_disposition": "merge", 
+        "write_disposition": "replace", 
         "primary_key": "numeroControlePNCPAta",
     })
     
@@ -473,17 +497,60 @@ def _create_specialized_rest_resources() -> List[Dict[str, Any]]:
 # LEGACY RESOURCE FACTORY (for backward compatibility)
 # =============================================================================
 
+def create_monthly_resources() -> List[ResourceConfig]:
+    """
+    Create resources for monthly data extraction.
+    
+    Similar to backfill but designed for single-month extraction.
+    """
+    return [
+        # Contratações - Main Publications (main table)
+        ResourceConfig(
+            name="contratacoes_publicacao",
+            table_name="contratacao_publicacao",  # Main table for publications
+            endpoint_path="/v1/contratacoes/publicacao",
+            page_size=PAGE_SIZE_LIMITS["contratacoes_publicacao"],
+            write_disposition="replace",
+            primary_key="numeroControlePNCP",
+            requires_modalidade=True,  # Expands to 13 resources
+        ),
+        
+        # Contratos - Main Data (main table)
+        ResourceConfig(
+            name="contratos",
+            table_name="contrato",  # Main table for contracts
+            endpoint_path="/v1/contratos",
+            page_size=PAGE_SIZE_LIMITS["contratos"],
+            write_disposition="replace", 
+            primary_key="numeroControlePNCP",
+            requires_modalidade=False,  # Single resource
+        ),
+        
+        # Atas - Main Data (main table)
+        ResourceConfig(
+            name="atas",
+            table_name="ata_registro_preco",  # Main table for atas
+            endpoint_path="/v1/atas",
+            page_size=PAGE_SIZE_LIMITS["atas"],
+            write_disposition="replace",
+            primary_key="numeroControlePNCPAta", 
+            requires_modalidade=False,  # Single resource
+        ),
+    ]
+
+
 def get_resources_by_type(resource_type: str) -> List[ResourceConfig]:
     """
     Get resources by type with proper type safety.
     
     Args:
-        resource_type: 'sync', 'backfill', or 'specialized'
+        resource_type: 'monthly', 'sync', 'backfill', or 'specialized'
         
     Returns:
         List of configured resources for the specified type
     """
     resource_factories = {
+        "monthly": create_monthly_resources,
         "sync": create_sync_resources,
         "backfill": create_backfill_resources, 
         "specialized": create_specialized_resources,
@@ -613,7 +680,7 @@ def get_resource_summary() -> Dict[str, Dict[str, Any]]:
     """
     summary = {}
     
-    for resource_type in ["sync", "backfill", "specialized"]:
+    for resource_type in ["monthly", "backfill", "specialized"]:
         configs = get_resources_by_type(resource_type)
         total_final = sum(13 if config.requires_modalidade else 1 for config in configs)
         

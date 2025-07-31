@@ -16,7 +16,8 @@ from dlt.sources.rest_api import (
     rest_api_resources,
     rest_api_source,
 )
-from datetime import datetime
+from datetime import datetime, date
+import calendar
 
 from .enums import ModalidadeContratacao
 from .utils.time import date_range_slicer
@@ -62,18 +63,20 @@ RESOURCE_PYDANTIC_MAPPING = {
 
 @dlt.source(name="baliza_source")
 def pncp_source(
-    resource_type: str = "sync", base_url: Optional[str] = dlt.secrets.value
+    resource_type: str = "monthly", 
+    base_url: Optional[str] = dlt.secrets.value,
+    year_month: Optional[str] = None
 ) -> Generator[DltResource, None, None]:
     """
     Fonte dlt declarativa para a API do PNCP com validação Pydantic.
 
     Uses modernized DLT REST API configuration with direct RESTAPIConfig usage,
-    eliminating custom abstraction layers and implementing modern incremental
-    loading with placeholder syntax.
+    eliminating custom abstraction layers and implementing monthly extraction.
 
     Args:
-        resource_type: Tipo de resource ('sync', 'backfill', 'specialized')
+        resource_type: Tipo de resource ('monthly', 'backfill', 'specialized')
         base_url: URL base da API PNCP
+        year_month: Ano e mês para extração (formato YYYYMM)
 
     Yields:
         DltResource: Resources configurados com schema Pydantic
@@ -82,7 +85,7 @@ def pncp_source(
     api_base_url = base_url or dlt.secrets["sources.baliza_source.base_url"]
     
     # Create modernized RESTAPIConfig directly (DLT best practices)
-    api_config = create_pncp_rest_config(resource_type, api_base_url)
+    api_config = create_pncp_rest_config(resource_type, api_base_url, year_month)
 
     # Return resources using modern DLT configuration
     yield from rest_api_resources(api_config)
@@ -166,9 +169,9 @@ def pncp_backfill_resource(start_date_str: str, end_date_str: str, chunk_days: i
 # =============================================================================
 
 
-def check_pncp_connection() -> None:
+def check_pncp_connection(year_month: Optional[str] = None) -> None:
     """Verifica conectividade com a API PNCP."""
-    source = pncp_source(resource_type="sync")
+    source = pncp_source(resource_type="monthly", year_month=year_month or "202406")
 
     # Obter o primeiro resource disponível para teste
     resources = list(source)
@@ -188,14 +191,46 @@ def check_pncp_connection() -> None:
         print("✅ Conectividade com API PNCP verificada!")
 
 
-def run_sync_pipeline(
-    pipeline_name: str = "baliza_pncp_sync",
+def _check_month_completion(year_month: str) -> None:
+    """
+    Verifica se o mês pode ser processado.
+    
+    Para meses passados: sempre pode processar
+    Para mês atual: aguarda que o mês termine
+    """
+    year = int(year_month[:4])
+    month = int(year_month[4:])
+    
+    today = date.today()
+    current_year_month = f"{today.year:04d}{today.month:02d}"
+    
+    if year_month > current_year_month:
+        raise ValueError(f"❌ Não é possível extrair dados de mês futuro: {year_month}")
+    
+    if year_month == current_year_month:
+        # Para o mês atual, verificar se já terminou
+        last_day_of_month = calendar.monthrange(year, month)[1]
+        if today.day < last_day_of_month:
+            print(f"⏳ Mês atual ({year_month}) ainda não terminou. Aguardando...")
+            print(f"   Hoje: {today}")
+            print(f"   Último dia do mês: {year}-{month:02d}-{last_day_of_month}")
+            raise ValueError(f"Mês {year_month} ainda não foi concluído")
+    
+    print(f"✅ Mês {year_month} pode ser processado")
+
+
+def run_monthly_pipeline(
+    year_month: str,
+    pipeline_name: str = "baliza_pncp_monthly",
     destination: str = "duckdb",
     dataset_name: str = "pncp_data",
 ):
-    """Executa o pipeline de sincronização contínua com validação Pydantic."""
+    """Executa o pipeline de extração mensal com validação Pydantic."""
+    # Verificar se o mês pode ser processado
+    _check_month_completion(year_month)
+    
     # Verificar conectividade primeiro
-    check_pncp_connection()
+    check_pncp_connection(year_month)
 
     pipeline = dlt.pipeline(
         pipeline_name=pipeline_name,
@@ -205,11 +240,11 @@ def run_sync_pipeline(
         export_schema_path="schemas/export",
     )
 
-    source = pncp_source(resource_type="sync")
+    source = pncp_source(resource_type="monthly", year_month=year_month)
 
-    print("🚀 Executando pipeline de sincronização com validação Pydantic...")
+    print(f"🚀 Executando pipeline mensal para {year_month} com validação Pydantic...")
     info = pipeline.run(source)
-    print("✅ Sincronização concluída com data quality validado!")
+    print("✅ Extração mensal concluída com data quality validado!")
     print(info)
     return info
 

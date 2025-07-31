@@ -7,7 +7,7 @@ Fornece comandos simples para executar sincronização e backfill.
 import typer
 from pathlib import Path
 
-from .pipeline import run_sync_pipeline, run_backfill_pipeline
+from .pipeline import run_monthly_pipeline, run_backfill_pipeline
 
 app = typer.Typer(
     name="baliza",
@@ -17,30 +17,58 @@ app = typer.Typer(
 
 
 @app.command()
-def sync(
+def monthly(
+    year_month: str = typer.Argument(..., help="Ano e mês (formato: YYYYMM)"),
     destination: str = typer.Option(
         "duckdb", help="Destino dos dados (duckdb, postgresql, etc.)"
     ),
     dataset: str = typer.Option("pncp_data", help="Nome do dataset/schema"),
-    pipeline_name: str = typer.Option("baliza_pncp_sync", help="Nome do pipeline"),
+    pipeline_name: str = typer.Option("baliza_pncp_monthly", help="Nome do pipeline"),
 ):
     """
-    Executa sincronização contínua (incremental) dos dados da API PNCP.
+    Executa extração mensal dos dados da API PNCP.
 
-    Este comando extrai apenas dados novos/atualizados desde a última execução.
+    Este comando extrai dados de um mês específico, aguardando automaticamente
+    que o mês termine antes de processar dados do mês atual.
+    
+    Exemplos:
+      baliza monthly 202407  # Julho de 2024
+      baliza monthly 202412  # Dezembro de 2024
     """
-    typer.echo("🚀 Iniciando sincronização incremental...")
+    # Validação básica de formato
+    if len(year_month) != 6:
+        typer.echo("❌ Erro: Ano e mês devem estar no formato YYYYMM", err=True)
+        raise typer.Exit(1)
+
+    try:
+        int(year_month)
+    except ValueError:
+        typer.echo("❌ Erro: Ano e mês devem conter apenas números", err=True)
+        raise typer.Exit(1)
+
+    year = int(year_month[:4])
+    month = int(year_month[4:])
+    
+    if month < 1 or month > 12:
+        typer.echo("❌ Erro: Mês deve estar entre 01 e 12", err=True)
+        raise typer.Exit(1)
+
+    typer.echo("🚀 Iniciando extração mensal...")
+    typer.echo(f"   Período: {year_month}")
     typer.echo(f"   Destino: {destination}")
     typer.echo(f"   Dataset: {dataset}")
     typer.echo(f"   Pipeline: {pipeline_name}")
     typer.echo()
 
     try:
-        info = run_sync_pipeline(
-            pipeline_name=pipeline_name, destination=destination, dataset_name=dataset
+        info = run_monthly_pipeline(
+            year_month=year_month,
+            pipeline_name=pipeline_name, 
+            destination=destination, 
+            dataset_name=dataset
         )
 
-        typer.echo("✅ Sincronização concluída com sucesso!")
+        typer.echo("✅ Extração mensal concluída com sucesso!")
         if info and info.load_packages:
             rows_loaded = sum(
                 job.job_file_info.rows_in_table or 0
@@ -50,7 +78,7 @@ def sync(
             typer.echo(f"   Linhas carregadas: {rows_loaded:,}")
 
     except Exception as e:
-        typer.echo(f"❌ Erro na sincronização: {e}", err=True)
+        typer.echo(f"❌ Erro na extração mensal: {e}", err=True)
         raise typer.Exit(1)
 
 
