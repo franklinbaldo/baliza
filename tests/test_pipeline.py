@@ -9,37 +9,50 @@ import yaml
 import dlt
 from unittest.mock import patch, MagicMock
 
+# TODO HIGH: Update test imports to match current implementation
+# Current tests reference old function names that no longer exist:
+# - baliza_source → pncp_source
+# - run_pipeline → run_intelligent_pipeline, run_monthly_pipeline
+# - _get_resources_by_type → no longer exists (replaced by resources.py)
+# - ENDPOINTS_REQUIRING_MODALIDADE → no longer exists
+
 # Importa as funções do pipeline
 from src.baliza.pipeline import (
-    baliza_source,
-    _get_resources_by_type,
-    _process_resource_config,
-    _requires_modalidade,
-    _generate_modalidade_resources,
-    run_pipeline,
-    ENDPOINTS_REQUIRING_MODALIDADE,
+    pncp_source,
+    run_intelligent_pipeline,
+    run_monthly_pipeline,
+    check_pncp_connection,
+    _get_months_to_process,
+    _check_month_completion,
 )
 
 
 class TestPipelineConfig:
     """Testes de configuração do pipeline."""
 
-    def test_yaml_config_exists_and_valid(self):
-        """Testa se o arquivo de configuração YAML existe e é válido."""
-        config_path = Path("config/pncp_resources.yaml")
-        assert config_path.exists(), "Arquivo de configuração YAML não encontrado"
-
-        with open(config_path, "r", encoding="utf-8") as f:
-            config = yaml.safe_load(f)
-
-        # Verifica estrutura básica
-        assert "sync_resources" in config
-        assert "backfill_resources" in config
-        assert "specialized_resources" in config
-
-        # Verifica que existem recursos em cada seção
-        assert len(config["sync_resources"]) > 0
-        assert len(config["backfill_resources"]) > 0
+    def test_python_config_exists_and_valid(self):
+        """Testa se a configuração Python existe e é válida."""
+        # TODO HIGH: Replace YAML-based tests with Python configuration tests
+        # The pipeline now uses Python-based configuration in resources.py
+        # instead of YAML files
+        
+        from src.baliza.resources import (
+            create_pncp_rest_config,
+            get_resource_summary,
+            PAGE_SIZE_LIMITS
+        )
+        
+        # Test that configuration functions work
+        config = create_pncp_rest_config("monthly", "https://test.api.com", "202401")
+        assert "client" in config
+        assert "resources" in config
+        assert len(config["resources"]) > 0
+        
+        # Test resource summary
+        summary = get_resource_summary()
+        assert "monthly" in summary
+        assert "backfill" in summary
+        assert "specialized" in summary
 
     def test_get_resources_by_type(self):
         """Testa seleção de recursos por tipo."""

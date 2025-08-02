@@ -245,6 +245,15 @@ def create_pncp_rest_config(resource_type: str, base_url: str, year_month: Optio
     This replaces the custom abstraction layer with direct DLT configuration,
     using monthly extraction instead of sync.
     
+    TODO HIGH: Integrate Pydantic models with resource configuration
+    - Add columns configuration to enforce schema validation
+    - Connect RESOURCE_PYDANTIC_MAPPING to actual resource definitions
+    
+    TODO MEDIUM: Add configurable API parameters
+    - Make page sizes configurable via environment variables
+    - Add request timeout and retry configuration
+    - Implement rate limiting parameters
+    
     Args:
         resource_type: 'monthly', 'backfill', or 'specialized'
         base_url: PNCP API base URL
@@ -265,10 +274,16 @@ def create_pncp_rest_config(resource_type: str, base_url: str, year_month: Optio
                 "total_path": "totalPaginas",
                 "base_page": 1,
             },
+            # TODO MEDIUM: Add request timeout and retry configuration
+            # "timeout": 120,
+            # "max_attempts": 3,
+            # "backoff_factor": 2,
         },
         "resource_defaults": {
             "write_disposition": "merge",
             "max_table_nesting": 2,
+            # TODO HIGH: Add columns configuration for Pydantic integration
+            # "columns": [{"name": "situacaoCompraId", "data_type": "text"}],
         },
         "resources": []
     }
@@ -290,6 +305,12 @@ def _get_month_date_range(year_month: str) -> tuple[str, str]:
     """
     Converte YYYYMM para range de datas do mês no formato YYYYMMDD.
     
+    TODO MEDIUM: Add comprehensive date validation
+    - Validate year_month format with regex
+    - Handle edge cases like leap years properly
+    - Add boundary checking for valid date ranges
+    - Consider timezone handling for different regions
+    
     Args:
         year_month: Ano e mês no formato YYYYMM
         
@@ -298,9 +319,20 @@ def _get_month_date_range(year_month: str) -> tuple[str, str]:
     """
     if not year_month:
         raise ValueError("year_month é obrigatório para extração mensal")
+    
+    # TODO MEDIUM: Add input validation
+    if len(year_month) != 6 or not year_month.isdigit():
+        raise ValueError(f"year_month deve estar no formato YYYYMM, recebido: {year_month}")
         
     year = int(year_month[:4])
     month = int(year_month[4:])
+    
+    # TODO MEDIUM: Add boundary validation
+    if month < 1 or month > 12:
+        raise ValueError(f"Mês deve estar entre 01 e 12, recebido: {month}")
+    
+    if year < 2021:  # PNCP started in 2021
+        raise ValueError(f"Ano deve ser >= 2021 (início do PNCP), recebido: {year}")
     
     # Primeiro dia do mês
     first_day = f"{year:04d}{month:02d}01"
@@ -313,7 +345,17 @@ def _get_month_date_range(year_month: str) -> tuple[str, str]:
 
 
 def _create_monthly_rest_resources(year_month: Optional[str], exclude_modalidades: Optional[List[int]] = None) -> List[Dict[str, Any]]:
-    """Create monthly resources using modern DLT REST API format."""
+    """Create monthly resources using modern DLT REST API format.
+    
+    TODO MEDIUM: Optimize resource naming strategy
+    - Current naming creates 13 separate resources per modalidade-requiring endpoint
+    - Consider using resource transformers or single resource with modalidade as data field
+    - May cause table naming conflicts in complex scenarios
+    
+    TODO HIGH: Add columns configuration for schema validation
+    - Each resource should specify expected columns and data types
+    - Connect to RESOURCE_PYDANTIC_MAPPING for automatic schema generation
+    """
     if not year_month:
         raise ValueError("year_month é obrigatório para extração mensal")
     
@@ -328,6 +370,9 @@ def _create_monthly_rest_resources(year_month: Optional[str], exclude_modalidade
     print(f"📋 Processando modalidades: {active_modalidades}")
     if exclude_modalidades:
         print(f"🚫 Modalidades excluídas: {exclude_modalidades}")
+    
+    # TODO LOW: Make page sizes configurable via environment variables
+    # Current hardcoded PAGE_SIZE_LIMITS should be configurable per environment
     
     # Contratações Publicação (with all active modalidades) - dados do mês
     for modalidade_value in active_modalidades:
@@ -347,6 +392,8 @@ def _create_monthly_rest_resources(year_month: Optional[str], exclude_modalidade
             },
             "write_disposition": "replace",
             "primary_key": "numeroControlePNCP",
+            # TODO HIGH: Add columns configuration here
+            # "columns": _get_columns_for_resource("contratacoes_publicacao"),
         })
     
     # Contratos (single resource) - dados do mês

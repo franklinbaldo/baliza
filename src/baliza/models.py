@@ -2,6 +2,20 @@
 #   filename:  api-pncp-consulta.json
 #   timestamp: 2025-07-28T22:36:20+00:00
 
+# TODO HIGH: Integrate Pydantic models with DLT resource configuration
+# - These comprehensive models are not currently connected to the DLT pipeline
+# - Add field validators for data quality (e.g., coerce_situacao_compra_id)
+# - Configure DLT resources to use these models for schema validation
+# 
+# TODO MEDIUM: Add field validators for API inconsistencies
+# - Handle integer vs string IDs (situacaoCompraId)
+# - Validate CNPJ format and other business rules
+# - Add enum validation for known field values
+#
+# TODO LOW: Add model documentation with JSON examples
+# - Each model should include docstrings with real API response examples
+# - Document expected field ranges and business rules
+
 from __future__ import annotations
 
 from datetime import date, datetime

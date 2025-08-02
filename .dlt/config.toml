@@ -21,9 +21,11 @@ update_mode = "primitives_merge"
 # Habilita evolução automática do schema durante desenvolvimento
 evolution = true
 # Aplica contratos de schema definidos nos modelos Pydantic (se usados)
-# [schema.contract] # Descomente e ajuste se for usar validação estrita com Pydantic
-# data_type = "freeze"
-# columns = "evolve"
+# TODO HIGH: Enable schema contracts for data quality enforcement
+# With comprehensive Pydantic models available, uncomment these settings:
+# [schema.contract]
+# data_type = "freeze"   # Prevent type changes - critical for data consistency
+# columns = "evolve"     # Allow new columns - supports API evolution
 
 # Configurações de estado para evitar crescimento descontrolado em backfills longos
 [state]
@@ -63,6 +65,11 @@ database_path = "data/baliza.duckdb"
 memory_limit = "2GB"     # Aloca mais memória para DuckDB se disponível
 threads = 4              # Habilita paralelismo dentro do DuckDB
 default_order = "ASC"    # Otimiza para workloads analíticos
+
+# TODO MEDIUM: Optimize performance settings based on system resources
+# - Consider dynamic thread count based on CPU cores
+# - Adjust memory limit based on available system memory
+# - Add connection pooling for high-throughput scenarios
 
 # Configurações de retry e timeout para APIs instáveis
 [extract]

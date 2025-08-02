@@ -335,7 +335,9 @@ def run_intelligent_pipeline(
     Returns:
         Informações sobre a execução do pipeline
     """
-    # Configurar o state backend programaticamente para usar o mesmo destino dos dados
+    # TODO HIGH: Move state backend configuration before pipeline creation
+    # DLT 1.14.1 requires state backend to be set before pipeline initialization
+    # Current approach may cause state synchronization issues
     dlt.config["state.backend"] = destination
     
     print("🗓️  Calculando meses para processar...")
@@ -347,6 +349,14 @@ def run_intelligent_pipeline(
     
     print(f"📅 Período: {months_to_process[0]} até {months_to_process[-1]} ({len(months_to_process)} meses)")
     
+    # TODO HIGH: Add schema contracts for data quality enforcement
+    # With comprehensive Pydantic models available, enable schema contracts:
+    # - data_type = "freeze" to prevent type changes
+    # - columns = "evolve" to allow new columns
+    
+    # TODO MEDIUM: Add retry configuration and error handling
+    # Current implementation lacks proper error recovery mechanisms
+    
     # Inicializar pipeline
     pipeline = dlt.pipeline(
         pipeline_name=pipeline_name,
@@ -354,6 +364,8 @@ def run_intelligent_pipeline(
         dataset_name=dataset_name,
         progress="log",
         export_schema_path="schemas/export",
+        # TODO HIGH: Add schema contracts configuration here
+        # schema_contract={"data_type": "freeze", "columns": "evolve"}
     )
     
     # Carregar estado (lista de meses concluídos)
@@ -382,9 +394,19 @@ def run_intelligent_pipeline(
     for i, month in enumerate(pending_months, 1):
         print(f"⏳ Processando mês {month} ({i}/{len(pending_months)})...")
         
+        # TODO HIGH: Add comprehensive error handling and retry logic
+        # Current implementation lacks proper handling of:
+        # - API rate limiting (429 errors)
+        # - Network timeouts and transient failures  
+        # - State corruption recovery
+        # - Partial month processing failures
+        
         try:
             # Verificar se o mês pode ser processado
             _check_month_completion(month)
+            
+            # TODO MEDIUM: Add request rate limiting to respect API limits
+            # Consider adding delays between requests or implementing backoff
             
             # Executar extração para este mês
             source = pncp_source(
@@ -394,6 +416,9 @@ def run_intelligent_pipeline(
             )
             
             info = pipeline.run(source)
+            
+            # TODO MEDIUM: Add state validation before marking as complete
+            # Verify that all expected resources were processed successfully
             
             # Marcar mês como concluído no estado
             if "completed_months" not in pipeline.state:
@@ -413,6 +438,10 @@ def run_intelligent_pipeline(
             last_info = info
             
         except Exception as e:
+            # TODO HIGH: Implement proper exception classification and recovery
+            # - Transient errors should retry with backoff
+            # - Permanent errors should fail fast
+            # - State corruption should trigger recovery procedures
             print(f"❌ Erro ao processar mês {month}: {e}")
             print("   Progresso salvo até o mês anterior. Execute novamente para continuar.")
             raise
