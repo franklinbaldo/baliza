@@ -8,7 +8,8 @@ processo incremental, garantindo qualidade e rastreabilidade a cada expansão.
 
 - **Endpoint ativo:** `GET /v1/contratos`
   - Paginador `page_number` com 500 itens por página.
-  - Incremental baseado em `dataAtualizacao` com *lookback* configurável.
+  - Incremental baseado em janelas `dataInicial`/`dataFinal` (`AAAAMMDD`) com
+    *lookback* configurável e manifesto de cobertura (`totalPaginas`, hashes).
   - Escrita via `write_disposition = merge` em DuckDB.
 - **Estado do código:** o pipeline declarativo em `config/pncp.yml` possui apenas
   este recurso habilitado.
@@ -19,8 +20,10 @@ processo incremental, garantindo qualidade e rastreabilidade a cada expansão.
    YAML declarativo.
 2. **Uma chave primária por recurso** — definir `primary_key` claro para garantir
    merges consistentes.
-3. **Cursor validado** — confirmar se o endpoint possui campo de atualização
-   confiável antes de habilitar incremental.
+3. **Janela válida** — confirmar quais parâmetros de data cada endpoint suporta
+   (publicação, vigência, etc.) e como gerar janelas confiáveis antes de habilitar
+   incremental. Quando o endpoint expuser `totalPaginas`, ele deve alimentar o
+   manifesto de cobertura.
 4. **Testes obrigatórios** — cada novo endpoint deve incluir teste de integração
    com respostas mockadas.
 

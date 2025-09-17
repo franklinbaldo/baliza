@@ -29,6 +29,7 @@ from .state import CoverageTracker
 
 
 from .utils import export_parquet
+from .utils.dates import to_pncp_window
 
 app = typer.Typer(help="Declarative PNCP pipeline runner")
 
@@ -75,10 +76,10 @@ def _parse_day(value: Optional[str], param_name: str) -> Optional[datetime]:
         raise typer.BadParameter(f"{param_name} must follow YYYY-MM-DD format") from exc
 
 
-def _isoformat_utc(value: Optional[datetime]) -> Optional[str]:
+def _pncp_date_param(value: Optional[datetime]) -> Optional[str]:
     if value is None:
         return None
-    return value.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
+    return to_pncp_window(value)
 
 
 def _filter_dict_none(values: Dict[str, Any]) -> Dict[str, Any]:
@@ -275,14 +276,17 @@ def verify(
                 inicio = entry.get("janela_inicio")
                 fim = entry.get("janela_fim")
                 if inicio:
-                    params["dataInicial"] = _isoformat_utc(inicio)
+                    params["dataInicial"] = _pncp_date_param(inicio)
                 if fim:
-                    params["dataFinal"] = _isoformat_utc(fim)
+                    params["dataFinal"] = _pncp_date_param(fim)
                 params = _filter_dict_none(params)
 
                 response = client.get(endpoint_url, params=params)
-                response.raise_for_status()
-                payload = response.json()
+                if response.status_code == 204:
+                    payload: Dict[str, Any] = {"data": [], "totalPaginas": 0}
+                else:
+                    response.raise_for_status()
+                    payload = response.json()
                 recorded_pages = set(entry["recorded_pages"])
                 fallback_total = entry["max_total"] or (max(recorded_pages) if recorded_pages else 0)
                 atual_total = _extract_total_paginas(payload, fallback_total)
@@ -313,8 +317,11 @@ def verify(
                         sample_params = dict(params)
                         sample_params["pagina"] = sample_page
                         sample_response = client.get(endpoint_url, params=sample_params)
-                        sample_response.raise_for_status()
-                        sample_payload = sample_response.json()
+                        if sample_response.status_code == 204:
+                            sample_payload: Dict[str, Any] = {"data": []}
+                        else:
+                            sample_response.raise_for_status()
+                            sample_payload = sample_response.json()
                         registros = (
                             sample_payload.get("data")
                             or sample_payload.get("items")

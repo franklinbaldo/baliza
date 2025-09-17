@@ -6,8 +6,9 @@ Atualizado em: 28 de julho de 2025
 
 A migração do Baliza para o ecossistema **dlt** está funcional para o cenário
 principal (extração do endpoint `contratos` direto para DuckDB). A CLI `baliza`
-utiliza o pipeline declarativo definido em `src/baliza/config/pncp.yml`, e o
-incremental por `dataAtualizacao` está operando com *lookback* configurável.
+utiliza o pipeline declarativo definido em `src/baliza/config/pncp.yml`, que
+abre janelas `dataInicial`/`dataFinal` (`AAAAMMDD`) com *lookback* configurável
+e respeita a paginação máxima (`tamanhoPagina=500`).
 
 Ainda existem componentes legados no repositório e funcionalidades planejadas
 (deduplicação de requisições, múltiplos endpoints) que não foram concluídas.
@@ -50,8 +51,9 @@ migração.
 
 - **Destino:** DuckDB local via `dlt.destinations.duckdb`, garantindo portabilidade
   e facilidade de análise posterior.
-- **Incremental:** Uso de `cursor_path = dataAtualizacao` com `lookback` aplicado
-  em tempo de execução para evitar perdas por atrasos de publicação.
+- **Incremental:** Uso de janelas `dataInicial`/`dataFinal` convertidas via
+  `to_pncp_window`, com *lookback* aplicado em tempo de execução e manifesto de
+  páginas (`totalPaginas`, hashes) para auditoria.
 - **Configuração:** Estratégia "configuration over code" — o comportamento do
   pipeline deve residir em YAML para facilitar auditoria e ajustes por analistas.
 

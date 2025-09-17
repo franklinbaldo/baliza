@@ -7,10 +7,12 @@ houver base técnica e capacidade para sustentá-las.
 
 ## Estado atual (Q1 2025)
 
-- ✅ **Cobertura:** apenas o endpoint `GET /v1/contratos` está habilitado e é
-  executado através da configuração declarativa em `src/baliza/config/pncp.yml`.
+- ✅ **Cobertura:** apenas o endpoint público `GET /v1/contratos` está habilitado
+  e é executado através da configuração declarativa em `src/baliza/config/pncp.yml`.
 - ✅ **Execução:** os comandos `baliza extract` e `baliza backfill` operam sobre
-  um pipeline `dlt` que grava resultados em DuckDB via `write_disposition=merge`.
+  um pipeline `dlt` que abre janelas `dataInicial`/`dataFinal` (formato
+  `AAAAMMDD`), pagina com `tamanhoPagina=500` e grava resultados em DuckDB via
+  `write_disposition=merge`.
 - ⚠️ **Limitações conhecidas:**
   - o pipeline é *stateless* — a janela incremental depende apenas do
     *lookback* informado pelo usuário;
@@ -23,8 +25,8 @@ houver base técnica e capacidade para sustentá-las.
    - Implementar o `StateManager` e o `GapDetector` descritos em
      `docs/extraction_resumability_plan.md`, conectando-os diretamente ao
      pipeline declarativo existente.
-   - Registrar o maior `dataAtualizacao` processado e reaproveitar essa
-     informação em novas execuções.
+   - Consolidar o manifesto de janelas (`totalPaginas`, hashes, status) como
+     fonte de verdade para retomada e auditoria de cobertura.
 2. **Observabilidade e resiliência**
    - Adicionar logs estruturados com contagem de páginas, tempo total e totais
      de linhas processadas.

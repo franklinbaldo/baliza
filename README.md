@@ -10,17 +10,21 @@ controle.
 ## Visão geral
 
 - **Pipeline declarativo com [dlt](https://dlthub.com/):** a configuração YAML
-  em `src/baliza/config/pncp.yml` descreve como chamar o endpoint
-  `GET /v1/contratos` do PNCP, aplicando paginação, incremental por
-  `dataAtualizacao` e regras de limpeza.
+  em `src/baliza/config/pncp.yml` descreve como chamar o endpoint público
+  `GET /v1/contratos` do PNCP, paginando com `tamanhoPagina=500` e janelas de
+  `dataInicial`/`dataFinal` no formato `AAAAMMDD`.
 - **CLI enxuta:** o comando `baliza extract` executa o pipeline incremental e
   `baliza backfill` permite processar janelas mensais de forma determinística.
 - **Fluxo bronze → parquet:** `baliza extract` mantém o histórico bruto no
   DuckDB (`baliza.duckdb`) enquanto `baliza export` gera arquivos Parquet
   particionados por ano/mês em `data/<recurso>/ano=YYYY/mes=MM/*.parquet`.
 - **Entrega analítica imediata:** os dados são gravados no arquivo
-  `baliza.duckdb` (dataset `baliza_raw`) com *merge* incremental baseado em
-  chave primária (`numeroControlePNCP`).
+  `baliza.duckdb` (dataset `baliza_raw`) com *merge* incremental baseado na
+  chave oficial `numeroControlePNCP` (string completa `CNPJ-2-sequencial/ano`).
+- **Manifesto de cobertura:** cada página coletada gera metadados com
+  `totalPaginas` reportado, hashes de `numeroControlePNCP` e status das janelas.
+  O comando `baliza verify` audita o manifesto chamando apenas a primeira página
+  de cada janela e marcando lacunas ou crescimento tardio informado pela API.
 - **Documentação de arquitetura:** os arquivos em `docs/` registram decisões e
   próximos passos para evolução do pipeline.
 
@@ -45,8 +49,9 @@ uv run baliza export --table contratos --out data/contratos
 ```
 
 O comando `baliza extract` cria (ou atualiza) o arquivo `baliza.duckdb` no
-diretório atual. Por padrão, a execução repete os últimos três dias para
-garantir que registros atualizados sejam recapturados com segurança. Em seguida,
+diretório atual. Por padrão, a execução retrocede alguns dias (lookback) e abre
+janelas diárias `dataInicial`/`dataFinal`, enviando requisições paginadas com
+`tamanhoPagina=500` até que `totalPaginas` seja percorrido. Em seguida,
 `baliza export` lê a tabela do DuckDB e escreve os dados como Parquet
 particionado (ano/mês) no diretório informado (`data/contratos`, no exemplo).
 
@@ -89,10 +94,17 @@ print(contratos.head())
 A configuração declarativa do pipeline fica em `src/baliza/config/pncp.yml`.
 Nela é possível ajustar:
 
-- Parâmetros padrão de paginação (`tamanhoPagina`, `pagina`).
+- Parâmetros padrão de paginação (`tamanhoPagina=500`, `pagina=1`).
 - Datas inicial/final utilizadas pelo incremental (`initial_value`,
-  `lookback_days` via CLI).
-- Mapeamento de campos retornados (`data_selector`, chave primária etc.).
+  `lookback_days` via CLI) sempre convertidas para `AAAAMMDD`.
+- Mapeamento da resposta padronizada (`data`, `totalPaginas`, etc.),
+  preservando `numeroControlePNCP` como chave primária textual.
+
+A API pública do PNCP fica em `https://pncp.gov.br/api/consulta` e retorna um
+envelope com `data`, `totalRegistros`, `totalPaginas`, `numeroPagina`,
+`paginasRestantes` e `empty`. A configuração do Baliza consome esses campos,
+tratando respostas `204 No Content` como janelas vazias (sem erro) e sempre
+respeitando `tamanhoPagina ≤ 500`.
 
 Para usar uma configuração customizada, forneça o caminho via `--config`:
 
@@ -119,19 +131,46 @@ Opções úteis:
 
 Use `uv run baliza --help` para ver todos os parâmetros suportados.
 
+### Política incremental
+
+- **Lookback diário:** toda execução de `baliza extract` retrocede (por padrão)
+  três dias em relação ao cursor salvo, abrindo janelas `dataInicial`/`dataFinal`
+  nesse intervalo. Como a API pública não possui filtro por atualização global,
+  essa redundância garante captura de retificações recentes.
+- **Backfill mensal:** o comando `baliza backfill <AAAA-MM> <AAAA-MM>` reexecuta
+  meses inteiros em sequência, reaproveitando o mesmo DuckDB. Isso cobre
+  retificações tardias e consolida históricos.
+- **Manifesto de cobertura:** além de usar `write_disposition=merge`, o Baliza
+  registra `totalPaginas`, contagem de itens e hashes por página para auditar
+  janelas e identificar páginas ausentes.
+- **Preparado para futuras integrações:** o desenho atual separa a configuração
+  do cliente, permitindo plugar a API autenticada (Manual de Integração) em um
+  modo alternativo caso seja necessário aproveitar filtros por
+  `dataAtualizacaoGlobal` no futuro.
+
+### Exportação analítica
+
+- **Bronze no DuckDB:** os dados brutos permanecem em `baliza.duckdb` dentro do
+  dataset `baliza_raw`.
+- **Parquet particionado:** `baliza export` gera `data/<recurso>/ano=YYYY/mes=MM/*.parquet`
+  a partir de uma coluna de data do domínio (no caso de contratos, a data de
+  publicação no PNCP; na ausência, usa-se a melhor proxy disponível e ela é
+  documentada na CLI).
+- **Consumo incremental:** os arquivos Parquet seguem a mesma chave primária
+  utilizada no DuckDB, preservando a máscara oficial do `numeroControlePNCP`.
+
 ## Detecção de Gaps
 
 O plano descrito em [`docs/extraction_resumability_plan.md`](docs/extraction_resumability_plan.md)
 foi implementado a partir da criação de um manifesto de cobertura em
-`baliza_state.cobertura` e `baliza_state.janelas`. A cada página coletada o
-hash ordenado dos `numeroControlePNCP` é registrado, permitindo detectar
-alterações posteriores e correlacionar as janelas incrementais (com *lookback*
-diário) com o histórico processado. O comando `baliza verify` usa esse
-manifesto para chamar novamente o endpoint e identificar janelas não
-processadas, páginas ausentes e sequências suspeitas (`--sequencia` ativa a
-auditoria de `sequencialCompra`/`sequencialContrato`). O relatório retornado em
-JSON lista lacunas abertas, status consolidados e páginas que precisam ser
-reextraídas.
+`baliza_state.cobertura` e `baliza_state.janelas`. Cada página registrada guarda
+`pagina`, `total_paginas_observado`, hash dos `numeroControlePNCP` e momento da
+captura. O comando `baliza verify` chama apenas a página 1 de cada janela para
+comparar `totalPaginas` informado pela API com o manifesto, marcando janelas
+`ok`, `incompleto`, `nao_processado` ou `suspeito` (quando o hash diverge). O
+relatório em JSON lista lacunas abertas, páginas pendentes e quaisquer
+sequências suspeitas (`--sequencia` ativa a auditoria de
+`sequencialCompra`/`sequencialContrato`).
 
 ## Estrutura do repositório
 
