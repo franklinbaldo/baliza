@@ -104,7 +104,7 @@ def _apply_incremental_overrides(
 
         if range_end is not None:
             incremental["end_value"] = range_end
-        elif "end_value" in incremental and range_end is None:
+        elif range_start is not None:
             incremental.pop("end_value", None)
 
     return adjusted

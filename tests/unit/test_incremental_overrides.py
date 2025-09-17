@@ -62,6 +62,12 @@ def test_apply_incremental_overrides_clears_end_value_when_not_provided(base_con
     assert "end_value" not in incremental
 
 
+def test_apply_incremental_overrides_preserves_end_value_without_overrides(base_config: dict) -> None:
+    adjusted = pncp._apply_incremental_overrides(base_config)
+    incremental = adjusted["resources"][0]["endpoint"]["incremental"]
+    assert incremental["end_value"] == "placeholder"
+
+
 def test_apply_incremental_overrides_rejects_negative_lookback(base_config: dict) -> None:
     with pytest.raises(ValueError):
         pncp._apply_incremental_overrides(base_config, lookback_days=-1)
