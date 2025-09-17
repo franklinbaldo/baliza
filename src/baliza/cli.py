@@ -1,12 +1,19 @@
 from __future__ import annotations
 
 import json
+
 from datetime import date, datetime, timedelta, timezone
+
+from datetime import date, datetime, timezone
+
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional, Tuple
 
 import duckdb
+
 import httpx
+
+
 import typer
 
 from .pipelines.pncp import (
@@ -17,7 +24,10 @@ from .pipelines.pncp import (
     load_pncp_config,
     run_pncp,
 )
+
 from .state import CoverageTracker
+
+
 from .utils import export_parquet
 
 app = typer.Typer(help="Declarative PNCP pipeline runner")
@@ -53,6 +63,7 @@ def _month_windows(start_month: str, end_month: str) -> Iterable[Tuple[datetime,
             next_month = current.replace(month=current.month + 1)
         yield current, next_month
         current = next_month
+
 
 
 def _parse_day(value: Optional[str], param_name: str) -> Optional[datetime]:
@@ -171,6 +182,7 @@ def backfill(
         )
 
     typer.echo(json.dumps({"windows": results}, indent=2, default=str))
+
 
 
 @app.command("verify")
@@ -361,6 +373,7 @@ def verify(
 
     finally:
         tracker.close()
+
 
 
 @app.command("export")
