@@ -2,8 +2,11 @@
   "data": [
     {
       "numeroControlePNCP": "00001.123456/2024-01",
+      "sequencialCompra": 1,
+      "anoCompra": 2024,
       "linkSistemaOrigem": "https://sistema.gov.br/licitacao/123456",
       "dataPublicacao": "2024-01-15T10:30:00.000Z",
+      "dataPublicacaoPncp": "2024-01-15T10:30:00.000Z",
       "dataVigenciaInicio": "2024-02-01T00:00:00.000Z",
       "dataVigenciaFim": "2024-12-31T23:59:59.000Z",
       "modalidadeContratacao": 1,
@@ -41,8 +44,11 @@
     },
     {
       "numeroControlePNCP": "00002.789012/2024-01",
+      "sequencialCompra": 3,
+      "anoCompra": 2024,
       "linkSistemaOrigem": "https://compras.gov.br/processo/789012",
       "dataPublicacao": "2024-01-16T14:20:00.000Z",
+      "dataPublicacaoPncp": "2024-01-16T14:20:00.000Z",
       "dataVigenciaInicio": "2024-02-15T00:00:00.000Z",
       "dataVigenciaFim": "2024-08-15T23:59:59.000Z",
       "modalidadeContratacao": 2,

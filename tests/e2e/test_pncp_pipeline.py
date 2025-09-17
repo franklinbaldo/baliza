@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import timezone
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 from typer.testing import CliRunner
 
@@ -75,6 +75,7 @@ def test_run_pncp_uses_duckdb_destination(tmp_path: Path) -> None:
         lookback_days=5,
         range_start="2024-01-01",
         range_end="2024-01-31",
+        tracker=ANY,
     )
     fake_pipeline.run.assert_called_once_with("source")
     assert pipeline is fake_pipeline

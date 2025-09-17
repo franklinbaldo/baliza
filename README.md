@@ -110,6 +110,20 @@ Opções úteis:
 
 Use `uv run baliza --help` para ver todos os parâmetros suportados.
 
+## Detecção de Gaps
+
+O plano descrito em [`docs/extraction_resumability_plan.md`](docs/extraction_resumability_plan.md)
+foi implementado a partir da criação de um manifesto de cobertura em
+`baliza_state.cobertura` e `baliza_state.janelas`. A cada página coletada o
+hash ordenado dos `numeroControlePNCP` é registrado, permitindo detectar
+alterações posteriores e correlacionar as janelas incrementais (com *lookback*
+diário) com o histórico processado. O comando `baliza verify` usa esse
+manifesto para chamar novamente o endpoint e identificar janelas não
+processadas, páginas ausentes e sequências suspeitas (`--sequencia` ativa a
+auditoria de `sequencialCompra`/`sequencialContrato`). O relatório retornado em
+JSON lista lacunas abertas, status consolidados e páginas que precisam ser
+reextraídas.
+
 ## Estrutura do repositório
 
 ```

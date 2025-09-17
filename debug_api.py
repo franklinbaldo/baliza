@@ -41,7 +41,7 @@ def test_pncp_endpoint(endpoint_path, params):
         # Try to parse JSON
         try:
             data = response.json()
-            print(f"✅ Valid JSON received")
+            print("✅ Valid JSON received")
             
             if isinstance(data, dict):
                 if "data" in data:
