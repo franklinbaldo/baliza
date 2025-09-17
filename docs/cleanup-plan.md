@@ -9,12 +9,10 @@ formato analítico.
 
 - O pipeline declarativo (`src/baliza/pipelines/pncp.py`) já orquestra a
   extração com dlt e grava os dados no DuckDB local.
-- O pacote `baliza.extraction` ainda contém utilitários experimentais e código
-  parcialmente migrado que não é utilizado pela CLI atual.
-- Há diretórios herdados (`pipelines/`, `extraction/`, `utils/`) com funções
-  sobrepostas, além de arquivos de configuração duplicados.
-- A suíte de testes end-to-end foi removida durante a migração e precisa ser
-  recriada.
+- Código legado desconectado foi removido, e o repositório agora expõe apenas
+  os módulos utilizados pela CLI (`cli.py`, `pipelines/`, `utils/dates.py`).
+- A suíte de testes end-to-end cobre a CLI principal, mas ainda faltam casos
+  unitários para utilitários críticos.
 
 ## Ações concluídas ✅
 
@@ -23,33 +21,27 @@ formato analítico.
 - Substituição do fluxo Prefect pelo comando `baliza extract` baseado em dlt.
 - Documentação do fluxo incremental e dos parâmetros de execução na nova
   `README.md`.
+- Remoção dos módulos legados `baliza.extraction`, `baliza.settings` e
+  utilitários não utilizados.
+- Redução das dependências do projeto às bibliotecas efetivamente utilizadas.
 
 ## Próximos passos
 
-### 1. Consolidar módulos de extração
-
-- Remover funções não utilizadas em `baliza.extraction.*` ou migrá-las para
-  `baliza.pipelines` quando ainda forem necessárias.
-- Eliminar arquivos de backup (`settings.py.backup`) e referências ao antigo
-  layout.
-- Revisar imports para garantir que toda a CLI dependa apenas dos módulos
-  consolidados.
-
-### 2. Atualizar e expandir testes
+### 1. Atualizar e expandir testes
 
 - Recriar um teste end-to-end mínimo que execute `run_pncp` com um mock do
   endpoint e valide a escrita no DuckDB.
 - Adicionar testes unitários para `_apply_incremental_overrides` e outras
   funções utilitárias críticas.
 
-### 3. Remover documentação obsoleta
+### 2. Remover documentação obsoleta
 
 - Substituir referências à arquitetura antiga (Prefect, múltiplos comandos)
   pelos planos descritos nos documentos atualizados em `docs/`.
 - Garantir que novos PRs atualizem sempre README e documentos técnicos quando
   introduzirem funcionalidades.
 
-### 4. Automatizar verificações básicas
+### 3. Automatizar verificações básicas
 
 - Configurar `ruff` e `mypy` no `pyproject.toml` (ou em pre-commit) para evitar
   regressões de estilo e tipos.
