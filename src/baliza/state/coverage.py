@@ -4,11 +4,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
+from hashlib import sha256
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import duckdb  # type: ignore[import-untyped]
-import xxhash
+
+try:  # pragma: no cover - exercised indirectly
+    import xxhash
+except ModuleNotFoundError:  # pragma: no cover - fallback path
+    xxhash = None
 
 
 @dataclass
@@ -223,7 +228,9 @@ class CoverageTracker:
             return None
         ids.sort()
         payload = "\n".join(ids).encode("utf-8")
-        return xxhash.xxh64_hexdigest(payload)
+        if xxhash is not None:
+            return xxhash.xxh64_hexdigest(payload)
+        return sha256(payload).hexdigest()
 
     def _detect_sequence_anomalies(
         self, registros: Iterable[Dict[str, Any]]
@@ -321,7 +328,15 @@ class CoverageTracker:
 
         grouped: Dict[str, Dict[str, Any]] = {}
         for row in rows:
-            janela_inicio_dt, janela_fim_dt, pagina, total_paginas, n_registros, hash_ids, fetched_at = row
+            (
+                janela_inicio_dt,
+                janela_fim_dt,
+                pagina,
+                total_paginas,
+                n_registros,
+                hash_ids,
+                fetched_at,
+            ) = row
             key = self._period_key(janela_inicio_dt, janela_fim_dt)
             entry = grouped.setdefault(
                 key,
@@ -440,7 +455,9 @@ class CoverageTracker:
             if self._period_key(start_dt, end_dt) not in coverage_keys
         ]
 
-        suspeitas = [row for row in statuses.values() if row.get("status") == "suspeito"]
+        suspeitas = [
+            row for row in statuses.values() if row.get("status") == "suspeito"
+        ]
 
         return {
             "windows": summary_windows,

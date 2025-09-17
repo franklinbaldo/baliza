@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Helper utility to standardize Baliza Parquet exports."""
+
 from __future__ import annotations
 
 import argparse

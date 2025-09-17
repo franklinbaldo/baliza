@@ -52,9 +52,17 @@ def test_run_pncp_uses_duckdb_destination(tmp_path: Path) -> None:
     fake_run = MagicMock()
     fake_pipeline.run.return_value = fake_run
 
-    with patch("baliza.pipelines.pncp.dlt.pipeline", return_value=fake_pipeline) as pipeline_mock, \
-        patch("baliza.pipelines.pncp.dlt.destinations.duckdb", return_value="duck") as duckdb_mock, \
-        patch("baliza.pipelines.pncp.pncp_source", return_value="source") as source_mock:
+    with (
+        patch(
+            "baliza.pipelines.pncp.dlt.pipeline", return_value=fake_pipeline
+        ) as pipeline_mock,
+        patch(
+            "baliza.pipelines.pncp.dlt.destinations.duckdb", return_value="duck"
+        ) as duckdb_mock,
+        patch(
+            "baliza.pipelines.pncp.pncp_source", return_value="source"
+        ) as source_mock,
+    ):
         pipeline, run = pncp.run_pncp(
             duckdb_path=tmp_path / "baliza.duckdb",
             dataset="demo",
@@ -89,10 +97,12 @@ def test_cli_extract_emits_json(monkeypatch) -> None:
         cli, "run_pncp", MagicMock(return_value=(MagicMock(), run_info))
     )
 
-    result = runner.invoke(cli.app, ["extract", "--dataset", "cli_demo", "--lookback-days", "2"])
+    result = runner.invoke(
+        cli.app, ["extract", "--dataset", "cli_demo", "--lookback-days", "2"]
+    )
 
     assert result.exit_code == 0
-    assert "\"rows\": 10" in result.stdout
+    assert '"rows": 10' in result.stdout
 
 
 def test_cli_backfill_invokes_pipeline_per_month(monkeypatch) -> None:

@@ -29,21 +29,23 @@ def default_config_path() -> Path:
 
 def _import_from_string(dotted_path: str) -> Any:
     """Import a dotted path as a Python object."""
-    module_path, _, attr = dotted_path.rpartition('.')
+    module_path, _, attr = dotted_path.rpartition(".")
     if not module_path:
         raise ValueError(f"Invalid import path '{dotted_path}'")
     module = import_module(module_path)
     try:
         return getattr(module, attr)
     except AttributeError as exc:  # pragma: no cover - defensive guard
-        raise ValueError(f"Object '{attr}' not found in module '{module_path}'") from exc
+        raise ValueError(
+            f"Object '{attr}' not found in module '{module_path}'"
+        ) from exc
 
 
 def _resolve_callable_entries(node: Any) -> None:
     """Convert any declarative callable references into live callables."""
     if isinstance(node, dict):
         for key, value in list(node.items()):
-            if key == 'convert' and isinstance(value, str):
+            if key == "convert" and isinstance(value, str):
                 node[key] = _import_from_string(value)
             else:
                 _resolve_callable_entries(value)
@@ -72,7 +74,7 @@ def _resolve_config_path(config_path: ConfigPath) -> Path:
 def load_pncp_config(config_path: ConfigPath = None) -> Dict[str, Any]:
     """Load and post-process the PNCP REST configuration."""
     path = _resolve_config_path(config_path)
-    with path.open('r', encoding='utf-8') as fh:
+    with path.open("r", encoding="utf-8") as fh:
         config = yaml.safe_load(fh) or {}
     _resolve_callable_entries(config)
     return config
@@ -91,7 +93,9 @@ def _apply_incremental_overrides(
     resources = adjusted.get("resources", [])
     for resource in resources:
         endpoint = resource.get("endpoint") if isinstance(resource, dict) else None
-        incremental = endpoint.get("incremental") if isinstance(endpoint, dict) else None
+        incremental = (
+            endpoint.get("incremental") if isinstance(endpoint, dict) else None
+        )
         if not isinstance(incremental, dict):
             continue
 
@@ -132,12 +136,19 @@ def _extract_window_bounds(params: Dict[str, Any]) -> tuple[Any, Any]:
         or params.get("dataInicial[]")
         or params.get("dataInicial1")
     )
-    end = params.get("dataFinal") or params.get("dataFinal[]") or params.get("dataFinal1")
+    end = (
+        params.get("dataFinal") or params.get("dataFinal[]") or params.get("dataFinal1")
+    )
     return start, end
 
 
 def _extract_total_paginas(payload: Dict[str, Any], fallback: int) -> int:
-    for key in ("totalPaginas", "total_paginas", "totalPages", "total_paginas_observado"):
+    for key in (
+        "totalPaginas",
+        "total_paginas",
+        "totalPages",
+        "total_paginas_observado",
+    ):
         if payload.get(key) is not None:
             try:
                 return int(payload[key])
@@ -181,7 +192,9 @@ def _attach_coverage_tracker(source: DltSource, tracker: CoverageTracker) -> Non
                         payload = page.response.json()  # type: ignore[attr-defined]
                     except Exception:  # pragma: no cover - defensive
                         payload = {}
-                    params = _normalize_request_params(getattr(page.request, "params", {}))
+                    params = _normalize_request_params(
+                        getattr(page.request, "params", {})
+                    )
                     start, end = _extract_window_bounds(params)
                     pagina = _extract_pagina(payload, params)
                     try:
@@ -226,8 +239,8 @@ def pncp_source(
 
 def run_pncp(
     config_path: ConfigPath = None,
-    dataset: str = 'baliza_raw',
-    duckdb_path: Union[str, Path] = 'baliza.duckdb',
+    dataset: str = "baliza_raw",
+    duckdb_path: Union[str, Path] = "baliza.duckdb",
     *,
     lookback_days: Optional[int] = None,
     range_start: Any = None,
@@ -253,6 +266,8 @@ def run_pncp(
     finally:
         tracker.close()
     return pipeline, run_info
+
+
 def _clamp_page_params(params: Dict[str, Any], *, limit: int = MAX_PAGE_SIZE) -> None:
     if not isinstance(params, dict):
         return
