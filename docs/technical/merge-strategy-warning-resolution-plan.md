@@ -1,5 +1,10 @@
 # Plano de Resolução: Warning de Merge Strategy DLT
 
+> **Nota histórica:** este plano fazia referência ao código legado em
+> `baliza.extraction`. O pipeline atual utiliza apenas a configuração declarativa
+> (`config/pncp.yml`) e destino DuckDB, portanto alguns trechos a seguir servem
+> apenas como registro das decisões anteriores.
+
 ## 🔍 Problema Identificado
 
 ```

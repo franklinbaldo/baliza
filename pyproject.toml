@@ -10,22 +10,9 @@ authors = [{ name = "Franklin Baldo", email = "frank@franklinbaldo.com" }]
 requires-python = ">=3.11"
 
 dependencies = [
-    # Core DLT pipeline
     "dlt[duckdb]>=1.14.1",
-    "pydantic>=2.0.0",
-    "pydantic-settings>=2.0.0",
-    # CLI and UI
     "typer>=0.9.0",
-    "rich>=13.0.0",
-    # HTTP and utilities
-    "httpx>=0.25.0",
-    "tenacity>=8.0.0",
-    "pytest>=8.4.1",
-    "pytest-asyncio>=1.1.0",
-    "pytest-mock>=3.14.1",
-    "enlighten>=1.14.1",
     "pyyaml>=6.0",
-    "tqdm>=4.67.1",
 ]
 
 [project.optional-dependencies]
@@ -46,5 +33,9 @@ baliza = "baliza.cli:app"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
+
+# Ensure pytest discovers the local source package without requiring PYTHONPATH hacks
+[tool.pytest.ini_options]
+pythonpath = ["src"]
 
 # Removed: dependency-groups replaced by optional-dependencies
