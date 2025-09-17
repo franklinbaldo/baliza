@@ -1,178 +1,92 @@
-Of course. Here is a much-improved `docs/extraction_resumability_plan.md` that provides a concrete, actionable plan for making the Baliza extraction pipeline efficient and resumable.
+# Plano de resumibilidade e eficiência da extração
 
-This new document replaces the higher-level `docs/request-deduplication-strategy.md` with a detailed, DLT-native architectural design.
+## Contexto
 
----
+O pipeline atual do Baliza utiliza dlt com incremental por `dataAtualizacao` e
+uma janela de *lookback* configurável. Essa abordagem garante idempotência no
+nível de dados (linhas duplicadas são descartadas pelo `write_disposition =
+merge`), porém ainda não evita chamadas HTTP redundantes nem permite retomar uma
+execução exatamente do ponto de falha.
 
-# Extraction Resumability and Efficiency Plan
+Este documento detalha como evoluir para uma extração verdadeiramente
+resumível, minimizando requisições repetidas.
 
-## 1. Executive Summary
+## Objetivos
 
-This document outlines a stateful, DLT-native architecture to make the Baliza extraction pipeline **efficient, resumable, and intelligent**. The current pipeline successfully prevents duplicate *data* storage but suffers from inefficient *request* duplication, re-fetching data that already exists.
+1. **Persistir estado de execução** — registrar, para cada recurso, quais faixas
+   de datas já foram extraídas com sucesso.
+2. **Detectar lacunas automaticamente** — antes de cada execução, identificar os
+   períodos ainda não cobertos e construir a lista de janelas a serem processadas.
+3. **Reduzir chamadas redundantes** — evitar reprocessar janelas completas quando
+   nenhuma atualização ocorreu desde a última execução.
 
-The proposed solution is to implement a **State Manager** that tracks successfully completed extractions. This will enable a rewritten **Gap Detector** to identify the precise date ranges and modalities that are missing, ensuring the DLT pipeline only requests new data.
-
-**Key Objectives:**
-
-1.  **Eliminate Redundant API Calls:** Only fetch data that is not already present.
-2.  **Enable True Resumability:** Failed or interrupted pipelines can be restarted and will seamlessly continue from where they left off.
-3.  **Increase Extraction Speed:** Subsequent runs will be significantly faster as they only process deltas.
-4.  **Leverage DLT-native Features:** Properly utilize `dlt`'s state and incremental loading capabilities.
-
-This plan transitions Baliza from a stateless, idempotent extractor to a stateful, intelligent one, drastically improving performance and robustness.
-
-## 2. Problem Statement
-
-The current DLT-based pipeline has two major inefficiencies:
-
-1.  **Request-Level Inefficiency:** The pipeline is idempotent at the **data level** (thanks to hash-based deduplication) but not at the **request level**. Running `baliza extract --days 7` twice in a row will make the exact same API calls both times. The second run's data is simply discarded, wasting bandwidth, API quota, and time.
-
-2.  **Gap Detection Implementation:** The gap detection in `src/baliza/extraction/gap_detector.py` has been implemented and is now functional. It uses filesystem completion tracking to identify missing date ranges accurately.
-
-3.  **Inefficient State Tracking:** The current method of creating `.completed` files for each `(endpoint, month)` is brittle, hard to query, and does not support granular tracking (e.g., by day or by modalidade).
-
-As a result, the pipeline is not truly resumable and cannot perform efficient incremental updates.
-
-## 3. Proposed Architecture: A Stateful DLT Pipeline
-
-We will introduce a state management layer that integrates with the DLT pipeline to track progress and guide subsequent extractions.
-
-### 3.1. Core Components
+## Arquitetura proposta
 
 ```mermaid
 flowchart TD
-    subgraph CLI
-        A[baliza extract --days 7]
-    end
-    
-    subgraph Baliza Pipeline
-        B(1. Parse Date/Endpoint Options)
-        C(2. Gap Detector)
-        D(3. DLT Source Generation)
-        E(4. DLT Pipeline Execution)
-        F(5. State Manager)
-    end
-
-    subgraph Artifacts
-        G[State Store<br>(pipeline_state.json)]
-        H[Parquet Files]
-    end
-
-    A --> B
-    B --> C
-    C -- reads from --> G
-    C -- identifies gaps --> D
-    D -- generates sources for gaps --> E
-    E -- writes to --> H
-    E -- on success, updates --> F
-    F -- writes to --> G
+    A[CLI baliza] --> B(State Loader)
+    B --> C{Gaps pendentes?}
+    C -- não --> D[Finaliza]
+    C -- sim --> E[Gerar fontes dlt para cada gap]
+    E --> F[dlt.pipeline.run]
+    F --> G[Atualizar estado]
+    G --> B
 ```
 
-### 3.2. The State Manager & State Store
+### Componentes
 
-We will create a `StateManager` class responsible for abstracting the read/write operations to a central state file (`pipeline_state.json`) located in the DLT pipeline's working directory.
-
-**`pipeline_state.json` Structure:**
+- **State Store (`pipeline_state.json`)**
+  - Localizado no diretório do pipeline dlt.
+  - Estrutura proposta:
 
 ```json
 {
-  "version": "1.0",
-  "last_updated": "2025-07-26T10:00:00Z",
-  "completed_ranges": {
-    "contratos": [
-      ["20240101", "20240331"],
-      ["20240501", "20240515"]
-    ],
-    "contratacoes_publicacao": {
-      "6": [["20240101", "20240229"]],
-      "8": [["20240101", "20240131"]]
-    },
-    "atas": [
-      ["20230101", "20240630"]
-    ]
-  },
-  "incremental_watermarks": {
-    "contratos_atualizacao": "2025-07-25T14:30:00Z",
-    "atas_atualizacao": "2025-07-25T14:28:00Z"
+  "version": 1,
+  "updated_at": "2025-07-28T12:00:00Z",
+  "resources": {
+    "contratos": {
+      "completed": [["2024-01-01", "2024-01-31"]],
+      "cursor": "2025-07-27T18:45:00Z"
+    }
   }
 }
 ```
 
-**Key Features:**
+- **StateManager**
+  - Responsável por carregar, validar e persistir o JSON.
+  - Expõe métodos para obter faixas concluídas e registrar novas janelas.
 
--   **Completed Ranges:** Stores a list of `[start_date, end_date]` strings for each endpoint. For endpoints requiring `modalidade`, the state is nested under the modalidade code.
--   **Watermarks:** Stores the last successfully processed value for `dlt.sources.incremental` cursors (e.g., `dataAtualizacaoGlobal`).
--   **Atomicity:** Writes to the state file will be atomic to prevent corruption.
+- **GapDetector**
+  - Recebe o intervalo solicitado (ou `None` para incremental) e os dados do
+    estado.
+  - Retorna uma lista ordenada de lacunas a serem extraídas.
 
-### 3.3. The Rewritten Gap Detector
+## Fluxo proposto
 
-The `gap_detector.py` module will be rewritten to be the intelligent core of the pipeline.
+1. **Carregar estado** na inicialização do comando (`extract` ou `backfill`).
+2. **Calcular lacunas** considerando o intervalo solicitado e o *lookback*.
+3. **Executar pipeline** uma vez por lacuna para evitar janelas muito grandes.
+4. **Persistir estado** após cada execução bem-sucedida:
+   - Atualizar `completed` com a janela processada (mesclando intervalos
+     sobrepostos).
+   - Atualizar `cursor` com o maior valor retornado em `dataAtualizacao`.
+5. **Relatar progresso** ao usuário com logs e resumo final.
 
-**Logic:**
+## Plano de implementação
 
-1.  **Input:** A requested extraction range (`start_date`, `end_date`), a list of endpoints, and optional modalities.
-2.  **Action:**
-    -   Load the current state from `pipeline_state.json` using the `StateManager`.
-    -   For each endpoint/modalidade combination, calculate the "missing" date ranges by subtracting the `completed_ranges` from the `requested_range`.
-    -   This is a set-difference operation on date ranges.
-3.  **Output:** A list of `DataGap` objects representing the precise, non-overlapping periods that need to be fetched.
+| Etapa | Descrição | Resultado esperado |
+|-------|-----------|--------------------|
+| 1 | Implementar `StateManager` com leitura/escrita atômica | Arquivo de estado confiável | 
+| 2 | Criar `GapDetector` que calcula diferença entre intervalos solicitados e concluídos | Lista de lacunas correta | 
+| 3 | Integrar na CLI (`baliza extract`) executando o pipeline uma vez por lacuna | Extração resiliente | 
+| 4 | Adicionar testes unitários para `StateManager` e `GapDetector` | Garantia contra regressões |
+| 5 | Documentar variáveis de configuração (ex.: caminho do estado) | Onboarding facilitado |
 
-## 4. Implementation Plan
+## Considerações adicionais
 
-### Phase 1: Implement the State Manager
-
--   **Task:** Create `src/baliza/extraction/state_manager.py`.
--   **Class `StateManager`:**
-    -   `__init__(self, pipeline: dlt.Pipeline)`: Locates the state file in the pipeline's working directory.
-    -   `load_state() -> dict`: Reads and validates the state JSON.
-    -   `save_state(self, state: dict)`: Atomically writes the state JSON.
-    -   `get_completed_ranges(self, endpoint: str, modalidade: int = None) -> list`: Returns sorted, merged date ranges.
-    -   `mark_range_completed(self, endpoint: str, start_date: str, end_date: str, modalidade: int = None)`: Adds a new range and merges overlaps.
--   **Goal:** A robust, tested class for state manipulation. The inefficient `.completed` file logic in `pipeline.py` will be removed.
-
-### Phase 2: Rewrite the Gap Detector
-
--   **Task:** Overhaul `src/baliza/extraction/gap_detector.py`.
--   **Function `find_extraction_gaps`:**
-    -   Will now instantiate `StateManager`.
-    -   Implement the range-difference algorithm.
-        -   Example: Request `[Jan 1, Jan 31]`, State has `[Jan 10, Jan 20]`.
-        -   Output gaps: `[Jan 1, Jan 9]` and `[Jan 21, Jan 31]`.
-    -   It will correctly handle per-modalidade state for endpoints like `contratacoes_publicacao`.
--   **Goal:** `find_extraction_gaps` returns an accurate list of `DataGap` objects, or an empty list if the requested range is already complete.
-
-### Phase 3: Integrate into the DLT Pipeline
-
--   **Task:** Modify `src/baliza/extraction/pipeline.py`.
--   **Function `pncp_source`:**
-    -   The call to `find_extraction_gaps` will now be functional.
-    -   It will iterate over the returned `DataGap` objects and dynamically generate a `dlt` source for each one.
--   **Task:** Modify `src/baliza/cli.py`.
--   **Function `extract`:**
-    -   After a successful `pipeline.run()`, it will call the `StateManager` to update the state with the newly completed ranges.
--   **Goal:** The end-to-end flow is complete. The pipeline is now stateful.
-
-### Phase 4: DLT-native Incremental Sync
-
--   **Task:** Implement incremental sync for `*_atualizacao` endpoints.
--   **Action:**
-    -   Create a new DLT resource function decorated with `@dlt.resource`.
-    -   Inside this function, use `dlt.sources.incremental` with `dataAtualizacaoGlobal` as the `cursor_path`.
-    -   The `StateManager` will be extended to manage `last_value` watermarks for these incremental endpoints.
--   **Goal:** Utilize DLT's most efficient sync method for endpoints that support it, reducing the reliance on date-range gap detection for those specific cases.
-
-## 5. Deprecation and Cleanup
-
--   **To be Removed:**
-    -   The placeholder logic in `gap_detector.py`.
-    -   The `.completed` file creation/checking logic in `pipeline.py` (`mark_extraction_completed`, `is_extraction_completed`, etc.).
--   **To be Deprecated:**
-    -   The `docs/request-deduplication-strategy.md` file will be replaced by this document.
-
-## 6. Benefits
-
--   **Efficiency:** A backfill of one year of data, if interrupted halfway, will resume from the exact day it stopped, not from the beginning of the year.
--   **Speed:** Daily runs to fetch the "last 7 days" will only make API calls for the single most recent day not yet processed.
--   **Robustness:** The state is managed centrally and atomically, making it resilient to failures.
--   **Cost Savings:** Reduces egress bandwidth from the PNCP API and compute time on the client side.
--   **Correctness:** Finally implements the "smart" extraction promised in the project's vision.
+- Enquanto a resumibilidade completa não estiver implementada, mantenha o
+  *lookback* padrão em 3 dias para cobrir eventuais atrasos.
+- Quando múltiplos endpoints forem ativados, o estado deve ser particionado por
+  recurso (e por modalidade, se necessário).
+- Avaliar o uso de armazenamento externo (S3/Blob) se o pipeline passar a rodar
+  em múltiplas máquinas.

@@ -1,164 +1,73 @@
-# Request-Level Deduplication Strategy
+# Estratégia de deduplicação de requisições
 
-## Problem Statement
+## Problema
 
-After migration to DLT, we have effective **data-level deduplication** but not **request-level deduplication**:
+Após a migração para dlt, passamos a contar com **deduplicação no nível de
+dados** (via `write_disposition = merge`), mas ainda não possuímos
+**deduplicação de requisições**. Quando o usuário executa o mesmo comando duas
+vezes, o pipeline repete todas as chamadas HTTP, desperdiçando banda e tempo.
 
-- ✅ **Data Deduplication**: Hash-based deduplication prevents saving duplicate records to database
-- ❌ **Request Deduplication**: Same HTTP requests are made repeatedly, wasting bandwidth and API quota
-
-## Research Findings
-
-**DLT does NOT provide request-level caching or deduplication:**
-- DLT focuses on data processing, not HTTP optimization  
-- REST API source makes HTTP requests regardless of existing data
-- Incremental loading reduces data volume but doesn't prevent duplicate requests
-- No built-in HTTP caching or URL-level state tracking
-
-## Current Behavior (Without Request Deduplication)
+## Comportamento atual (sem deduplicação de requisições)
 
 ```bash
-# First run: Extract January 2025
-baliza extract --date 2025-01
-# Makes HTTP requests: pages 1-100 for January
+# Primeira execução: extração incremental cobrindo os últimos 7 dias
+baliza extract --lookback-days 7
+# -> Faz todas as requisições necessárias para o intervalo "hoje-7" .. "hoje"
 
-# Second run: Same command  
-baliza extract --date 2025-01
-# Makes HTTP requests: pages 1-100 for January AGAIN
-# But data deduplication prevents saving duplicates to database
+# Segunda execução: mesmo comando
+baliza extract --lookback-days 7
+# -> Repete exatamente as mesmas requisições HTTP
+# -> Registros duplicados são ignorados pelo DuckDB, mas o custo das requisições permanece
 ```
 
-**Result**: Unnecessary HTTP requests but no duplicate data stored.
+**Consequência:** o armazenamento continua limpo, porém o tempo total de execução
+cresce linearmente com a quantidade de reruns.
 
-## Solution Options
+## Achados da pesquisa
 
-### Option 1: Accept Current Behavior (Recommended for MVP)
+- O dlt não oferece cache ou rastreamento de URLs para fontes REST.
+- O incremental reduz o volume gravado, mas não evita refazer páginas já
+  consultadas.
+- A API do PNCP não documenta limites de requisição, mas latências acumuladas
+  podem tornar grandes janelas impraticáveis.
 
-**Rationale:**
-- Data deduplication prevents storage bloat (primary concern)
-- PNCP API has no explicit rate limiting
-- HTTP requests are relatively fast (< 1s per page)
-- Implementation complexity vs. benefit trade-off
+## Caminhos possíveis
 
-**When to use:** MVP, development, low-volume usage
+### Opção 1 — Aceitar o comportamento atual (recomendado para o MVP)
 
-### Option 2: Infrastructure-Level Caching
+- Manter o *lookback* curto (3 dias) para limitar redundância.
+- Documentar a limitação no README.
+- Monitorar a duração das execuções enquanto apenas o endpoint `contratos` está
+  habilitado.
 
-Implement HTTP caching outside of the application:
+### Opção 2 — Cache em infraestrutura
 
-**A. Reverse Proxy Cache (Nginx/HAProxy)**
-```nginx
-location /api/consulta/ {
-    proxy_pass https://pncp.gov.br;
-    proxy_cache_valid 200 24h;  # Cache successful responses for 24h
-    proxy_cache_key "$request_uri";
-}
-```
+Implementar cache HTTP fora do Baliza:
 
-**B. Redis-based HTTP Cache**
-```python
-# Custom HTTP client wrapper with Redis caching
-class CachedPNCPClient:
-    def get(self, url):
-        cached = redis.get(f"pncp:url:{hash(url)}")
-        if cached:
-            return json.loads(cached)
-        
-        response = httpx.get(url)
-        redis.setex(f"pncp:url:{hash(url)}", 3600, response.text)
-        return response.json()
-```
+- **Reverse proxy (Nginx/HAProxy)** com `proxy_cache_key` baseado na URL.
+- **Redis** armazenando respostas por poucas horas.
 
-**When to use:** Production, high-volume usage, multiple applications
+Vantagens: nenhuma alteração no código Python; útil quando múltiplos serviços
+consumirem a mesma API.
 
-### Option 3: Application-Level Request Tracking
+### Opção 3 — Rastreamento de URLs no aplicativo
 
-Track processed URLs in database to skip redundant requests:
+Persistir hashes das URLs requisitadas em uma tabela DuckDB ou arquivo de
+estado. Antes de cada requisição, verificar se o hash foi processado
+recentemente.
 
-```python
-# Create a processed_urls table
-CREATE TABLE processed_urls (
-    url_hash VARCHAR(64) PRIMARY KEY,
-    processed_at TIMESTAMP,
-    page_count INTEGER
-);
+- Permite granularidade fina (por endpoint/página).
+- Exige política de expiração para evitar crescimento indefinido.
 
-# Before making request
-def should_skip_request(url):
-    url_hash = sha256(normalize_url(url))
-    return db.exists("processed_urls", url_hash=url_hash)
-```
+### Opção 4 — Reaproveitar mecanismo legado
 
-**When to use:** Medium-scale production, custom control needed
+Migrar o antigo registro `raw.audit_log` que guardava requisições concluídas.
+Exige portar o schema e as validações para o fluxo atual.
 
-### Option 4: Legacy System Integration
+## Caminho recomendado
 
-Keep the existing Baliza request deduplication system:
-
-- Preserve `raw.audit_log` table for request tracking
-- Maintain `EndpointExtractor._check_existing_request()` logic
-- Adapt existing URL-based deduplication for DLT context
-
-**When to use:** Preserve existing investment, gradual migration
-
-## Recommended Implementation Plan
-
-### Phase 1: MVP (Current State) ✅
-- Use DLT with hash-based data deduplication
-- Accept redundant HTTP requests
-- Document the limitation
-- **Status**: Completed
-
-### Phase 2: Infrastructure Caching (Future)
-- Implement Nginx reverse proxy with caching
-- Cache successful API responses for 1-24 hours
-- No application code changes needed
-- **Effort**: 1-2 days infrastructure work
-
-### Phase 3: Smart Request Tracking (Advanced)
-- Track URL processing state in DLT pipeline state
-- Skip requests for URLs processed in last N hours
-- Implement cache invalidation based on data freshness requirements
-- **Effort**: 1 week development
-
-## Performance Impact Analysis
-
-### Current State (Data Deduplication Only)
-```
-Full backfill extraction:
-- HTTP Requests: ~50,000 (all historical pages)
-- Time: ~4 hours (50k requests × 0.3s avg)
-- Bandwidth: ~5GB (50k × 100KB avg response)
-- Database Storage: ~2GB (after deduplication)
-```
-
-### With Request Deduplication
-```
-Re-run same extraction:
-- HTTP Requests: ~0 (all skipped)
-- Time: ~5 minutes (database queries only)  
-- Bandwidth: ~0MB
-- Database Storage: ~2GB (unchanged)
-```
-
-**Performance Gain**: 48x faster for re-runs, 100% bandwidth savings
-
-## Decision Matrix
-
-| Solution | Complexity | Performance Gain | Maintenance | Best For |
-|----------|------------|------------------|-------------|----------|
-| Accept Current | Low | 0% | Low | MVP, Development |
-| Nginx Cache | Medium | 90%+ | Low | Production |
-| Redis Cache | Medium | 95%+ | Medium | Multi-app |
-| App-level Tracking | High | 98%+ | High | Custom Control |
-| Legacy Integration | Very High | 99%+ | High | Migration |
-
-## Conclusion
-
-**For Baliza migration**: Start with **Option 1 (Accept Current Behavior)** for MVP.
-
-**For production scale**: Implement **Option 2 (Infrastructure Caching)** with Nginx.
-
-The current DLT implementation with hash-based data deduplication provides the essential functionality (no duplicate data storage) while keeping the implementation simple and maintainable.
-
-Request-level deduplication can be added later as a performance optimization when the system reaches sufficient scale to justify the additional complexity.
+1. Manter o comportamento atual enquanto somente `contratos` estiver ativo.
+2. Implementar o **StateManager/GapDetector** descrito em
+   `docs/extraction_resumability_plan.md` antes de habilitar novos endpoints.
+3. Reavaliar a necessidade de cache infraestrutural após medir o custo de
+   backfills completos com múltiplos recursos.
