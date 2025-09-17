@@ -56,7 +56,7 @@ jobs:
           if not partitions:
             raise SystemExit('No exported partitions found.')
 
-          partitions.sort()
+          partitions.sort(key=lambda pair: (int(pair[0]), int(pair[1])))
           year, month = partitions[-1]
           with open('$GITHUB_OUTPUT', 'a', encoding='utf-8') as fh:
             fh.write(f"year={year}\n")
