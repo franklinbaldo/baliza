@@ -1,0 +1,76 @@
+name: Daily Export
+
+# Secrets: nenhuma credencial adicional é necessária; o workflow utiliza apenas o GITHUB_TOKEN padrão.
+on:
+  schedule:
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+
+jobs:
+  export:
+    name: Run daily extraction and export
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install project
+        run: |
+          python -m pip install --upgrade pip
+          pip install .
+
+      - name: Run incremental extract
+        run: baliza extract --lookback-days=3 --duckdb baliza.duckdb --dataset baliza_raw
+
+      - name: Export current month parquet snapshot
+        run: |
+          python scripts/export_parquet.py \
+            contratos \
+            --duckdb baliza.duckdb \
+            --dataset baliza_raw \
+            --output-dir data/contratos \
+            --date-col dataPublicacaoPncp \
+            --fallback-date-col dataAtualizacao \
+            --current-month
+
+      - name: Detect exported partition
+        id: partition
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          base = Path('data/contratos')
+          partitions = []
+          for year_dir in base.glob('ano=*'):
+            year = year_dir.name.split('=', 1)[1]
+            for month_dir in year_dir.glob('mes=*'):
+              month = month_dir.name.split('=', 1)[1]
+              partitions.append((year, month))
+
+          if not partitions:
+            raise SystemExit('No exported partitions found.')
+
+          partitions.sort(key=lambda pair: (int(pair[0]), int(pair[1])))
+          year, month = partitions[-1]
+          with open('$GITHUB_OUTPUT', 'a', encoding='utf-8') as fh:
+            fh.write(f"year={year}\n")
+            fh.write(f"month={month}\n")
+          PY
+
+      - name: Package artifacts
+        run: |
+          tar -czf baliza-daily-${{ steps.partition.outputs.year }}-${{ steps.partition.outputs.month }}.tar.gz \
+            baliza.duckdb \
+            data/contratos/ano=${{ steps.partition.outputs.year }}/mes=${{ steps.partition.outputs.month }}
+
+      - name: Upload daily artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: baliza-daily-${{ steps.partition.outputs.year }}-${{ steps.partition.outputs.month }}
+          path: baliza-daily-${{ steps.partition.outputs.year }}-${{ steps.partition.outputs.month }}.tar.gz
