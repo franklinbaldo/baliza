@@ -158,27 +158,43 @@ def _attach_coverage_tracker(source: DltSource, tracker: CoverageTracker) -> Non
     for resource in source.resources:
         resource_obj = cast(DltResource, resource)
 
-        def _capture_page(page: Any, _meta: Any = None, *, resource_name: str = resource_obj.name) -> Any:
-            if hasattr(page, "response") and hasattr(page, "request"):
-                try:
-                    payload = page.response.json()  # type: ignore[attr-defined]
-                except Exception:  # pragma: no cover - defensive
-                    payload = {}
-                params = _normalize_request_params(getattr(page.request, "params", {}))
-                start, end = _extract_window_bounds(params)
-                pagina = _extract_pagina(payload, params)
-                total_paginas = _extract_total_paginas(payload, len(page))
-                tracker.record_page(
-                    resource_name,
-                    start,
-                    end,
-                    pagina,
-                    total_paginas,
-                    list(page),
-                )
-            yield from page
+        if resource_obj._pipe.has_parent:
+            continue
 
-        resource_obj.add_yield_map(_capture_page)
+        original_gen = resource_obj._pipe.gen
+        resource_name = resource_obj.name
+
+        def _capture_pages(
+            *args: Any,
+            _orig_gen: Any = original_gen,
+            _resource_name: str = resource_name,
+            **kwargs: Any,
+        ) -> Any:
+            for page in _orig_gen(*args, **kwargs):
+                if hasattr(page, "response") and hasattr(page, "request"):
+                    try:
+                        payload = page.response.json()  # type: ignore[attr-defined]
+                    except Exception:  # pragma: no cover - defensive
+                        payload = {}
+                    params = _normalize_request_params(getattr(page.request, "params", {}))
+                    start, end = _extract_window_bounds(params)
+                    pagina = _extract_pagina(payload, params)
+                    try:
+                        page_length = len(page)
+                    except TypeError:  # pragma: no cover - defensive guard
+                        page_length = 0
+                    total_paginas = _extract_total_paginas(payload, page_length)
+                    tracker.record_page(
+                        _resource_name,
+                        start,
+                        end,
+                        pagina,
+                        total_paginas,
+                        page,
+                    )
+                yield page
+
+        resource_obj._pipe.replace_gen(_capture_pages)
 
 
 def pncp_source(
