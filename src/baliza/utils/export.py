@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
+import shutil
 from typing import Iterable, Optional, Sequence
 
 import duckdb
@@ -77,6 +78,24 @@ def _build_where_clause(
 def _quote_identifier(identifier: str) -> str:
     escaped = identifier.replace("\"", "\"\"")
     return f'"{escaped}"'
+
+
+def _rename_export_partitions(base_dir: Path) -> None:
+    for year_dir in base_dir.glob("__baliza_partition_year=*"):
+        target_year_dir = year_dir.with_name(
+            year_dir.name.replace("__baliza_partition_year", "ano", 1)
+        )
+        if target_year_dir.exists():
+            shutil.rmtree(target_year_dir)
+        year_dir.rename(target_year_dir)
+
+        for month_dir in target_year_dir.glob("__baliza_partition_month=*"):
+            target_month_dir = month_dir.with_name(
+                month_dir.name.replace("__baliza_partition_month", "mes", 1)
+            )
+            if target_month_dir.exists():
+                shutil.rmtree(target_month_dir)
+            month_dir.rename(target_month_dir)
 
 
 def _resolve_date_column(
@@ -175,14 +194,20 @@ def export_parquet(
         copy_sql = f"""
         COPY (
             SELECT *,
-                   EXTRACT(YEAR FROM {date_identifier}) AS ano,
-                   EXTRACT(MONTH FROM {date_identifier}) AS mes
+                   EXTRACT(YEAR FROM {date_identifier}) AS __baliza_partition_year,
+                   EXTRACT(MONTH FROM {date_identifier}) AS __baliza_partition_month
             FROM {table_identifier}
             {where_clause}
         ) TO '{destination}'
-        (FORMAT PARQUET, PARTITION_BY (ano, mes), OVERWRITE_OR_IGNORE TRUE)
+        (
+            FORMAT PARQUET,
+            PARTITION_BY (__baliza_partition_year, __baliza_partition_month),
+            OVERWRITE_OR_IGNORE TRUE
+        )
         """
         con.execute(copy_sql, params_tuple)
+
+        _rename_export_partitions(out_dir_path)
 
         count_query = f"SELECT COUNT(*) FROM {table_identifier}{where_clause}"
         rows_exported = int(con.execute(count_query, params_tuple).fetchone()[0])
