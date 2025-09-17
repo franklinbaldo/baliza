@@ -19,6 +19,7 @@ ConfigPath = Union[str, Path, None]
 DEFAULT_PIPELINE_NAME = "baliza_pncp"
 BACKFILL_PIPELINE_NAME = "baliza_pncp_backfill"
 SECONDS_PER_DAY = 24 * 60 * 60
+MAX_PAGE_SIZE = 500
 
 
 def default_config_path() -> Path:
@@ -93,6 +94,10 @@ def _apply_incremental_overrides(
         incremental = endpoint.get("incremental") if isinstance(endpoint, dict) else None
         if not isinstance(incremental, dict):
             continue
+
+        params = endpoint.get("params") if isinstance(endpoint, dict) else None
+        if isinstance(params, dict):
+            _clamp_page_params(params)
 
         if lookback_days is not None:
             if lookback_days < 0:
@@ -248,3 +253,25 @@ def run_pncp(
     finally:
         tracker.close()
     return pipeline, run_info
+def _clamp_page_params(params: Dict[str, Any], *, limit: int = MAX_PAGE_SIZE) -> None:
+    if not isinstance(params, dict):
+        return
+
+    if params.get("pagina") is not None:
+        try:
+            pagina = int(params["pagina"])
+        except (TypeError, ValueError):  # pragma: no cover - defensive guard
+            pagina = 1
+        params["pagina"] = max(1, pagina)
+
+    page_size = params.get("tamanhoPagina")
+    if page_size is None:
+        return
+
+    try:
+        size_int = int(page_size)
+    except (TypeError, ValueError):  # pragma: no cover - defensive guard
+        return
+
+    clamped = max(1, min(size_int, limit))
+    params["tamanhoPagina"] = clamped

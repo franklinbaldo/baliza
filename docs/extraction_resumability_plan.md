@@ -2,11 +2,15 @@
 
 ## Contexto
 
-O pipeline atual do Baliza utiliza dlt com incremental por `dataAtualizacao` e
-uma janela de *lookback* configurável. Essa abordagem garante idempotência no
-nível de dados (linhas duplicadas são descartadas pelo `write_disposition =
-merge`), porém ainda não evita chamadas HTTP redundantes nem permite retomar uma
-execução exatamente do ponto de falha.
+O pipeline atual do Baliza utiliza dlt com janelas explícitas de
+`dataInicial`/`dataFinal` (formato `AAAAMMDD`) e um *lookback* configurável. A
+cada execução, as janelas são percorridas página a página com
+`tamanhoPagina=500`, registrando `totalPaginas` e hash dos
+`numeroControlePNCP` em um manifesto (`baliza_state.cobertura`). Essa abordagem
+garante idempotência no nível de dados (linhas duplicadas são descartadas pelo
+`write_disposition = merge`) e oferece visibilidade sobre o que foi coletado,
+porém ainda não evita chamadas HTTP redundantes nem permite retomar uma execução
+exatamente do ponto de falha.
 
 Este documento detalha como evoluir para uma extração verdadeiramente
 resumível, minimizando requisições repetidas.
@@ -69,7 +73,8 @@ flowchart TD
 4. **Persistir estado** após cada execução bem-sucedida:
    - Atualizar `completed` com a janela processada (mesclando intervalos
      sobrepostos).
-   - Atualizar `cursor` com o maior valor retornado em `dataAtualizacao`.
+   - Armazenar o manifesto de páginas capturado (`totalPaginas`, hashes) para
+     detectar lacunas e crescimentos tardios no `baliza verify`.
 5. **Relatar progresso** ao usuário com logs e resumo final.
 
 ## Plano de implementação
