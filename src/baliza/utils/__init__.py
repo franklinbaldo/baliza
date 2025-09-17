@@ -1,3 +1,5 @@
 """Utility helpers for Baliza."""
 
-__all__: list[str] = []
+from .export import export_parquet
+
+__all__ = ["export_parquet"]

@@ -15,6 +15,9 @@ controle.
   `dataAtualizacao` e regras de limpeza.
 - **CLI enxuta:** o comando `baliza extract` executa o pipeline incremental e
   `baliza backfill` permite processar janelas mensais de forma determinística.
+- **Fluxo bronze → parquet:** `baliza extract` mantém o histórico bruto no
+  DuckDB (`baliza.duckdb`) enquanto `baliza export` gera arquivos Parquet
+  particionados por ano/mês em `data/<recurso>/ano=YYYY/mes=MM/*.parquet`.
 - **Entrega analítica imediata:** os dados são gravados no arquivo
   `baliza.duckdb` (dataset `baliza_raw`) com *merge* incremental baseado em
   chave primária (`numeroControlePNCP`).
@@ -38,11 +41,14 @@ Clone o repositório, instale as dependências e execute o pipeline incremental:
 ```bash
 uv sync
 uv run baliza extract
+uv run baliza export --table contratos --out data/contratos
 ```
 
-O comando cria (ou atualiza) o arquivo `baliza.duckdb` no diretório atual. Por
-padrão, a execução repete os últimos três dias para garantir que registros
-atualizados sejam recapturados com segurança.
+O comando `baliza extract` cria (ou atualiza) o arquivo `baliza.duckdb` no
+diretório atual. Por padrão, a execução repete os últimos três dias para
+garantir que registros atualizados sejam recapturados com segurança. Em seguida,
+`baliza export` lê a tabela do DuckDB e escreve os dados como Parquet
+particionado (ano/mês) no diretório informado (`data/contratos`, no exemplo).
 
 ### Exemplo: executar um *backfill* mensal
 
@@ -100,6 +106,7 @@ uv run baliza extract --config configs/pncp-custom.yml
 |---------|-----------|
 | `baliza extract` | Executa o pipeline incremental usando o *lookback* informado (padrão: 3 dias). |
 | `baliza backfill <AAAA-MM> <AAAA-MM>` | Processa, mês a mês, o intervalo informado sem reaproveitar estado. |
+| `baliza export --table <tabela>` | Exporta a tabela DuckDB para Parquet particionado por ano/mês. |
 
 Opções úteis:
 
@@ -107,6 +114,8 @@ Opções úteis:
 - `--dataset nome` — define o *schema* dentro do DuckDB (padrão: `baliza_raw`).
 - `--lookback-days N` — retrocede `N` dias em relação ao último cursor salvo ao
   construir a janela incremental.
+- `baliza export --start-date AAAA-MM-DD --end-date AAAA-MM-DD` — delimita o
+  intervalo exportado e cria `data/<recurso>/ano=YYYY/mes=MM/*.parquet`.
 
 Use `uv run baliza --help` para ver todos os parâmetros suportados.
 
