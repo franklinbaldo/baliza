@@ -3,13 +3,16 @@ from __future__ import annotations
 from copy import deepcopy
 from importlib import import_module
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Union, cast
 
 import dlt
-import yaml
+import yaml  # type: ignore[import-untyped]
+from dlt.extract.resource import DltResource
 from dlt.pipeline import Pipeline
 from dlt.sources import DltSource
 from dlt.sources.rest_api import rest_api_source
+
+from baliza.state import CoverageTracker
 
 ConfigPath = Union[str, Path, None]
 
@@ -110,12 +113,97 @@ def _apply_incremental_overrides(
     return adjusted
 
 
+def _normalize_request_params(raw_params: Any) -> Dict[str, Any]:
+    if isinstance(raw_params, dict):
+        return dict(raw_params)
+    if isinstance(raw_params, list):
+        return {key: value for key, value in raw_params}
+    return {}
+
+
+def _extract_window_bounds(params: Dict[str, Any]) -> tuple[Any, Any]:
+    start = (
+        params.get("dataInicial")
+        or params.get("dataInicial[]")
+        or params.get("dataInicial1")
+    )
+    end = params.get("dataFinal") or params.get("dataFinal[]") or params.get("dataFinal1")
+    return start, end
+
+
+def _extract_total_paginas(payload: Dict[str, Any], fallback: int) -> int:
+    for key in ("totalPaginas", "total_paginas", "totalPages", "total_paginas_observado"):
+        if payload.get(key) is not None:
+            try:
+                return int(payload[key])
+            except (TypeError, ValueError):  # pragma: no cover - defensive guard
+                continue
+    return fallback
+
+
+def _extract_pagina(payload: Dict[str, Any], params: Dict[str, Any]) -> int:
+    for key in ("paginaAtual", "numeroPagina", "pagina", "page"):
+        if payload.get(key) is not None:
+            try:
+                return int(payload[key])
+            except (TypeError, ValueError):  # pragma: no cover - defensive guard
+                continue
+    try:
+        return int(params.get("pagina", 1))
+    except (TypeError, ValueError):  # pragma: no cover - defensive guard
+        return 1
+
+
+def _attach_coverage_tracker(source: DltSource, tracker: CoverageTracker) -> None:
+    for resource in source.resources:
+        resource_obj = cast(DltResource, resource)
+
+        if resource_obj._pipe.has_parent:
+            continue
+
+        original_gen = resource_obj._pipe.gen
+        resource_name = resource_obj.name
+
+        def _capture_pages(
+            *args: Any,
+            _orig_gen: Any = original_gen,
+            _resource_name: str = resource_name,
+            **kwargs: Any,
+        ) -> Any:
+            for page in _orig_gen(*args, **kwargs):
+                if hasattr(page, "response") and hasattr(page, "request"):
+                    try:
+                        payload = page.response.json()  # type: ignore[attr-defined]
+                    except Exception:  # pragma: no cover - defensive
+                        payload = {}
+                    params = _normalize_request_params(getattr(page.request, "params", {}))
+                    start, end = _extract_window_bounds(params)
+                    pagina = _extract_pagina(payload, params)
+                    try:
+                        page_length = len(page)
+                    except TypeError:  # pragma: no cover - defensive guard
+                        page_length = 0
+                    total_paginas = _extract_total_paginas(payload, page_length)
+                    tracker.record_page(
+                        _resource_name,
+                        start,
+                        end,
+                        pagina,
+                        total_paginas,
+                        page,
+                    )
+                yield page
+
+        resource_obj._pipe.replace_gen(_capture_pages)
+
+
 def pncp_source(
     config_path: ConfigPath = None,
     *,
     lookback_days: Optional[int] = None,
     range_start: Any = None,
     range_end: Any = None,
+    tracker: CoverageTracker | None = None,
 ) -> DltSource:
     """Create the PNCP dlt source from declarative configuration."""
     config = load_pncp_config(config_path)
@@ -125,7 +213,10 @@ def pncp_source(
         range_start=range_start,
         range_end=range_end,
     )
-    return rest_api_source(config=adjusted)
+    source = rest_api_source(config=cast(Any, adjusted))
+    if tracker is not None:
+        _attach_coverage_tracker(source, tracker)
+    return source
 
 
 def run_pncp(
@@ -137,8 +228,9 @@ def run_pncp(
     range_start: Any = None,
     range_end: Any = None,
     pipeline_name: str = DEFAULT_PIPELINE_NAME,
-) -> tuple[Pipeline, dlt.Run]:
+) -> tuple[Pipeline, Any]:
     """Execute the PNCP pipeline using the DuckDB destination."""
+    tracker = CoverageTracker(duckdb_path, dataset=dataset)
     pipeline = dlt.pipeline(
         pipeline_name=pipeline_name,
         destination=dlt.destinations.duckdb(str(duckdb_path)),
@@ -149,6 +241,10 @@ def run_pncp(
         lookback_days=lookback_days,
         range_start=range_start,
         range_end=range_end,
+        tracker=tracker,
     )
-    run_info = pipeline.run(source)
+    try:
+        run_info = pipeline.run(source)
+    finally:
+        tracker.close()
     return pipeline, run_info

@@ -5,7 +5,6 @@ Script to discover available parameter values for PNCP endpoints
 
 import requests
 import json
-from datetime import datetime, timedelta
 from urllib.parse import urljoin
 
 BASE_URL = "https://pncp.gov.br/api/consulta/v1/"
@@ -43,14 +42,14 @@ def test_parameter_values(endpoint, base_params, param_name, test_values):
                             'total_records': total_records
                         })
                     else:
-                        print(f"   ✅ SUCCESS: Valid response structure")
+                        print("   ✅ SUCCESS: Valid response structure")
                         working_values.append({'value': value, 'item_count': 0, 'total_records': 0})
                         
                 except json.JSONDecodeError:
-                    print(f"   ⚠️  SUCCESS but no JSON")
+                    print("   ⚠️  SUCCESS but no JSON")
                     
             elif response.status_code == 204:
-                print(f"   ✅ SUCCESS: No content (valid)")
+                print("   ✅ SUCCESS: No content (valid)")
                 working_values.append({'value': value, 'item_count': 0, 'total_records': 0})
                 
             else:
@@ -62,10 +61,6 @@ def test_parameter_values(endpoint, base_params, param_name, test_values):
     return working_values
 
 def main():
-    current_date = datetime.now()
-    thirty_days_ago = (current_date - timedelta(days=30)).strftime("%Y%m%d")
-    today = current_date.strftime("%Y%m%d")
-    
     results = {}
     
     print("=== DISCOVERING PNCP PARAMETER VALUES ===")
