@@ -1,0 +1,37 @@
+client:
+  base_url: "https://pncp.gov.br/api/consulta"
+  headers:
+    Accept: "application/json"
+    User-Agent: "baliza/0.1 declarative pipeline"
+  timeout: 60
+  paginator:
+    type: "page_number"
+    page_param: "pagina"
+    base_page: 1
+    total_path: "totalPaginas"
+    stop_after_empty_page: true
+resources:
+  - name: "contratos"
+    table_name: "contratos"
+    write_disposition: "merge"
+    primary_key: "numeroControlePNCP"
+    endpoint:
+      path: "/v1/contratos"
+      method: "GET"
+      params:
+        pagina: 1
+        tamanhoPagina: 500
+        dataInicial: null
+        dataFinal: null
+      data_selector: "data"
+      response_actions:
+        - status_code: 204
+          action: "ignore"
+        - status_code: 404
+          action: "ignore"
+      incremental:
+        cursor_path: "dataAtualizacao"
+        initial_value: "2020-01-01T00:00:00Z"
+        start_param: "dataInicial"
+        end_param: "dataFinal"
+        convert: "baliza.utils.dates.to_pncp_window"

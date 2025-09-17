@@ -1,126 +1,116 @@
-"""
-Modern E2E test suite for DLT-based PNCP pipeline.
-Tests the complete extraction pipeline using real DLT components.
-"""
+from __future__ import annotations
 
-import pytest
-from unittest.mock import patch
-from baliza.extraction.pipeline import pncp_source
-from baliza.extraction.gap_detector import find_extraction_gaps, DataGap
-from baliza.extraction.config import create_pncp_rest_config
+from datetime import timezone
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
+from typer.testing import CliRunner
 
-def test_placeholder():
-    """Basic test to ensure the test file is not empty."""
-    assert True
-
-# TODO: Add more comprehensive E2E tests for DLT's incremental loading and state management.
-#       This should include scenarios where:
-#       - Data is extracted incrementally over multiple runs.
-#       - Gaps are correctly identified and filled.
-#       - DLT's internal state is correctly managed and persisted.
-#       - Data deduplication and schema evolution are handled as expected.
-#       - Tests for different write dispositions (append, merge, replace) if applicable.
-#       - Tests for error handling and retry mechanisms within the DLT pipeline.
+from baliza import cli
+from baliza.pipelines import pncp
 
 
-
-def test_pncp_source_with_no_gaps():
-    """Test that pncp_source returns empty source when no gaps exist."""
-    with patch("baliza.extraction.pipeline.find_extraction_gaps") as mock_gaps:
-        mock_gaps.return_value = []  # No gaps
-
-        source = pncp_source(start_date="20240101", end_date="20240131")
-
-        # Should return empty source
-        assert source is not None
+runner = CliRunner()
 
 
-def test_find_extraction_gaps_basic():
-    """Test basic gap detection functionality."""
-    with patch(
-        "baliza.utils.completion_tracking.get_completed_extractions"
-    ) as mock_completed:
-        mock_completed.return_value = {}  # No completed extractions
+def test_load_pncp_config_resolves_convert_callable() -> None:
+    config = pncp.load_pncp_config()
+    incremental = config["resources"][0]["endpoint"]["incremental"]
+    convert = incremental["convert"]
+    assert callable(convert)
+    assert convert("2024-01-15T10:00:00Z") == "20240115"
+    assert len(convert(None)) == 8
 
-        gaps = find_extraction_gaps(
-            start_date="20240101", end_date="20240131", endpoints=["contratos"]
+
+def test_pncp_source_passes_config_to_rest_api() -> None:
+    with patch("baliza.pipelines.pncp.rest_api_source") as mocked:
+        source = pncp.pncp_source()
+        mocked.assert_called_once()
+        assert source is mocked.return_value
+        config = mocked.call_args.kwargs["config"]
+        assert config["client"]["base_url"].startswith("https://")
+
+
+def test_pncp_source_applies_lookback(monkeypatch) -> None:
+    captured: dict[str, dict] = {}
+
+    def fake_rest_api_source(*, config: dict) -> MagicMock:
+        captured["config"] = config
+        return MagicMock()
+
+    monkeypatch.setattr(pncp, "rest_api_source", fake_rest_api_source)
+
+    source = pncp.pncp_source(lookback_days=2)
+
+    assert isinstance(source, MagicMock)
+    incremental = captured["config"]["resources"][0]["endpoint"]["incremental"]
+    assert incremental["lag"] == 2 * 24 * 60 * 60
+
+
+def test_run_pncp_uses_duckdb_destination(tmp_path: Path) -> None:
+    fake_pipeline = MagicMock()
+    fake_run = MagicMock()
+    fake_pipeline.run.return_value = fake_run
+
+    with patch("baliza.pipelines.pncp.dlt.pipeline", return_value=fake_pipeline) as pipeline_mock, \
+        patch("baliza.pipelines.pncp.dlt.destinations.duckdb", return_value="duck") as duckdb_mock, \
+        patch("baliza.pipelines.pncp.pncp_source", return_value="source") as source_mock:
+        pipeline, run = pncp.run_pncp(
+            duckdb_path=tmp_path / "baliza.duckdb",
+            dataset="demo",
+            lookback_days=5,
+            range_start="2024-01-01",
+            range_end="2024-01-31",
+            pipeline_name="custom",
         )
 
-        # Should find gaps when nothing is completed
-        assert len(gaps) > 0
-        assert all(isinstance(gap, DataGap) for gap in gaps)
+    duckdb_mock.assert_called_once()
+    pipeline_mock.assert_called_once_with(
+        pipeline_name="custom",
+        destination="duck",
+        dataset_name="demo",
+    )
+    source_mock.assert_called_once_with(
+        None,
+        lookback_days=5,
+        range_start="2024-01-01",
+        range_end="2024-01-31",
+    )
+    fake_pipeline.run.assert_called_once_with("source")
+    assert pipeline is fake_pipeline
+    assert run is fake_run
 
 
-def test_create_pncp_rest_config():
-    """Test that REST API config generation works."""
-    config = create_pncp_rest_config(start_date="20240101", end_date="20240131")
+def test_cli_extract_emits_json(monkeypatch) -> None:
+    run_info = MagicMock()
+    run_info.asdict.return_value = {"rows": 10}
+    monkeypatch.setattr(
+        cli, "run_pncp", MagicMock(return_value=(MagicMock(), run_info))
+    )
 
-    assert "client" in config
-    assert "resources" in config
-    assert config["client"]["base_url"]
-    assert len(config["resources"]) > 0
+    result = runner.invoke(cli.app, ["extract", "--dataset", "cli_demo", "--lookback-days", "2"])
 
-
-def test_data_gap_string_representation():
-    """Test DataGap string representation."""
-    gap = DataGap(start_date="20240101", end_date="20240131", endpoint="contratos")
-
-    gap_str = str(gap)
-    assert "contratos" in gap_str
-    assert "20240101" in gap_str
-    assert "20240131" in gap_str
+    assert result.exit_code == 0
+    assert "\"rows\": 10" in result.stdout
 
 
-@pytest.mark.parametrize(
-    "start_date,end_date",
-    [
-        ("20240101", "20240131"),
-        ("20240201", "20240229"),
-        ("20240301", "20240331"),
-    ],
-)
-def test_gap_detection_various_date_ranges(start_date, end_date):
-    """Test gap detection with various date ranges."""
-    with patch(
-        "baliza.utils.completion_tracking.get_completed_extractions"
-    ) as mock_completed:
-        mock_completed.return_value = {}
+def test_cli_backfill_invokes_pipeline_per_month(monkeypatch) -> None:
+    calls = []
 
-        gaps = find_extraction_gaps(
-            start_date=start_date, end_date=end_date, endpoints=["contratos"]
-        )
+    def fake_run_pncp(**kwargs):
+        calls.append(kwargs)
+        run_info = MagicMock()
+        run_info.asdict.return_value = {"rows": 5}
+        return MagicMock(), run_info
 
-        assert isinstance(gaps, list)
+    monkeypatch.setattr(cli, "run_pncp", fake_run_pncp)
 
+    result = runner.invoke(cli.app, ["backfill", "2024-01", "2024-03"])
 
-def test_pncp_source_with_empty_endpoints():
-    """Test pncp_source with empty endpoints list."""
-    with patch("baliza.extraction.pipeline.find_extraction_gaps") as mock_gaps:
-        mock_gaps.return_value = []  # No gaps found
-
-        source = pncp_source(start_date="20240101", end_date="20240131", endpoints=[])
-
-        # Should return empty source when no endpoints specified
-        assert source is not None
-
-
-def test_config_endpoint_params():
-    """Test that endpoint parameters are built correctly."""
-    from baliza.extraction.config import _build_endpoint_params
-    from baliza.settings import ENDPOINT_CONFIG
-
-    endpoint_config = ENDPOINT_CONFIG["contratos"]
-    params = _build_endpoint_params(endpoint_config, "20240101", "20240131", None, 50)
-
-    assert "tamanhoPagina" in params
-    assert params["tamanhoPagina"] == 50
-    assert "pagina" in params
-
-
-def test_empty_pncp_source():
-    """Test empty source creation."""
-    from baliza.extraction.pipeline import _empty_pncp_source
-
-    empty_source = _empty_pncp_source()
-    assert empty_source is not None
+    assert result.exit_code == 0
+    assert len(calls) == 3
+    first_call = calls[0]
+    assert first_call["pipeline_name"] == pncp.BACKFILL_PIPELINE_NAME
+    assert first_call["range_start"].month == 1
+    assert first_call["range_start"].tzinfo == timezone.utc
+    assert "2024-03" in result.stdout
