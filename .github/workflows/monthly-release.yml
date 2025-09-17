@@ -1,0 +1,117 @@
+name: Monthly Release
+
+# Secrets: o workflow usa apenas o GITHUB_TOKEN padrão para criar publicações.
+on:
+  schedule:
+    - cron: '0 4 1 * *'
+  workflow_dispatch:
+
+jobs:
+  release:
+    name: Build and publish monthly dataset
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install project
+        run: |
+          python -m pip install --upgrade pip
+          pip install .
+
+      - name: Resolve reference month
+        id: reference
+        run: |
+          python - <<'PY'
+          from datetime import datetime, timedelta, timezone
+
+          today = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+          previous_month = today - timedelta(days=1)
+          reference = previous_month.strftime('%Y-%m')
+          year, month = reference.split('-')
+
+          with open('$GITHUB_OUTPUT', 'a', encoding='utf-8') as fh:
+            fh.write(f"reference={reference}\n")
+            fh.write(f"year={year}\n")
+            fh.write(f"month={month}\n")
+          PY
+
+      - name: Backfill previous month
+        run: |
+          baliza backfill ${{ steps.reference.outputs.reference }} ${{ steps.reference.outputs.reference }} \
+            --duckdb baliza.duckdb \
+            --dataset baliza_raw
+
+      - name: Export parquet for reference month
+        run: |
+          python scripts/export_parquet.py \
+            contratos \
+            --duckdb baliza.duckdb \
+            --dataset baliza_raw \
+            --output-dir data/contratos \
+            --date-col dataPublicacaoPncp \
+            --fallback-date-col dataAtualizacao \
+            --target-month ${{ steps.reference.outputs.reference }}
+
+      - name: Build manifest
+        id: manifest
+        env:
+          MANIFEST_DIR: data/contratos/ano=${{ steps.reference.outputs.year }}/mes=${{ steps.reference.outputs.month }}
+          DATASET_VERSION: ${{ steps.reference.outputs.reference }}
+        run: |
+          python scripts/build_manifest.py \
+            --parquet-dir "$MANIFEST_DIR" \
+            --dataset-version "$DATASET_VERSION"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          manifest_path = Path(os.environ['MANIFEST_DIR']) / 'manifest.json'
+          data = json.loads(manifest_path.read_text(encoding='utf-8'))
+          body = (
+              f"Dataset version: {data['dataset_version']}\n"
+              f"Row count: {data['row_count']}\n"
+              f"Interval: {data['min_data']} → {data['max_data']}\n"
+          )
+          with open('$GITHUB_OUTPUT', 'a', encoding='utf-8') as fh:
+            fh.write('manifest_path=' + str(manifest_path) + '\n')
+            fh.write('release_body<<EOF\n')
+            fh.write(body)
+            fh.write('EOF\n')
+          PY
+
+      - name: Package monthly snapshot
+        env:
+          MANIFEST_DIR: data/contratos/ano=${{ steps.reference.outputs.year }}/mes=${{ steps.reference.outputs.month }}
+          REFERENCE: ${{ steps.reference.outputs.reference }}
+        run: |
+          tar -czf contratos-${REFERENCE}.tar.gz "$MANIFEST_DIR"
+
+      - name: Create release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.reference.outputs.reference }}
+          release_name: Baliza contratos ${{ steps.reference.outputs.reference }}
+          body: ${{ steps.manifest.outputs.release_body }}
+          draft: false
+          prerelease: false
+
+      - name: Upload release asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: contratos-${{ steps.reference.outputs.reference }}.tar.gz
+          asset_name: contratos-${{ steps.reference.outputs.reference }}.tar.gz
+          asset_content_type: application/gzip
