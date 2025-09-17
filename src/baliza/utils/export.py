@@ -76,7 +76,7 @@ def _build_where_clause(
 
 
 def _quote_identifier(identifier: str) -> str:
-    escaped = identifier.replace("\"", "\"\"")
+    escaped = identifier.replace('"', '""')
     return f'"{escaped}"'
 
 

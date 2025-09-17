@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Generate a manifest.json summary for exported Parquet datasets."""
+
 from __future__ import annotations
 
 import argparse
@@ -107,14 +108,25 @@ def build_manifest(parquet_dir: Path, dataset_version: str) -> Path:
     }
 
     manifest_path = directory / "manifest.json"
-    manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
     return manifest_path
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build a manifest for Parquet exports")
-    parser.add_argument("--parquet-dir", required=True, type=Path, help="Directory containing Parquet files")
-    parser.add_argument("--dataset-version", required=True, help="Semantic version or tag for the export batch")
+    parser.add_argument(
+        "--parquet-dir",
+        required=True,
+        type=Path,
+        help="Directory containing Parquet files",
+    )
+    parser.add_argument(
+        "--dataset-version",
+        required=True,
+        help="Semantic version or tag for the export batch",
+    )
     args = parser.parse_args()
 
     manifest_path = build_manifest(args.parquet_dir, args.dataset_version)

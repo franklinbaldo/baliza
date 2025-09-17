@@ -53,7 +53,9 @@ def test_record_page_creates_manifest_and_hash(temp_tracker: CoverageTracker) ->
     assert "salto" in status_rows[0][1]
 
 
-def test_summarize_windows_detects_missing_periods(temp_tracker: CoverageTracker) -> None:
+def test_summarize_windows_detects_missing_periods(
+    temp_tracker: CoverageTracker,
+) -> None:
     # Prepare sample coverage
     records = [
         {
@@ -65,7 +67,9 @@ def test_summarize_windows_detects_missing_periods(temp_tracker: CoverageTracker
     ]
     start = "2024-01-03T00:00:00Z"
     end = "2024-01-04T00:00:00Z"
-    temp_tracker.record_page("contratos", start, end, pagina=1, total_paginas=1, registros=records)
+    temp_tracker.record_page(
+        "contratos", start, end, pagina=1, total_paginas=1, registros=records
+    )
 
     # Populate raw dataset with two daily entries (one missing from coverage)
     temp_tracker.conn.execute('CREATE SCHEMA IF NOT EXISTS "baliza_raw"')

@@ -4,14 +4,16 @@ import json
 
 from datetime import date, datetime, timedelta, timezone
 
-from datetime import date, datetime, timezone
-
 from pathlib import Path
-from typing import Any, Dict, Iterable, Optional, Tuple
+from contextlib import AbstractContextManager
+from typing import Any, Callable, Dict, Iterable, Optional, Protocol, Tuple
 
 import duckdb
 
-import httpx
+try:  # pragma: no cover - optional dependency
+    import httpx
+except ModuleNotFoundError:  # pragma: no cover - fallback path
+    httpx = None  # type: ignore[assignment]
 
 
 import typer
@@ -34,17 +36,90 @@ from .utils.dates import to_pncp_window
 app = typer.Typer(help="Declarative PNCP pipeline runner")
 
 
+class _HttpClient(Protocol):
+    def get(self, url: str, params: Optional[Dict[str, Any]] = None) -> Any:  # pragma: no cover - protocol definition
+        ...
+
+
+HttpClientFactory = Callable[..., AbstractContextManager[_HttpClient]]
+
+
+class _FallbackResponse:
+    def __init__(self, *, status_code: int, text: str) -> None:
+        self.status_code = status_code
+        self._text = text
+
+    def json(self) -> Any:
+        if not self._text:
+            return {}
+        return json.loads(self._text)
+
+    def raise_for_status(self) -> None:
+        if 400 <= self.status_code:
+            raise RuntimeError(f"HTTP request failed with status {self.status_code}")
+
+
+class _FallbackClient(AbstractContextManager["_FallbackClient"]):
+    def __init__(self, *, headers: Optional[Dict[str, str]] = None, timeout: int = 30) -> None:
+        self.headers = headers or {}
+        self.timeout = timeout
+
+    def __enter__(self) -> "_FallbackClient":
+        return self
+
+    def __exit__(self, exc_type, exc, exc_tb) -> None:  # pragma: no cover - no cleanup needed
+        return None
+
+    def get(self, url: str, params: Optional[Dict[str, Any]] = None) -> _FallbackResponse:
+        from urllib import parse, request
+
+        query = parse.urlencode(params or {}, doseq=True)
+        full_url = f"{url}?{query}" if query else url
+        req = request.Request(full_url, headers=self.headers)
+        try:
+            with request.urlopen(req, timeout=self.timeout) as response:  # type: ignore[attr-defined]
+                status = int(response.getcode() or 0)
+                text = response.read().decode("utf-8")
+        except Exception as exc:  # pragma: no cover - network not exercised in tests
+            raise RuntimeError(f"HTTP request to {full_url} failed: {exc}") from exc
+        return _FallbackResponse(status_code=status, text=text)
+
+
+def _default_http_client_factory(
+    *, headers: Optional[Dict[str, str]] = None, timeout: int = 30
+) -> AbstractContextManager[_HttpClient]:
+    if httpx is not None:
+        return httpx.Client(headers=headers or None, timeout=timeout)
+    return _FallbackClient(headers=headers or None, timeout=timeout)
+
+
+_HTTP_CLIENT_FACTORY: HttpClientFactory = _default_http_client_factory
+
+
+def set_http_client_factory(factory: HttpClientFactory) -> None:
+    global _HTTP_CLIENT_FACTORY
+    _HTTP_CLIENT_FACTORY = factory
+
+
+def reset_http_client_factory() -> None:
+    set_http_client_factory(_default_http_client_factory)
+
+
 def _resolve_config_path(config: Optional[Path]) -> Path:
     if config is None:
         return default_config_path()
     return config
 
 
-def _month_windows(start_month: str, end_month: str) -> Iterable[Tuple[datetime, datetime]]:
+def _month_windows(
+    start_month: str, end_month: str
+) -> Iterable[Tuple[datetime, datetime]]:
     """Generate inclusive month windows between two YYYY-MM strings."""
 
     try:
-        start = datetime.strptime(start_month, "%Y-%m").replace(tzinfo=timezone.utc, day=1)
+        start = datetime.strptime(start_month, "%Y-%m").replace(
+            tzinfo=timezone.utc, day=1
+        )
     except ValueError as exc:  # pragma: no cover - handled by Typer
         raise typer.BadParameter("start_month must follow YYYY-MM format") from exc
 
@@ -64,7 +139,6 @@ def _month_windows(start_month: str, end_month: str) -> Iterable[Tuple[datetime,
             next_month = current.replace(month=current.month + 1)
         yield current, next_month
         current = next_month
-
 
 
 def _parse_day(value: Optional[str], param_name: str) -> Optional[datetime]:
@@ -92,7 +166,9 @@ def _parse_optional_date(value: Optional[str], *, option_name: str) -> Optional[
     try:
         return date.fromisoformat(value)
     except ValueError as exc:  # pragma: no cover - handled by Typer
-        raise typer.BadParameter(f"{option_name} must follow YYYY-MM-DD format") from exc
+        raise typer.BadParameter(
+            f"{option_name} must follow YYYY-MM-DD format"
+        ) from exc
 
 
 @app.command("extract")
@@ -185,7 +261,6 @@ def backfill(
     typer.echo(json.dumps({"windows": results}, indent=2, default=str))
 
 
-
 @app.command("verify")
 def verify(
     resource: str = typer.Option(
@@ -237,11 +312,17 @@ def verify(
         config_data = load_pncp_config(config_path)
         resources_cfg = config_data.get("resources", [])
         resource_cfg = next(
-            (r for r in resources_cfg if isinstance(r, dict) and r.get("name") == resource),
+            (
+                r
+                for r in resources_cfg
+                if isinstance(r, dict) and r.get("name") == resource
+            ),
             None,
         )
         if resource_cfg is None:
-            raise typer.BadParameter(f"resource '{resource}' not found in configuration")
+            raise typer.BadParameter(
+                f"resource '{resource}' not found in configuration"
+            )
 
         endpoint_cfg = resource_cfg.get("endpoint", {}) or {}
         table_name = resource_cfg.get("table_name") or resource
@@ -259,13 +340,17 @@ def verify(
             params_cfg = {}
         default_params = _filter_dict_none(dict(params_cfg))
 
-        coverage = tracker.fetch_pages_by_window(resource, start=inicio_filtro, end=fim_exclusivo)
+        coverage = tracker.fetch_pages_by_window(
+            resource, start=inicio_filtro, end=fim_exclusivo
+        )
         coverage_keys = set(coverage.keys())
-        status_map = {row["periodo"]: row for row in tracker.fetch_window_statuses(resource)}
+        status_map = {
+            row["periodo"]: row for row in tracker.fetch_window_statuses(resource)
+        }
         pending_pages: Dict[str, list[int]] = {}
         hash_alerts: list[Dict[str, Any]] = []
 
-        with httpx.Client(headers=headers or None, timeout=timeout) as client:
+        with _HTTP_CLIENT_FACTORY(headers=headers or None, timeout=timeout) as client:
             if endpoint_path.startswith("http"):
                 endpoint_url = endpoint_path
             else:
@@ -288,7 +373,9 @@ def verify(
                     response.raise_for_status()
                     payload = response.json()
                 recorded_pages = set(entry["recorded_pages"])
-                fallback_total = entry["max_total"] or (max(recorded_pages) if recorded_pages else 0)
+                fallback_total = entry["max_total"] or (
+                    max(recorded_pages) if recorded_pages else 0
+                )
                 atual_total = _extract_total_paginas(payload, fallback_total)
                 atual_total = max(atual_total, entry["max_total"], fallback_total)
                 faltantes = [
@@ -304,7 +391,11 @@ def verify(
                     motivo = f"paginas faltantes: {faltantes}"
                     tracker.mark_window_status(resource, periodo, "incompleto", motivo)
                 else:
-                    if existing_status and existing_status.get("status") == "suspeito" and not sequencia:
+                    if (
+                        existing_status
+                        and existing_status.get("status") == "suspeito"
+                        and not sequencia
+                    ):
                         # Preserve previous suspicion when sequence audits are disabled
                         pass
                     else:
@@ -331,8 +422,12 @@ def verify(
                         sample_hash = tracker.hash_registros(registros)
                         if sample_hash and sample_hash != stored_page.hash_ids:
                             motivo = f"hash divergente na pagina {sample_page}"
-                            tracker.mark_window_status(resource, periodo, "suspeito", motivo)
-                            hash_alerts.append({"periodo": periodo, "pagina": sample_page})
+                            tracker.mark_window_status(
+                                resource, periodo, "suspeito", motivo
+                            )
+                            hash_alerts.append(
+                                {"periodo": periodo, "pagina": sample_page}
+                            )
 
         candidatos = tracker.derive_window_candidates(
             table_name,
@@ -380,7 +475,6 @@ def verify(
 
     finally:
         tracker.close()
-
 
 
 @app.command("export")
