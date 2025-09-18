@@ -419,8 +419,23 @@ def verify(
                             or sample_payload.get("results")
                             or []
                         )
-                        sample_hash = tracker.hash_registros(registros)
-                        if sample_hash and sample_hash != stored_page.hash_ids:
+                        try:
+                            try:
+                                algoritmo, stored_digest = CoverageTracker.parse_hash_value(
+                                    stored_page.hash_ids
+                                )
+                            except ValueError:
+                                algoritmo = None
+                                stored_digest = stored_page.hash_ids
+                            sample_digest = tracker.hash_registros(
+                                registros,
+                                algorithm=algoritmo,
+                                include_algorithm=algoritmo is None,
+                            )
+                        except RuntimeError as exc:
+                            typer.echo(str(exc), err=True)
+                            raise typer.Exit(code=1) from exc
+                        if sample_digest and sample_digest != stored_digest:
                             motivo = f"hash divergente na pagina {sample_page}"
                             tracker.mark_window_status(
                                 resource, periodo, "suspeito", motivo

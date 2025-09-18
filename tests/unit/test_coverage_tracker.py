@@ -41,10 +41,16 @@ def test_record_page_creates_manifest_and_hash(temp_tracker: CoverageTracker) ->
         registros=records,
     )
 
+    hash_value = temp_tracker.hash_registros(records)
+    assert hash_value is not None
+    algoritmo, digest = CoverageTracker.parse_hash_value(hash_value)
+    assert algoritmo in {"xxh64", "sha256"}
+    assert digest
+
     rows = temp_tracker.conn.execute(
         "SELECT recurso, pagina, total_paginas_observado, hash_ids FROM baliza_state.cobertura"
     ).fetchall()
-    assert rows == [("contratos", 1, 2, temp_tracker.hash_registros(records))]
+    assert rows == [("contratos", 1, 2, hash_value)]
 
     status_rows = temp_tracker.conn.execute(
         "SELECT status, motivo FROM baliza_state.janelas"
@@ -91,3 +97,26 @@ def test_summarize_windows_detects_missing_periods(
     assert len(missing_labels) == 1
     # The missing window should correspond to 2024-01-04
     assert "2024-01-04" in missing_labels[0]
+
+
+def test_parse_hash_value_legacy_formats() -> None:
+    algoritmo, digest = CoverageTracker.parse_hash_value("0123456789abcdef")
+    assert algoritmo == "xxh64"
+    assert digest == "0123456789abcdef"
+
+    algoritmo, digest = CoverageTracker.parse_hash_value("a" * 64)
+    assert algoritmo == "sha256"
+    assert digest == "a" * 64
+
+
+def test_hash_registros_requires_xxhash_for_legacy(monkeypatch: pytest.MonkeyPatch) -> None:
+    registros = [{"numeroControlePNCP": "LEG-1"}]
+    monkeypatch.setattr("baliza.state.coverage.xxhash", None)
+
+    fallback_hash = CoverageTracker.hash_registros(registros)
+    assert fallback_hash and fallback_hash.startswith("sha256:")
+
+    with pytest.raises(RuntimeError):
+        CoverageTracker.hash_registros(
+            registros, algorithm="xxh64", include_algorithm=False
+        )
