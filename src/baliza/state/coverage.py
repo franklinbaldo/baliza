@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from hashlib import sha256
 from pathlib import Path
+import string
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import duckdb  # type: ignore[import-untyped]
@@ -218,7 +219,26 @@ class CoverageTracker:
     # Hashing and anomaly detection
     # ------------------------------------------------------------------
     @staticmethod
-    def hash_registros(registros: Iterable[Dict[str, Any]]) -> Optional[str]:
+    def _hash_payload(payload: bytes, algorithm: str) -> str:
+        if algorithm == "xxh64":
+            if xxhash is None:  # pragma: no cover - depends on optional dependency
+                raise RuntimeError(
+                    "Cannot compute xxh64 digests because the 'xxhash' package is not installed. "
+                    "Install baliza[xxhash] to verify legacy coverage data."
+                )
+            return xxhash.xxh64_hexdigest(payload)
+        if algorithm == "sha256":
+            return sha256(payload).hexdigest()
+        raise ValueError(f"Unsupported hash algorithm: {algorithm}")
+
+    @classmethod
+    def hash_registros(
+        cls,
+        registros: Iterable[Dict[str, Any]],
+        *,
+        algorithm: Optional[str] = None,
+        include_algorithm: bool = True,
+    ) -> Optional[str]:
         ids = [
             str(item["numeroControlePNCP"])
             for item in registros
@@ -228,9 +248,27 @@ class CoverageTracker:
             return None
         ids.sort()
         payload = "\n".join(ids).encode("utf-8")
-        if xxhash is not None:
-            return xxhash.xxh64_hexdigest(payload)
-        return sha256(payload).hexdigest()
+        algo = algorithm or ("xxh64" if xxhash is not None else "sha256")
+        digest = cls._hash_payload(payload, algo)
+        if include_algorithm:
+            return f"{algo}:{digest}"
+        return digest
+
+    @staticmethod
+    def parse_hash_value(value: str) -> Tuple[str, str]:
+        if not value:
+            raise ValueError("Empty hash value")
+        if ":" in value:
+            algorithm, digest = value.split(":", 1)
+            if not algorithm or not digest:
+                raise ValueError(f"Invalid hash encoding: {value!r}")
+            return algorithm, digest
+        is_hex = all(ch in string.hexdigits for ch in value)
+        if is_hex and len(value) == 16:
+            return "xxh64", value
+        if is_hex and len(value) == 64:
+            return "sha256", value
+        raise ValueError(f"Unrecognized hash format: {value!r}")
 
     def _detect_sequence_anomalies(
         self, registros: Iterable[Dict[str, Any]]
