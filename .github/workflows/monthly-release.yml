@@ -10,6 +10,8 @@ jobs:
   release:
     name: Build and publish monthly dataset
     runs-on: ubuntu-latest
+    env:
+      IA_SUMMARY_PATH: internet-archive-summary.json
 
     steps:
       - name: Checkout repository
@@ -93,6 +95,34 @@ jobs:
           REFERENCE: ${{ steps.reference.outputs.reference }}
         run: |
           tar -czf contratos-${REFERENCE}.tar.gz "$MANIFEST_DIR"
+
+      - name: Install Internet Archive client
+        if: ${{ secrets.IA_ACCESS_KEY && secrets.IA_SECRET_KEY }}
+        run: |
+          pip install internetarchive
+
+      - name: Upload package to Internet Archive
+        if: ${{ secrets.IA_ACCESS_KEY && secrets.IA_SECRET_KEY }}
+        env:
+          IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
+          IA_SECRET_KEY: ${{ secrets.IA_SECRET_KEY }}
+          MANIFEST_PATH: ${{ steps.manifest.outputs.manifest_path }}
+          REFERENCE: ${{ steps.reference.outputs.reference }}
+        run: |
+          python scripts/upload_internet_archive.py \
+            --file contratos-${REFERENCE}.tar.gz \
+            --manifest "$MANIFEST_PATH" \
+            --identifier baliza-contratos-${REFERENCE} \
+            --metadata-output "$IA_SUMMARY_PATH"
+
+      - name: Publicar artefato sincronizado com o Internet Archive
+        if: ${{ secrets.IA_ACCESS_KEY && secrets.IA_SECRET_KEY }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: internet-archive-${{ steps.reference.outputs.reference }}
+          path: |
+            contratos-${{ steps.reference.outputs.reference }}.tar.gz
+            ${{ env.IA_SUMMARY_PATH }}
 
       - name: Create release
         id: create_release
