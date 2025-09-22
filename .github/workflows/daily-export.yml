@@ -6,6 +6,11 @@ on:
     - cron: '0 5 * * *'
   workflow_dispatch:
 
+permissions:
+  contents: read
+  actions: read
+  issues: write
+
 jobs:
   export:
     name: Run daily extraction and export
@@ -74,3 +79,82 @@ jobs:
         with:
           name: baliza-daily-${{ steps.partition.outputs.year }}-${{ steps.partition.outputs.month }}
           path: baliza-daily-${{ steps.partition.outputs.year }}-${{ steps.partition.outputs.month }}.tar.gz
+
+  report-failure:
+    name: Report workflow failure
+    if: ${{ failure() }}
+    needs: export
+    runs-on: ubuntu-latest
+    steps:
+      - name: Open issue for failure
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const runId = context.runId;
+            const attempt = context.runAttempt;
+            const runUrl = `${context.payload.repository.html_url}/actions/runs/${runId}`;
+            const workflowName = context.workflow;
+            const identifier = `run_id:${runId}`;
+
+            const search = await github.rest.search.issuesAndPullRequests({
+              q: `repo:${owner}/${repo} "${identifier}" state:open type:issue`
+            });
+
+            if (search.data.total_count > 0) {
+              core.info('Existing issue found for this run, skipping creation.');
+              return;
+            }
+
+            const jobsResponse = await github.rest.actions.listJobsForWorkflowRunAttempt({
+              owner,
+              repo,
+              run_id: runId,
+              attempt_number: attempt,
+              per_page: 100
+            });
+
+            const failureDetails = [];
+            const failingConclusions = new Set(['failure', 'cancelled', 'timed_out']);
+            for (const job of jobsResponse.data.jobs) {
+              if (!failingConclusions.has(job.conclusion)) {
+                continue;
+              }
+
+              const stepLines = [];
+              for (const step of job.steps ?? []) {
+                if (failingConclusions.has(step.conclusion)) {
+                  stepLines.push(`    • ${step.name} (${step.conclusion})`);
+                }
+              }
+
+              if (stepLines.length > 0) {
+                failureDetails.push(`- ${job.name} (${job.conclusion})\n${stepLines.join('\n')}`);
+              } else {
+                failureDetails.push(`- ${job.name} (${job.conclusion})`);
+              }
+            }
+
+            const lines = [
+              '@codex há uma falha automática no workflow agendado.',
+              '',
+              `- **Workflow**: ${workflowName}`,
+              `- **Execução**: [#${context.runNumber}](${runUrl})`,
+              `- **Evento**: ${context.eventName}`,
+              `- **SHA**: ${context.sha}`,
+            ];
+
+            if (failureDetails.length > 0) {
+              lines.push('', 'Jobs com falha:', ...failureDetails);
+            }
+
+            lines.push('', `Identificador automático: ${identifier}`);
+
+            await github.rest.issues.create({
+              owner,
+              repo,
+              title: `🚨 Falha no workflow "${workflowName}" (run #${context.runNumber})`,
+              body: lines.join('\n'),
+              labels: ['ci-failure']
+            });
