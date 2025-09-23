@@ -16,7 +16,10 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping
 
-import internetarchive
+try:  # pragma: no cover - optional dependency
+    import internetarchive  # type: ignore[import-untyped]
+except ModuleNotFoundError:  # pragma: no cover - fallback path
+    internetarchive = None  # type: ignore[assignment]
 
 
 Summary = Dict[str, Any]
@@ -137,11 +140,21 @@ def upload_dataset(
     force: bool = False,
     access_key: str | None = None,
     secret_key: str | None = None,
-    get_item=internetarchive.get_item,
-    upload_func=internetarchive.upload,
+    get_item=None,
+    upload_func=None,
 ) -> Summary:
     if not file_path.exists():
         raise FileNotFoundError(f"Package not found: {file_path}")
+
+    if internetarchive is None and (get_item is None or upload_func is None):
+        raise ImportError(
+            "internetarchive library is required. Install with: pip install 'baliza[internet-archive]'"
+        )
+
+    if get_item is None:
+        get_item = internetarchive.get_item  # type: ignore[assignment]
+    if upload_func is None:
+        upload_func = internetarchive.upload  # type: ignore[assignment]
 
     manifest_dict: Dict[str, Any] | None = dict(manifest) if manifest else None
     metadata = _build_metadata(manifest_dict, extra_metadata)

@@ -9,11 +9,17 @@ from contextlib import AbstractContextManager
 from typing import Any, Callable, Dict, Iterable, Optional, Protocol, Tuple
 
 import duckdb
+import shutil
 
 try:  # pragma: no cover - optional dependency
     import httpx
 except ModuleNotFoundError:  # pragma: no cover - fallback path
     httpx = None  # type: ignore[assignment]
+
+try:  # pragma: no cover - optional dependency
+    from internetarchive import get_session  # type: ignore[import-untyped]
+except ModuleNotFoundError:  # pragma: no cover - fallback path
+    get_session = None  # type: ignore[assignment]
 
 
 import typer
@@ -538,6 +544,28 @@ def export(
         "--end-date",
         help="Upper bound (inclusive) for the date filter (YYYY-MM-DD)",
     ),
+    ia_identifier: Optional[str] = typer.Option(
+        None,
+        "--ia-identifier",
+        help="Identifier for the Internet Archive upload (e.g., baliza-contratos-2024-07)",
+    ),
+    ia_access_key: Optional[str] = typer.Option(
+        None,
+        "--ia-access-key",
+        envvar="IA_ACCESS_KEY",
+        help="Internet Archive access key (or IA_ACCESS_KEY env var)",
+    ),
+    ia_secret_key: Optional[str] = typer.Option(
+        None,
+        "--ia-secret-key",
+        envvar="IA_SECRET_KEY",
+        help="Internet Archive secret key (or IA_SECRET_KEY env var)",
+    ),
+    ia_metadata_path: Optional[Path] = typer.Option(
+        Path("internet-archive-summary.json"),
+        "--ia-metadata-path",
+        help="Path to save Internet Archive upload metadata",
+    ),
 ) -> None:
     """Export a DuckDB table to partitioned Parquet files."""
 
@@ -564,6 +592,84 @@ def export(
         raise typer.Exit(code=1) from exc
 
     typer.echo(json.dumps(metadata.asdict(), indent=2, default=str))
+
+    if ia_identifier and (not ia_access_key or not ia_secret_key):
+        typer.secho(
+            "Internet Archive access and secret keys are required when providing --ia-identifier.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    if ia_identifier and ia_access_key and ia_secret_key:
+        if get_session is None:  # pragma: no cover - optional dependency guard
+            typer.secho(
+                "InternetArchive library not found. Cannot upload to IA.",
+                fg=typer.colors.YELLOW,
+                err=True,
+            )
+            typer.secho(
+                "Install with: pip install 'baliza[internet-archive]'",
+                fg=typer.colors.YELLOW,
+            )
+            return
+
+        typer.echo(
+            f"\nUploading '{metadata.output_dir}/...' to Internet Archive (Identifier: {ia_identifier})..."
+        )
+
+        archive_dir: Optional[Path] = None
+        try:
+            session = get_session(access_key=ia_access_key, secret_key=ia_secret_key)
+            ia_metadata: Dict[str, Any] = {
+                "title": f"Baliza {metadata.table} Dataset - {ia_identifier}",
+                "description": (
+                    "Publicly available procurement data extracted by Baliza. "
+                    "Source: PNCP API. "
+                    f"Extracted from {metadata.start_date} to {metadata.end_date}."
+                ),
+                "mediatype": "collection",
+                "creator": "Baliza Project",
+                "subject": ["public procurement", "Brazil", "contracts", "PNCP"],
+                "coverage": f"Brazil. Dates: {metadata.start_date} to {metadata.end_date}",
+                "created": datetime.now().isoformat(),
+            }
+            if metadata.rows_exported is not None:
+                ia_metadata["lineCount"] = metadata.rows_exported
+            if metadata.partition_count is not None:
+                ia_metadata["numberOfFiles"] = metadata.partition_count
+
+            archive_dir = Path(f"ia_archive_{ia_identifier}")
+            archive_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(Path(metadata.output_dir), archive_dir, dirs_exist_ok=True)
+
+            target_item = session.get_item(ia_identifier)
+            target_item.upload(str(archive_dir), metadata=ia_metadata, verbose=True)
+
+            upload_metadata = {
+                "identifier": ia_identifier,
+                "upload_time": datetime.now().isoformat(),
+                "ia_metadata": ia_metadata,
+                "local_output_dir": metadata.output_dir,
+                "local_archive_dir": str(archive_dir),
+            }
+            metadata_path = ia_metadata_path or Path("internet-archive-summary.json")
+            metadata_path.parent.mkdir(parents=True, exist_ok=True)
+            with metadata_path.open("w", encoding="utf-8") as fh:
+                json.dump(upload_metadata, fh, indent=2)
+            typer.echo(f"Internet Archive upload metadata saved to: {metadata_path}")
+
+            typer.echo("Successfully uploaded to Internet Archive.")
+        except Exception as exc:  # pragma: no cover - network dependent
+            typer.secho(
+                f"Error during Internet Archive upload: {exc}",
+                fg=typer.colors.RED,
+                err=True,
+            )
+        finally:
+            if archive_dir and archive_dir.exists():
+                shutil.rmtree(archive_dir)
+                typer.echo("Temporary archive directory cleaned.")
 
 
 if __name__ == "__main__":
