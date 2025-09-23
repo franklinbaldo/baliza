@@ -29,6 +29,9 @@ dev = [
     "mypy>=1.8.0",
     "pre-commit>=3.6.0"
 ]
+internet-archive = [
+    "internetarchive>=3.5.0"
+]
 
 [project.scripts]
 baliza = "baliza.cli:app"
