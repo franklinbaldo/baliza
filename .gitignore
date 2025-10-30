@@ -8,10 +8,14 @@ data/*
 __pycache__/
 *.pyc
 
+# Build artifacts (not needed for uvx)
+dist/
+build/
+*.egg-info/
+
 # IDE-specific files
 .idea/
 .vscode/
-src/baliza.egg-info/
 uv.lock
 repomix-output.*
 data/catalog.yml
