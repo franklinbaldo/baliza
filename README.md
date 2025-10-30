@@ -1,11 +1,15 @@
-# Baliza
+# Baliza CLI
 
-**Baliza** (Backup Aberto de Licitações Zelando pelo Acesso) é um extrator de
-código aberto que captura dados de contratos do Portal Nacional de Contratações
-Públicas (PNCP) e os armazena em um banco **DuckDB** pronto para análise. O
-projeto nasceu para preservar o histórico das compras públicas brasileiras e
-oferecer uma base consistente para jornalistas, pesquisadores e órgãos de
-controle.
+**Baliza** (Backup Aberto de Licitações Zelando pelo Acesso) é uma **ferramenta
+de linha de comando** de código aberto que captura dados de contratos do Portal
+Nacional de Contratações Públicas (PNCP) e os armazena em um banco **DuckDB**
+pronto para análise. O projeto nasceu para preservar o histórico das compras
+públicas brasileiras e oferecer uma base consistente para jornalistas,
+pesquisadores e órgãos de controle.
+
+> **⚠️ Este repositório contém apenas o CLI de extração de dados.**
+> Para visualização, dashboards e interface web, veja o projeto `baliza-site`
+> (em breve). Documentação completa da arquitetura em [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Visão geral
 
@@ -32,20 +36,78 @@ controle.
 > de demais recursos do PNCP está detalhada na
 > [`docs/endpoint_extraction_strategy.md`](docs/endpoint_extraction_strategy.md).
 
-## Requisitos
+## Instalação
+
+### Opção 1: Execução direta com uvx (Recomendado)
+
+Execute o Baliza sem precisar clonar o repositório:
+
+```bash
+# Executar diretamente do GitHub
+uvx --from "git+https://github.com/franklinbaldo/baliza" baliza --help
+
+# Exemplos de uso
+uvx --from "git+https://github.com/franklinbaldo/baliza" baliza extract
+uvx --from "git+https://github.com/franklinbaldo/baliza" baliza export --table contratos --out data/contratos
+```
+
+**Vantagens:**
+- ✅ Não precisa clonar o repositório
+- ✅ Sempre usa a versão mais recente do `main`
+- ✅ Ambiente isolado automaticamente
+- ✅ Ideal para uso em produção e CI/CD
+
+### Opção 2: Instalação local para desenvolvimento
+
+Clone o repositório e desenvolva localmente:
+
+```bash
+# Clonar repositório
+git clone https://github.com/franklinbaldo/baliza.git
+cd baliza
+
+# Instalar dependências
+uv sync
+
+# Executar
+uv run baliza extract
+uv run baliza export --table contratos --out data/contratos
+```
+
+### Requisitos
 
 - Python 3.11 ou superior
-- [uv](https://github.com/astral-sh/uv) para gerenciamento de ambiente
+- [uv](https://github.com/astral-sh/uv) instalado (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
 - Acesso à internet para consultar a API pública do PNCP
 
 ## Início rápido
 
-Clone o repositório, instale as dependências e execute o pipeline incremental:
+### Usando uvx (sem clonar)
 
 ```bash
-uv sync
+# Alias para simplificar (adicione ao seu .bashrc ou .zshrc)
+alias baliza='uvx --from "git+https://github.com/franklinbaldo/baliza" baliza'
+
+# Extrair dados dos últimos 3 dias
+baliza extract
+
+# Exportar para Parquet
+baliza export --table contratos --out data/contratos
+
+# Backfill mensal
+baliza backfill 2024-01 2024-03
+
+# Verificar cobertura
+baliza verify
+```
+
+### Usando instalação local
+
+```bash
+# Dentro do diretório do projeto
 uv run baliza extract
 uv run baliza export --table contratos --out data/contratos
+uv run baliza backfill 2024-01 2024-03
 ```
 
 O comando `baliza extract` cria (ou atualiza) o arquivo `baliza.duckdb` no
@@ -54,15 +116,6 @@ janelas diárias `dataInicial`/`dataFinal`, enviando requisições paginadas com
 `tamanhoPagina=500` até que `totalPaginas` seja percorrido. Em seguida,
 `baliza export` lê a tabela do DuckDB e escreve os dados como Parquet
 particionado (ano/mês) no diretório informado (`data/contratos`, no exemplo).
-
-### Exemplo: executar um *backfill* mensal
-
-```bash
-uv run baliza backfill 2024-01 2024-03
-```
-
-O comando acima processa, mês a mês, o intervalo de janeiro a março de 2024
-usando o mesmo arquivo `baliza.duckdb` como destino.
 
 ## Inspecionando os dados
 
@@ -172,16 +225,32 @@ relatório em JSON lista lacunas abertas, páginas pendentes e quaisquer
 sequências suspeitas (`--sequencia` ativa a auditoria de
 `sequencialCompra`/`sequencialContrato`).
 
-## Estrutura do repositório
+## Arquitetura do Ecossistema
+
+O projeto Baliza é dividido em **dois repositórios independentes**:
+
+| Repositório | Responsabilidade | Status |
+|------------|------------------|--------|
+| **baliza** (este) | CLI de extração, transformação e exportação de dados | ✅ Ativo |
+| **baliza-site** | Interface web, visualização e consultas | 🔜 Em breve |
+
+Veja [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) para detalhes completos.
+
+## Estrutura deste repositório
 
 ```
 ├── src/baliza/
 │   ├── cli.py              # Interface de linha de comando
 │   ├── pipelines/pncp.py   # Execução do pipeline dlt
 │   ├── config/pncp.yml     # Configuração declarativa do endpoint
-│   └── utils/              # Funções auxiliares (datas, hashing, etc.)
+│   ├── state/              # Rastreamento de cobertura
+│   └── utils/              # Funções auxiliares (datas, hashing, export)
 ├── docs/                   # Guias de arquitetura e planos de evolução
-├── tests/                  # Testes automatizados (em construção)
+│   ├── ARCHITECTURE.md     # Separação entre CLI e site
+│   └── ROADMAP.md          # Roadmap do CLI
+├── tests/                  # Testes automatizados
+│   ├── unit/               # Testes unitários
+│   └── e2e/                # Testes end-to-end
 └── pyproject.toml          # Metadados e dependências do projeto
 ```
 

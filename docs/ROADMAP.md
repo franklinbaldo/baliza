@@ -1,9 +1,13 @@
-# 🛣️ Roadmap do Baliza
+# 🛣️ Roadmap do Baliza CLI
 
-Este roadmap descreve a evolução planejada a partir do estado atual do Baliza.
-O objetivo é manter o foco na extração confiável do endpoint de contratos do
-PNCP e, gradualmente, reintroduzir ideias da visão original somente quando
-houver base técnica e capacidade para sustentá-las.
+Este roadmap descreve a evolução planejada do **Baliza CLI** — a ferramenta de
+linha de comando para extração de dados do PNCP. O objetivo é manter o foco
+exclusivo na extração confiável, transformação e exportação de dados.
+
+**⚠️ IMPORTANTE:** Este repositório contém **apenas o CLI**. Funcionalidades de
+visualização, interface web, dashboards e consultas interativas fazem parte do
+projeto `baliza-site` (repositório separado). Veja `docs/ARCHITECTURE.md` para
+entender a separação de responsabilidades.
 
 ## Estado atual (Q1 2025)
 
@@ -37,17 +41,34 @@ houver base técnica e capacidade para sustentá-las.
      cenários de erro da CLI.
    - Configurar um fluxo básico de CI executando `pytest` e verificações de lint.
 
-## Backlog (visão futura)
+## Backlog (visão futura - CLI apenas)
 
 As iniciativas abaixo permanecem como inspiração para quando o núcleo do projeto
 estiver estável. Elas **não estão em desenvolvimento ativo**:
 
-- Suporte aos demais 11 endpoints públicos do PNCP.
-- Exportação adicional em Parquet e publicação automatizada dos dados.
-- Ferramentas de acompanhamento (ex.: `baliza status`) baseadas no estado
-  incremental.
-- Documentação gerada com site estático (MkDocs) e tutoriais analíticos.
-- Distribuição via container e integrações com ferramentas de BI.
+### Escopo do CLI (este repositório)
+- ✅ Suporte aos demais 11 endpoints públicos do PNCP
+- ✅ Melhorias na exportação Parquet (compressão, schemas)
+- ✅ Publicação automatizada de releases com dados
+- ✅ Ferramentas de acompanhamento (ex.: `baliza status`)
+- ✅ Documentação técnica gerada com MkDocs
+- ✅ Distribuição via container Docker
+- ✅ Integrações com ferramentas de BI (conectores)
+- ✅ Suporte a outros formatos de exportação (CSV, JSON)
+- ✅ Validação de dados com schemas Pydantic
+- ✅ Métricas e telemetria de execução
+
+### Fora do escopo do CLI (vai para `baliza-site`)
+- ❌ Interface web de visualização
+- ❌ Dashboards interativos
+- ❌ Busca e filtros web
+- ❌ Gráficos e charts
+- ❌ API REST/GraphQL de consulta
+- ❌ Sistema de autenticação
+- ❌ Frontend em React/Vue/etc
 
 Contribuições são bem-vindas, especialmente nas prioridades imediatas. Abra uma
 issue antes de iniciar itens do backlog para alinharmos o escopo.
+
+Para contribuir com funcionalidades de visualização, aguarde a criação do
+repositório `baliza-site`.

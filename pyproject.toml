@@ -40,8 +40,31 @@ baliza = "baliza.cli:app"
 [tool.setuptools]
 package-dir = {"" = "src"}
 
+[tool.setuptools.package-data]
+baliza = ["config/*.yml", "config/*.yaml"]
+
 # Ensure pytest discovers the local source package without requiring PYTHONPATH hacks
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+
+# Ruff configuration
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "PL"]
+ignore = []
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+# MyPy configuration
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
 
 # Removed: dependency-groups replaced by optional-dependencies
