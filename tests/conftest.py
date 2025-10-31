@@ -2,12 +2,53 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional
 from urllib.parse import urlencode
 
 import pytest
 
 from baliza import cli
+
+
+# =============================================================================
+# VCR Configuration for Integration Tests
+# =============================================================================
+
+@pytest.fixture(scope="module")
+def vcr_config():
+    """
+    VCR configuration for recording/replaying HTTP interactions.
+
+    Configuration:
+    - record_mode='once': Record cassettes once, then always replay
+    - match_on=['uri', 'method']: Match requests by URL and HTTP method
+    - filter_headers: Remove sensitive headers from cassettes
+    - cassette_library_dir: Store cassettes in tests/cassettes/
+    - decode_compressed_response: Handle gzip/deflate responses
+    """
+    return {
+        "record_mode": "once",  # Record once, then always replay
+        "match_on": ["uri", "method"],  # Match by URL and method
+        "filter_headers": [
+            ("authorization", "REDACTED"),
+            ("cookie", "REDACTED"),
+        ],
+        "cassette_library_dir": str(Path(__file__).parent / "cassettes"),
+        "path_transformer": lambda path: path + ".yaml",  # .yaml extension
+        "decode_compressed_response": True,  # Handle gzip/deflate
+    }
+
+
+@pytest.fixture(scope="module")
+def vcr_cassette_dir(request):
+    """Return cassette directory path for VCR."""
+    return Path(__file__).parent / "cassettes"
+
+
+# =============================================================================
+# HTTP Mock for Unit Tests (existing)
+# =============================================================================
 
 
 @dataclass
