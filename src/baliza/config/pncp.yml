@@ -3,7 +3,6 @@ client:
   headers:
     Accept: "application/json"
     User-Agent: "baliza/0.1 declarative pipeline"
-  timeout: 60
   paginator:
     type: "page_number"
     page_param: "pagina"

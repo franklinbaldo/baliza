@@ -1,0 +1,30 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      host:
+      - pncp.gov.br
+      user-agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://pncp.gov.br/api/consulta/v1/contratos?dataInicial=20241001&dataFinal=20241001&pagina=1&tamanhoPagina=10
+  response:
+    body:
+      string: Access denied
+    headers:
+      content-length:
+      - '13'
+      content-type:
+      - text/plain
+      date:
+      - Fri, 31 Oct 2025 15:39:11 GMT
+    status:
+      code: 403
+      message: Forbidden
+version: 1
