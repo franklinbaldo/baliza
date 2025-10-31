@@ -171,7 +171,7 @@ def _extract_pagina(payload: Dict[str, Any], params: Dict[str, Any]) -> int:
 
 
 def _attach_coverage_tracker(source: DltSource, tracker: CoverageTracker) -> None:
-    for resource in source.resources:
+    for resource in source.resources.values():
         resource_obj = cast(DltResource, resource)
 
         if resource_obj._pipe.has_parent:
