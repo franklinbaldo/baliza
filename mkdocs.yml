@@ -1,0 +1,102 @@
+site_name: Baliza Documentation
+site_description: Streamlined PNCP data extraction to Parquet using DLT pipeline
+site_author: Franklin Baldo
+repo_url: https://github.com/franklinbaldo/baliza
+repo_name: franklinbaldo/baliza
+
+theme:
+  name: material
+  palette:
+    # Palette toggle for light mode
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Palette toggle for dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+
+plugins:
+  - search
+  - autorefs
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            docstring_section_style: list
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            signature_crossrefs: true
+            separate_signature: true
+            merge_init_into_class: true
+            filters:
+              - "!^_"  # Exclude private methods
+            members_order: source
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - admonition
+  - pymdownx.details
+  - tables
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: getting-started/installation.md
+    - Quick Start: getting-started/quickstart.md
+    - Configuration: getting-started/configuration.md
+  - User Guide:
+    - Architecture: ARCHITECTURE.md
+    - Roadmap: ROADMAP.md
+    - Baliza Site: baliza-site/index.md
+  - Technical Docs:
+    - Extraction Strategy: technical/endpoint_extraction_strategy.md
+    - Request Deduplication: technical/request-deduplication-strategy.md
+    - Resumability Plan: technical/extraction_resumability_plan.md
+    - DLT Migration: technical/dlt-migration-analysis.md
+    - Cleanup Plan: technical/cleanup-plan.md
+    - Merge Strategy: technical/merge-strategy-warning-resolution-plan.md
+    - Pydantic Issues: technical/pydantic-model-mismatch-report.md
+  - API Reference:
+    - CLI: api/cli.md
+    - Pipelines: api/pipelines.md
+    - State Management: api/state.md
+    - Utils: api/utils.md
+  - OpenAPI:
+    - PNCP Manual: openapi/MANUAL-PNCP-CONSULSTAS-VERSAO-1.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/franklinbaldo/baliza

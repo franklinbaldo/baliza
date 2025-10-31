@@ -13,6 +13,9 @@ dist/
 build/
 *.egg-info/
 
+# MkDocs site
+site/
+
 # IDE-specific files
 .idea/
 .vscode/
