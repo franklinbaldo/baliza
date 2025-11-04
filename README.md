@@ -167,11 +167,22 @@ uv run baliza extract --config configs/pncp-custom.yml
 
 ## Comandos disponíveis
 
+### Comandos de Extração
+
 | Comando | Descrição |
 |---------|-----------|
-| `baliza extract` | Executa o pipeline incremental usando o *lookback* informado (padrão: 3 dias). |
+| `baliza extract` | Executa o pipeline incremental com **detecção automática de lacunas** e **resumibilidade**. Identifica janelas incompletas, suspeitas ou ausentes e extrai apenas o necessário. |
 | `baliza backfill <AAAA-MM> <AAAA-MM>` | Processa, mês a mês, o intervalo informado sem reaproveitar estado. |
 | `baliza export --table <tabela>` | Exporta a tabela DuckDB para Parquet particionado por ano/mês. |
+| `baliza verify --resource <recurso>` | Audita a cobertura e detecta janelas incompletas ou suspeitas. |
+
+### Comandos de Estado (novo)
+
+| Comando | Descrição |
+|---------|-----------|
+| `baliza state show --resource contratos` | Exibe resumo do estado: janelas completas, incompletas, suspeitas. |
+| `baliza state gaps --resource contratos --start 2024-01-01` | Lista todas as lacunas de cobertura no período. |
+| `baliza state history --resource contratos` | Exibe histórico das últimas execuções (sucessos e falhas). |
 
 Opções úteis:
 
@@ -184,22 +195,72 @@ Opções úteis:
 
 Use `uv run baliza --help` para ver todos os parâmetros suportados.
 
+### Extração Resumível (Resumable Extraction) ✨
+
+O Baliza agora possui **extração completamente resumível**, tornando o pipeline
+robusto e pronto para produção:
+
+**Como funciona:**
+1. **Detecção inteligente de lacunas:** antes de cada extração, o Baliza analisa
+   o estado atual e identifica quais janelas temporais precisam ser processadas:
+   - Janelas **incompletas** de execuções anteriores que falharam (prioridade máxima)
+   - Janelas **suspeitas** com anomalias de dados
+   - Janelas **ausentes** que nunca foram extraídas
+   - Janelas **recentes** dentro do período de *lookback* (re-extração de atualizações)
+
+2. **Rastreamento de execuções:** cada run é registrado em `baliza_state.extraction_runs`
+   com ID único, status (running/completed/failed), janelas processadas e métricas.
+
+3. **Retomada automática:** se uma extração falhar (erro de rede, timeout, crash),
+   basta executar `baliza extract` novamente e o processo continua de onde parou,
+   priorizando janelas incompletas.
+
+**Exemplo de uso:**
+
+```bash
+# Primeira execução - processa últimos 30 dias
+$ baliza extract
+Analyzing coverage from 2024-10-05 to 2024-11-04 (lookback: 3 days)...
+Processing 30 window(s):
+  • 30 missing
+[1/30] Processing 2024-10-05 to 2024-10-06 (missing)...
+  ✓ Completed
+...
+[15/30] Processing 2024-10-20 to 2024-10-21 (missing)...
+✗ Extraction failed: Connection timeout
+
+# Retoma automaticamente da janela 15
+$ baliza extract
+Found 1 incomplete window(s) from previous run. Resuming...
+Merged 16 windows into 2 to reduce API calls.
+Processing 2 window(s):
+  • 1 incomplete
+  • 15 missing
+[1/2] Processing 2024-10-20 to 2024-10-21 (incomplete)...
+  ✓ Completed
+[2/2] Processing 2024-10-21 to 2024-11-05 (missing)...
+  ✓ Completed
+✓ Extraction completed successfully!
+```
+
+**Benefícios:**
+- ✅ **Sem desperdício:** não refaz trabalho já concluído
+- ✅ **Resiliência:** recupera automaticamente de falhas
+- ✅ **Observabilidade:** histórico completo de execuções com `baliza state history`
+- ✅ **Otimização:** mescla janelas adjacentes para reduzir chamadas à API
+
 ### Política incremental
 
-- **Lookback diário:** toda execução de `baliza extract` retrocede (por padrão)
-  três dias em relação ao cursor salvo, abrindo janelas `dataInicial`/`dataFinal`
-  nesse intervalo. Como a API pública não possui filtro por atualização global,
-  essa redundância garante captura de retificações recentes.
+- **Lookback configurável:** por padrão, `baliza extract` retrocede 3 dias em
+  relação à última execução bem-sucedida, mas isso é totalmente configurável
+  via `--lookback-days`.
+- **Detecção de lacunas:** o Baliza compara as janelas processadas com as esperadas,
+  identificando automaticamente períodos ausentes ou incompletos.
 - **Backfill mensal:** o comando `baliza backfill <AAAA-MM> <AAAA-MM>` reexecuta
-  meses inteiros em sequência, reaproveitando o mesmo DuckDB. Isso cobre
-  retificações tardias e consolida históricos.
-- **Manifesto de cobertura:** além de usar `write_disposition=merge`, o Baliza
-  registra `totalPaginas`, contagem de itens e hashes por página para auditar
-  janelas e identificar páginas ausentes.
-- **Preparado para futuras integrações:** o desenho atual separa a configuração
-  do cliente, permitindo plugar a API autenticada (Manual de Integração) em um
-  modo alternativo caso seja necessário aproveitar filtros por
-  `dataAtualizacaoGlobal` no futuro.
+  meses inteiros em sequência, ideal para consolidar históricos.
+- **Manifesto de cobertura:** além de `write_disposition=merge`, o Baliza registra
+  `totalPaginas`, contagem de itens e hashes por página em `baliza_state.cobertura`
+  para auditar janelas e identificar páginas ausentes.
 
 ### Exportação analítica
 
