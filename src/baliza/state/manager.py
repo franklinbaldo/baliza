@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Optional, List, Dict, Any
 import uuid
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
 
 from .coverage import CoverageTracker
 
@@ -18,16 +18,16 @@ class ExtractionRun:
     run_id: str
     resource: str
     started_at: datetime
-    completed_at: Optional[datetime]
+    completed_at: datetime | None
     status: str  # 'running', 'completed', 'failed'
     windows_attempted: int = 0
     windows_completed: int = 0
     pages_fetched: int = 0
     rows_extracted: int = 0
-    error_message: Optional[str] = None
-    config_hash: Optional[str] = None
+    error_message: str | None = None
+    config_hash: str | None = None
 
-    def asdict(self) -> Dict[str, Any]:
+    def asdict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
             "run_id": self.run_id,
@@ -87,7 +87,7 @@ class StateManager:
     # Run lifecycle management
     # ------------------------------------------------------------------
 
-    def start_run(self, resource: str, config_hash: Optional[str] = None) -> str:
+    def start_run(self, resource: str, config_hash: str | None = None) -> str:
         """
         Start a new extraction run and return its unique ID.
 
@@ -98,7 +98,7 @@ class StateManager:
         Returns:
             Unique run ID in format: YYYYMMDD-HHMMSS-<uuid>
         """
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        now = datetime.now(UTC).replace(tzinfo=None)
         run_id = f"{now:%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:8]}"
 
         self.tracker.conn.execute(
@@ -116,10 +116,10 @@ class StateManager:
         self,
         run_id: str,
         *,
-        windows_attempted: Optional[int] = None,
-        windows_completed: Optional[int] = None,
-        pages_fetched: Optional[int] = None,
-        rows_extracted: Optional[int] = None,
+        windows_attempted: int | None = None,
+        windows_completed: int | None = None,
+        pages_fetched: int | None = None,
+        rows_extracted: int | None = None,
     ) -> None:
         """
         Update progress metrics for a running extraction.
@@ -132,7 +132,7 @@ class StateManager:
             rows_extracted: Total rows extracted
         """
         updates = []
-        params: List[Any] = []
+        params: list[Any] = []
 
         if windows_attempted is not None:
             updates.append("windows_attempted = ?")
@@ -153,13 +153,13 @@ class StateManager:
         params.append(run_id)
         query = f"""
             UPDATE baliza_state.extraction_runs
-            SET {', '.join(updates)}
+            SET {", ".join(updates)}
             WHERE run_id = ?
         """
         self.tracker.conn.execute(query, params)
         self.tracker.conn.commit()
 
-    def complete_run(self, run_id: str, stats: Optional[Dict[str, Any]] = None) -> None:
+    def complete_run(self, run_id: str, stats: dict[str, Any] | None = None) -> None:
         """
         Mark a run as completed successfully with final statistics.
 
@@ -167,7 +167,7 @@ class StateManager:
             run_id: The run identifier
             stats: Optional dictionary with final statistics (windows_completed, pages_fetched, etc.)
         """
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        now = datetime.now(UTC).replace(tzinfo=None)
         stats = stats or {}
 
         self.tracker.conn.execute(
@@ -198,7 +198,7 @@ class StateManager:
             run_id: The run identifier
             error: Error message describing the failure
         """
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        now = datetime.now(UTC).replace(tzinfo=None)
         self.tracker.conn.execute(
             """
             UPDATE baliza_state.extraction_runs
@@ -215,7 +215,7 @@ class StateManager:
     # State inspection
     # ------------------------------------------------------------------
 
-    def get_run(self, run_id: str) -> Optional[ExtractionRun]:
+    def get_run(self, run_id: str) -> ExtractionRun | None:
         """
         Get details for a specific run.
 
@@ -253,7 +253,7 @@ class StateManager:
             config_hash=row[10],
         )
 
-    def get_last_successful_run(self, resource: str) -> Optional[ExtractionRun]:
+    def get_last_successful_run(self, resource: str) -> ExtractionRun | None:
         """
         Get the most recent successful run for a resource.
 
@@ -293,7 +293,7 @@ class StateManager:
             config_hash=row[10],
         )
 
-    def get_last_run(self, resource: str) -> Optional[ExtractionRun]:
+    def get_last_run(self, resource: str) -> ExtractionRun | None:
         """
         Get the most recent run (any status) for a resource.
 
@@ -333,9 +333,7 @@ class StateManager:
             config_hash=row[10],
         )
 
-    def get_run_history(
-        self, resource: str, limit: int = 10
-    ) -> List[ExtractionRun]:
+    def get_run_history(self, resource: str, limit: int = 10) -> list[ExtractionRun]:
         """
         Get recent run history for a resource.
 
@@ -376,7 +374,7 @@ class StateManager:
             for row in rows
         ]
 
-    def get_running_runs(self, resource: Optional[str] = None) -> List[ExtractionRun]:
+    def get_running_runs(self, resource: str | None = None) -> list[ExtractionRun]:
         """
         Get all runs currently in 'running' status.
 
@@ -393,7 +391,7 @@ class StateManager:
             FROM baliza_state.extraction_runs
             WHERE status = 'running'
         """
-        params: List[Any] = []
+        params: list[Any] = []
 
         if resource:
             query += " AND resource = ?"

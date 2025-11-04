@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import pytest
 
@@ -8,7 +8,7 @@ from baliza.utils.dates import to_pncp_window
 
 
 def test_to_pncp_window_from_datetime_with_timezone() -> None:
-    value = datetime(2024, 2, 10, 15, 30, tzinfo=timezone.utc)
+    value = datetime(2024, 2, 10, 15, 30, tzinfo=UTC)
     assert to_pncp_window(value) == "20240210"
 
 

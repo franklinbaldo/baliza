@@ -9,7 +9,6 @@ from typer.testing import CliRunner
 from baliza import cli
 from baliza.utils import export_parquet
 
-
 runner = CliRunner()
 
 
@@ -58,9 +57,7 @@ def test_export_writes_year_month_partitions(tmp_path: Path) -> None:
     assert metadata.rows_exported == 3
     assert metadata.partition_count == 2
     partition_paths = {
-        p.relative_to(out_dir).as_posix()
-        for p in out_dir.glob("ano=*/mes=*")
-        if p.is_dir()
+        p.relative_to(out_dir).as_posix() for p in out_dir.glob("ano=*/mes=*") if p.is_dir()
     }
     assert partition_paths == {"ano=2024/mes=1", "ano=2024/mes=2"}
 

@@ -23,18 +23,22 @@ class DummyItem:
         return self._file
 
 
-def test_upload_writes_summary_and_calls_upload(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_upload_writes_summary_and_calls_upload(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     package = tmp_path / "contratos-2024-01.tar.gz"
     package.write_bytes(b"data")
 
     manifest_path = tmp_path / "manifest.json"
     manifest_path.write_text(
-        json.dumps({
-            "dataset_version": "2024-01",
-            "row_count": 10,
-            "min_data": "2024-01-01",
-            "max_data": "2024-01-31",
-        }),
+        json.dumps(
+            {
+                "dataset_version": "2024-01",
+                "row_count": 10,
+                "min_data": "2024-01-01",
+                "max_data": "2024-01-31",
+            }
+        ),
         encoding="utf-8",
     )
 
@@ -101,4 +105,3 @@ def test_skip_when_same_file_exists(tmp_path: Path) -> None:
     assert summary["reason"] == "already_present"
     stored = json.loads(summary_path.read_text(encoding="utf-8"))
     assert stored["skipped"] is True
-

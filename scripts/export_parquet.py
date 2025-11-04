@@ -8,10 +8,9 @@ import shlex
 import subprocess
 import sys
 from pathlib import Path
-from typing import List
 
 
-def _build_command(args: argparse.Namespace) -> List[str]:
+def _build_command(args: argparse.Namespace) -> list[str]:
     command = [
         "baliza",
         "export",

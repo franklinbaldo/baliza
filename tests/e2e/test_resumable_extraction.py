@@ -1,11 +1,8 @@
 """End-to-end test for resumable extraction functionality."""
 
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
+from datetime import UTC, datetime, timedelta
 
-import pytest
-
-from baliza.state import StateManager, GapDetector
+from baliza.state import GapDetector, StateManager
 
 
 def test_extraction_tracks_state_across_runs(tmp_path):
@@ -41,8 +38,8 @@ def test_extraction_tracks_state_across_runs(tmp_path):
     # Check that previous windows are not in gaps
     gaps = detector.find_gaps(
         "contratos",
-        datetime(2024, 1, 1, tzinfo=timezone.utc),
-        datetime(2024, 1, 5, tzinfo=timezone.utc),
+        datetime(2024, 1, 1, tzinfo=UTC),
+        datetime(2024, 1, 5, tzinfo=UTC),
         lookback_days=0,
     )
 
@@ -96,8 +93,8 @@ def test_incomplete_windows_have_highest_priority(tmp_path):
     detector = GapDetector(manager)
     gaps = detector.find_gaps(
         "contratos",
-        datetime(2024, 1, 1, tzinfo=timezone.utc),
-        datetime(2024, 1, 3, tzinfo=timezone.utc),
+        datetime(2024, 1, 1, tzinfo=UTC),
+        datetime(2024, 1, 3, tzinfo=UTC),
         lookback_days=0,
     )
 
@@ -138,14 +135,10 @@ def test_gap_detector_with_real_date_progression(tmp_path):
     # Day 2: Try to extract Jan 4-6, but fail at Jan 5
     run2 = manager.start_run("contratos")
     # Jan 4 succeeds
-    jan4_periodo = manager.tracker.period_label(
-        datetime(2024, 1, 4), datetime(2024, 1, 5)
-    )
+    jan4_periodo = manager.tracker.period_label(datetime(2024, 1, 4), datetime(2024, 1, 5))
     manager.tracker.mark_window_status("contratos", jan4_periodo, "ok")
     # Jan 5 fails (marked incomplete)
-    jan5_periodo = manager.tracker.period_label(
-        datetime(2024, 1, 5), datetime(2024, 1, 6)
-    )
+    jan5_periodo = manager.tracker.period_label(datetime(2024, 1, 5), datetime(2024, 1, 6))
     manager.tracker.mark_window_status("contratos", jan5_periodo, "incompleto")
     manager.fail_run(run2, "API timeout")
 
@@ -153,8 +146,8 @@ def test_gap_detector_with_real_date_progression(tmp_path):
     detector = GapDetector(manager)
     gaps = detector.find_gaps(
         "contratos",
-        datetime(2024, 1, 1, tzinfo=timezone.utc),
-        datetime(2024, 1, 7, tzinfo=timezone.utc),
+        datetime(2024, 1, 1, tzinfo=UTC),
+        datetime(2024, 1, 7, tzinfo=UTC),
         lookback_days=0,
     )
 
@@ -177,8 +170,8 @@ def test_gap_detector_with_real_date_progression(tmp_path):
     # Now all windows should be complete
     final_gaps = detector.find_gaps(
         "contratos",
-        datetime(2024, 1, 1, tzinfo=timezone.utc),
-        datetime(2024, 1, 7, tzinfo=timezone.utc),
+        datetime(2024, 1, 1, tzinfo=UTC),
+        datetime(2024, 1, 7, tzinfo=UTC),
         lookback_days=0,
     )
     assert len(final_gaps) == 0  # No gaps!
@@ -235,8 +228,8 @@ def test_window_merging_reduces_api_calls(tmp_path):
     # All windows from Jan 1-7 are missing
     gaps = detector.find_gaps(
         "contratos",
-        datetime(2024, 1, 1, tzinfo=timezone.utc),
-        datetime(2024, 1, 7, tzinfo=timezone.utc),
+        datetime(2024, 1, 1, tzinfo=UTC),
+        datetime(2024, 1, 7, tzinfo=UTC),
         lookback_days=0,
     )
 

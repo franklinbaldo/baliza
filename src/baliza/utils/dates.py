@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from typing import Any
 
 
@@ -25,15 +25,15 @@ def _coerce_datetime(value: str) -> datetime:
 def to_pncp_window(value: Any) -> str:
     """Convert incremental cursor values into PNCP date window parameters."""
     if value is None:
-        dt = datetime.now(timezone.utc)
+        dt = datetime.now(UTC)
     elif isinstance(value, datetime):
         dt = value
     elif isinstance(value, date):
-        dt = datetime.combine(value, datetime.min.time(), tzinfo=timezone.utc)
+        dt = datetime.combine(value, datetime.min.time(), tzinfo=UTC)
     elif isinstance(value, str):
         cleaned = value.strip()
         if not cleaned:
-            dt = datetime.now(timezone.utc)
+            dt = datetime.now(UTC)
         elif len(cleaned) == 8 and cleaned.isdigit():
             return cleaned
         else:
@@ -43,8 +43,8 @@ def to_pncp_window(value: Any) -> str:
         return str(value)
 
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     else:
-        dt = dt.astimezone(timezone.utc)
+        dt = dt.astimezone(UTC)
 
     return dt.strftime("%Y%m%d")

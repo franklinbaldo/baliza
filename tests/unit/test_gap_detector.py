@@ -1,10 +1,8 @@
 """Unit tests for GapDetector."""
 
-from datetime import datetime, timedelta, timezone, date
+from datetime import UTC, date, datetime, timedelta
 
-import pytest
-
-from baliza.state import StateManager, GapDetector, Window
+from baliza.state import GapDetector, StateManager, Window
 
 
 def test_gap_detector_finds_missing_windows(tmp_path):
@@ -13,8 +11,8 @@ def test_gap_detector_finds_missing_windows(tmp_path):
     manager = StateManager(db_path)
     detector = GapDetector(manager)
 
-    start = datetime(2024, 1, 1, tzinfo=timezone.utc)
-    end = datetime(2024, 1, 3, tzinfo=timezone.utc)
+    start = datetime(2024, 1, 1, tzinfo=UTC)
+    end = datetime(2024, 1, 3, tzinfo=UTC)
 
     gaps = detector.find_gaps("contratos", start, end, lookback_days=0)
 
@@ -43,8 +41,8 @@ def test_gap_detector_respects_completed_windows(tmp_path):
     detector = GapDetector(manager)
     gaps = detector.find_gaps(
         "contratos",
-        datetime(2024, 1, 1, tzinfo=timezone.utc),
-        datetime(2024, 1, 3, tzinfo=timezone.utc),
+        datetime(2024, 1, 1, tzinfo=UTC),
+        datetime(2024, 1, 3, tzinfo=UTC),
         lookback_days=0,
     )
 
@@ -78,8 +76,8 @@ def test_gap_detector_prioritizes_incomplete_windows(tmp_path):
     detector = GapDetector(manager)
     gaps = detector.find_gaps(
         "contratos",
-        datetime(2024, 1, 1, tzinfo=timezone.utc),
-        datetime(2024, 1, 3, tzinfo=timezone.utc),
+        datetime(2024, 1, 1, tzinfo=UTC),
+        datetime(2024, 1, 3, tzinfo=UTC),
         lookback_days=0,
     )
 
@@ -111,7 +109,7 @@ def test_gap_detector_handles_lookback(tmp_path):
 
     # Create a successful run completed 10 days ago
     run_id = manager.start_run("contratos")
-    ten_days_ago = datetime.now(timezone.utc) - timedelta(days=10)
+    ten_days_ago = datetime.now(UTC) - timedelta(days=10)
 
     # Mark one window as complete (10 days ago)
     periodo = manager.tracker.period_label(ten_days_ago, ten_days_ago + timedelta(days=1))
@@ -128,7 +126,7 @@ def test_gap_detector_handles_lookback(tmp_path):
 
     # Request only today, but with 3-day lookback from last run
     # This should extend back to 13 days ago (10 days + 3 day lookback)
-    today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
+    today = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
     gaps = detector.find_gaps(
         "contratos",
         today,
@@ -312,8 +310,8 @@ def test_gap_detector_excludes_suspect_when_requested(tmp_path):
     # Find gaps without suspect windows
     gaps = detector.find_gaps(
         "contratos",
-        datetime(2024, 1, 1, tzinfo=timezone.utc),
-        datetime(2024, 1, 2, tzinfo=timezone.utc),
+        datetime(2024, 1, 1, tzinfo=UTC),
+        datetime(2024, 1, 2, tzinfo=UTC),
         lookback_days=0,
         include_suspect=False,
     )
@@ -333,7 +331,7 @@ def test_gap_detector_with_empty_range(tmp_path):
     detector = GapDetector(manager)
 
     # Same start and end date
-    start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    start = datetime(2024, 1, 1, tzinfo=UTC)
     gaps = detector.find_gaps("contratos", start, start, lookback_days=0)
 
     # Should have exactly 1 window (the single day)

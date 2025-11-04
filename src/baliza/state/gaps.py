@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from typing import List, Tuple, Optional
+from datetime import UTC, datetime, timedelta
 
 from .manager import StateManager
 
@@ -43,7 +42,7 @@ class GapDetector:
         *,
         lookback_days: int = 0,
         include_suspect: bool = True,
-    ) -> List[Window]:
+    ) -> list[Window]:
         """
         Find all windows that need extraction within a date range.
 
@@ -83,7 +82,7 @@ class GapDetector:
         # Generate all possible daily windows in range
         all_windows = self._generate_daily_windows(start_date, end_date)
 
-        gaps: List[Window] = []
+        gaps: list[Window] = []
 
         for window_start, window_end in all_windows:
             periodo = self.tracker.period_label(window_start, window_end)
@@ -132,7 +131,7 @@ class GapDetector:
             elif status_entry["status"] == "ok":
                 # Check if within lookback period (re-extract recent data)
                 if lookback_days > 0:
-                    now = self._normalize_date(datetime.now(timezone.utc))
+                    now = self._normalize_date(datetime.now(UTC))
                     lookback_threshold = now - timedelta(days=lookback_days)
                     if window_start >= lookback_threshold:
                         gaps.append(
@@ -150,8 +149,8 @@ class GapDetector:
         return gaps
 
     def merge_adjacent_windows(
-        self, windows: List[Window], max_merge_days: int = 7
-    ) -> List[Window]:
+        self, windows: list[Window], max_merge_days: int = 7
+    ) -> list[Window]:
         """
         Merge adjacent windows to reduce the number of API requests.
 
@@ -171,7 +170,7 @@ class GapDetector:
         if not windows:
             return []
 
-        merged: List[Window] = []
+        merged: list[Window] = []
         current = windows[0]
 
         for next_window in windows[1:]:
@@ -203,7 +202,7 @@ class GapDetector:
         merged.append(current)
         return merged
 
-    def count_gaps_by_reason(self, gaps: List[Window]) -> dict[str, int]:
+    def count_gaps_by_reason(self, gaps: list[Window]) -> dict[str, int]:
         """
         Count windows grouped by reason.
 
@@ -234,13 +233,11 @@ class GapDetector:
             Naive datetime at 00:00:00
         """
         if dt.tzinfo is not None:
-            dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+            dt = dt.astimezone(UTC).replace(tzinfo=None)
         return dt.replace(hour=0, minute=0, second=0, microsecond=0)
 
     @staticmethod
-    def _generate_daily_windows(
-        start: datetime, end: datetime
-    ) -> List[Tuple[datetime, datetime]]:
+    def _generate_daily_windows(start: datetime, end: datetime) -> list[tuple[datetime, datetime]]:
         """
         Generate daily windows between start and end dates (inclusive).
 
@@ -251,7 +248,7 @@ class GapDetector:
         Returns:
             List of (window_start, window_end) tuples representing 24-hour periods
         """
-        windows: List[Tuple[datetime, datetime]] = []
+        windows: list[tuple[datetime, datetime]] = []
         current = start.replace(hour=0, minute=0, second=0, microsecond=0)
         end_normalized = end.replace(hour=0, minute=0, second=0, microsecond=0)
 

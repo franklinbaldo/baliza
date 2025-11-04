@@ -11,7 +11,6 @@ from typer.testing import CliRunner
 from baliza import cli
 from baliza.state import CoverageTracker
 
-
 runner = CliRunner()
 
 

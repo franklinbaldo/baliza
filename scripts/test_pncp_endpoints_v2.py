@@ -12,19 +12,11 @@ def test_run_pncp_uses_duckdb(tmp_path: Path) -> None:
     fake_pipeline.run.return_value = fake_run
 
     with (
-        patch(
-            "baliza.pipelines.pncp.dlt.pipeline", return_value=fake_pipeline
-        ) as pipeline_mock,
-        patch(
-            "baliza.pipelines.pncp.dlt.destinations.duckdb", return_value="duck"
-        ) as duckdb_mock,
-        patch(
-            "baliza.pipelines.pncp.pncp_source", return_value="source"
-        ) as source_mock,
+        patch("baliza.pipelines.pncp.dlt.pipeline", return_value=fake_pipeline) as pipeline_mock,
+        patch("baliza.pipelines.pncp.dlt.destinations.duckdb", return_value="duck") as duckdb_mock,
+        patch("baliza.pipelines.pncp.pncp_source", return_value="source") as source_mock,
     ):
-        pipeline, run_info = pncp.run_pncp(
-            duckdb_path=tmp_path / "db.duckdb", dataset="test"
-        )
+        pipeline, run_info = pncp.run_pncp(duckdb_path=tmp_path / "db.duckdb", dataset="test")
 
     duckdb_mock.assert_called_once_with(str(tmp_path / "db.duckdb"))
     pipeline_mock.assert_called_once_with(

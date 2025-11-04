@@ -6,9 +6,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-from datetime import datetime, timezone
+from collections.abc import Iterable
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Iterable, List, Tuple
 
 import duckdb
 
@@ -18,14 +18,14 @@ def _format_datetime(value: object) -> str | None:
         return None
     if isinstance(value, datetime):
         if value.tzinfo is None:
-            value = value.replace(tzinfo=timezone.utc)
+            value = value.replace(tzinfo=UTC)
         return value.isoformat()
     if hasattr(value, "isoformat"):
         return value.isoformat()  # type: ignore[return-value]
     return str(value)
 
 
-def _detect_date_columns(con: duckdb.DuckDBPyConnection, glob: str) -> List[str]:
+def _detect_date_columns(con: duckdb.DuckDBPyConnection, glob: str) -> list[str]:
     description = con.execute(
         "DESCRIBE SELECT * FROM read_parquet(?);",
         [glob],
@@ -33,9 +33,7 @@ def _detect_date_columns(con: duckdb.DuckDBPyConnection, glob: str) -> List[str]
     columns = {row[0]: row[1] for row in description}
 
     preferred = [
-        column
-        for column in ("dataPublicacaoPncp", "dataAtualizacao")
-        if column in columns
+        column for column in ("dataPublicacaoPncp", "dataAtualizacao") if column in columns
     ]
     if preferred:
         return preferred
@@ -57,7 +55,7 @@ def _compute_sha256(files: Iterable[Path]) -> str:
     return digest.hexdigest()
 
 
-def _validate_directory(path: Path) -> Tuple[Path, List[Path]]:
+def _validate_directory(path: Path) -> tuple[Path, list[Path]]:
     if not path.exists():
         raise FileNotFoundError(f"Parquet directory not found: {path}")
     if not path.is_dir():
@@ -99,7 +97,7 @@ def build_manifest(parquet_dir: Path, dataset_version: str) -> Path:
 
     manifest = {
         "dataset_version": dataset_version,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "row_count": int(row_count),
         "min_data": min_data,
         "max_data": max_data,

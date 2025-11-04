@@ -1,11 +1,8 @@
 """Unit tests for StateManager."""
 
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
+from datetime import datetime
 
-import pytest
-
-from baliza.state import StateManager, ExtractionRun
+from baliza.state import StateManager
 
 
 def test_state_manager_initialization(tmp_path):
@@ -18,7 +15,7 @@ def test_state_manager_initialization(tmp_path):
     assert manager.tracker is not None
 
     # Verify table was created
-    result = manager.tracker.conn.execute("""
+    manager.tracker.conn.execute("""
         SELECT name FROM sqlite_master
         WHERE type='table' AND name='extraction_runs'
     """).fetchone()
@@ -260,11 +257,14 @@ def test_extraction_run_asdict(tmp_path):
     manager = StateManager(db_path)
 
     run_id = manager.start_run("contratos")
-    manager.complete_run(run_id, {
-        "windows_completed": 3,
-        "pages_fetched": 45,
-        "rows_extracted": 22500,
-    })
+    manager.complete_run(
+        run_id,
+        {
+            "windows_completed": 3,
+            "pages_fetched": 45,
+            "rows_extracted": 22500,
+        },
+    )
 
     run = manager.get_run(run_id)
     assert run is not None

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import timezone
+from datetime import UTC
 from pathlib import Path
 from unittest.mock import ANY, MagicMock, patch
 
@@ -8,7 +8,6 @@ from typer.testing import CliRunner
 
 from baliza import cli
 from baliza.pipelines import pncp
-
 
 runner = CliRunner()
 
@@ -53,15 +52,9 @@ def test_run_pncp_uses_duckdb_destination(tmp_path: Path) -> None:
     fake_pipeline.run.return_value = fake_run
 
     with (
-        patch(
-            "baliza.pipelines.pncp.dlt.pipeline", return_value=fake_pipeline
-        ) as pipeline_mock,
-        patch(
-            "baliza.pipelines.pncp.dlt.destinations.duckdb", return_value="duck"
-        ) as duckdb_mock,
-        patch(
-            "baliza.pipelines.pncp.pncp_source", return_value="source"
-        ) as source_mock,
+        patch("baliza.pipelines.pncp.dlt.pipeline", return_value=fake_pipeline) as pipeline_mock,
+        patch("baliza.pipelines.pncp.dlt.destinations.duckdb", return_value="duck") as duckdb_mock,
+        patch("baliza.pipelines.pncp.pncp_source", return_value="source") as source_mock,
     ):
         pipeline, run = pncp.run_pncp(
             duckdb_path=tmp_path / "baliza.duckdb",
@@ -93,13 +86,9 @@ def test_run_pncp_uses_duckdb_destination(tmp_path: Path) -> None:
 def test_cli_extract_emits_json(monkeypatch) -> None:
     run_info = MagicMock()
     run_info.asdict.return_value = {"rows": 10}
-    monkeypatch.setattr(
-        cli, "run_pncp", MagicMock(return_value=(MagicMock(), run_info))
-    )
+    monkeypatch.setattr(cli, "run_pncp", MagicMock(return_value=(MagicMock(), run_info)))
 
-    result = runner.invoke(
-        cli.app, ["extract", "--dataset", "cli_demo", "--lookback-days", "2"]
-    )
+    result = runner.invoke(cli.app, ["extract", "--dataset", "cli_demo", "--lookback-days", "2"])
 
     assert result.exit_code == 0
     assert '"rows": 10' in result.stdout
@@ -123,5 +112,5 @@ def test_cli_backfill_invokes_pipeline_per_month(monkeypatch) -> None:
     first_call = calls[0]
     assert first_call["pipeline_name"] == pncp.BACKFILL_PIPELINE_NAME
     assert first_call["range_start"].month == 1
-    assert first_call["range_start"].tzinfo == timezone.utc
+    assert first_call["range_start"].tzinfo == UTC
     assert "2024-03" in result.stdout

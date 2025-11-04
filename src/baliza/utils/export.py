@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import shutil
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
-import shutil
-from typing import Iterable, Optional, Sequence
 
 import duckdb
 
@@ -21,8 +21,8 @@ class ExportMetadata:
     rows_exported: int
     partitions: list[dict[str, int]]
     partition_count: int
-    start_date: Optional[str]
-    end_date: Optional[str]
+    start_date: str | None
+    end_date: str | None
 
     def asdict(self) -> dict[str, object]:
         return {
@@ -39,7 +39,7 @@ class ExportMetadata:
         }
 
 
-def _normalize_date(value: Optional[date | datetime | str]) -> Optional[str]:
+def _normalize_date(value: date | datetime | str | None) -> str | None:
     if value is None:
         return None
     if isinstance(value, datetime):
@@ -51,8 +51,8 @@ def _normalize_date(value: Optional[date | datetime | str]) -> Optional[str]:
 
 def _build_where_clause(
     column_identifier: str,
-    start_date: Optional[str],
-    end_date: Optional[str],
+    start_date: str | None,
+    end_date: str | None,
 ) -> tuple[str, list[str]]:
     conditions: list[str] = []
     params: list[str] = []
@@ -146,9 +146,9 @@ def export_parquet(
     table: str,
     out_dir: Path | str,
     date_col: str,
-    fallback_date_cols: Optional[Sequence[str]] = None,
-    start_date: Optional[date | datetime | str] = None,
-    end_date: Optional[date | datetime | str] = None,
+    fallback_date_cols: Sequence[str] | None = None,
+    start_date: date | datetime | str | None = None,
+    end_date: date | datetime | str | None = None,
 ) -> ExportMetadata:
     """Export a DuckDB table to a partitioned Parquet dataset."""
 
