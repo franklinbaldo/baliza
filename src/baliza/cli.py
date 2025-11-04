@@ -33,7 +33,7 @@ from .pipelines.pncp import (
     run_pncp,
 )
 
-from .state import CoverageTracker
+from .state import CoverageTracker, StateManager, GapDetector
 
 
 from .utils import export_parquet
@@ -202,19 +202,201 @@ def extract(
         "--lookback-days",
         "-l",
         min=0,
-        help="Number of days to subtract from the last cursor when building the request window.",
+        help="Number of days to look back from last successful run (for incremental extraction).",
+    ),
+    start_date: Optional[str] = typer.Option(
+        None,
+        "--start-date",
+        help="Start date for extraction range (YYYY-MM-DD). If not specified, uses intelligent gap detection.",
+    ),
+    end_date: Optional[str] = typer.Option(
+        None,
+        "--end-date",
+        help="End date for extraction range (YYYY-MM-DD). If not specified, uses today.",
+    ),
+    resource: str = typer.Option(
+        "contratos",
+        "--resource",
+        "-r",
+        help="Resource name to extract (must match configuration)",
+    ),
+    auto_resume: bool = typer.Option(
+        True,
+        "--auto-resume/--no-resume",
+        help="Automatically resume from incomplete windows",
+    ),
+    merge_windows: bool = typer.Option(
+        True,
+        "--merge-windows/--no-merge",
+        help="Merge adjacent windows to reduce API calls",
+    ),
+    max_merge_days: int = typer.Option(
+        7,
+        "--max-merge-days",
+        min=1,
+        help="Maximum number of days to merge into a single window",
     ),
 ) -> None:
-    """Run the PNCP extraction pipeline once using dlt."""
+    """
+    Run the PNCP extraction pipeline with intelligent gap detection and resumability.
+
+    This command automatically identifies which time windows need extraction by:
+    1. Checking for incomplete windows from previous failed runs (highest priority)
+    2. Looking for suspect windows with data quality issues
+    3. Finding never-processed windows
+    4. Re-extracting recent data within the lookback period
+
+    The extraction is fully resumable - if interrupted, re-run the same command
+    and it will continue from where it left off.
+    """
     config_path = _resolve_config_path(config)
-    _, run_info = run_pncp(
-        config_path=config_path,
-        dataset=dataset,
-        duckdb_path=duckdb,
-        lookback_days=lookback_days,
-        pipeline_name=DEFAULT_PIPELINE_NAME,
-    )
-    typer.echo(json.dumps(run_info.asdict(), indent=2, default=str))
+
+    # Initialize state management
+    state_manager = StateManager(duckdb, dataset=dataset)
+    gap_detector = GapDetector(state_manager)
+
+    try:
+        # Determine date range
+        if start_date:
+            start_dt = datetime.fromisoformat(start_date).replace(tzinfo=timezone.utc)
+        else:
+            # Use intelligent default: last successful run or 30 days ago
+            last_run = state_manager.get_last_successful_run(resource)
+            if last_run and last_run.completed_at:
+                # Start from completion time of last run
+                start_dt = last_run.completed_at.replace(tzinfo=timezone.utc)
+            else:
+                # First run - go back 30 days
+                start_dt = datetime.now(timezone.utc) - timedelta(days=30)
+
+        end_dt = (
+            datetime.fromisoformat(end_date).replace(tzinfo=timezone.utc)
+            if end_date
+            else datetime.now(timezone.utc)
+        )
+
+        # Analyze coverage
+        typer.echo(
+            f"Analyzing coverage from {start_dt.date()} to {end_dt.date()} "
+            f"(lookback: {lookback_days} days)..."
+        )
+
+        gaps = gap_detector.find_gaps(
+            resource=resource,
+            start_date=start_dt,
+            end_date=end_dt,
+            lookback_days=lookback_days,
+            include_suspect=True,
+        )
+
+        if not gaps:
+            typer.secho(
+                "✓ No gaps found. All windows are up to date.", fg=typer.colors.GREEN
+            )
+            return
+
+        # Check for incomplete runs
+        incomplete = [g for g in gaps if g.reason == "incomplete"]
+        if incomplete and auto_resume:
+            typer.echo(
+                f"Found {len(incomplete)} incomplete window(s) from previous run. Resuming..."
+            )
+
+        # Optionally merge adjacent windows
+        if merge_windows:
+            original_count = len(gaps)
+            gaps = gap_detector.merge_adjacent_windows(gaps, max_merge_days=max_merge_days)
+            if len(gaps) < original_count:
+                typer.echo(
+                    f"Merged {original_count} windows into {len(gaps)} to reduce API calls."
+                )
+
+        # Show summary
+        counts = gap_detector.count_gaps_by_reason(gaps)
+        typer.echo(f"\nProcessing {len(gaps)} window(s):")
+        for reason, count in counts.items():
+            typer.echo(f"  • {count} {reason}")
+
+        # Show first few windows
+        for i, gap in enumerate(gaps[:5], 1):
+            typer.echo(
+                f"  [{i}] {gap.start.date()} to {gap.end.date()} - {gap.reason}"
+            )
+        if len(gaps) > 5:
+            typer.echo(f"  ... and {len(gaps) - 5} more")
+
+        # Start extraction run
+        run_id = state_manager.start_run(resource)
+        typer.echo(f"\nStarted extraction run: {run_id}\n")
+
+        results = []
+        windows_completed = 0
+
+        try:
+            for i, window in enumerate(gaps, 1):
+                typer.echo(
+                    f"[{i}/{len(gaps)}] Processing {window.start.date()} to {window.end.date()} ({window.reason})..."
+                )
+
+                # Run extraction for this window
+                _, run_info = run_pncp(
+                    config_path=config_path,
+                    dataset=dataset,
+                    duckdb_path=duckdb,
+                    lookback_days=0,  # Don't apply lookback per-window
+                    range_start=window.start,
+                    range_end=window.end,
+                    pipeline_name=DEFAULT_PIPELINE_NAME,
+                )
+
+                windows_completed += 1
+
+                # Update run progress
+                state_manager.update_run_progress(
+                    run_id,
+                    windows_attempted=i,
+                    windows_completed=windows_completed,
+                )
+
+                results.append(
+                    {
+                        "window": f"{window.start.date()} to {window.end.date()}",
+                        "reason": window.reason,
+                        "status": "completed",
+                    }
+                )
+
+                # Mark window as complete
+                periodo = state_manager.tracker.period_label(window.start, window.end)
+                state_manager.tracker.mark_window_status(resource, periodo, "ok")
+
+                typer.secho(f"  ✓ Completed", fg=typer.colors.GREEN)
+
+            # Complete the run
+            state_manager.complete_run(run_id, {"windows_completed": windows_completed})
+
+            typer.secho(
+                f"\n✓ Extraction completed successfully!", fg=typer.colors.GREEN
+            )
+            typer.echo(
+                json.dumps(
+                    {"run_id": run_id, "windows": results}, indent=2, default=str
+                )
+            )
+
+        except Exception as e:
+            # Fail the run but preserve state
+            state_manager.fail_run(run_id, str(e))
+            typer.secho(f"\n✗ Extraction failed: {e}", fg=typer.colors.RED, err=True)
+            typer.echo(f"\nRun ID: {run_id} (marked as failed)")
+            typer.echo(
+                f"Completed {windows_completed}/{len(gaps)} windows before failure."
+            )
+            typer.echo("Incomplete windows will be resumed on next run.")
+            raise typer.Exit(code=1)
+
+    finally:
+        state_manager.close()
 
 
 @app.command("backfill")
@@ -670,6 +852,156 @@ def export(
             if archive_dir and archive_dir.exists():
                 shutil.rmtree(archive_dir)
                 typer.echo("Temporary archive directory cleaned.")
+
+
+# State management command group
+state_app = typer.Typer(help="Manage and inspect extraction state")
+app.add_typer(state_app, name="state")
+
+
+@state_app.command("show")
+def state_show(
+    resource: str = typer.Option(..., "--resource", "-r", help="Resource name"),
+    duckdb: Path = typer.Option(
+        Path("baliza.duckdb"), "--duckdb", "-d", help="Path to the DuckDB database file"
+    ),
+    dataset: str = typer.Option(
+        "baliza_raw", "--dataset", "-s", help="Dataset name inside DuckDB"
+    ),
+) -> None:
+    """Show extraction state summary for a resource."""
+    manager = StateManager(duckdb, dataset=dataset)
+
+    try:
+        statuses = manager.tracker.fetch_window_statuses(resource)
+
+        counts = {"ok": 0, "incompleto": 0, "suspeito": 0, "nao_processado": 0}
+        for status_entry in statuses:
+            status = status_entry.get("status", "unknown")
+            counts[status] = counts.get(status, 0) + 1
+
+        last_run = manager.get_last_successful_run(resource)
+
+        typer.echo(f"State Summary for '{resource}':")
+        typer.echo(f"  Complete windows:     {counts['ok']:>5}")
+        typer.echo(f"  Incomplete windows:   {counts['incompleto']:>5}")
+        typer.echo(f"  Suspect windows:      {counts['suspeito']:>5}")
+        typer.echo(f"  Unprocessed windows:  {counts['nao_processado']:>5}")
+        typer.echo(f"  Total windows:        {len(statuses):>5}")
+
+        if last_run:
+            typer.echo(f"\nLast successful run:")
+            typer.echo(f"  Run ID:          {last_run.run_id}")
+            typer.echo(f"  Completed at:    {last_run.completed_at}")
+            typer.echo(f"  Windows:         {last_run.windows_completed}")
+            typer.echo(f"  Rows extracted:  {last_run.rows_extracted:,}")
+    finally:
+        manager.close()
+
+
+@state_app.command("gaps")
+def state_gaps(
+    resource: str = typer.Option(..., "--resource", "-r", help="Resource name"),
+    start_date: str = typer.Option(..., "--start", help="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = typer.Option(
+        None, "--end", help="End date (YYYY-MM-DD), defaults to today"
+    ),
+    duckdb: Path = typer.Option(
+        Path("baliza.duckdb"), "--duckdb", "-d", help="Path to the DuckDB database file"
+    ),
+    dataset: str = typer.Option(
+        "baliza_raw", "--dataset", "-s", help="Dataset name inside DuckDB"
+    ),
+    lookback_days: int = typer.Option(
+        0, "--lookback-days", "-l", min=0, help="Lookback days to include"
+    ),
+) -> None:
+    """List gaps in extraction coverage."""
+    manager = StateManager(duckdb, dataset=dataset)
+    detector = GapDetector(manager)
+
+    try:
+        start_dt = datetime.fromisoformat(start_date).replace(tzinfo=timezone.utc)
+        end_dt = (
+            datetime.fromisoformat(end_date).replace(tzinfo=timezone.utc)
+            if end_date
+            else datetime.now(timezone.utc)
+        )
+
+        gaps = detector.find_gaps(
+            resource, start_dt, end_dt, lookback_days=lookback_days
+        )
+
+        if not gaps:
+            typer.secho("✓ No gaps found!", fg=typer.colors.GREEN)
+            return
+
+        counts = detector.count_gaps_by_reason(gaps)
+        typer.echo(f"Found {len(gaps)} gap(s):")
+        for reason, count in counts.items():
+            typer.echo(f"  • {count} {reason}")
+
+        typer.echo("\nDetails:")
+        for gap in gaps:
+            color = {
+                "incomplete": typer.colors.YELLOW,
+                "suspect": typer.colors.RED,
+                "missing": typer.colors.BLUE,
+                "unprocessed": typer.colors.CYAN,
+                "lookback": typer.colors.MAGENTA,
+            }.get(gap.reason, typer.colors.WHITE)
+
+            typer.secho(
+                f"  {gap.start.date()} to {gap.end.date()} - {gap.reason}", fg=color
+            )
+    finally:
+        manager.close()
+
+
+@state_app.command("history")
+def state_history(
+    resource: str = typer.Option(..., "--resource", "-r", help="Resource name"),
+    limit: int = typer.Option(10, "--limit", "-n", min=1, help="Number of runs to show"),
+    duckdb: Path = typer.Option(
+        Path("baliza.duckdb"), "--duckdb", "-d", help="Path to the DuckDB database file"
+    ),
+    dataset: str = typer.Option(
+        "baliza_raw", "--dataset", "-s", help="Dataset name inside DuckDB"
+    ),
+) -> None:
+    """Show extraction run history for a resource."""
+    manager = StateManager(duckdb, dataset=dataset)
+
+    try:
+        history = manager.get_run_history(resource, limit=limit)
+
+        if not history:
+            typer.echo(f"No runs found for resource '{resource}'")
+            return
+
+        typer.echo(f"Run history for '{resource}' (last {len(history)} runs):\n")
+
+        for run in history:
+            status_color = {
+                "completed": typer.colors.GREEN,
+                "failed": typer.colors.RED,
+                "running": typer.colors.YELLOW,
+            }.get(run.status, typer.colors.WHITE)
+
+            typer.secho(f"Run ID: {run.run_id}", fg=typer.colors.BRIGHT_WHITE, bold=True)
+            typer.echo(f"  Status:    {run.status}", color=status_color)
+            typer.echo(f"  Started:   {run.started_at}")
+            if run.completed_at:
+                typer.echo(f"  Completed: {run.completed_at}")
+                duration = run.completed_at - run.started_at
+                typer.echo(f"  Duration:  {duration}")
+            typer.echo(f"  Windows:   {run.windows_completed}")
+            typer.echo(f"  Rows:      {run.rows_extracted:,}")
+            if run.error_message:
+                typer.secho(f"  Error:     {run.error_message}", fg=typer.colors.RED)
+            typer.echo()
+    finally:
+        manager.close()
 
 
 if __name__ == "__main__":
