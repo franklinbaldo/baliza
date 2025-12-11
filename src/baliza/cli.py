@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 import json
-
-from datetime import date, datetime, timedelta, timezone
-
-from pathlib import Path
+import os
+import shutil
+from collections.abc import Callable, Iterable
 from contextlib import AbstractContextManager
-from typing import Any, Callable, Dict, Iterable, Optional, Protocol, Tuple
+from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
+from typing import Any, Protocol
 
 import duckdb
-import shutil
 
 try:  # pragma: no cover - optional dependency
     import httpx
@@ -32,10 +32,7 @@ from .pipelines.pncp import (
     load_pncp_config,
     run_pncp,
 )
-
-from .state import CoverageTracker, StateManager, GapDetector
-
-
+from .state import CoverageTracker, GapDetector, StateManager
 from .utils import export_parquet
 from .utils.dates import to_pncp_window
 
@@ -43,7 +40,7 @@ app = typer.Typer(help="Declarative PNCP pipeline runner")
 
 
 class _HttpClient(Protocol):
-    def get(self, url: str, params: Optional[Dict[str, Any]] = None) -> Any:  # pragma: no cover - protocol definition
+    def get(self, url: str, params: dict[str, Any] | None = None) -> Any:  # pragma: no cover - protocol definition
         ...
 
 
@@ -66,17 +63,17 @@ class _FallbackResponse:
 
 
 class _FallbackClient(AbstractContextManager["_FallbackClient"]):
-    def __init__(self, *, headers: Optional[Dict[str, str]] = None, timeout: int = 30) -> None:
+    def __init__(self, *, headers: dict[str, str] | None = None, timeout: int = 30) -> None:
         self.headers = headers or {}
         self.timeout = timeout
 
-    def __enter__(self) -> "_FallbackClient":
+    def __enter__(self) -> _FallbackClient:
         return self
 
     def __exit__(self, exc_type, exc, exc_tb) -> None:  # pragma: no cover - no cleanup needed
         return None
 
-    def get(self, url: str, params: Optional[Dict[str, Any]] = None) -> _FallbackResponse:
+    def get(self, url: str, params: dict[str, Any] | None = None) -> _FallbackResponse:
         from urllib import parse, request
 
         query = parse.urlencode(params or {}, doseq=True)
@@ -92,7 +89,7 @@ class _FallbackClient(AbstractContextManager["_FallbackClient"]):
 
 
 def _default_http_client_factory(
-    *, headers: Optional[Dict[str, str]] = None, timeout: int = 30
+    *, headers: dict[str, str] | None = None, timeout: int = 30
 ) -> AbstractContextManager[_HttpClient]:
     if httpx is not None:
         return httpx.Client(headers=headers or None, timeout=timeout)
@@ -111,7 +108,7 @@ def reset_http_client_factory() -> None:
     set_http_client_factory(_default_http_client_factory)
 
 
-def _resolve_config_path(config: Optional[Path]) -> Path:
+def _resolve_config_path(config: Path | None) -> Path:
     if config is None:
         return default_config_path()
     return config
@@ -119,18 +116,18 @@ def _resolve_config_path(config: Optional[Path]) -> Path:
 
 def _month_windows(
     start_month: str, end_month: str
-) -> Iterable[Tuple[datetime, datetime]]:
+) -> Iterable[tuple[datetime, datetime]]:
     """Generate inclusive month windows between two YYYY-MM strings."""
 
     try:
         start = datetime.strptime(start_month, "%Y-%m").replace(
-            tzinfo=timezone.utc, day=1
+            tzinfo=UTC, day=1
         )
     except ValueError as exc:  # pragma: no cover - handled by Typer
         raise typer.BadParameter("start_month must follow YYYY-MM format") from exc
 
     try:
-        end = datetime.strptime(end_month, "%Y-%m").replace(tzinfo=timezone.utc, day=1)
+        end = datetime.strptime(end_month, "%Y-%m").replace(tzinfo=UTC, day=1)
     except ValueError as exc:  # pragma: no cover - handled by Typer
         raise typer.BadParameter("end_month must follow YYYY-MM format") from exc
 
@@ -147,7 +144,7 @@ def _month_windows(
         current = next_month
 
 
-def _parse_day(value: Optional[str], param_name: str) -> Optional[datetime]:
+def _parse_day(value: str | None, param_name: str) -> datetime | None:
     if value is None:
         return None
     try:
@@ -156,17 +153,17 @@ def _parse_day(value: Optional[str], param_name: str) -> Optional[datetime]:
         raise typer.BadParameter(f"{param_name} must follow YYYY-MM-DD format") from exc
 
 
-def _pncp_date_param(value: Optional[datetime]) -> Optional[str]:
+def _pncp_date_param(value: datetime | None) -> str | None:
     if value is None:
         return None
     return to_pncp_window(value)
 
 
-def _filter_dict_none(values: Dict[str, Any]) -> Dict[str, Any]:
+def _filter_dict_none(values: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in values.items() if v is not None}
 
 
-def _parse_optional_date(value: Optional[str], *, option_name: str) -> Optional[date]:
+def _parse_optional_date(value: str | None, *, option_name: str) -> date | None:
     if value is None:
         return None
     try:
@@ -179,7 +176,7 @@ def _parse_optional_date(value: Optional[str], *, option_name: str) -> Optional[
 
 @app.command("extract")
 def extract(
-    config: Optional[Path] = typer.Option(
+    config: Path | None = typer.Option(
         None,
         "--config",
         "-c",
@@ -204,12 +201,12 @@ def extract(
         min=0,
         help="Number of days to look back from last successful run (for incremental extraction).",
     ),
-    start_date: Optional[str] = typer.Option(
+    start_date: str | None = typer.Option(
         None,
         "--start-date",
         help="Start date for extraction range (YYYY-MM-DD). If not specified, uses intelligent gap detection.",
     ),
-    end_date: Optional[str] = typer.Option(
+    end_date: str | None = typer.Option(
         None,
         "--end-date",
         help="End date for extraction range (YYYY-MM-DD). If not specified, uses today.",
@@ -258,21 +255,21 @@ def extract(
     try:
         # Determine date range
         if start_date:
-            start_dt = datetime.fromisoformat(start_date).replace(tzinfo=timezone.utc)
+            start_dt = datetime.fromisoformat(start_date).replace(tzinfo=UTC)
         else:
             # Use intelligent default: last successful run or 30 days ago
             last_run = state_manager.get_last_successful_run(resource)
             if last_run and last_run.completed_at:
                 # Start from completion time of last run
-                start_dt = last_run.completed_at.replace(tzinfo=timezone.utc)
+                start_dt = last_run.completed_at.replace(tzinfo=UTC)
             else:
                 # First run - go back 30 days
-                start_dt = datetime.now(timezone.utc) - timedelta(days=30)
+                start_dt = datetime.now(UTC) - timedelta(days=30)
 
         end_dt = (
-            datetime.fromisoformat(end_date).replace(tzinfo=timezone.utc)
+            datetime.fromisoformat(end_date).replace(tzinfo=UTC)
             if end_date
-            else datetime.now(timezone.utc)
+            else datetime.now(UTC)
         )
 
         # Analyze coverage
@@ -370,13 +367,13 @@ def extract(
                 periodo = state_manager.tracker.period_label(window.start, window.end)
                 state_manager.tracker.mark_window_status(resource, periodo, "ok")
 
-                typer.secho(f"  ✓ Completed", fg=typer.colors.GREEN)
+                typer.secho("  ✓ Completed", fg=typer.colors.GREEN)
 
             # Complete the run
             state_manager.complete_run(run_id, {"windows_completed": windows_completed})
 
             typer.secho(
-                f"\n✓ Extraction completed successfully!", fg=typer.colors.GREEN
+                "\n✓ Extraction completed successfully!", fg=typer.colors.GREEN
             )
             typer.echo(
                 json.dumps(
@@ -403,7 +400,7 @@ def extract(
 def backfill(
     start_month: str,
     end_month: str,
-    config: Optional[Path] = typer.Option(
+    config: Path | None = typer.Option(
         None,
         "--config",
         "-c",
@@ -454,17 +451,17 @@ def verify(
     resource: str = typer.Option(
         ..., "--resource", "-r", help="Resource name declared in the PNCP configuration"
     ),
-    desde: Optional[str] = typer.Option(
+    desde: str | None = typer.Option(
         None,
         "--desde",
         help="Optional start date filter (YYYY-MM-DD) for window evaluation",
     ),
-    ate: Optional[str] = typer.Option(
+    ate: str | None = typer.Option(
         None,
         "--ate",
         help="Optional end date filter (YYYY-MM-DD, inclusive) for window evaluation",
     ),
-    config: Optional[Path] = typer.Option(
+    config: Path | None = typer.Option(
         None,
         "--config",
         "-c",
@@ -535,8 +532,8 @@ def verify(
         status_map = {
             row["periodo"]: row for row in tracker.fetch_window_statuses(resource)
         }
-        pending_pages: Dict[str, list[int]] = {}
-        hash_alerts: list[Dict[str, Any]] = []
+        pending_pages: dict[str, list[int]] = {}
+        hash_alerts: list[dict[str, Any]] = []
 
         with _HTTP_CLIENT_FACTORY(headers=headers or None, timeout=timeout) as client:
             if endpoint_path.startswith("http"):
@@ -556,7 +553,7 @@ def verify(
 
                 response = client.get(endpoint_url, params=params)
                 if response.status_code == 204:
-                    payload: Dict[str, Any] = {"data": [], "totalPaginas": 0}
+                    payload: dict[str, Any] = {"data": [], "totalPaginas": 0}
                 else:
                     response.raise_for_status()
                     payload = response.json()
@@ -578,16 +575,15 @@ def verify(
                 if faltantes:
                     motivo = f"paginas faltantes: {faltantes}"
                     tracker.mark_window_status(resource, periodo, "incompleto", motivo)
+                elif (
+                    existing_status
+                    and existing_status.get("status") == "suspeito"
+                    and not sequencia
+                ):
+                    # Preserve previous suspicion when sequence audits are disabled
+                    pass
                 else:
-                    if (
-                        existing_status
-                        and existing_status.get("status") == "suspeito"
-                        and not sequencia
-                    ):
-                        # Preserve previous suspicion when sequence audits are disabled
-                        pass
-                    else:
-                        tracker.mark_window_status(resource, periodo, "ok")
+                    tracker.mark_window_status(resource, periodo, "ok")
 
                 if sequencia and atual_total > 0:
                     sample_page = min(atual_total, max(1, atual_total // 2))
@@ -597,7 +593,7 @@ def verify(
                         sample_params["pagina"] = sample_page
                         sample_response = client.get(endpoint_url, params=sample_params)
                         if sample_response.status_code == 204:
-                            sample_payload: Dict[str, Any] = {"data": []}
+                            sample_payload: dict[str, Any] = {"data": []}
                         else:
                             sample_response.raise_for_status()
                             sample_payload = sample_response.json()
@@ -716,34 +712,34 @@ def export(
         "--fallback-date-col",
         help="Additional candidate date columns if --date-col is missing",
     ),
-    start_date: Optional[str] = typer.Option(
+    start_date: str | None = typer.Option(
         None,
         "--start-date",
         help="Lower bound (inclusive) for the date filter (YYYY-MM-DD)",
     ),
-    end_date: Optional[str] = typer.Option(
+    end_date: str | None = typer.Option(
         None,
         "--end-date",
         help="Upper bound (inclusive) for the date filter (YYYY-MM-DD)",
     ),
-    ia_identifier: Optional[str] = typer.Option(
+    ia_identifier: str | None = typer.Option(
         None,
         "--ia-identifier",
         help="Identifier for the Internet Archive upload (e.g., baliza-contratos-2024-07)",
     ),
-    ia_access_key: Optional[str] = typer.Option(
+    ia_access_key: str | None = typer.Option(
         None,
         "--ia-access-key",
         envvar="IA_ACCESS_KEY",
         help="Internet Archive access key (or IA_ACCESS_KEY env var)",
     ),
-    ia_secret_key: Optional[str] = typer.Option(
+    ia_secret_key: str | None = typer.Option(
         None,
         "--ia-secret-key",
         envvar="IA_SECRET_KEY",
         help="Internet Archive secret key (or IA_SECRET_KEY env var)",
     ),
-    ia_metadata_path: Optional[Path] = typer.Option(
+    ia_metadata_path: Path | None = typer.Option(
         Path("internet-archive-summary.json"),
         "--ia-metadata-path",
         help="Path to save Internet Archive upload metadata",
@@ -784,6 +780,15 @@ def export(
         raise typer.Exit(code=1)
 
     if ia_identifier and ia_access_key and ia_secret_key:
+        # Validate ia_identifier to prevent path traversal
+        if os.path.sep in ia_identifier or (os.path.altsep and os.path.altsep in ia_identifier):
+            typer.secho(
+                "Error: ia_identifier cannot contain path separators.",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            raise typer.Exit(code=1)
+
         if get_session is None:  # pragma: no cover - optional dependency guard
             typer.secho(
                 "InternetArchive library not found. Cannot upload to IA.",
@@ -800,10 +805,10 @@ def export(
             f"\nUploading '{metadata.output_dir}/...' to Internet Archive (Identifier: {ia_identifier})..."
         )
 
-        archive_dir: Optional[Path] = None
+        archive_dir: Path | None = None
         try:
             session = get_session(access_key=ia_access_key, secret_key=ia_secret_key)
-            ia_metadata: Dict[str, Any] = {
+            ia_metadata: dict[str, Any] = {
                 "title": f"Baliza {metadata.table} Dataset - {ia_identifier}",
                 "description": (
                     "Publicly available procurement data extracted by Baliza. "
@@ -890,7 +895,7 @@ def state_show(
         typer.echo(f"  Total windows:        {len(statuses):>5}")
 
         if last_run:
-            typer.echo(f"\nLast successful run:")
+            typer.echo("\nLast successful run:")
             typer.echo(f"  Run ID:          {last_run.run_id}")
             typer.echo(f"  Completed at:    {last_run.completed_at}")
             typer.echo(f"  Windows:         {last_run.windows_completed}")
@@ -903,7 +908,7 @@ def state_show(
 def state_gaps(
     resource: str = typer.Option(..., "--resource", "-r", help="Resource name"),
     start_date: str = typer.Option(..., "--start", help="Start date (YYYY-MM-DD)"),
-    end_date: Optional[str] = typer.Option(
+    end_date: str | None = typer.Option(
         None, "--end", help="End date (YYYY-MM-DD), defaults to today"
     ),
     duckdb: Path = typer.Option(
@@ -921,11 +926,11 @@ def state_gaps(
     detector = GapDetector(manager)
 
     try:
-        start_dt = datetime.fromisoformat(start_date).replace(tzinfo=timezone.utc)
+        start_dt = datetime.fromisoformat(start_date).replace(tzinfo=UTC)
         end_dt = (
-            datetime.fromisoformat(end_date).replace(tzinfo=timezone.utc)
+            datetime.fromisoformat(end_date).replace(tzinfo=UTC)
             if end_date
-            else datetime.now(timezone.utc)
+            else datetime.now(UTC)
         )
 
         gaps = detector.find_gaps(

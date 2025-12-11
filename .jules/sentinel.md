@@ -1,0 +1,4 @@
+## 2024-05-23 - Path Traversal in File Export
+**Vulnerability:** The `baliza export` command allowed arbitrary file path traversal via the `--ia-identifier` argument. This identifier was directly used to construct an output path (`ia_archive_{identifier}`), allowing attackers to traverse directories (e.g., `hack/../../target`) and potentially overwrite or delete files outside the intended directory during cleanup.
+**Learning:** When command-line arguments are used to construct file system paths, they must be rigorously validated to ensure they do not contain path separators or parent directory references (`..`), even if the argument seems like a simple "identifier".
+**Prevention:** Always validate user-provided identifiers that are used in file paths. Use `os.path.sep` checks or dedicated path sanitization libraries to ensure the input remains within the expected directory.
