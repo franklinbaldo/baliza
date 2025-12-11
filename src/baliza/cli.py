@@ -39,6 +39,13 @@ from .state import CoverageTracker, StateManager, GapDetector
 from .utils import export_parquet
 from .utils.dates import to_pncp_window
 
+# Rich imports for improved CLI UX
+from rich.console import Console
+from rich.table import Table
+from rich import box
+
+console = Console()
+
 app = typer.Typer(help="Declarative PNCP pipeline runner")
 
 
@@ -882,19 +889,30 @@ def state_show(
 
         last_run = manager.get_last_successful_run(resource)
 
-        typer.echo(f"State Summary for '{resource}':")
-        typer.echo(f"  Complete windows:     {counts['ok']:>5}")
-        typer.echo(f"  Incomplete windows:   {counts['incompleto']:>5}")
-        typer.echo(f"  Suspect windows:      {counts['suspeito']:>5}")
-        typer.echo(f"  Unprocessed windows:  {counts['nao_processado']:>5}")
-        typer.echo(f"  Total windows:        {len(statuses):>5}")
+        table = Table(title=f"State Summary for '{resource}'", box=box.ROUNDED)
+        table.add_column("Status", style="bold")
+        table.add_column("Count", justify="right")
+
+        table.add_row("[green]Complete windows[/green]", str(counts["ok"]))
+        table.add_row("[yellow]Incomplete windows[/yellow]", str(counts["incompleto"]))
+        table.add_row("[red]Suspect windows[/red]", str(counts["suspeito"]))
+        table.add_row("[cyan]Unprocessed windows[/cyan]", str(counts["nao_processado"]))
+        table.add_row("Total windows", str(len(statuses)), style="bold")
+
+        console.print(table)
 
         if last_run:
-            typer.echo(f"\nLast successful run:")
-            typer.echo(f"  Run ID:          {last_run.run_id}")
-            typer.echo(f"  Completed at:    {last_run.completed_at}")
-            typer.echo(f"  Windows:         {last_run.windows_completed}")
-            typer.echo(f"  Rows extracted:  {last_run.rows_extracted:,}")
+            console.print("\n[bold]Last successful run:[/bold]")
+            last_run_table = Table(box=box.SIMPLE, show_header=False)
+            last_run_table.add_column("Field", style="dim")
+            last_run_table.add_column("Value")
+
+            last_run_table.add_row("Run ID", last_run.run_id)
+            last_run_table.add_row("Completed at", str(last_run.completed_at))
+            last_run_table.add_row("Windows", str(last_run.windows_completed))
+            last_run_table.add_row("Rows extracted", f"{last_run.rows_extracted:,}")
+            console.print(last_run_table)
+
     finally:
         manager.close()
 
@@ -942,18 +960,28 @@ def state_gaps(
             typer.echo(f"  • {count} {reason}")
 
         typer.echo("\nDetails:")
-        for gap in gaps:
-            color = {
-                "incomplete": typer.colors.YELLOW,
-                "suspect": typer.colors.RED,
-                "missing": typer.colors.BLUE,
-                "unprocessed": typer.colors.CYAN,
-                "lookback": typer.colors.MAGENTA,
-            }.get(gap.reason, typer.colors.WHITE)
 
-            typer.secho(
-                f"  {gap.start.date()} to {gap.end.date()} - {gap.reason}", fg=color
+        table = Table(title="Coverage Gaps", box=box.ROUNDED)
+        table.add_column("Start Date", style="cyan")
+        table.add_column("End Date", style="cyan")
+        table.add_column("Reason", style="bold")
+
+        for gap in gaps:
+            color_tag = {
+                "incomplete": "yellow",
+                "suspect": "red",
+                "missing": "blue",
+                "unprocessed": "cyan",
+                "lookback": "magenta",
+            }.get(gap.reason, "white")
+
+            table.add_row(
+                str(gap.start.date()),
+                str(gap.end.date()),
+                f"[{color_tag}]{gap.reason}[/{color_tag}]"
             )
+
+        console.print(table)
     finally:
         manager.close()
 
@@ -979,27 +1007,42 @@ def state_history(
             typer.echo(f"No runs found for resource '{resource}'")
             return
 
-        typer.echo(f"Run history for '{resource}' (last {len(history)} runs):\n")
+        table = Table(
+            title=f"Run history for '{resource}' (last {len(history)} runs)", box=box.ROUNDED
+        )
+
+        table.add_column("Run ID", style="cyan", no_wrap=True)
+        table.add_column("Status", style="bold")
+        table.add_column("Started", style="dim")
+        table.add_column("Duration")
+        table.add_column("Windows", justify="right")
+        table.add_column("Rows", justify="right")
+        table.add_column("Error", style="red")
 
         for run in history:
-            status_color = {
-                "completed": typer.colors.GREEN,
-                "failed": typer.colors.RED,
-                "running": typer.colors.YELLOW,
-            }.get(run.status, typer.colors.WHITE)
+            status_style = {
+                "completed": "green",
+                "failed": "red",
+                "running": "yellow",
+            }.get(run.status, "white")
 
-            typer.secho(f"Run ID: {run.run_id}", fg=typer.colors.BRIGHT_WHITE, bold=True)
-            typer.echo(f"  Status:    {run.status}", color=status_color)
-            typer.echo(f"  Started:   {run.started_at}")
+            duration = "-"
             if run.completed_at:
-                typer.echo(f"  Completed: {run.completed_at}")
-                duration = run.completed_at - run.started_at
-                typer.echo(f"  Duration:  {duration}")
-            typer.echo(f"  Windows:   {run.windows_completed}")
-            typer.echo(f"  Rows:      {run.rows_extracted:,}")
-            if run.error_message:
-                typer.secho(f"  Error:     {run.error_message}", fg=typer.colors.RED)
-            typer.echo()
+                duration = str(run.completed_at - run.started_at)
+            elif run.status == "running":
+                duration = f"Running for {datetime.now(timezone.utc) - run.started_at}"
+
+            table.add_row(
+                run.run_id,
+                f"[{status_style}]{run.status}[/{status_style}]",
+                run.started_at.strftime("%Y-%m-%d %H:%M"),
+                duration,
+                str(run.windows_completed),
+                f"{run.rows_extracted:,}",
+                run.error_message or "-",
+            )
+
+        console.print(table)
     finally:
         manager.close()
 
