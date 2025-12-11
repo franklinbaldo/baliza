@@ -141,7 +141,12 @@ class CoverageTracker:
         janela_fim_dt = _to_naive_utc(janela_fim)
         fetched_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
-        registros_list = list(registros)
+        # Optimization: Avoid copying list if it is already a list (typical case in dlt pipelines)
+        if isinstance(registros, list):
+            registros_list = registros
+        else:
+            registros_list = list(registros)
+
         n_registros = len(registros_list)
         hash_ids = self.hash_registros(registros_list)
 
@@ -239,10 +244,11 @@ class CoverageTracker:
         algorithm: Optional[str] = None,
         include_algorithm: bool = True,
     ) -> Optional[str]:
+        # Optimization: Use walrus operator to avoid double lookup in dict
         ids = [
-            str(item["numeroControlePNCP"])
+            str(val)
             for item in registros
-            if isinstance(item, dict) and item.get("numeroControlePNCP")
+            if isinstance(item, dict) and (val := item.get("numeroControlePNCP"))
         ]
         if not ids:
             return None
