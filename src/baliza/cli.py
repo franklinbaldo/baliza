@@ -783,6 +783,18 @@ def export(
         )
         raise typer.Exit(code=1)
 
+    if ia_identifier:
+        # Security validation to prevent path traversal
+        import re
+
+        if not re.match(r"^[a-zA-Z0-9_\-]+$", ia_identifier):
+            typer.secho(
+                "Invalid value for --ia-identifier. Only alphanumeric characters, dashes, and underscores are allowed.",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            raise typer.Exit(code=1)
+
     if ia_identifier and ia_access_key and ia_secret_key:
         if get_session is None:  # pragma: no cover - optional dependency guard
             typer.secho(
