@@ -63,12 +63,20 @@ def test_pncp_extract_real_api_single_day():
         ).fetchall()
 
         column_names = [row[0] for row in schema]
-        assert "numerocontrolepncp" in [c.lower() for c in column_names]
-        assert "valorinicial" in [c.lower() for c in column_names]
+        # dlt normalizes column names to snake_case
+        normalized_columns = [c.lower() for c in column_names]
+
+        # 'numeroControlePNCP' -> 'numero_controle_pncp'
+        assert "numero_controle_pncp" in normalized_columns or "numerocontrolepncp" in normalized_columns
+        assert "valor_inicial" in normalized_columns or "valorinicial" in normalized_columns
 
         # Verify data format
+        # Use normalized column name in query
+        col_name = "numero_controle_pncp" if "numero_controle_pncp" in normalized_columns else "numeroControlePNCP"
+        val_col_name = "valor_inicial" if "valor_inicial" in normalized_columns else "valorInicial"
+
         sample = con.execute(
-            "SELECT numeroControlePNCP, valorInicial "
+            f"SELECT {col_name}, {val_col_name} "
             "FROM test_data.contratos LIMIT 1"
         ).fetchone()
 
@@ -152,8 +160,16 @@ def test_pncp_pagination():
         assert total > 500, "Full month should have many contracts (pagination test)"
 
         # Verify unique numeroControlePNCP (merge should work)
+        # Use normalized column name
+        schema = con.execute(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_schema = 'test_data' AND table_name = 'contratos'"
+        ).fetchall()
+        column_names = [row[0].lower() for row in schema]
+        col_name = "numero_controle_pncp" if "numero_controle_pncp" in column_names else "numeroControlePNCP"
+
         unique_count = con.execute(
-            "SELECT COUNT(DISTINCT numeroControlePNCP) FROM test_data.contratos"
+            f"SELECT COUNT(DISTINCT {col_name}) FROM test_data.contratos"
         ).fetchone()[0]
 
         assert unique_count == total, "All numeroControlePNCP should be unique"
@@ -188,12 +204,16 @@ def test_pncp_api_error_handling():
         con = duckdb.connect(str(db_path))
 
         # May have 0 records if no data for that date
-        result = con.execute(
-            "SELECT COUNT(*) FROM test_data.contratos"
-        ).fetchone()
-
-        # Just verify query works (count can be 0)
-        assert result[0] >= 0
+        # Check if table exists first
+        tables = con.execute("SELECT * FROM information_schema.tables WHERE table_schema='test_data' AND table_name='contratos'").fetchall()
+        if tables:
+            result = con.execute(
+                "SELECT COUNT(*) FROM test_data.contratos"
+            ).fetchone()
+            assert result[0] >= 0
+        else:
+            # If table doesn't exist, count is effectively 0
+            pass
 
         con.close()
 

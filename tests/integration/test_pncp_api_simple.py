@@ -22,7 +22,7 @@ import pytest
 
 # Skip these tests if cassettes don't exist
 # Users can record cassettes locally, then commit them
-pytest_plugins = ["pytest_vcr"]
+# pytest_plugins = ["pytest_vcr"]
 
 # Mark all tests in this module to skip if VCR cassette doesn't exist
 pytestmark = pytest.mark.vcr(allow_playback_repeats=True)

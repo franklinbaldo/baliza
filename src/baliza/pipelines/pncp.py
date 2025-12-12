@@ -112,10 +112,19 @@ def _apply_incremental_overrides(
                 incremental["lag"] = lookback_days * SECONDS_PER_DAY
 
         if range_start is not None:
-            incremental["initial_value"] = range_start
+            # Ensure initial_value is inclusive by appending time if missing
+            # This helps dlt include records from the start day
+            if isinstance(range_start, str) and len(range_start) == 10 and "T" not in range_start:
+                 incremental["initial_value"] = f"{range_start}T00:00:00Z"
+            else:
+                 incremental["initial_value"] = range_start
 
         if range_end is not None:
-            incremental["end_value"] = range_end
+            # Ensure end_value covers the full day
+            if isinstance(range_end, str) and len(range_end) == 10 and "T" not in range_end:
+                 incremental["end_value"] = f"{range_end}T23:59:59Z"
+            else:
+                 incremental["end_value"] = range_end
         elif range_start is not None:
             incremental.pop("end_value", None)
 
@@ -171,8 +180,8 @@ def _extract_pagina(payload: Dict[str, Any], params: Dict[str, Any]) -> int:
 
 
 def _attach_coverage_tracker(source: DltSource, tracker: CoverageTracker) -> None:
-    for resource in source.resources:
-        resource_obj = cast(DltResource, resource)
+    for resource_name in source.resources:
+        resource_obj = source.resources[resource_name]
 
         if resource_obj._pipe.has_parent:
             continue
