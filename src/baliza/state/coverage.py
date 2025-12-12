@@ -102,6 +102,12 @@ class CoverageTracker:
             )
             """
         )
+        self.conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_cobertura_lookup
+            ON baliza_state.cobertura (recurso, pagina, janela_inicio, janela_fim)
+            """
+        )
 
     def close(self) -> None:
         """Flush changes and close the DuckDB connection."""
