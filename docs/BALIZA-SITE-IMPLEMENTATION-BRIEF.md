@@ -675,9 +675,23 @@ export default function HomePage() {
         // Initialize DuckDB
         await initDuckDB();
 
-        // TODO: Discover available Parquet files
-        // For now, hardcode example path
-        const files = ['/data/contratos/ano=2024/mes=10/data.parquet'];
+        // Discover available Parquet files
+        const manifestRes = await fetch('/data/manifest.json');
+        if (!manifestRes.ok) throw new Error('Failed to load data manifest');
+
+        const manifestFiles: string[] = await manifestRes.json();
+
+        if (manifestFiles.length === 0) {
+          throw new Error('No data files found');
+        }
+
+        // Ensure files have absolute path for DuckDB
+        const files = manifestFiles.map((f) => {
+          // Remove 'public/' prefix if present and ensure leading slash
+          const cleanPath = f.replace(/^public\//, '');
+          return cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
+        });
+
         await loadParquetFiles(files);
 
         // Load statistics
@@ -876,11 +890,13 @@ jobs:
       - name: Generate file manifest
         run: |
           # Create manifest.json with list of all parquet files
-          find public/data/contratos -name "*.parquet" -type f | \
-            jq -R -s -c 'split("\n") | map(select(length > 0))' > public/data/manifest.json
+          # Change to public directory so paths are relative to web root
+          cd public
+          find data/contratos -name "*.parquet" -type f | \
+            jq -R -s -c 'split("\n") | map(select(length > 0))' > data/manifest.json
 
           echo "Manifest created:"
-          cat public/data/manifest.json
+          cat data/manifest.json
 
       - name: Commit and push changes
         run: |
