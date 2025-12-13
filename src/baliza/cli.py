@@ -79,6 +79,9 @@ class _FallbackClient(AbstractContextManager["_FallbackClient"]):
     def get(self, url: str, params: Optional[Dict[str, Any]] = None) -> _FallbackResponse:
         from urllib import parse, request
 
+        if not url.startswith(("http://", "https://")):
+            raise ValueError("URL scheme must be http or https")
+
         query = parse.urlencode(params or {}, doseq=True)
         full_url = f"{url}?{query}" if query else url
         req = request.Request(full_url, headers=self.headers)
