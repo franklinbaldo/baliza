@@ -339,9 +339,24 @@ class CoverageTracker:
             if item.get(key):
                 return str(item[key])
         for key in ("dataPublicacaoPncp", "dataPublicacao"):
-            if not item.get(key):
+            val = item.get(key)
+            if not val:
                 continue
-            text = str(item[key])
+            text = str(val).strip()
+
+            # Optimization: fast path for common ISO date formats "YYYY-MM-DD" and "YYYY"
+            # This avoids datetime parsing overhead for naive dates while falling back to
+            # full parsing for timestamps with time/timezone info to ensure correctness.
+            if len(text) == 4 and text.isdigit():
+                return text
+            if (
+                len(text) == 10
+                and text[4] == "-"
+                and text[7] == "-"
+                and text[:4].isdigit()
+            ):
+                return text[:4]
+
             try:
                 dt = _to_naive_utc(text)
             except Exception:  # pragma: no cover - defensive
