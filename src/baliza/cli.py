@@ -23,6 +23,7 @@ except ModuleNotFoundError:  # pragma: no cover - fallback path
 
 
 import typer
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn
 
 from .pipelines.pncp import (
     BACKFILL_PIPELINE_NAME,
@@ -336,44 +337,58 @@ def extract(
         windows_completed = 0
 
         try:
-            for i, window in enumerate(gaps, 1):
-                typer.echo(
-                    f"[{i}/{len(gaps)}] Processing {window.start.date()} to {window.end.date()} ({window.reason})..."
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                TaskProgressColumn(),
+                TimeElapsedColumn(),
+                transient=False,
+            ) as progress:
+
+                task_id = progress.add_task(
+                    description=f"Processing {len(gaps)} windows...",
+                    total=len(gaps)
                 )
 
-                # Run extraction for this window
-                _, run_info = run_pncp(
-                    config_path=config_path,
-                    dataset=dataset,
-                    duckdb_path=duckdb,
-                    lookback_days=0,  # Don't apply lookback per-window
-                    range_start=window.start,
-                    range_end=window.end,
-                    pipeline_name=DEFAULT_PIPELINE_NAME,
-                )
+                for i, window in enumerate(gaps, 1):
+                    progress.update(task_id, description=f"Processing {window.start.date()} to {window.end.date()} ({window.reason})")
 
-                windows_completed += 1
+                    # Run extraction for this window
+                    _, run_info = run_pncp(
+                        config_path=config_path,
+                        dataset=dataset,
+                        duckdb_path=duckdb,
+                        lookback_days=0,  # Don't apply lookback per-window
+                        range_start=window.start,
+                        range_end=window.end,
+                        pipeline_name=DEFAULT_PIPELINE_NAME,
+                    )
 
-                # Update run progress
-                state_manager.update_run_progress(
-                    run_id,
-                    windows_attempted=i,
-                    windows_completed=windows_completed,
-                )
+                    windows_completed += 1
 
-                results.append(
-                    {
-                        "window": f"{window.start.date()} to {window.end.date()}",
-                        "reason": window.reason,
-                        "status": "completed",
-                    }
-                )
+                    # Update run progress
+                    state_manager.update_run_progress(
+                        run_id,
+                        windows_attempted=i,
+                        windows_completed=windows_completed,
+                    )
 
-                # Mark window as complete
-                periodo = state_manager.tracker.period_label(window.start, window.end)
-                state_manager.tracker.mark_window_status(resource, periodo, "ok")
+                    results.append(
+                        {
+                            "window": f"{window.start.date()} to {window.end.date()}",
+                            "reason": window.reason,
+                            "status": "completed",
+                        }
+                    )
 
-                typer.secho(f"  ✓ Completed", fg=typer.colors.GREEN)
+                    # Mark window as complete
+                    periodo = state_manager.tracker.period_label(window.start, window.end)
+                    state_manager.tracker.mark_window_status(resource, periodo, "ok")
+
+                    progress.console.print(f"  [green]✓[/green] Completed {window.start.date()} to {window.end.date()}")
+
+                    progress.advance(task_id)
 
             # Complete the run
             state_manager.complete_run(run_id, {"windows_completed": windows_completed})
@@ -774,7 +789,7 @@ def export(
         )
     except (duckdb.Error, ValueError) as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1) from exc
+        raise typer.Exit(code=1)
 
     typer.echo(json.dumps(metadata.asdict(), indent=2, default=str))
 

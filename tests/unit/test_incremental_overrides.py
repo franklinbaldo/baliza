@@ -53,8 +53,8 @@ def test_apply_incremental_overrides_sets_range_bounds(base_config: dict) -> Non
         range_end="2024-01-31",
     )
     incremental = adjusted["resources"][0]["endpoint"]["incremental"]
-    assert incremental["initial_value"] == "2024-01-01"
-    assert incremental["end_value"] == "2024-01-31"
+    assert incremental["initial_value"] == "2024-01-01T00:00:00Z"
+    assert incremental["end_value"] == "2024-01-31T23:59:59Z"
 
 
 def test_apply_incremental_overrides_clears_end_value_when_not_provided(
@@ -62,7 +62,7 @@ def test_apply_incremental_overrides_clears_end_value_when_not_provided(
 ) -> None:
     adjusted = pncp._apply_incremental_overrides(base_config, range_start="2024-01-01")
     incremental = adjusted["resources"][0]["endpoint"]["incremental"]
-    assert incremental["initial_value"] == "2024-01-01"
+    assert incremental["initial_value"] == "2024-01-01T00:00:00Z"
     assert "end_value" not in incremental
 
 
