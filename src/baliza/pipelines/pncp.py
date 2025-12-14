@@ -3,11 +3,10 @@ from __future__ import annotations
 from copy import deepcopy
 from importlib import import_module
 from pathlib import Path
-from typing import Any, Dict, Optional, Union, cast
+from typing import Any, Union, cast
 
 import dlt
 import yaml  # type: ignore[import-untyped]
-from dlt.extract.resource import DltResource
 from dlt.pipeline import Pipeline
 from dlt.sources import DltSource
 from dlt.sources.rest_api import rest_api_source
@@ -29,6 +28,11 @@ def default_config_path() -> Path:
 
 def _import_from_string(dotted_path: str) -> Any:
     """Import a dotted path as a Python object."""
+    if not dotted_path.startswith("baliza."):
+        raise ValueError(
+            f"Import path '{dotted_path}' is not allowed. Only 'baliza.*' modules are supported."
+        )
+
     module_path, _, attr = dotted_path.rpartition(".")
     if not module_path:
         raise ValueError(f"Invalid import path '{dotted_path}'")
@@ -36,9 +40,7 @@ def _import_from_string(dotted_path: str) -> Any:
     try:
         return getattr(module, attr)
     except AttributeError as exc:  # pragma: no cover - defensive guard
-        raise ValueError(
-            f"Object '{attr}' not found in module '{module_path}'"
-        ) from exc
+        raise ValueError(f"Object '{attr}' not found in module '{module_path}'") from exc
 
 
 def _resolve_callable_entries(node: Any) -> None:
@@ -71,7 +73,7 @@ def _resolve_config_path(config_path: ConfigPath) -> Path:
     raise FileNotFoundError(f"Configuration file not found: {config_path}")
 
 
-def load_pncp_config(config_path: ConfigPath = None) -> Dict[str, Any]:
+def load_pncp_config(config_path: ConfigPath = None) -> dict[str, Any]:
     """Load and post-process the PNCP REST configuration."""
     path = _resolve_config_path(config_path)
     with path.open("r", encoding="utf-8") as fh:
@@ -81,21 +83,19 @@ def load_pncp_config(config_path: ConfigPath = None) -> Dict[str, Any]:
 
 
 def _apply_incremental_overrides(
-    config: Dict[str, Any],
+    config: dict[str, Any],
     *,
-    lookback_days: Optional[int] = None,
+    lookback_days: int | None = None,
     range_start: Any = None,
     range_end: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Apply runtime overrides for incremental configuration."""
 
     adjusted = deepcopy(config)
     resources = adjusted.get("resources", [])
     for resource in resources:
         endpoint = resource.get("endpoint") if isinstance(resource, dict) else None
-        incremental = (
-            endpoint.get("incremental") if isinstance(endpoint, dict) else None
-        )
+        incremental = endpoint.get("incremental") if isinstance(endpoint, dict) else None
         if not isinstance(incremental, dict):
             continue
 
@@ -115,23 +115,23 @@ def _apply_incremental_overrides(
             # Ensure initial_value is inclusive by appending time if missing
             # This helps dlt include records from the start day
             if isinstance(range_start, str) and len(range_start) == 10 and "T" not in range_start:
-                 incremental["initial_value"] = f"{range_start}T00:00:00Z"
+                incremental["initial_value"] = f"{range_start}T00:00:00Z"
             else:
-                 incremental["initial_value"] = range_start
+                incremental["initial_value"] = range_start
 
         if range_end is not None:
             # Ensure end_value covers the full day
             if isinstance(range_end, str) and len(range_end) == 10 and "T" not in range_end:
-                 incremental["end_value"] = f"{range_end}T23:59:59Z"
+                incremental["end_value"] = f"{range_end}T23:59:59Z"
             else:
-                 incremental["end_value"] = range_end
+                incremental["end_value"] = range_end
         elif range_start is not None:
             incremental.pop("end_value", None)
 
     return adjusted
 
 
-def _normalize_request_params(raw_params: Any) -> Dict[str, Any]:
+def _normalize_request_params(raw_params: Any) -> dict[str, Any]:
     if isinstance(raw_params, dict):
         return dict(raw_params)
     if isinstance(raw_params, list):
@@ -139,19 +139,13 @@ def _normalize_request_params(raw_params: Any) -> Dict[str, Any]:
     return {}
 
 
-def _extract_window_bounds(params: Dict[str, Any]) -> tuple[Any, Any]:
-    start = (
-        params.get("dataInicial")
-        or params.get("dataInicial[]")
-        or params.get("dataInicial1")
-    )
-    end = (
-        params.get("dataFinal") or params.get("dataFinal[]") or params.get("dataFinal1")
-    )
+def _extract_window_bounds(params: dict[str, Any]) -> tuple[Any, Any]:
+    start = params.get("dataInicial") or params.get("dataInicial[]") or params.get("dataInicial1")
+    end = params.get("dataFinal") or params.get("dataFinal[]") or params.get("dataFinal1")
     return start, end
 
 
-def _extract_total_paginas(payload: Dict[str, Any], fallback: int) -> int:
+def _extract_total_paginas(payload: dict[str, Any], fallback: int) -> int:
     for key in (
         "totalPaginas",
         "total_paginas",
@@ -166,7 +160,7 @@ def _extract_total_paginas(payload: Dict[str, Any], fallback: int) -> int:
     return fallback
 
 
-def _extract_pagina(payload: Dict[str, Any], params: Dict[str, Any]) -> int:
+def _extract_pagina(payload: dict[str, Any], params: dict[str, Any]) -> int:
     for key in ("paginaAtual", "numeroPagina", "pagina", "page"):
         if payload.get(key) is not None:
             try:
@@ -201,9 +195,7 @@ def _attach_coverage_tracker(source: DltSource, tracker: CoverageTracker) -> Non
                         payload = page.response.json()  # type: ignore[attr-defined]
                     except Exception:  # pragma: no cover - defensive
                         payload = {}
-                    params = _normalize_request_params(
-                        getattr(page.request, "params", {})
-                    )
+                    params = _normalize_request_params(getattr(page.request, "params", {}))
                     start, end = _extract_window_bounds(params)
                     pagina = _extract_pagina(payload, params)
                     try:
@@ -227,7 +219,7 @@ def _attach_coverage_tracker(source: DltSource, tracker: CoverageTracker) -> Non
 def pncp_source(
     config_path: ConfigPath = None,
     *,
-    lookback_days: Optional[int] = None,
+    lookback_days: int | None = None,
     range_start: Any = None,
     range_end: Any = None,
     tracker: CoverageTracker | None = None,
@@ -249,9 +241,9 @@ def pncp_source(
 def run_pncp(
     config_path: ConfigPath = None,
     dataset: str = "baliza_raw",
-    duckdb_path: Union[str, Path] = "baliza.duckdb",
+    duckdb_path: str | Path = "baliza.duckdb",
     *,
-    lookback_days: Optional[int] = None,
+    lookback_days: int | None = None,
     range_start: Any = None,
     range_end: Any = None,
     pipeline_name: str = DEFAULT_PIPELINE_NAME,
@@ -277,7 +269,7 @@ def run_pncp(
     return pipeline, run_info
 
 
-def _clamp_page_params(params: Dict[str, Any], *, limit: int = MAX_PAGE_SIZE) -> None:
+def _clamp_page_params(params: dict[str, Any], *, limit: int = MAX_PAGE_SIZE) -> None:
     if not isinstance(params, dict):
         return
 
