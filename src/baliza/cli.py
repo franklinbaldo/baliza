@@ -325,16 +325,34 @@ def extract(
         # Show summary
         counts = gap_detector.count_gaps_by_reason(gaps)
         typer.echo(f"\nProcessing {len(gaps)} window(s):")
-        for reason, count in counts.items():
-            typer.echo(f"  • {count} {reason}")
 
-        # Show first few windows
-        for i, gap in enumerate(gaps[:5], 1):
-            typer.echo(
-                f"  [{i}] {gap.start.date()} to {gap.end.date()} - {gap.reason}"
+        table = Table(title="Extraction Plan", box=box.ROUNDED)
+        table.add_column("Order", justify="right", style="dim")
+        table.add_column("Start Date", style="cyan")
+        table.add_column("End Date", style="cyan")
+        table.add_column("Reason", style="bold")
+
+        limit_rows = 10
+        for i, gap in enumerate(gaps[:limit_rows], 1):
+            color_tag = {
+                "incomplete": "yellow",
+                "suspect": "red",
+                "missing": "blue",
+                "unprocessed": "cyan",
+                "lookback": "magenta",
+            }.get(gap.reason, "white")
+
+            table.add_row(
+                str(i),
+                str(gap.start.date()),
+                str(gap.end.date()),
+                f"[{color_tag}]{gap.reason}[/{color_tag}]"
             )
-        if len(gaps) > 5:
-            typer.echo(f"  ... and {len(gaps) - 5} more")
+
+        console.print(table)
+
+        if len(gaps) > limit_rows:
+            typer.echo(f"... and {len(gaps) - limit_rows} more windows")
 
         # Start extraction run
         run_id = state_manager.start_run(resource)

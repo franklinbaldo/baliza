@@ -16,6 +16,7 @@ dependencies = [
     "httpx>=0.27.0",
     "xxhash>=3.4.1",
     "internetarchive>=4.1.0",
+    "rich>=13.0.0",
 ]
 
 [project.optional-dependencies]
