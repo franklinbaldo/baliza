@@ -11,7 +11,7 @@ import uuid
 from .coverage import CoverageTracker
 
 
-@dataclass
+@dataclass(slots=True)
 class ExtractionRun:
     """Metadata for a single extraction run."""
 

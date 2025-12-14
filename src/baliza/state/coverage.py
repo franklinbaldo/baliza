@@ -17,7 +17,7 @@ except ModuleNotFoundError:  # pragma: no cover - fallback path
     xxhash = None
 
 
-@dataclass
+@dataclass(slots=True)
 class WindowPage:
     """Metadata captured for a single page extraction."""
 

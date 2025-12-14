@@ -9,7 +9,7 @@ from typing import List, Tuple, Optional
 from .manager import StateManager
 
 
-@dataclass
+@dataclass(slots=True)
 class Window:
     """Represents a time window that needs extraction."""
 
