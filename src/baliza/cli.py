@@ -471,23 +471,41 @@ def backfill(
     windows = list(_month_windows(start_month, end_month))
     results = []
 
-    for window_start, window_end in windows:
-        _, run_info = run_pncp(
-            config_path=config_path,
-            dataset=dataset,
-            duckdb_path=duckdb,
-            lookback_days=0,
-            range_start=window_start,
-            range_end=window_end,
-            pipeline_name=BACKFILL_PIPELINE_NAME,
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        TimeElapsedColumn(),
+        transient=False,
+        console=Console(stderr=True),
+    ) as progress:
+        task_id = progress.add_task(
+            description=f"Backfilling {len(windows)} months...", total=len(windows)
         )
-        results.append(
-            {
-                "start": window_start.isoformat(),
-                "end": window_end.isoformat(),
-                "run": run_info.asdict(),
-            }
-        )
+
+        for window_start, window_end in windows:
+            progress.update(
+                task_id, description=f"Backfilling {window_start.strftime('%Y-%m')}..."
+            )
+
+            _, run_info = run_pncp(
+                config_path=config_path,
+                dataset=dataset,
+                duckdb_path=duckdb,
+                lookback_days=0,
+                range_start=window_start,
+                range_end=window_end,
+                pipeline_name=BACKFILL_PIPELINE_NAME,
+            )
+            results.append(
+                {
+                    "start": window_start.isoformat(),
+                    "end": window_end.isoformat(),
+                    "run": run_info.asdict(),
+                }
+            )
+            progress.advance(task_id)
 
     typer.echo(json.dumps({"windows": results}, indent=2, default=str))
 
