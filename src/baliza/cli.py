@@ -98,7 +98,9 @@ class _FallbackClient(AbstractContextManager["_FallbackClient"]):
                 status = int(response.getcode() or 0)
                 text = response.read().decode("utf-8")
         except Exception as exc:  # pragma: no cover - network not exercised in tests
-            raise RuntimeError(f"HTTP request to {full_url} failed: {exc}") from exc
+            # Security: Redact query parameters in error logs to prevent secret leakage
+            safe_url = parse.urlparse(full_url)._replace(query="").geturl()
+            raise RuntimeError(f"HTTP request to {safe_url} failed: {exc}") from exc
         return _FallbackResponse(status_code=status, text=text)
 
 
