@@ -98,11 +98,9 @@ class _FallbackClient(AbstractContextManager["_FallbackClient"]):
                 status = int(response.getcode() or 0)
                 text = response.read().decode("utf-8")
         except Exception as exc:  # pragma: no cover - network not exercised in tests
-            # Redact query parameters to avoid leaking sensitive information (e.g. API keys)
-            redacted_url = url
-            if query:
-                redacted_url = f"{url}?[REDACTED]"
-            raise RuntimeError(f"HTTP request to {redacted_url} failed: {exc}") from exc
+            # Security: Redact query parameters in error logs to prevent secret leakage
+            safe_url = parse.urlparse(full_url)._replace(query="").geturl()
+            raise RuntimeError(f"HTTP request to {safe_url} failed: {exc}") from exc
         return _FallbackResponse(status_code=status, text=text)
 
 
@@ -608,94 +606,120 @@ def verify(
                 endpoint_url = endpoint_path
             else:
                 endpoint_url = f"{base_url.rstrip('/')}{endpoint_path}"
-            for periodo, entry in coverage.items():
-                params = dict(default_params)
-                params["pagina"] = 1
-                inicio = entry.get("janela_inicio")
-                fim = entry.get("janela_fim")
-                if inicio:
-                    params["dataInicial"] = _pncp_date_param(inicio)
-                if fim:
-                    params["dataFinal"] = _pncp_date_param(fim)
-                params = _filter_dict_none(params)
 
-                response = client.get(endpoint_url, params=params)
-                if response.status_code == 204:
-                    payload: Dict[str, Any] = {"data": [], "totalPaginas": 0}
-                else:
-                    response.raise_for_status()
-                    payload = response.json()
-                recorded_pages = set(entry["recorded_pages"])
-                fallback_total = entry["max_total"] or (
-                    max(recorded_pages) if recorded_pages else 0
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                TaskProgressColumn(),
+                TimeElapsedColumn(),
+                console=Console(stderr=True),
+                transient=True,
+            ) as progress:
+                task_id = progress.add_task(
+                    description=f"Verifying {len(coverage)} windows...",
+                    total=len(coverage),
                 )
-                atual_total = _extract_total_paginas(payload, fallback_total)
-                atual_total = max(atual_total, entry["max_total"], fallback_total)
-                faltantes = [
-                    pagina
-                    for pagina in range(1, (atual_total or 0) + 1)
-                    if pagina not in recorded_pages
-                ]
-                if faltantes:
-                    pending_pages[periodo] = faltantes
-                existing_status = status_map.get(periodo)
 
-                if faltantes:
-                    motivo = f"paginas faltantes: {faltantes}"
-                    tracker.mark_window_status(resource, periodo, "incompleto", motivo)
-                else:
-                    if (
-                        existing_status
-                        and existing_status.get("status") == "suspeito"
-                        and not sequencia
-                    ):
-                        # Preserve previous suspicion when sequence audits are disabled
-                        pass
+                for periodo, entry in coverage.items():
+                    progress.update(
+                        task_id, description=f"Verifying {periodo}..."
+                    )
+                    params = dict(default_params)
+                    params["pagina"] = 1
+                    inicio = entry.get("janela_inicio")
+                    fim = entry.get("janela_fim")
+                    if inicio:
+                        params["dataInicial"] = _pncp_date_param(inicio)
+                    if fim:
+                        params["dataFinal"] = _pncp_date_param(fim)
+                    params = _filter_dict_none(params)
+
+                    response = client.get(endpoint_url, params=params)
+                    if response.status_code == 204:
+                        payload: Dict[str, Any] = {"data": [], "totalPaginas": 0}
                     else:
-                        tracker.mark_window_status(resource, periodo, "ok")
+                        response.raise_for_status()
+                        payload = response.json()
+                    recorded_pages = set(entry["recorded_pages"])
+                    fallback_total = entry["max_total"] or (
+                        max(recorded_pages) if recorded_pages else 0
+                    )
+                    atual_total = _extract_total_paginas(payload, fallback_total)
+                    atual_total = max(atual_total, entry["max_total"], fallback_total)
+                    faltantes = [
+                        pagina
+                        for pagina in range(1, (atual_total or 0) + 1)
+                        if pagina not in recorded_pages
+                    ]
+                    if faltantes:
+                        pending_pages[periodo] = faltantes
+                    existing_status = status_map.get(periodo)
 
-                if sequencia and atual_total > 0:
-                    sample_page = min(atual_total, max(1, atual_total // 2))
-                    stored_page = entry["pages"].get(sample_page)
-                    if stored_page and stored_page.hash_ids:
-                        sample_params = dict(params)
-                        sample_params["pagina"] = sample_page
-                        sample_response = client.get(endpoint_url, params=sample_params)
-                        if sample_response.status_code == 204:
-                            sample_payload: Dict[str, Any] = {"data": []}
-                        else:
-                            sample_response.raise_for_status()
-                            sample_payload = sample_response.json()
-                        registros = (
-                            sample_payload.get("data")
-                            or sample_payload.get("items")
-                            or sample_payload.get("results")
-                            or []
+                    if faltantes:
+                        motivo = f"paginas faltantes: {faltantes}"
+                        tracker.mark_window_status(
+                            resource, periodo, "incompleto", motivo
                         )
-                        try:
+                    else:
+                        if (
+                            existing_status
+                            and existing_status.get("status") == "suspeito"
+                            and not sequencia
+                        ):
+                            # Preserve previous suspicion when sequence audits are disabled
+                            pass
+                        else:
+                            tracker.mark_window_status(resource, periodo, "ok")
+
+                    if sequencia and atual_total > 0:
+                        sample_page = min(atual_total, max(1, atual_total // 2))
+                        stored_page = entry["pages"].get(sample_page)
+                        if stored_page and stored_page.hash_ids:
+                            sample_params = dict(params)
+                            sample_params["pagina"] = sample_page
+                            sample_response = client.get(
+                                endpoint_url, params=sample_params
+                            )
+                            if sample_response.status_code == 204:
+                                sample_payload: Dict[str, Any] = {"data": []}
+                            else:
+                                sample_response.raise_for_status()
+                                sample_payload = sample_response.json()
+                            registros = (
+                                sample_payload.get("data")
+                                or sample_payload.get("items")
+                                or sample_payload.get("results")
+                                or []
+                            )
                             try:
-                                algoritmo, stored_digest = CoverageTracker.parse_hash_value(
-                                    stored_page.hash_ids
+                                try:
+                                    algoritmo, stored_digest = (
+                                        CoverageTracker.parse_hash_value(
+                                            stored_page.hash_ids
+                                        )
+                                    )
+                                except ValueError:
+                                    algoritmo = None
+                                    stored_digest = stored_page.hash_ids
+                                sample_digest = tracker.hash_registros(
+                                    registros,
+                                    algorithm=algoritmo,
+                                    include_algorithm=algoritmo is None,
                                 )
-                            except ValueError:
-                                algoritmo = None
-                                stored_digest = stored_page.hash_ids
-                            sample_digest = tracker.hash_registros(
-                                registros,
-                                algorithm=algoritmo,
-                                include_algorithm=algoritmo is None,
-                            )
-                        except RuntimeError as exc:
-                            typer.echo(str(exc), err=True)
-                            raise typer.Exit(code=1) from exc
-                        if sample_digest and sample_digest != stored_digest:
-                            motivo = f"hash divergente na pagina {sample_page}"
-                            tracker.mark_window_status(
-                                resource, periodo, "suspeito", motivo
-                            )
-                            hash_alerts.append(
-                                {"periodo": periodo, "pagina": sample_page}
-                            )
+                            except RuntimeError as exc:
+                                typer.echo(str(exc), err=True)
+                                raise typer.Exit(code=1) from exc
+                            if sample_digest and sample_digest != stored_digest:
+                                motivo = f"hash divergente na pagina {sample_page}"
+                                tracker.mark_window_status(
+                                    resource, periodo, "suspeito", motivo
+                                )
+                                hash_alerts.append(
+                                    {"periodo": periodo, "pagina": sample_page}
+                                )
+
+                    progress.advance(task_id)
 
         candidatos = tracker.derive_window_candidates(
             table_name,
