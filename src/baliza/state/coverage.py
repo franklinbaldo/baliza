@@ -33,22 +33,26 @@ def _to_naive_utc(value: Optional[Any]) -> Optional[datetime]:
 
     if value is None:
         return None
-    if isinstance(value, datetime):
+
+    if isinstance(value, str):
+        # Optimization: Python 3.11+ handles 'Z' and ISO formats natively efficiently.
+        # Try parsing directly to avoid string copy (strip).
+        try:
+            dt = datetime.fromisoformat(value)
+        except ValueError:
+            dt = datetime.fromisoformat(value.strip())
+    elif isinstance(value, datetime):
         dt = value
     elif isinstance(value, (int, float)):
         dt = datetime.fromtimestamp(value, tz=timezone.utc)
     elif isinstance(value, date):
         dt = datetime.combine(value, datetime.min.time(), tzinfo=timezone.utc)
-    elif isinstance(value, str):
-        text = value.strip()
-        if text.endswith("Z"):
-            text = text[:-1] + "+00:00"
-        dt = datetime.fromisoformat(text)
     else:  # pragma: no cover - defensive, unexpected types
         raise TypeError(f"Unsupported timestamp value: {value!r}")
 
+    # Optimization: Avoid replace() copy if already naive
     if dt.tzinfo is None:
-        return dt.replace(tzinfo=None)
+        return dt
     return dt.astimezone(timezone.utc).replace(tzinfo=None)
 
 
