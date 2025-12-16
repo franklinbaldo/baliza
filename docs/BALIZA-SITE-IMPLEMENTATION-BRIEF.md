@@ -675,9 +675,11 @@ export default function HomePage() {
         // Initialize DuckDB
         await initDuckDB();
 
-        // Discover available Parquet files
+        // Discover available Parquet files via manifest.json (Dynamic Discovery)
         const manifestRes = await fetch('/data/manifest.json');
-        if (!manifestRes.ok) throw new Error('Failed to load data manifest');
+        if (!manifestRes.ok) {
+          throw new Error(`Failed to load data manifest: ${manifestRes.statusText}`);
+        }
 
         const manifestFiles: string[] = await manifestRes.json();
 
