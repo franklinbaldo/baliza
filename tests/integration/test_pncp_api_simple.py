@@ -25,7 +25,7 @@ import pytest
 # pytest_plugins = ["pytest_vcr"]
 
 # Mark all tests in this module to skip if VCR cassette doesn't exist
-pytestmark = pytest.mark.vcr(allow_playback_repeats=True)
+pytestmark = pytest.mark.vcr()
 
 
 # PNCP API headers matching Baliza configuration

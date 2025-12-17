@@ -1,0 +1,53 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Host:
+      - pncp.gov.br
+      User-Agent:
+      - baliza/0.1 integration-test
+    method: GET
+    uri: https://pncp.gov.br/api/consulta/v1/contratos?dataInicial=20241001&dataFinal=20241001&pagina=1&tamanhoPagina=1
+  response:
+    body:
+      string: "{\"message\":\"Tamanho de p\xE1gina inv\xE1lido\",\"path\":\"/pncp-consulta/v1/contratos\",\"timestamp\":\"2025-12-17T12:14:13.697-03:00\",\"status\":\"400\",\"error\":\"Bad
+        Request\"}"
+    headers:
+      access-control-allow-credentials:
+      - 'true'
+      access-control-allow-headers:
+      - Content-Type,Authorization,X-Requested-With,Content-Length,Accept,Origin,
+      access-control-allow-methods:
+      - GET,PUT,POST,DELETE,OPTIONS
+      access-control-allow-origin:
+      - '*'
+      cache-control:
+      - no-cache, no-store, max-age=0, must-revalidate
+      content-type:
+      - application/json
+      date:
+      - Wed, 17 Dec 2025 15:14:13 GMT
+      expires:
+      - '0'
+      pragma:
+      - no-cache
+      strict-transport-security:
+      - max-age=15768000
+      transfer-encoding:
+      - chunked
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - DENY
+      x-xss-protection:
+      - 1; mode=block
+    status:
+      code: 400
+      message: ''
+version: 1

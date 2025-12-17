@@ -76,6 +76,10 @@ class CoverageTracker:
         self.conn = duckdb.connect(str(self.database_path))
         self._ensure_tables()
 
+        self._pending_pages: List[Tuple[Any, ...]] = []
+        self._pending_delete_keys: List[Tuple[Any, ...]] = []
+        self._batch_size = 50
+
     # ------------------------------------------------------------------
     # Setup & lifecycle helpers
     # ------------------------------------------------------------------
@@ -116,6 +120,7 @@ class CoverageTracker:
     def close(self) -> None:
         """Flush changes and close the DuckDB connection."""
 
+        self.flush()
         self.conn.commit()
         self.conn.close()
 
@@ -160,31 +165,11 @@ class CoverageTracker:
         n_registros = len(registros_list)
         hash_ids = self.hash_registros(registros_list)
 
-        self.conn.execute(
-            """
-            DELETE FROM baliza_state.cobertura
-            WHERE recurso = ?
-              AND pagina = ?
-              AND janela_inicio IS NOT DISTINCT FROM ?
-              AND janela_fim IS NOT DISTINCT FROM ?
-            """,
-            [recurso, pagina, janela_inicio_dt, janela_fim_dt],
+        self._pending_delete_keys.append(
+            (recurso, pagina, janela_inicio_dt, janela_fim_dt)
         )
-        self.conn.execute(
-            """
-            INSERT INTO baliza_state.cobertura (
-                recurso,
-                janela_inicio,
-                janela_fim,
-                pagina,
-                total_paginas_observado,
-                n_registros_pagina,
-                hash_ids,
-                fetched_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            [
+        self._pending_pages.append(
+            (
                 recurso,
                 janela_inicio_dt,
                 janela_fim_dt,
@@ -193,8 +178,11 @@ class CoverageTracker:
                 n_registros,
                 hash_ids,
                 fetched_at,
-            ],
+            )
         )
+
+        if len(self._pending_pages) >= self._batch_size:
+            self.flush()
 
         anomalies = self._detect_sequence_anomalies(registros_list)
         if anomalies:
@@ -208,6 +196,51 @@ class CoverageTracker:
                 "suspeito",
                 motivo,
             )
+
+    def flush(self) -> None:
+        """Flush pending batch writes to the database."""
+        if not self._pending_pages:
+            return
+
+        # Use executemany inside a transaction for significant performance gain
+        # over individual statement execution.
+        self.conn.execute("BEGIN TRANSACTION")
+        try:
+            if self._pending_delete_keys:
+                self.conn.executemany(
+                    """
+                    DELETE FROM baliza_state.cobertura
+                    WHERE recurso = ?
+                    AND pagina = ?
+                    AND janela_inicio IS NOT DISTINCT FROM ?
+                    AND janela_fim IS NOT DISTINCT FROM ?
+                    """,
+                    self._pending_delete_keys,
+                )
+            if self._pending_pages:
+                self.conn.executemany(
+                    """
+                    INSERT INTO baliza_state.cobertura (
+                        recurso,
+                        janela_inicio,
+                        janela_fim,
+                        pagina,
+                        total_paginas_observado,
+                        n_registros_pagina,
+                        hash_ids,
+                        fetched_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    self._pending_pages,
+                )
+            self.conn.execute("COMMIT")
+        except Exception:
+            self.conn.execute("ROLLBACK")
+            raise
+        finally:
+            self._pending_pages.clear()
+            self._pending_delete_keys.clear()
 
     def mark_window_status(
         self, recurso: str, periodo: str, status: str, motivo: Optional[str] = None
