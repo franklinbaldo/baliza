@@ -52,3 +52,27 @@ def to_pncp_window(value: Any) -> str:
         dt = dt.astimezone(UTC)
 
     return dt.strftime("%Y%m%d")
+
+
+def humanize_duration(seconds: float) -> str:
+    """Convert seconds to a human-readable duration string (e.g., '1h 30m')."""
+    seconds = int(seconds)
+    if seconds < 60:
+        return f"{seconds}s"
+
+    minutes, seconds_rem = divmod(seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    days, hours = divmod(hours, 24)
+
+    parts = []
+    if days > 0:
+        parts.append(f"{days}d")
+    if hours > 0:
+        parts.append(f"{hours}h")
+    if minutes > 0:
+        parts.append(f"{minutes}m")
+    if seconds_rem > 0 and days == 0:
+        parts.append(f"{seconds_rem}s")
+
+    # Return at most 2 significant parts for compactness
+    return " ".join(parts[:2])
