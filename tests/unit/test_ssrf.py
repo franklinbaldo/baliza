@@ -1,5 +1,4 @@
 
-import os
 import pytest
 from baliza.cli import _FallbackClient
 

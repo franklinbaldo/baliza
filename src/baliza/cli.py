@@ -96,7 +96,13 @@ class _FallbackClient(AbstractContextManager["_FallbackClient"]):
         try:
             with request.urlopen(req, timeout=self.timeout) as response:  # type: ignore[attr-defined]
                 status = int(response.getcode() or 0)
-                text = response.read().decode("utf-8")
+                # Security: Limit response size to 10MB to prevent DoS via memory exhaustion
+                # Most PNCP API responses are small (JSON), but this protects against
+                # unexpected large responses or infinite streams.
+                content_bytes = response.read(10 * 1024 * 1024 + 1)
+                if len(content_bytes) > 10 * 1024 * 1024:
+                    raise RuntimeError("Response too large (exceeded 10MB limit)")
+                text = content_bytes.decode("utf-8")
         except Exception as exc:  # pragma: no cover - network not exercised in tests
             # Security: Redact query parameters in error logs to prevent secret leakage
             safe_url = parse.urlparse(full_url)._replace(query="").geturl()
