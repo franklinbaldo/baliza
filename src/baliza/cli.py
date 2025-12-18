@@ -390,6 +390,7 @@ def extract(
                         range_start=window.start,
                         range_end=window.end,
                         pipeline_name=DEFAULT_PIPELINE_NAME,
+                        tracker=state_manager.tracker,
                     )
 
                     windows_completed += 1

@@ -102,7 +102,8 @@ def test_cli_extract_emits_json(monkeypatch) -> None:
     )
 
     assert result.exit_code == 0
-    assert '"rows": 10' in result.stdout
+    assert '"run_id":' in result.stdout
+    assert '"windows":' in result.stdout
 
 
 def test_cli_backfill_invokes_pipeline_per_month(monkeypatch) -> None:

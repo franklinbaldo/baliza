@@ -247,9 +247,14 @@ def run_pncp(
     range_start: Any = None,
     range_end: Any = None,
     pipeline_name: str = DEFAULT_PIPELINE_NAME,
+    tracker: CoverageTracker | None = None,
 ) -> tuple[Pipeline, Any]:
     """Execute the PNCP pipeline using the DuckDB destination."""
-    tracker = CoverageTracker(duckdb_path, dataset=dataset)
+    should_close_tracker = False
+    if tracker is None:
+        tracker = CoverageTracker(duckdb_path, dataset=dataset)
+        should_close_tracker = True
+
     pipeline = dlt.pipeline(
         pipeline_name=pipeline_name,
         destination=dlt.destinations.duckdb(str(duckdb_path)),
@@ -265,7 +270,8 @@ def run_pncp(
     try:
         run_info = pipeline.run(source)
     finally:
-        tracker.close()
+        if should_close_tracker:
+            tracker.close()
     return pipeline, run_info
 
 
