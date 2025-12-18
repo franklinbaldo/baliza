@@ -105,7 +105,7 @@ class _FallbackClient(AbstractContextManager["_FallbackClient"]):
 
 
 def _default_http_client_factory(
-    *, headers: Optional[Dict[str, str]] = None, timeout: int = 30
+    *, headers: dict[str, str] | None = None, timeout: int = 30
 ) -> AbstractContextManager[_HttpClient]:
     if httpx is not None:
         return httpx.Client(headers=headers or None, timeout=timeout)
@@ -124,7 +124,7 @@ def reset_http_client_factory() -> None:
     set_http_client_factory(_default_http_client_factory)
 
 
-def _resolve_config_path(config: Optional[Path]) -> Path:
+def _resolve_config_path(config: Path | None) -> Path:
     if config is None:
         return default_config_path()
     return config
@@ -325,7 +325,7 @@ def extract(
                 )
 
         # Show summary
-        counts = gap_detector.count_gaps_by_reason(gaps)
+        gap_detector.count_gaps_by_reason(gaps)
         typer.echo(f"\nProcessing {len(gaps)} window(s):")
 
         table = Table(title="Extraction Plan", box=box.ROUNDED)
@@ -421,7 +421,7 @@ def extract(
             state_manager.complete_run(run_id, {"windows_completed": windows_completed})
 
             typer.secho(
-                f"\n✓ Extraction completed successfully!", fg=typer.colors.GREEN
+            "\n✓ Extraction completed successfully!", fg=typer.colors.GREEN
             )
             typer.echo(
                 json.dumps(
@@ -805,34 +805,34 @@ def export(
         "--fallback-date-col",
         help="Additional candidate date columns if --date-col is missing",
     ),
-    start_date: Optional[str] = typer.Option(
+    start_date: str | None = typer.Option(
         None,
         "--start-date",
         help="Lower bound (inclusive) for the date filter (YYYY-MM-DD)",
     ),
-    end_date: Optional[str] = typer.Option(
+    end_date: str | None = typer.Option(
         None,
         "--end-date",
         help="Upper bound (inclusive) for the date filter (YYYY-MM-DD)",
     ),
-    ia_identifier: Optional[str] = typer.Option(
+    ia_identifier: str | None = typer.Option(
         None,
         "--ia-identifier",
         help="Identifier for the Internet Archive upload (e.g., baliza-contratos-2024-07)",
     ),
-    ia_access_key: Optional[str] = typer.Option(
+    ia_access_key: str | None = typer.Option(
         None,
         "--ia-access-key",
         envvar="IA_ACCESS_KEY",
         help="Internet Archive access key (or IA_ACCESS_KEY env var)",
     ),
-    ia_secret_key: Optional[str] = typer.Option(
+    ia_secret_key: str | None = typer.Option(
         None,
         "--ia-secret-key",
         envvar="IA_SECRET_KEY",
         help="Internet Archive secret key (or IA_SECRET_KEY env var)",
     ),
-    ia_metadata_path: Optional[Path] = typer.Option(
+    ia_metadata_path: Path | None = typer.Option(
         Path("internet-archive-summary.json"),
         "--ia-metadata-path",
         help="Path to save Internet Archive upload metadata",
@@ -848,16 +848,24 @@ def export(
     fallback_candidates = fallback_date_col or ["dataAtualizacao"]
 
     try:
-        metadata = export_parquet(
-            duckdb_path=duckdb_path,
-            dataset=dataset,
-            table=table,
-            out_dir=out_dir,
-            date_col=date_col,
-            fallback_date_cols=fallback_candidates,
-            start_date=start.isoformat() if start else None,
-            end_date=finish.isoformat() if finish else None,
-        )
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            TimeElapsedColumn(),
+            console=Console(stderr=True),
+            transient=True,
+        ) as progress:
+            progress.add_task(description=f"Exporting table '{table}' to Parquet...", total=None)
+            metadata = export_parquet(
+                duckdb_path=duckdb_path,
+                dataset=dataset,
+                table=table,
+                out_dir=out_dir,
+                date_col=date_col,
+                fallback_date_cols=fallback_candidates,
+                start_date=start.isoformat() if start else None,
+                end_date=finish.isoformat() if finish else None,
+            )
     except (duckdb.Error, ValueError) as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
@@ -894,17 +902,14 @@ def export(
             typer.secho(
                 "Install with: pip install 'baliza[internet-archive]'",
                 fg=typer.colors.YELLOW,
+                err=True,
             )
             return
 
-        typer.echo(
-            f"\nUploading '{metadata.output_dir}/...' to Internet Archive (Identifier: {ia_identifier})..."
-        )
-
-        archive_dir: Optional[Path] = None
+        archive_dir: Path | None = None
         try:
             session = get_session(access_key=ia_access_key, secret_key=ia_secret_key)
-            ia_metadata: Dict[str, Any] = {
+            ia_metadata: dict[str, Any] = {
                 "title": f"Baliza {metadata.table} Dataset - {ia_identifier}",
                 "description": (
                     "Publicly available procurement data extracted by Baliza. "
@@ -927,7 +932,23 @@ def export(
             shutil.copytree(Path(metadata.output_dir), archive_dir, dirs_exist_ok=True)
 
             target_item = session.get_item(ia_identifier)
-            target_item.upload(str(archive_dir), metadata=ia_metadata, verbose=True)
+
+            # Use a spinner on stderr to show progress without polluting stdout
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                TimeElapsedColumn(),
+                console=Console(stderr=True),
+                transient=True,
+            ) as progress:
+                progress.add_task(
+                    description=f"Uploading to Internet Archive (Identifier: {ia_identifier})...",
+                    total=None,
+                )
+                # Use verbose=False to keep stdout clean.
+                target_item.upload(
+                    str(archive_dir), metadata=ia_metadata, verbose=False
+                )
 
             upload_metadata = {
                 "identifier": ia_identifier,
@@ -940,9 +961,9 @@ def export(
             metadata_path.parent.mkdir(parents=True, exist_ok=True)
             with metadata_path.open("w", encoding="utf-8") as fh:
                 json.dump(upload_metadata, fh, indent=2)
-            typer.echo(f"Internet Archive upload metadata saved to: {metadata_path}")
+            typer.echo(f"Internet Archive upload metadata saved to: {metadata_path}", err=True)
 
-            typer.echo("Successfully uploaded to Internet Archive.")
+            typer.echo("Successfully uploaded to Internet Archive.", err=True)
         except Exception as exc:  # pragma: no cover - network dependent
             typer.secho(
                 f"Error during Internet Archive upload: {exc}",
@@ -952,7 +973,7 @@ def export(
         finally:
             if archive_dir and archive_dir.exists():
                 shutil.rmtree(archive_dir)
-                typer.echo("Temporary archive directory cleaned.")
+                typer.echo("Temporary archive directory cleaned.", err=True)
 
 
 # State management command group
@@ -1015,7 +1036,7 @@ def state_show(
 def state_gaps(
     resource: str = typer.Option(..., "--resource", "-r", help="Resource name"),
     start_date: str = typer.Option(..., "--start", help="Start date (YYYY-MM-DD)"),
-    end_date: Optional[str] = typer.Option(
+    end_date: str | None = typer.Option(
         None, "--end", help="End date (YYYY-MM-DD), defaults to today"
     ),
     duckdb: Path = typer.Option(
