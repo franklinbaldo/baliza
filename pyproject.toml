@@ -17,6 +17,7 @@ dependencies = [
     "xxhash>=3.4.1",
     "internetarchive>=4.1.0",
     "rich>=13.0.0",
+    "duckdb>=1.4.3",
 ]
 
 [project.optional-dependencies]

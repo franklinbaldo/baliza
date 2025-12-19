@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import string
+from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from hashlib import sha256
 from pathlib import Path
-import string
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any
 
 import duckdb  # type: ignore[import-untyped]
 
@@ -23,12 +24,12 @@ class WindowPage:
 
     pagina: int
     total_paginas: int
-    hash_ids: Optional[str]
+    hash_ids: str | None
     n_registros: int
     fetched_at: datetime
 
 
-def _to_naive_utc(value: Optional[Any]) -> Optional[datetime]:
+def _to_naive_utc(value: Any | None) -> datetime | None:
     """Normalize various timestamp inputs into naive UTC datetimes."""
 
     if value is None:
@@ -44,22 +45,22 @@ def _to_naive_utc(value: Optional[Any]) -> Optional[datetime]:
     elif isinstance(value, datetime):
         dt = value
     elif isinstance(value, (int, float)):
-        dt = datetime.fromtimestamp(value, tz=timezone.utc)
+        dt = datetime.fromtimestamp(value, tz=UTC)
     elif isinstance(value, date):
-        dt = datetime.combine(value, datetime.min.time(), tzinfo=timezone.utc)
+        dt = datetime.combine(value, datetime.min.time(), tzinfo=UTC)
     else:  # pragma: no cover - defensive, unexpected types
         raise TypeError(f"Unsupported timestamp value: {value!r}")
 
     # Optimization: Avoid replace() copy if already naive
     if dt.tzinfo is None:
         return dt
-    return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt.astimezone(UTC).replace(tzinfo=None)
 
 
-def _to_iso_utc(value: Optional[datetime]) -> Optional[str]:
+def _to_iso_utc(value: datetime | None) -> str | None:
     if value is None:
         return None
-    return value.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
+    return value.replace(tzinfo=UTC).isoformat().replace("+00:00", "Z")
 
 
 def _quote_identifier(name: str) -> str:
@@ -123,12 +124,12 @@ class CoverageTracker:
     # Formatting helpers
     # ------------------------------------------------------------------
     @staticmethod
-    def _period_key(start: Optional[datetime], end: Optional[datetime]) -> str:
+    def _period_key(start: datetime | None, end: datetime | None) -> str:
         start_iso = _to_iso_utc(start) if start else ""
         end_iso = _to_iso_utc(end) if end else ""
         return f"{start_iso}|{end_iso}"
 
-    def period_label(self, start: Optional[datetime], end: Optional[datetime]) -> str:
+    def period_label(self, start: datetime | None, end: datetime | None) -> str:
         """Public helper to build the storage period label."""
 
         return self._period_key(start, end)
@@ -139,17 +140,17 @@ class CoverageTracker:
     def record_page(
         self,
         recurso: str,
-        janela_inicio: Optional[Any],
-        janela_fim: Optional[Any],
+        janela_inicio: Any | None,
+        janela_fim: Any | None,
         pagina: int,
         total_paginas: int,
-        registros: Iterable[Dict[str, Any]],
+        registros: Iterable[dict[str, Any]],
     ) -> None:
         """Persist metadata for a fetched page and detect anomalies."""
 
         janela_inicio_dt = _to_naive_utc(janela_inicio)
         janela_fim_dt = _to_naive_utc(janela_fim)
-        fetched_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        fetched_at = datetime.now(UTC).replace(tzinfo=None)
 
         # Optimization: Avoid copying list if it is already a list (typical case in dlt pipelines)
         if isinstance(registros, list):
@@ -158,7 +159,9 @@ class CoverageTracker:
             registros_list = list(registros)
 
         n_registros = len(registros_list)
-        hash_ids = self.hash_registros(registros_list)
+
+        # Optimization: Unified pass to compute hash and detect anomalies
+        hash_ids, anomalies = self._analyze_records(registros_list)
 
         self.conn.execute(
             """
@@ -196,7 +199,6 @@ class CoverageTracker:
             ],
         )
 
-        anomalies = self._detect_sequence_anomalies(registros_list)
         if anomalies:
             motivo = "; ".join(
                 f"{anom['field']} {anom['cnpj']} {anom['ano']} salto {anom['gap_start']}->{anom['gap_end']}"
@@ -210,11 +212,11 @@ class CoverageTracker:
             )
 
     def mark_window_status(
-        self, recurso: str, periodo: str, status: str, motivo: Optional[str] = None
+        self, recurso: str, periodo: str, status: str, motivo: str | None = None
     ) -> None:
         """Persist (or update) the status for a given coverage window."""
 
-        atualizado_em = datetime.now(timezone.utc).replace(tzinfo=None)
+        atualizado_em = datetime.now(UTC).replace(tzinfo=None)
         self.conn.execute(
             """
             DELETE FROM baliza_state.janelas
@@ -247,13 +249,24 @@ class CoverageTracker:
         raise ValueError(f"Unsupported hash algorithm: {algorithm}")
 
     @classmethod
+    def _compute_hash_from_ids(
+        cls, ids: list[str], algorithm: str | None = None
+    ) -> tuple[str, str]:
+        """Compute hash payload and digest from a list of IDs."""
+        ids.sort()
+        payload = "\n".join(ids).encode("utf-8")
+        algo = algorithm or ("xxh64" if xxhash is not None else "sha256")
+        digest = cls._hash_payload(payload, algo)
+        return algo, digest
+
+    @classmethod
     def hash_registros(
         cls,
-        registros: Iterable[Dict[str, Any]],
+        registros: Iterable[dict[str, Any]],
         *,
-        algorithm: Optional[str] = None,
+        algorithm: str | None = None,
         include_algorithm: bool = True,
-    ) -> Optional[str]:
+    ) -> str | None:
         # Optimization: Use walrus operator to avoid double lookup in dict
         ids = [
             str(val)
@@ -262,16 +275,14 @@ class CoverageTracker:
         ]
         if not ids:
             return None
-        ids.sort()
-        payload = "\n".join(ids).encode("utf-8")
-        algo = algorithm or ("xxh64" if xxhash is not None else "sha256")
-        digest = cls._hash_payload(payload, algo)
+
+        algo, digest = cls._compute_hash_from_ids(ids, algorithm)
         if include_algorithm:
             return f"{algo}:{digest}"
         return digest
 
     @staticmethod
-    def parse_hash_value(value: str) -> Tuple[str, str]:
+    def parse_hash_value(value: str) -> tuple[str, str]:
         if not value:
             raise ValueError("Empty hash value")
         if ":" in value:
@@ -286,18 +297,28 @@ class CoverageTracker:
             return "sha256", value
         raise ValueError(f"Unrecognized hash format: {value!r}")
 
-    def _detect_sequence_anomalies(
-        self, registros: Iterable[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        grouped: Dict[Tuple[str, str, str], List[int]] = {}
-        anomalies: List[Dict[str, Any]] = []
+    def _analyze_records(
+        self, registros: Iterable[dict[str, Any]]
+    ) -> tuple[str | None, list[dict[str, Any]]]:
+        """Single-pass analysis to compute hash and detect sequence anomalies."""
+        ids: list[str] = []
+        grouped: dict[tuple[str, str, str], list[int]] = {}
+
         for item in registros:
             if not isinstance(item, dict):
                 continue
+
+            # 1. Collect ID for hashing
+            val = item.get("numeroControlePNCP")
+            if val:
+                ids.append(str(val))
+
+            # 2. Collect sequence data for anomaly detection
             cnpj = self._extract_cnpj(item)
             ano = self._extract_ano(item)
             if not cnpj or not ano:
                 continue
+
             for field in ("sequencialCompra", "sequencialContrato"):
                 seq_value = item.get(field)
                 if seq_value is None:
@@ -308,6 +329,14 @@ class CoverageTracker:
                     continue
                 grouped.setdefault((field, cnpj, ano), []).append(seq_int)
 
+        # Finalize Hash
+        hash_ids = None
+        if ids:
+            algo, digest = self._compute_hash_from_ids(ids)
+            hash_ids = f"{algo}:{digest}"
+
+        # Finalize Anomalies
+        anomalies: list[dict[str, Any]] = []
         for (field, cnpj, ano), values in grouped.items():
             if len(values) < 2:
                 continue
@@ -325,10 +354,18 @@ class CoverageTracker:
                         }
                     )
                     break
+
+        return hash_ids, anomalies
+
+    def _detect_sequence_anomalies(
+        self, registros: Iterable[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        # Optimization: Delegate to unified pass to avoid logic duplication
+        _, anomalies = self._analyze_records(registros)
         return anomalies
 
     @staticmethod
-    def _extract_cnpj(item: Dict[str, Any]) -> Optional[str]:
+    def _extract_cnpj(item: dict[str, Any]) -> str | None:
         cnpj = item.get("cnpj")
         if cnpj:
             return str(cnpj)
@@ -338,7 +375,7 @@ class CoverageTracker:
         return None
 
     @staticmethod
-    def _extract_ano(item: Dict[str, Any]) -> Optional[str]:
+    def _extract_ano(item: dict[str, Any]) -> str | None:
         for key in ("ano", "anoCompra", "anoContrato"):
             if item.get(key):
                 return str(item[key])
@@ -353,12 +390,7 @@ class CoverageTracker:
             # full parsing for timestamps with time/timezone info to ensure correctness.
             if len(text) == 4 and text.isdigit():
                 return text
-            if (
-                len(text) == 10
-                and text[4] == "-"
-                and text[7] == "-"
-                and text[:4].isdigit()
-            ):
+            if len(text) == 10 and text[4] == "-" and text[7] == "-" and text[:4].isdigit():
                 return text[:4]
 
             try:
@@ -376,9 +408,9 @@ class CoverageTracker:
         self,
         recurso: str,
         *,
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
-    ) -> Dict[str, Dict[str, Any]]:
+        start: datetime | None = None,
+        end: datetime | None = None,
+    ) -> dict[str, dict[str, Any]]:
         """Return recorded pages grouped by window key."""
 
         query = (
@@ -386,7 +418,7 @@ class CoverageTracker:
             "n_registros_pagina, hash_ids, fetched_at "
             "FROM baliza_state.cobertura WHERE recurso = ?"
         )
-        params: List[Any] = [recurso]
+        params: list[Any] = [recurso]
         if start is not None:
             query += " AND janela_inicio >= ?"
             params.append(start)
@@ -395,7 +427,7 @@ class CoverageTracker:
             params.append(end)
         rows = self.conn.execute(query, params).fetchall()
 
-        grouped: Dict[str, Dict[str, Any]] = {}
+        grouped: dict[str, dict[str, Any]] = {}
         for row in rows:
             (
                 janela_inicio_dt,
@@ -428,7 +460,7 @@ class CoverageTracker:
             entry["max_total"] = max(entry["max_total"], total_paginas)
         return grouped
 
-    def fetch_window_statuses(self, recurso: str) -> List[Dict[str, Any]]:
+    def fetch_window_statuses(self, recurso: str) -> list[dict[str, Any]]:
         rows = self.conn.execute(
             "SELECT periodo, status, motivo, atualizado_em FROM baliza_state.janelas WHERE recurso = ?",
             [recurso],
@@ -447,10 +479,10 @@ class CoverageTracker:
         self,
         table_name: str,
         *,
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
         date_field: str = "dataPublicacaoPncp",
-    ) -> List[Tuple[datetime, datetime]]:
+    ) -> list[tuple[datetime, datetime]]:
         """Inspect the raw dataset to infer available daily windows."""
 
         dataset_ident = _quote_identifier(self.dataset)
@@ -467,7 +499,7 @@ class CoverageTracker:
             f"SELECT DISTINCT date_trunc('day', {field_expr}) AS dia "
             f"FROM {qualified_table} WHERE {field_expr} IS NOT NULL"
         )
-        params: List[Any] = []
+        params: list[Any] = []
         if start is not None:
             query += f" AND {field_expr} >= ?"
             params.append(start)
@@ -477,7 +509,7 @@ class CoverageTracker:
         query += " ORDER BY dia"
         rows = self.conn.execute(query, params).fetchall()
 
-        windows: List[Tuple[datetime, datetime]] = []
+        windows: list[tuple[datetime, datetime]] = []
         for (dia,) in rows:
             if dia is None:
                 continue
@@ -492,16 +524,16 @@ class CoverageTracker:
         recurso: str,
         table_name: str,
         *,
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
-    ) -> Dict[str, Any]:
+        start: datetime | None = None,
+        end: datetime | None = None,
+    ) -> dict[str, Any]:
         """Create a manifest summary of coverage and missing windows."""
 
         coverage = self.fetch_pages_by_window(recurso, start=start, end=end)
         candidates = self.derive_window_candidates(table_name, start=start, end=end)
         statuses = {row["periodo"]: row for row in self.fetch_window_statuses(recurso)}
 
-        summary_windows: List[Dict[str, Any]] = []
+        summary_windows: list[dict[str, Any]] = []
         for key, entry in coverage.items():
             status = statuses.get(key, {}).get("status")
             motivo = statuses.get(key, {}).get("motivo")
@@ -524,9 +556,7 @@ class CoverageTracker:
             if self._period_key(start_dt, end_dt) not in coverage_keys
         ]
 
-        suspeitas = [
-            row for row in statuses.values() if row.get("status") == "suspeito"
-        ]
+        suspeitas = [row for row in statuses.values() if row.get("status") == "suspeito"]
 
         return {
             "windows": summary_windows,
