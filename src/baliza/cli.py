@@ -1119,7 +1119,12 @@ def state_history(
         history = manager.get_run_history(resource, limit=limit)
 
         if not history:
-            typer.echo(f"No runs found for resource '{resource}'")
+            console.print(
+                f"[yellow]No run history found for resource '{resource}'.[/yellow]"
+            )
+            console.print(
+                f"To start a new extraction, run: [bold]baliza extract --resource {resource}[/bold]"
+            )
             return
 
         table = Table(
