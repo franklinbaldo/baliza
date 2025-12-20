@@ -1,15 +1,14 @@
 from __future__ import annotations
 
 import json
-
-from datetime import date, datetime, timedelta, timezone
-
-from pathlib import Path
+import shutil
+from collections.abc import Callable, Iterable
 from contextlib import AbstractContextManager
-from typing import Any, Callable, Dict, Iterable, Optional, Protocol, Tuple
+from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
+from typing import Any, Protocol
 
 import duckdb
-import shutil
 
 try:  # pragma: no cover - optional dependency
     import httpx
@@ -23,7 +22,19 @@ except ModuleNotFoundError:  # pragma: no cover - fallback path
 
 
 import typer
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn
+from rich import box
+
+# Rich imports for improved CLI UX
+from rich.console import Console
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TaskProgressColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
+from rich.table import Table
 
 from .pipelines.pncp import (
     BACKFILL_PIPELINE_NAME,
@@ -33,17 +44,9 @@ from .pipelines.pncp import (
     load_pncp_config,
     run_pncp,
 )
-
-from .state import CoverageTracker, StateManager, GapDetector
-
-
+from .state import CoverageTracker, GapDetector, StateManager
 from .utils import export_parquet
-from .utils.dates import humanize_duration, to_pncp_window
-
-# Rich imports for improved CLI UX
-from rich.console import Console
-from rich.table import Table
-from rich import box
+from .utils.dates import humanize_duration, humanize_naturaltime, to_pncp_window
 
 console = Console()
 
@@ -51,7 +54,9 @@ app = typer.Typer(help="Declarative PNCP pipeline runner")
 
 
 class _HttpClient(Protocol):
-    def get(self, url: str, params: Optional[Dict[str, Any]] = None) -> Any:  # pragma: no cover - protocol definition
+    def get(
+        self, url: str, params: dict[str, Any] | None = None
+    ) -> Any:  # pragma: no cover - protocol definition
         ...
 
 
@@ -74,17 +79,17 @@ class _FallbackResponse:
 
 
 class _FallbackClient(AbstractContextManager["_FallbackClient"]):
-    def __init__(self, *, headers: Optional[Dict[str, str]] = None, timeout: int = 30) -> None:
+    def __init__(self, *, headers: dict[str, str] | None = None, timeout: int = 30) -> None:
         self.headers = headers or {}
         self.timeout = timeout
 
-    def __enter__(self) -> "_FallbackClient":
+    def __enter__(self) -> _FallbackClient:
         return self
 
     def __exit__(self, exc_type, exc, exc_tb) -> None:  # pragma: no cover - no cleanup needed
         return None
 
-    def get(self, url: str, params: Optional[Dict[str, Any]] = None) -> _FallbackResponse:
+    def get(self, url: str, params: dict[str, Any] | None = None) -> _FallbackResponse:
         from urllib import parse, request
 
         if not url.startswith(("http://", "https://")):
@@ -130,20 +135,16 @@ def _resolve_config_path(config: Path | None) -> Path:
     return config
 
 
-def _month_windows(
-    start_month: str, end_month: str
-) -> Iterable[Tuple[datetime, datetime]]:
+def _month_windows(start_month: str, end_month: str) -> Iterable[tuple[datetime, datetime]]:
     """Generate inclusive month windows between two YYYY-MM strings."""
 
     try:
-        start = datetime.strptime(start_month, "%Y-%m").replace(
-            tzinfo=timezone.utc, day=1
-        )
+        start = datetime.strptime(start_month, "%Y-%m").replace(tzinfo=UTC, day=1)
     except ValueError as exc:  # pragma: no cover - handled by Typer
         raise typer.BadParameter("start_month must follow YYYY-MM format") from exc
 
     try:
-        end = datetime.strptime(end_month, "%Y-%m").replace(tzinfo=timezone.utc, day=1)
+        end = datetime.strptime(end_month, "%Y-%m").replace(tzinfo=UTC, day=1)
     except ValueError as exc:  # pragma: no cover - handled by Typer
         raise typer.BadParameter("end_month must follow YYYY-MM format") from exc
 
@@ -160,7 +161,7 @@ def _month_windows(
         current = next_month
 
 
-def _parse_day(value: Optional[str], param_name: str) -> Optional[datetime]:
+def _parse_day(value: str | None, param_name: str) -> datetime | None:
     if value is None:
         return None
     try:
@@ -169,30 +170,28 @@ def _parse_day(value: Optional[str], param_name: str) -> Optional[datetime]:
         raise typer.BadParameter(f"{param_name} must follow YYYY-MM-DD format") from exc
 
 
-def _pncp_date_param(value: Optional[datetime]) -> Optional[str]:
+def _pncp_date_param(value: datetime | None) -> str | None:
     if value is None:
         return None
     return to_pncp_window(value)
 
 
-def _filter_dict_none(values: Dict[str, Any]) -> Dict[str, Any]:
+def _filter_dict_none(values: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in values.items() if v is not None}
 
 
-def _parse_optional_date(value: Optional[str], *, option_name: str) -> Optional[date]:
+def _parse_optional_date(value: str | None, *, option_name: str) -> date | None:
     if value is None:
         return None
     try:
         return date.fromisoformat(value)
     except ValueError as exc:  # pragma: no cover - handled by Typer
-        raise typer.BadParameter(
-            f"{option_name} must follow YYYY-MM-DD format"
-        ) from exc
+        raise typer.BadParameter(f"{option_name} must follow YYYY-MM-DD format") from exc
 
 
 @app.command("extract")
 def extract(
-    config: Optional[Path] = typer.Option(
+    config: Path | None = typer.Option(
         None,
         "--config",
         "-c",
@@ -217,12 +216,12 @@ def extract(
         min=0,
         help="Number of days to look back from last successful run (for incremental extraction).",
     ),
-    start_date: Optional[str] = typer.Option(
+    start_date: str | None = typer.Option(
         None,
         "--start-date",
         help="Start date for extraction range (YYYY-MM-DD). If not specified, uses intelligent gap detection.",
     ),
-    end_date: Optional[str] = typer.Option(
+    end_date: str | None = typer.Option(
         None,
         "--end-date",
         help="End date for extraction range (YYYY-MM-DD). If not specified, uses today.",
@@ -271,21 +270,19 @@ def extract(
     try:
         # Determine date range
         if start_date:
-            start_dt = datetime.fromisoformat(start_date).replace(tzinfo=timezone.utc)
+            start_dt = datetime.fromisoformat(start_date).replace(tzinfo=UTC)
         else:
             # Use intelligent default: last successful run or 30 days ago
             last_run = state_manager.get_last_successful_run(resource)
             if last_run and last_run.completed_at:
                 # Start from completion time of last run
-                start_dt = last_run.completed_at.replace(tzinfo=timezone.utc)
+                start_dt = last_run.completed_at.replace(tzinfo=UTC)
             else:
                 # First run - go back 30 days
-                start_dt = datetime.now(timezone.utc) - timedelta(days=30)
+                start_dt = datetime.now(UTC) - timedelta(days=30)
 
         end_dt = (
-            datetime.fromisoformat(end_date).replace(tzinfo=timezone.utc)
-            if end_date
-            else datetime.now(timezone.utc)
+            datetime.fromisoformat(end_date).replace(tzinfo=UTC) if end_date else datetime.now(UTC)
         )
 
         # Analyze coverage
@@ -303,9 +300,7 @@ def extract(
         )
 
         if not gaps:
-            typer.secho(
-                "✓ No gaps found. All windows are up to date.", fg=typer.colors.GREEN
-            )
+            typer.secho("✓ No gaps found. All windows are up to date.", fg=typer.colors.GREEN)
             return
 
         # Check for incomplete runs
@@ -320,9 +315,7 @@ def extract(
             original_count = len(gaps)
             gaps = gap_detector.merge_adjacent_windows(gaps, max_merge_days=max_merge_days)
             if len(gaps) < original_count:
-                typer.echo(
-                    f"Merged {original_count} windows into {len(gaps)} to reduce API calls."
-                )
+                typer.echo(f"Merged {original_count} windows into {len(gaps)} to reduce API calls.")
 
         # Show summary
         gap_detector.count_gaps_by_reason(gaps)
@@ -348,7 +341,7 @@ def extract(
                 str(i),
                 str(gap.start.date()),
                 str(gap.end.date()),
-                f"[{color_tag}]{gap.reason}[/{color_tag}]"
+                f"[{color_tag}]{gap.reason}[/{color_tag}]",
             )
 
         console.print(table)
@@ -372,14 +365,15 @@ def extract(
                 TimeElapsedColumn(),
                 transient=False,
             ) as progress:
-
                 task_id = progress.add_task(
-                    description=f"Processing {len(gaps)} windows...",
-                    total=len(gaps)
+                    description=f"Processing {len(gaps)} windows...", total=len(gaps)
                 )
 
                 for i, window in enumerate(gaps, 1):
-                    progress.update(task_id, description=f"Processing {window.start.date()} to {window.end.date()} ({window.reason})")
+                    progress.update(
+                        task_id,
+                        description=f"Processing {window.start.date()} to {window.end.date()} ({window.reason})",
+                    )
 
                     # Run extraction for this window
                     _, run_info = run_pncp(
@@ -413,30 +407,24 @@ def extract(
                     periodo = state_manager.tracker.period_label(window.start, window.end)
                     state_manager.tracker.mark_window_status(resource, periodo, "ok")
 
-                    progress.console.print(f"  [green]✓[/green] Completed {window.start.date()} to {window.end.date()}")
+                    progress.console.print(
+                        f"  [green]✓[/green] Completed {window.start.date()} to {window.end.date()}"
+                    )
 
                     progress.advance(task_id)
 
             # Complete the run
             state_manager.complete_run(run_id, {"windows_completed": windows_completed})
 
-            typer.secho(
-            "\n✓ Extraction completed successfully!", fg=typer.colors.GREEN
-            )
-            typer.echo(
-                json.dumps(
-                    {"run_id": run_id, "windows": results}, indent=2, default=str
-                )
-            )
+            typer.secho("\n✓ Extraction completed successfully!", fg=typer.colors.GREEN)
+            typer.echo(json.dumps({"run_id": run_id, "windows": results}, indent=2, default=str))
 
         except Exception as e:
             # Fail the run but preserve state
             state_manager.fail_run(run_id, str(e))
             typer.secho(f"\n✗ Extraction failed: {e}", fg=typer.colors.RED, err=True)
             typer.echo(f"\nRun ID: {run_id} (marked as failed)")
-            typer.echo(
-                f"Completed {windows_completed}/{len(gaps)} windows before failure."
-            )
+            typer.echo(f"Completed {windows_completed}/{len(gaps)} windows before failure.")
             typer.echo("Incomplete windows will be resumed on next run.")
             raise typer.Exit(code=1)
 
@@ -448,7 +436,7 @@ def extract(
 def backfill(
     start_month: str,
     end_month: str,
-    config: Optional[Path] = typer.Option(
+    config: Path | None = typer.Option(
         None,
         "--config",
         "-c",
@@ -487,9 +475,7 @@ def backfill(
         )
 
         for window_start, window_end in windows:
-            progress.update(
-                task_id, description=f"Backfilling {window_start.strftime('%Y-%m')}..."
-            )
+            progress.update(task_id, description=f"Backfilling {window_start.strftime('%Y-%m')}...")
 
             _, run_info = run_pncp(
                 config_path=config_path,
@@ -517,17 +503,17 @@ def verify(
     resource: str = typer.Option(
         ..., "--resource", "-r", help="Resource name declared in the PNCP configuration"
     ),
-    desde: Optional[str] = typer.Option(
+    desde: str | None = typer.Option(
         None,
         "--desde",
         help="Optional start date filter (YYYY-MM-DD) for window evaluation",
     ),
-    ate: Optional[str] = typer.Option(
+    ate: str | None = typer.Option(
         None,
         "--ate",
         help="Optional end date filter (YYYY-MM-DD, inclusive) for window evaluation",
     ),
-    config: Optional[Path] = typer.Option(
+    config: Path | None = typer.Option(
         None,
         "--config",
         "-c",
@@ -563,17 +549,11 @@ def verify(
         config_data = load_pncp_config(config_path)
         resources_cfg = config_data.get("resources", [])
         resource_cfg = next(
-            (
-                r
-                for r in resources_cfg
-                if isinstance(r, dict) and r.get("name") == resource
-            ),
+            (r for r in resources_cfg if isinstance(r, dict) and r.get("name") == resource),
             None,
         )
         if resource_cfg is None:
-            raise typer.BadParameter(
-                f"resource '{resource}' not found in configuration"
-            )
+            raise typer.BadParameter(f"resource '{resource}' not found in configuration")
 
         endpoint_cfg = resource_cfg.get("endpoint", {}) or {}
         table_name = resource_cfg.get("table_name") or resource
@@ -591,15 +571,11 @@ def verify(
             params_cfg = {}
         default_params = _filter_dict_none(dict(params_cfg))
 
-        coverage = tracker.fetch_pages_by_window(
-            resource, start=inicio_filtro, end=fim_exclusivo
-        )
+        coverage = tracker.fetch_pages_by_window(resource, start=inicio_filtro, end=fim_exclusivo)
         coverage_keys = set(coverage.keys())
-        status_map = {
-            row["periodo"]: row for row in tracker.fetch_window_statuses(resource)
-        }
-        pending_pages: Dict[str, list[int]] = {}
-        hash_alerts: list[Dict[str, Any]] = []
+        status_map = {row["periodo"]: row for row in tracker.fetch_window_statuses(resource)}
+        pending_pages: dict[str, list[int]] = {}
+        hash_alerts: list[dict[str, Any]] = []
 
         with _HTTP_CLIENT_FACTORY(headers=headers or None, timeout=timeout) as client:
             if endpoint_path.startswith("http"):
@@ -622,9 +598,7 @@ def verify(
                 )
 
                 for periodo, entry in coverage.items():
-                    progress.update(
-                        task_id, description=f"Verifying {periodo}..."
-                    )
+                    progress.update(task_id, description=f"Verifying {periodo}...")
                     params = dict(default_params)
                     params["pagina"] = 1
                     inicio = entry.get("janela_inicio")
@@ -637,7 +611,7 @@ def verify(
 
                     response = client.get(endpoint_url, params=params)
                     if response.status_code == 204:
-                        payload: Dict[str, Any] = {"data": [], "totalPaginas": 0}
+                        payload: dict[str, Any] = {"data": [], "totalPaginas": 0}
                     else:
                         response.raise_for_status()
                         payload = response.json()
@@ -658,19 +632,16 @@ def verify(
 
                     if faltantes:
                         motivo = f"paginas faltantes: {faltantes}"
-                        tracker.mark_window_status(
-                            resource, periodo, "incompleto", motivo
-                        )
+                        tracker.mark_window_status(resource, periodo, "incompleto", motivo)
+                    elif (
+                        existing_status
+                        and existing_status.get("status") == "suspeito"
+                        and not sequencia
+                    ):
+                        # Preserve previous suspicion when sequence audits are disabled
+                        pass
                     else:
-                        if (
-                            existing_status
-                            and existing_status.get("status") == "suspeito"
-                            and not sequencia
-                        ):
-                            # Preserve previous suspicion when sequence audits are disabled
-                            pass
-                        else:
-                            tracker.mark_window_status(resource, periodo, "ok")
+                        tracker.mark_window_status(resource, periodo, "ok")
 
                     if sequencia and atual_total > 0:
                         sample_page = min(atual_total, max(1, atual_total // 2))
@@ -678,11 +649,9 @@ def verify(
                         if stored_page and stored_page.hash_ids:
                             sample_params = dict(params)
                             sample_params["pagina"] = sample_page
-                            sample_response = client.get(
-                                endpoint_url, params=sample_params
-                            )
+                            sample_response = client.get(endpoint_url, params=sample_params)
                             if sample_response.status_code == 204:
-                                sample_payload: Dict[str, Any] = {"data": []}
+                                sample_payload: dict[str, Any] = {"data": []}
                             else:
                                 sample_response.raise_for_status()
                                 sample_payload = sample_response.json()
@@ -694,10 +663,8 @@ def verify(
                             )
                             try:
                                 try:
-                                    algoritmo, stored_digest = (
-                                        CoverageTracker.parse_hash_value(
-                                            stored_page.hash_ids
-                                        )
+                                    algoritmo, stored_digest = CoverageTracker.parse_hash_value(
+                                        stored_page.hash_ids
                                     )
                                 except ValueError:
                                     algoritmo = None
@@ -712,12 +679,8 @@ def verify(
                                 raise typer.Exit(code=1) from exc
                             if sample_digest and sample_digest != stored_digest:
                                 motivo = f"hash divergente na pagina {sample_page}"
-                                tracker.mark_window_status(
-                                    resource, periodo, "suspeito", motivo
-                                )
-                                hash_alerts.append(
-                                    {"periodo": periodo, "pagina": sample_page}
-                                )
+                                tracker.mark_window_status(resource, periodo, "suspeito", motivo)
+                                hash_alerts.append({"periodo": periodo, "pagina": sample_page})
 
                     progress.advance(task_id)
 
@@ -739,9 +702,7 @@ def verify(
 
         status_rows = tracker.fetch_window_statuses(resource)
         lacunas = [
-            row
-            for row in status_rows
-            if row.get("status") in {"incompleto", "nao_processado"}
+            row for row in status_rows if row.get("status") in {"incompleto", "nao_processado"}
         ]
         suspeitas = [row for row in status_rows if row.get("status") == "suspeito"]
         resumo = tracker.summarize_windows(
@@ -946,9 +907,7 @@ def export(
                     total=None,
                 )
                 # Use verbose=False to keep stdout clean.
-                target_item.upload(
-                    str(archive_dir), metadata=ia_metadata, verbose=False
-                )
+                target_item.upload(str(archive_dir), metadata=ia_metadata, verbose=False)
 
             upload_metadata = {
                 "identifier": ia_identifier,
@@ -987,9 +946,7 @@ def state_show(
     duckdb: Path = typer.Option(
         Path("baliza.duckdb"), "--duckdb", "-d", help="Path to the DuckDB database file"
     ),
-    dataset: str = typer.Option(
-        "baliza_raw", "--dataset", "-s", help="Dataset name inside DuckDB"
-    ),
+    dataset: str = typer.Option("baliza_raw", "--dataset", "-s", help="Dataset name inside DuckDB"),
 ) -> None:
     """Show extraction state summary for a resource."""
     manager = StateManager(duckdb, dataset=dataset)
@@ -1023,7 +980,11 @@ def state_show(
             last_run_table.add_column("Value")
 
             last_run_table.add_row("Run ID", last_run.run_id)
-            last_run_table.add_row("Completed at", str(last_run.completed_at))
+            completed_time = str(last_run.completed_at)
+            if last_run.completed_at:
+                completed_time = f"{humanize_naturaltime(last_run.completed_at)} ({last_run.completed_at.strftime('%Y-%m-%d %H:%M')})"
+
+            last_run_table.add_row("Completed at", completed_time)
             last_run_table.add_row("Windows", str(last_run.windows_completed))
             last_run_table.add_row("Rows extracted", f"{last_run.rows_extracted:,}")
             console.print(last_run_table)
@@ -1042,9 +1003,7 @@ def state_gaps(
     duckdb: Path = typer.Option(
         Path("baliza.duckdb"), "--duckdb", "-d", help="Path to the DuckDB database file"
     ),
-    dataset: str = typer.Option(
-        "baliza_raw", "--dataset", "-s", help="Dataset name inside DuckDB"
-    ),
+    dataset: str = typer.Option("baliza_raw", "--dataset", "-s", help="Dataset name inside DuckDB"),
     lookback_days: int = typer.Option(
         0, "--lookback-days", "-l", min=0, help="Lookback days to include"
     ),
@@ -1054,16 +1013,12 @@ def state_gaps(
     detector = GapDetector(manager)
 
     try:
-        start_dt = datetime.fromisoformat(start_date).replace(tzinfo=timezone.utc)
+        start_dt = datetime.fromisoformat(start_date).replace(tzinfo=UTC)
         end_dt = (
-            datetime.fromisoformat(end_date).replace(tzinfo=timezone.utc)
-            if end_date
-            else datetime.now(timezone.utc)
+            datetime.fromisoformat(end_date).replace(tzinfo=UTC) if end_date else datetime.now(UTC)
         )
 
-        gaps = detector.find_gaps(
-            resource, start_dt, end_dt, lookback_days=lookback_days
-        )
+        gaps = detector.find_gaps(resource, start_dt, end_dt, lookback_days=lookback_days)
 
         if not gaps:
             typer.secho("✓ No gaps found!", fg=typer.colors.GREEN)
@@ -1093,7 +1048,7 @@ def state_gaps(
             table.add_row(
                 str(gap.start.date()),
                 str(gap.end.date()),
-                f"[{color_tag}]{gap.reason}[/{color_tag}]"
+                f"[{color_tag}]{gap.reason}[/{color_tag}]",
             )
 
         console.print(table)
@@ -1108,9 +1063,7 @@ def state_history(
     duckdb: Path = typer.Option(
         Path("baliza.duckdb"), "--duckdb", "-d", help="Path to the DuckDB database file"
     ),
-    dataset: str = typer.Option(
-        "baliza_raw", "--dataset", "-s", help="Dataset name inside DuckDB"
-    ),
+    dataset: str = typer.Option("baliza_raw", "--dataset", "-s", help="Dataset name inside DuckDB"),
 ) -> None:
     """Show extraction run history for a resource."""
     manager = StateManager(duckdb, dataset=dataset)
@@ -1119,9 +1072,7 @@ def state_history(
         history = manager.get_run_history(resource, limit=limit)
 
         if not history:
-            console.print(
-                f"[yellow]No run history found for resource '{resource}'.[/yellow]"
-            )
+            console.print(f"[yellow]No run history found for resource '{resource}'.[/yellow]")
             console.print(
                 f"To start a new extraction, run: [bold]baliza extract --resource {resource}[/bold]"
             )
@@ -1151,15 +1102,13 @@ def state_history(
                 duration_secs = (run.completed_at - run.started_at).total_seconds()
                 duration = humanize_duration(duration_secs)
             elif run.status == "running":
-                duration_secs = (
-                    datetime.now(timezone.utc) - run.started_at
-                ).total_seconds()
+                duration_secs = (datetime.now(UTC) - run.started_at).total_seconds()
                 duration = f"[yellow]{humanize_duration(duration_secs)}[/yellow]"
 
             table.add_row(
                 run.run_id,
                 f"[{status_style}]{run.status}[/{status_style}]",
-                run.started_at.strftime("%Y-%m-%d %H:%M"),
+                f"{humanize_naturaltime(run.started_at)}",
                 duration,
                 str(run.windows_completed),
                 f"{run.rows_extracted:,}",

@@ -76,3 +76,34 @@ def humanize_duration(seconds: float) -> str:
 
     # Return at most 2 significant parts for compactness
     return " ".join(parts[:2])
+
+
+def humanize_naturaltime(dt: datetime) -> str:
+    """Convert a datetime to a human-readable relative time string (e.g., '2h ago')."""
+    if dt.tzinfo:
+        now = datetime.now(dt.tzinfo)
+    else:
+        now = datetime.now()
+
+    diff = now - dt
+    seconds = diff.total_seconds()
+
+    if seconds < 0:
+        return "in the future"
+
+    if seconds < 60:
+        return "just now"
+
+    minutes = int(seconds // 60)
+    if minutes < 60:
+        return f"{minutes}m ago"
+
+    hours = int(minutes // 60)
+    if hours < 24:
+        return f"{hours}h ago"
+
+    days = int(hours // 24)
+    if days < 7:
+        return f"{days}d ago"
+
+    return dt.strftime("%Y-%m-%d %H:%M")
