@@ -60,7 +60,9 @@ def _to_naive_utc(value: Any | None) -> datetime | None:
 def _to_iso_utc(value: datetime | None) -> str | None:
     if value is None:
         return None
-    return value.replace(tzinfo=UTC).isoformat().replace("+00:00", "Z")
+    # Optimization: Avoid replace() copy and string replacement.
+    # We assume 'value' is already a naive UTC datetime (standard in this module).
+    return value.isoformat() + "Z"
 
 
 def _quote_identifier(name: str) -> str:
