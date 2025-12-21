@@ -494,7 +494,7 @@ class CoverageTracker:
         except duckdb.CatalogException:
             return []
 
-        field_expr = date_field
+        field_expr = _quote_identifier(date_field)
         query = (
             f"SELECT DISTINCT date_trunc('day', {field_expr}) AS dia "
             f"FROM {qualified_table} WHERE {field_expr} IS NOT NULL"
