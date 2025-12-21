@@ -60,6 +60,10 @@ def _to_naive_utc(value: Any | None) -> datetime | None:
 def _to_iso_utc(value: datetime | None) -> str | None:
     if value is None:
         return None
+    # Optimization: fast path for naive UTC datetimes to avoid replace() overhead.
+    # The codebase stores datetimes as naive UTC, so this is the hot path.
+    if value.tzinfo is None:
+        return value.isoformat() + "Z"
     return value.replace(tzinfo=UTC).isoformat().replace("+00:00", "Z")
 
 
