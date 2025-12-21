@@ -41,8 +41,8 @@ def to_pncp_window(value: Any) -> str:
         elif len(cleaned) == 8 and cleaned.isdigit():
             return cleaned
         else:
-            normalized = cleaned.replace("Z", "+00:00")
-            dt = _coerce_datetime(normalized)
+            # Optimization: Python 3.11+ handles 'Z' in fromisoformat natively.
+            dt = _coerce_datetime(cleaned)
     else:
         return str(value)
 
