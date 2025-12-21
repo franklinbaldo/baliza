@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
-from baliza.utils.dates import to_pncp_window
+from baliza.utils.dates import humanize_naturaltime, to_pncp_window
 
 
 def test_to_pncp_window_from_datetime_with_timezone() -> None:
@@ -33,3 +33,38 @@ def test_to_pncp_window_parses_iso_strings() -> None:
 def test_to_pncp_window_rejects_invalid_format() -> None:
     with pytest.raises(ValueError):
         to_pncp_window("31/01/2024")
+
+def test_humanize_naturaltime_just_now() -> None:
+    now = datetime.now(timezone.utc)
+    dt = now - timedelta(seconds=30)
+    assert humanize_naturaltime(dt) == "just now"
+
+
+def test_humanize_naturaltime_minutes_ago() -> None:
+    now = datetime.now(timezone.utc)
+    dt = now - timedelta(minutes=5)
+    assert humanize_naturaltime(dt) == "5m ago"
+
+
+def test_humanize_naturaltime_hours_ago() -> None:
+    now = datetime.now(timezone.utc)
+    dt = now - timedelta(hours=3)
+    assert humanize_naturaltime(dt) == "3h ago"
+
+
+def test_humanize_naturaltime_days_ago() -> None:
+    now = datetime.now(timezone.utc)
+    dt = now - timedelta(days=2)
+    assert humanize_naturaltime(dt) == "2d ago"
+
+
+def test_humanize_naturaltime_fallback() -> None:
+    now = datetime.now(timezone.utc)
+    dt = now - timedelta(days=8)
+    assert humanize_naturaltime(dt) == dt.strftime("%Y-%m-%d %H:%M")
+
+
+def test_humanize_naturaltime_future_date() -> None:
+    now = datetime.now(timezone.utc)
+    dt = now + timedelta(hours=1)
+    assert humanize_naturaltime(dt) == dt.strftime("%Y-%m-%d %H:%M")

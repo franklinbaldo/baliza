@@ -38,7 +38,7 @@ from .state import CoverageTracker, StateManager, GapDetector
 
 
 from .utils import export_parquet
-from .utils.dates import humanize_duration, to_pncp_window
+from .utils.dates import humanize_duration, humanize_naturaltime, to_pncp_window
 
 # Rich imports for improved CLI UX
 from rich.console import Console
@@ -1159,7 +1159,7 @@ def state_history(
             table.add_row(
                 run.run_id,
                 f"[{status_style}]{run.status}[/{status_style}]",
-                run.started_at.strftime("%Y-%m-%d %H:%M"),
+                humanize_naturaltime(run.started_at),
                 duration,
                 str(run.windows_completed),
                 f"{run.rows_extracted:,}",
