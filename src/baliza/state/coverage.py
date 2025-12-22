@@ -81,6 +81,10 @@ class CoverageTracker:
         self.conn = duckdb.connect(str(self.database_path))
         self._ensure_tables()
 
+        # Buffering for bulk writes
+        self._buffer_size = 100
+        self._buffer_inserts: dict[tuple[Any, ...], tuple[Any, ...]] = {}
+
     # ------------------------------------------------------------------
     # Setup & lifecycle helpers
     # ------------------------------------------------------------------
@@ -121,8 +125,48 @@ class CoverageTracker:
     def close(self) -> None:
         """Flush changes and close the DuckDB connection."""
 
+        self.flush()
         self.conn.commit()
         self.conn.close()
+
+    def flush(self) -> None:
+        """Persist buffered writes to the database."""
+        if not self._buffer_inserts:
+            return
+
+        # Prepare delete params from insert keys (recurso, pagina, janela_inicio, janela_fim)
+        # The key of the dict is (recurso, pagina, janela_inicio, janela_fim)
+        delete_params = list(self._buffer_inserts.keys())
+        insert_params = list(self._buffer_inserts.values())
+
+        self.conn.executemany(
+            """
+            DELETE FROM baliza_state.cobertura
+            WHERE recurso = ?
+              AND pagina = ?
+              AND janela_inicio IS NOT DISTINCT FROM ?
+              AND janela_fim IS NOT DISTINCT FROM ?
+            """,
+            delete_params,
+        )
+
+        self.conn.executemany(
+            """
+            INSERT INTO baliza_state.cobertura (
+                recurso,
+                janela_inicio,
+                janela_fim,
+                pagina,
+                total_paginas_observado,
+                n_registros_pagina,
+                hash_ids,
+                fetched_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            insert_params,
+        )
+        self._buffer_inserts.clear()
 
     # ------------------------------------------------------------------
     # Formatting helpers
@@ -167,41 +211,22 @@ class CoverageTracker:
         # Optimization: Unified pass to compute hash and detect anomalies
         hash_ids, anomalies = self._analyze_records(registros_list)
 
-        self.conn.execute(
-            """
-            DELETE FROM baliza_state.cobertura
-            WHERE recurso = ?
-              AND pagina = ?
-              AND janela_inicio IS NOT DISTINCT FROM ?
-              AND janela_fim IS NOT DISTINCT FROM ?
-            """,
-            [recurso, pagina, janela_inicio_dt, janela_fim_dt],
+        # Buffer writes to batch them
+        # Key: (recurso, pagina, janela_inicio, janela_fim) - ensures uniqueness
+        key = (recurso, pagina, janela_inicio_dt, janela_fim_dt)
+        self._buffer_inserts[key] = (
+            recurso,
+            janela_inicio_dt,
+            janela_fim_dt,
+            pagina,
+            total_paginas,
+            n_registros,
+            hash_ids,
+            fetched_at,
         )
-        self.conn.execute(
-            """
-            INSERT INTO baliza_state.cobertura (
-                recurso,
-                janela_inicio,
-                janela_fim,
-                pagina,
-                total_paginas_observado,
-                n_registros_pagina,
-                hash_ids,
-                fetched_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            [
-                recurso,
-                janela_inicio_dt,
-                janela_fim_dt,
-                pagina,
-                total_paginas,
-                n_registros,
-                hash_ids,
-                fetched_at,
-            ],
-        )
+
+        if len(self._buffer_inserts) >= self._buffer_size:
+            self.flush()
 
         if anomalies:
             motivo = "; ".join(
