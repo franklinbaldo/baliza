@@ -1007,12 +1007,38 @@ def state_show(
         table = Table(title=f"State Summary for '{resource}'", box=box.ROUNDED)
         table.add_column("Status", style="bold")
         table.add_column("Count", justify="right")
+        table.add_column("Percentage", justify="right")
 
-        table.add_row("[green]Complete windows[/green]", str(counts["ok"]))
-        table.add_row("[yellow]Incomplete windows[/yellow]", str(counts["incompleto"]))
-        table.add_row("[red]Suspect windows[/red]", str(counts["suspeito"]))
-        table.add_row("[cyan]Unprocessed windows[/cyan]", str(counts["nao_processado"]))
-        table.add_row("Total windows", str(len(statuses)), style="bold")
+        total = len(statuses)
+
+        def fmt_pct(value: int) -> str:
+            if total == 0:
+                return "0.0%"
+            return f"{(value / total) * 100:.1f}%"
+
+        table.add_row(
+            "[green]Complete windows[/green]",
+            str(counts["ok"]),
+            fmt_pct(counts["ok"]),
+        )
+        table.add_row(
+            "[yellow]Incomplete windows[/yellow]",
+            str(counts["incompleto"]),
+            fmt_pct(counts["incompleto"]),
+        )
+        table.add_row(
+            "[red]Suspect windows[/red]",
+            str(counts["suspeito"]),
+            fmt_pct(counts["suspeito"]),
+        )
+        table.add_row(
+            "[cyan]Unprocessed windows[/cyan]",
+            str(counts["nao_processado"]),
+            fmt_pct(counts["nao_processado"]),
+        )
+        table.add_row(
+            "Total windows", str(total), "100.0%", style="bold"
+        )
 
         console.print(table)
 
