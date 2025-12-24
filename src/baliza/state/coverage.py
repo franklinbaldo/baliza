@@ -331,7 +331,14 @@ class CoverageTracker:
                     seq_int = int(seq_value)
                 except (TypeError, ValueError):  # pragma: no cover - guard
                     continue
-                grouped.setdefault((field, cnpj, ano), []).append(seq_int)
+
+                # Optimization: Use try/except which is faster than setdefault for hot loops
+                # because it avoids creating the default empty list object on every hit.
+                key = (field, cnpj, ano)
+                try:
+                    grouped[key].append(seq_int)
+                except KeyError:
+                    grouped[key] = [seq_int]
 
         # Finalize Hash
         hash_ids = None
@@ -370,19 +377,18 @@ class CoverageTracker:
 
     @staticmethod
     def _extract_cnpj(item: dict[str, Any]) -> str | None:
-        cnpj = item.get("cnpj")
-        if cnpj:
+        if (cnpj := item.get("cnpj")):
             return str(cnpj)
         contratante = item.get("contratante")
-        if isinstance(contratante, dict) and contratante.get("cnpj"):
-            return str(contratante["cnpj"])
+        if isinstance(contratante, dict) and (cnpj := contratante.get("cnpj")):
+            return str(cnpj)
         return None
 
     @staticmethod
     def _extract_ano(item: dict[str, Any]) -> str | None:
         for key in ("ano", "anoCompra", "anoContrato"):
-            if item.get(key):
-                return str(item[key])
+            if (val := item.get(key)):
+                return str(val)
         for key in ("dataPublicacaoPncp", "dataPublicacao"):
             val = item.get(key)
             if not val:
