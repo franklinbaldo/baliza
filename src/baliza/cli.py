@@ -43,6 +43,7 @@ from .utils.dates import humanize_duration, humanize_naturaltime, to_pncp_window
 # Rich imports for improved CLI UX
 from rich.console import Console
 from rich.table import Table
+from rich.panel import Panel
 from rich import box
 
 console = Console()
@@ -1146,10 +1147,13 @@ def state_history(
 
         if not history:
             console.print(
-                f"[yellow]No run history found for resource '{resource}'.[/yellow]"
-            )
-            console.print(
-                f"To start a new extraction, run: [bold]baliza extract --resource {resource}[/bold]"
+                Panel(
+                    f"No run history found for resource [bold cyan]'{resource}'[/bold cyan].\n\n"
+                    f"To start a new extraction, run:\n[bold green]baliza extract --resource {resource}[/bold green]",
+                    title="[yellow]No History Found[/yellow]",
+                    border_style="yellow",
+                    padding=(1, 2),
+                )
             )
             return
 
