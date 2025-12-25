@@ -96,7 +96,21 @@ class _FallbackClient(AbstractContextManager["_FallbackClient"]):
         try:
             with request.urlopen(req, timeout=self.timeout) as response:  # type: ignore[attr-defined]
                 status = int(response.getcode() or 0)
-                text = response.read().decode("utf-8")
+
+                # Security: Limit response size to prevent DoS via memory exhaustion
+                content = bytearray()
+                chunk_size = 8192  # 8KB chunks
+                max_size = 10 * 1024 * 1024  # 10 MB limit
+
+                while True:
+                    chunk = response.read(chunk_size)
+                    if not chunk:
+                        break
+                    content.extend(chunk)
+                    if len(content) > max_size:
+                        raise RuntimeError(f"Response too large (exceeded {max_size} bytes)")
+
+                text = content.decode("utf-8")
         except Exception as exc:  # pragma: no cover - network not exercised in tests
             # Security: Redact query parameters in error logs to prevent secret leakage
             safe_url = parse.urlparse(full_url)._replace(query="").geturl()
