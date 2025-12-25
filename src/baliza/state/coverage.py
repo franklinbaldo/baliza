@@ -397,6 +397,11 @@ class CoverageTracker:
             if len(text) == 10 and text[4] == "-" and text[7] == "-" and text[:4].isdigit():
                 return text[:4]
 
+            # Optimization: fast path for ISO timestamps ending in 'Z' (UTC).
+            # Since they are already UTC, we can safely slice the year without parsing/conversion.
+            if len(text) >= 11 and text.endswith("Z") and text[4] == "-" and text[7] == "-" and text[:4].isdigit():
+                return text[:4]
+
             try:
                 dt = _to_naive_utc(text)
             except Exception:  # pragma: no cover - defensive
