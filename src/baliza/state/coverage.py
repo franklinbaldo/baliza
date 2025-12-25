@@ -345,7 +345,7 @@ class CoverageTracker:
             if len(values) < 2:
                 continue
             seen = sorted(set(values))
-            for previous, current in zip(seen, seen[1:]):
+            for previous, current in zip(seen, seen[1:], strict=False):
                 if current - previous > 1:
                     anomalies.append(
                         {
