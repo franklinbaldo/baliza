@@ -10,6 +10,7 @@ from typing import Any, Callable, Dict, Iterable, Optional, Protocol, Tuple
 
 import duckdb
 import shutil
+import tempfile
 
 try:  # pragma: no cover - optional dependency
     import httpx
@@ -921,74 +922,71 @@ def export(
             )
             return
 
-        archive_dir: Path | None = None
         try:
-            session = get_session(access_key=ia_access_key, secret_key=ia_secret_key)
-            ia_metadata: dict[str, Any] = {
-                "title": f"Baliza {metadata.table} Dataset - {ia_identifier}",
-                "description": (
-                    "Publicly available procurement data extracted by Baliza. "
-                    "Source: PNCP API. "
-                    f"Extracted from {metadata.start_date} to {metadata.end_date}."
-                ),
-                "mediatype": "collection",
-                "creator": "Baliza Project",
-                "subject": ["public procurement", "Brazil", "contracts", "PNCP"],
-                "coverage": f"Brazil. Dates: {metadata.start_date} to {metadata.end_date}",
-                "created": datetime.now().isoformat(),
-            }
-            if metadata.rows_exported is not None:
-                ia_metadata["lineCount"] = metadata.rows_exported
-            if metadata.partition_count is not None:
-                ia_metadata["numberOfFiles"] = metadata.partition_count
+            with tempfile.TemporaryDirectory(prefix=f"baliza_ia_archive_{ia_identifier}_") as tmp_dir:
+                session = get_session(access_key=ia_access_key, secret_key=ia_secret_key)
+                ia_metadata: dict[str, Any] = {
+                    "title": f"Baliza {metadata.table} Dataset - {ia_identifier}",
+                    "description": (
+                        "Publicly available procurement data extracted by Baliza. "
+                        "Source: PNCP API. "
+                        f"Extracted from {metadata.start_date} to {metadata.end_date}."
+                    ),
+                    "mediatype": "collection",
+                    "creator": "Baliza Project",
+                    "subject": ["public procurement", "Brazil", "contracts", "PNCP"],
+                    "coverage": f"Brazil. Dates: {metadata.start_date} to {metadata.end_date}",
+                    "created": datetime.now().isoformat(),
+                }
+                if metadata.rows_exported is not None:
+                    ia_metadata["lineCount"] = metadata.rows_exported
+                if metadata.partition_count is not None:
+                    ia_metadata["numberOfFiles"] = metadata.partition_count
 
-            archive_dir = Path(f"ia_archive_{ia_identifier}")
-            archive_dir.mkdir(parents=True, exist_ok=True)
-            shutil.copytree(Path(metadata.output_dir), archive_dir, dirs_exist_ok=True)
+                archive_dir = Path(tmp_dir)
+                # Note: copytree with dirs_exist_ok=True allows merging into the temp dir
+                shutil.copytree(Path(metadata.output_dir), archive_dir, dirs_exist_ok=True)
 
-            target_item = session.get_item(ia_identifier)
+                target_item = session.get_item(ia_identifier)
 
-            # Use a spinner on stderr to show progress without polluting stdout
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                TimeElapsedColumn(),
-                console=Console(stderr=True),
-                transient=True,
-            ) as progress:
-                progress.add_task(
-                    description=f"Uploading to Internet Archive (Identifier: {ia_identifier})...",
-                    total=None,
-                )
-                # Use verbose=False to keep stdout clean.
-                target_item.upload(
-                    str(archive_dir), metadata=ia_metadata, verbose=False
-                )
+                # Use a spinner on stderr to show progress without polluting stdout
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[progress.description]{task.description}"),
+                    TimeElapsedColumn(),
+                    console=Console(stderr=True),
+                    transient=True,
+                ) as progress:
+                    progress.add_task(
+                        description=f"Uploading to Internet Archive (Identifier: {ia_identifier})...",
+                        total=None,
+                    )
+                    # Use verbose=False to keep stdout clean.
+                    target_item.upload(
+                        str(archive_dir), metadata=ia_metadata, verbose=False
+                    )
 
-            upload_metadata = {
-                "identifier": ia_identifier,
-                "upload_time": datetime.now().isoformat(),
-                "ia_metadata": ia_metadata,
-                "local_output_dir": metadata.output_dir,
-                "local_archive_dir": str(archive_dir),
-            }
-            metadata_path = ia_metadata_path or Path("internet-archive-summary.json")
-            metadata_path.parent.mkdir(parents=True, exist_ok=True)
-            with metadata_path.open("w", encoding="utf-8") as fh:
-                json.dump(upload_metadata, fh, indent=2)
-            typer.echo(f"Internet Archive upload metadata saved to: {metadata_path}", err=True)
+                upload_metadata = {
+                    "identifier": ia_identifier,
+                    "upload_time": datetime.now().isoformat(),
+                    "ia_metadata": ia_metadata,
+                    "local_output_dir": metadata.output_dir,
+                    "local_archive_dir": str(archive_dir),
+                }
+                metadata_path = ia_metadata_path or Path("internet-archive-summary.json")
+                metadata_path.parent.mkdir(parents=True, exist_ok=True)
+                with metadata_path.open("w", encoding="utf-8") as fh:
+                    json.dump(upload_metadata, fh, indent=2)
+                typer.echo(f"Internet Archive upload metadata saved to: {metadata_path}", err=True)
 
-            typer.echo("Successfully uploaded to Internet Archive.", err=True)
+                typer.echo("Successfully uploaded to Internet Archive.", err=True)
+
         except Exception as exc:  # pragma: no cover - network dependent
             typer.secho(
                 f"Error during Internet Archive upload: {exc}",
                 fg=typer.colors.RED,
                 err=True,
             )
-        finally:
-            if archive_dir and archive_dir.exists():
-                shutil.rmtree(archive_dir)
-                typer.echo("Temporary archive directory cleaned.", err=True)
 
 
 # State management command group
