@@ -978,7 +978,12 @@ def export(
                 json.dump(upload_metadata, fh, indent=2)
             typer.echo(f"Internet Archive upload metadata saved to: {metadata_path}", err=True)
 
-            typer.echo("Successfully uploaded to Internet Archive.", err=True)
+            item_url = f"https://archive.org/details/{ia_identifier}"
+            stderr_console = Console(stderr=True)
+            stderr_console.print(
+                f"Successfully uploaded to Internet Archive: [link={item_url}]{item_url}[/link]",
+                style="green",
+            )
         except Exception as exc:  # pragma: no cover - network dependent
             typer.secho(
                 f"Error during Internet Archive upload: {exc}",
