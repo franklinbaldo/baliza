@@ -11,7 +11,6 @@ from typer.testing import CliRunner
 from baliza import cli
 from baliza.state import CoverageTracker
 
-
 runner = CliRunner()
 
 
@@ -51,8 +50,8 @@ def tracker_db(tmp_path: Path) -> Path:
     return db_path
 
 
-def test_verify_reports_missing_pages_and_windows(tracker_db: Path, httpx_mock) -> None:
-    httpx_mock.add_response(
+def test_verify_reports_missing_pages_and_windows(tracker_db: Path, baliza_http_mock) -> None:
+    baliza_http_mock.add_response(
         url=re.compile(r"https://pncp\.gov\.br/api/consulta/v1/contratos.*"),
         json={"paginaAtual": 1, "totalPaginas": 3, "data": []},
     )
