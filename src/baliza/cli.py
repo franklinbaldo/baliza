@@ -1017,6 +1017,18 @@ def state_show(
             status = status_entry.get("status", "unknown")
             counts[status] = counts.get(status, 0) + 1
 
+        if not statuses:
+            console.print(
+                Panel(
+                    f"No extraction state found for resource [bold cyan]'{resource}'[/bold cyan].\n\n"
+                    f"To start a new extraction, run:\n[bold green]baliza extract --resource {resource}[/bold green]",
+                    title="[yellow]No State Found[/yellow]",
+                    border_style="yellow",
+                    padding=(1, 2),
+                )
+            )
+            return
+
         last_run = manager.get_last_successful_run(resource)
 
         table = Table(title=f"State Summary for '{resource}'", box=box.ROUNDED)
