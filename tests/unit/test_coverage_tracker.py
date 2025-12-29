@@ -47,6 +47,7 @@ def test_record_page_creates_manifest_and_hash(temp_tracker: CoverageTracker) ->
     assert algoritmo in {"xxh64", "sha256"}
     assert digest
 
+    temp_tracker.flush()
     rows = temp_tracker.conn.execute(
         "SELECT recurso, pagina, total_paginas_observado, hash_ids FROM baliza_state.cobertura"
     ).fetchall()

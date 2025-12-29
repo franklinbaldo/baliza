@@ -80,6 +80,7 @@ class CoverageTracker:
         self.dataset = dataset
         self.conn = duckdb.connect(str(self.database_path))
         self._ensure_tables()
+        self._buffer: list[dict[str, Any]] = []
 
     # ------------------------------------------------------------------
     # Setup & lifecycle helpers
@@ -121,8 +122,77 @@ class CoverageTracker:
     def close(self) -> None:
         """Flush changes and close the DuckDB connection."""
 
+        self.flush()
         self.conn.commit()
         self.conn.close()
+
+    def flush(self) -> None:
+        """Commit buffered coverage records to the database."""
+        if not self._buffer:
+            return
+
+        # Optimization: Use executemany for batch processing.
+        # Handle deduplication within the buffer: last write wins.
+        # Key: (recurso, pagina, janela_inicio, janela_fim)
+        unique_buffer = {
+            (
+                item["recurso"],
+                item["pagina"],
+                item["janela_inicio"],
+                item["janela_fim"],
+            ): item
+            for item in self._buffer
+        }
+
+        # Prepare parameters for bulk DELETE
+        delete_params = [
+            (recurso, pagina, start, end)
+            for (recurso, pagina, start, end) in unique_buffer.keys()
+        ]
+
+        # Prepare parameters for bulk INSERT
+        insert_params = [
+            (
+                item["recurso"],
+                item["janela_inicio"],
+                item["janela_fim"],
+                item["pagina"],
+                item["total_paginas"],
+                item["n_registros"],
+                item["hash_ids"],
+                item["fetched_at"],
+            )
+            for item in unique_buffer.values()
+        ]
+
+        # Execute batch operations
+        self.conn.executemany(
+            """
+            DELETE FROM baliza_state.cobertura
+            WHERE recurso = ?
+              AND pagina = ?
+              AND janela_inicio IS NOT DISTINCT FROM ?
+              AND janela_fim IS NOT DISTINCT FROM ?
+            """,
+            delete_params,
+        )
+        self.conn.executemany(
+            """
+            INSERT INTO baliza_state.cobertura (
+                recurso,
+                janela_inicio,
+                janela_fim,
+                pagina,
+                total_paginas_observado,
+                n_registros_pagina,
+                hash_ids,
+                fetched_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            insert_params,
+        )
+        self._buffer.clear()
 
     # ------------------------------------------------------------------
     # Formatting helpers
@@ -167,41 +237,21 @@ class CoverageTracker:
         # Optimization: Unified pass to compute hash and detect anomalies
         hash_ids, anomalies = self._analyze_records(registros_list)
 
-        self.conn.execute(
-            """
-            DELETE FROM baliza_state.cobertura
-            WHERE recurso = ?
-              AND pagina = ?
-              AND janela_inicio IS NOT DISTINCT FROM ?
-              AND janela_fim IS NOT DISTINCT FROM ?
-            """,
-            [recurso, pagina, janela_inicio_dt, janela_fim_dt],
+        # Optimization: Batch operations instead of executing per page
+        self._buffer.append(
+            {
+                "recurso": recurso,
+                "janela_inicio": janela_inicio_dt,
+                "janela_fim": janela_fim_dt,
+                "pagina": pagina,
+                "total_paginas": total_paginas,
+                "n_registros": n_registros,
+                "hash_ids": hash_ids,
+                "fetched_at": fetched_at,
+            }
         )
-        self.conn.execute(
-            """
-            INSERT INTO baliza_state.cobertura (
-                recurso,
-                janela_inicio,
-                janela_fim,
-                pagina,
-                total_paginas_observado,
-                n_registros_pagina,
-                hash_ids,
-                fetched_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            [
-                recurso,
-                janela_inicio_dt,
-                janela_fim_dt,
-                pagina,
-                total_paginas,
-                n_registros,
-                hash_ids,
-                fetched_at,
-            ],
-        )
+        if len(self._buffer) >= 1000:
+            self.flush()
 
         if anomalies:
             motivo = "; ".join(
@@ -422,6 +472,7 @@ class CoverageTracker:
     ) -> dict[str, dict[str, Any]]:
         """Return recorded pages grouped by window key."""
 
+        self.flush()
         query = (
             "SELECT janela_inicio, janela_fim, pagina, total_paginas_observado, "
             "n_registros_pagina, hash_ids, fetched_at "
