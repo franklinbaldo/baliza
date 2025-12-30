@@ -40,6 +40,8 @@ def test_record_page_creates_manifest_and_hash(temp_tracker: CoverageTracker) ->
         total_paginas=2,
         registros=records,
     )
+    # Ensure buffered writes are flushed for verification
+    temp_tracker.flush()
 
     hash_value = temp_tracker.hash_registros(records)
     assert hash_value is not None

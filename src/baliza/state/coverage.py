@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import string
+import threading
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -80,6 +81,9 @@ class CoverageTracker:
         self.dataset = dataset
         self.conn = duckdb.connect(str(self.database_path))
         self._ensure_tables()
+        self._buffer: list[tuple[Any, ...]] = []
+        self._batch_size = 1000
+        self._lock = threading.Lock()
 
     # ------------------------------------------------------------------
     # Setup & lifecycle helpers
@@ -118,10 +122,61 @@ class CoverageTracker:
             """
         )
 
+    def _flush_internal(self) -> None:
+        """Internal flush implementation. Caller must hold self._lock."""
+        if not self._buffer:
+            return
+
+        # Optimization: Use a transaction to ensure atomicity and batch operations
+        self.conn.execute("BEGIN TRANSACTION")
+        try:
+            # Create a staging table matching the schema (if not exists)
+            self.conn.execute(
+                "CREATE TEMPORARY TABLE IF NOT EXISTS _staging_cobertura AS "
+                "SELECT * FROM baliza_state.cobertura LIMIT 0"
+            )
+            self.conn.execute("DELETE FROM _staging_cobertura")
+
+            # Bulk insert into staging
+            self.conn.executemany(
+                "INSERT INTO _staging_cobertura VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                self._buffer,
+            )
+
+            # Delete existing records that match the new ones (deduplication)
+            self.conn.execute(
+                """
+                DELETE FROM baliza_state.cobertura c
+                USING _staging_cobertura s
+                WHERE c.recurso = s.recurso
+                  AND c.pagina = s.pagina
+                  AND c.janela_inicio IS NOT DISTINCT FROM s.janela_inicio
+                  AND c.janela_fim IS NOT DISTINCT FROM s.janela_fim
+                """
+            )
+
+            # Move from staging to final table
+            self.conn.execute("INSERT INTO baliza_state.cobertura SELECT * FROM _staging_cobertura")
+            self.conn.execute("COMMIT")
+        except Exception:
+            self.conn.execute("ROLLBACK")
+            raise
+
+        self._buffer.clear()
+
+    def flush(self) -> None:
+        """Flush buffered records to the database."""
+        with self._lock:
+            self._flush_internal()
+
     def close(self) -> None:
         """Flush changes and close the DuckDB connection."""
-
-        self.conn.commit()
+        self.flush()
+        # conn.commit() is redundant if flush commits, but safe to keep for other ops
+        try:
+            self.conn.commit()
+        except duckdb.ConnectionException:
+            pass  # connection might be closed or transaction active
         self.conn.close()
 
     # ------------------------------------------------------------------
@@ -167,41 +222,22 @@ class CoverageTracker:
         # Optimization: Unified pass to compute hash and detect anomalies
         hash_ids, anomalies = self._analyze_records(registros_list)
 
-        self.conn.execute(
-            """
-            DELETE FROM baliza_state.cobertura
-            WHERE recurso = ?
-              AND pagina = ?
-              AND janela_inicio IS NOT DISTINCT FROM ?
-              AND janela_fim IS NOT DISTINCT FROM ?
-            """,
-            [recurso, pagina, janela_inicio_dt, janela_fim_dt],
+        record = (
+            recurso,
+            janela_inicio_dt,
+            janela_fim_dt,
+            pagina,
+            total_paginas,
+            n_registros,
+            hash_ids,
+            fetched_at,
         )
-        self.conn.execute(
-            """
-            INSERT INTO baliza_state.cobertura (
-                recurso,
-                janela_inicio,
-                janela_fim,
-                pagina,
-                total_paginas_observado,
-                n_registros_pagina,
-                hash_ids,
-                fetched_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            [
-                recurso,
-                janela_inicio_dt,
-                janela_fim_dt,
-                pagina,
-                total_paginas,
-                n_registros,
-                hash_ids,
-                fetched_at,
-            ],
-        )
+
+        with self._lock:
+            self._buffer.append(record)
+            should_flush = len(self._buffer) >= self._batch_size
+            if should_flush:
+                self._flush_internal()
 
         if anomalies:
             motivo = "; ".join(
@@ -221,6 +257,7 @@ class CoverageTracker:
         """Persist (or update) the status for a given coverage window."""
 
         atualizado_em = datetime.now(UTC).replace(tzinfo=None)
+        # We execute this immediately as it is rare (anomalies only)
         self.conn.execute(
             """
             DELETE FROM baliza_state.janelas
@@ -399,7 +436,13 @@ class CoverageTracker:
 
             # Optimization: fast path for ISO timestamps ending in 'Z' (UTC).
             # Since they are already UTC, we can safely slice the year without parsing/conversion.
-            if len(text) >= 11 and text.endswith("Z") and text[4] == "-" and text[7] == "-" and text[:4].isdigit():
+            if (
+                len(text) >= 11
+                and text.endswith("Z")
+                and text[4] == "-"
+                and text[7] == "-"
+                and text[:4].isdigit()
+            ):
                 return text[:4]
 
             try:
@@ -421,6 +464,7 @@ class CoverageTracker:
         end: datetime | None = None,
     ) -> dict[str, dict[str, Any]]:
         """Return recorded pages grouped by window key."""
+        self.flush()
 
         query = (
             "SELECT janela_inicio, janela_fim, pagina, total_paginas_observado, "
