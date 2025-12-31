@@ -1026,6 +1026,18 @@ def state_show(
 
         total = len(statuses)
 
+        if total == 0:
+            console.print(
+                Panel(
+                    f"No state data found for resource [bold cyan]'{resource}'[/bold cyan].\n\n"
+                    f"To start a new extraction, run:\n[bold green]baliza extract --resource {resource}[/bold green]",
+                    title="[yellow]No State Data Found[/yellow]",
+                    border_style="yellow",
+                    padding=(1, 2),
+                )
+            )
+            return
+
         def fmt_pct(value: int) -> str:
             if total == 0:
                 return "0.0%"
