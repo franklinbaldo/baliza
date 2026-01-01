@@ -1019,40 +1019,59 @@ def state_show(
 
         last_run = manager.get_last_successful_run(resource)
 
+        if not statuses:
+            console.print(
+                Panel(
+                    f"No extraction state found for resource [bold cyan]'{resource}'[/bold cyan].\n\n"
+                    f"To start an extraction, run:\n[bold green]baliza extract --resource {resource}[/bold green]",
+                    title="[yellow]No State Found[/yellow]",
+                    border_style="yellow",
+                    padding=(1, 2),
+                )
+            )
+            return
+
         table = Table(title=f"State Summary for '{resource}'", box=box.ROUNDED)
         table.add_column("Status", style="bold")
         table.add_column("Count", justify="right")
-        table.add_column("Percentage", justify="right")
+        table.add_column("Percentage", justify="right", style="dim")
 
         total = len(statuses)
 
-        def fmt_pct(value: int) -> str:
+        def fmt_pct(value: int, color: str = "white") -> str:
             if total == 0:
                 return "0.0%"
-            return f"{(value / total) * 100:.1f}%"
+            pct = (value / total)
+
+            # Create a mini progress bar
+            width = 10
+            filled = int(width * pct)
+            bar = "■" * filled + " " * (width - filled)
+
+            return f"[{color}]{bar}[/{color}] {pct * 100:>5.1f}%"
 
         table.add_row(
             "[green]Complete windows[/green]",
             str(counts["ok"]),
-            fmt_pct(counts["ok"]),
+            fmt_pct(counts["ok"], "green"),
         )
         table.add_row(
             "[yellow]Incomplete windows[/yellow]",
             str(counts["incompleto"]),
-            fmt_pct(counts["incompleto"]),
+            fmt_pct(counts["incompleto"], "yellow"),
         )
         table.add_row(
             "[red]Suspect windows[/red]",
             str(counts["suspeito"]),
-            fmt_pct(counts["suspeito"]),
+            fmt_pct(counts["suspeito"], "red"),
         )
         table.add_row(
             "[cyan]Unprocessed windows[/cyan]",
             str(counts["nao_processado"]),
-            fmt_pct(counts["nao_processado"]),
+            fmt_pct(counts["nao_processado"], "cyan"),
         )
         table.add_row(
-            "Total windows", str(total), "100.0%", style="bold"
+            "Total windows", str(total), "", style="bold"
         )
 
         console.print(table)
@@ -1063,8 +1082,12 @@ def state_show(
             last_run_table.add_column("Field", style="dim")
             last_run_table.add_column("Value")
 
+            completed_at = "-"
+            if last_run.completed_at:
+                completed_at = humanize_naturaltime(last_run.completed_at)
+
             last_run_table.add_row("Run ID", last_run.run_id)
-            last_run_table.add_row("Completed at", str(last_run.completed_at))
+            last_run_table.add_row("Completed at", completed_at)
             last_run_table.add_row("Windows", str(last_run.windows_completed))
             last_run_table.add_row("Rows extracted", f"{last_run.rows_extracted:,}")
             console.print(last_run_table)
