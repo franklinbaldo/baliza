@@ -119,11 +119,71 @@ class _FallbackClient(AbstractContextManager["_FallbackClient"]):
         return _FallbackResponse(status_code=status, text=text)
 
 
+if httpx is not None:
+
+    class _SecureClient(AbstractContextManager["_SecureClient"]):
+        """
+        A wrapper around httpx.Client that enforces security policies:
+        1. Scheme validation (http/https only) to prevent SSRF
+        2. Response size limit to prevent DoS via memory exhaustion
+        """
+
+        def __init__(
+            self, client: httpx.Client, max_size: int = 10 * 1024 * 1024
+        ) -> None:  # pragma: no cover
+            self._client = client
+            self._max_size = max_size
+
+        def __enter__(self) -> "_SecureClient":
+            self._client.__enter__()
+            return self
+
+        def __exit__(self, exc_type, exc, exc_tb) -> None:
+            return self._client.__exit__(exc_type, exc, exc_tb)
+
+        def get(
+            self, url: str, params: dict[str, Any] | None = None
+        ) -> httpx.Response:
+            # Security: Enforce scheme validation to prevent SSRF
+            if not url.lower().startswith(("http://", "https://")):
+                raise ValueError("URL scheme must be http or https")
+
+            # Security: Enforce response size limit to prevent DoS via memory exhaustion
+            # We must build the request and stream it to control the download
+            req = self._client.build_request("GET", url, params=params)
+            response = self._client.send(req, stream=True)
+
+            try:
+                content = bytearray()
+                for chunk in response.iter_bytes():
+                    content.extend(chunk)
+                    if len(content) > self._max_size:
+                        response.close()
+                        raise RuntimeError(
+                            f"Response too large (exceeded {self._max_size} bytes)"
+                        )
+
+                # Manually close stream and attach content to simulate non-streamed response
+                response.close()
+                response._content = bytes(content)
+                return response
+
+            except Exception:
+                response.close()
+                # Note: httpx exceptions might leak URL parameters.
+                # Ideally we would catch and wrap them redacting the URL,
+                # but httpx exceptions are complex. We rely on standard logging hygiene
+                # and the fact that we validate the scheme.
+                raise
+else:
+    _SecureClient = None  # type: ignore[assignment]
+
+
 def _default_http_client_factory(
     *, headers: dict[str, str] | None = None, timeout: int = 30
 ) -> AbstractContextManager[_HttpClient]:
-    if httpx is not None:
-        return httpx.Client(headers=headers or None, timeout=timeout)
+    if httpx is not None and _SecureClient is not None:
+        return _SecureClient(httpx.Client(headers=headers or None, timeout=timeout))
     return _FallbackClient(headers=headers or None, timeout=timeout)
 
 
