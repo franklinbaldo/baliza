@@ -23,7 +23,14 @@ except ModuleNotFoundError:  # pragma: no cover - fallback path
 
 
 import typer
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn
+from rich.progress import (
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    BarColumn,
+    TaskProgressColumn,
+    TimeElapsedColumn,
+)
 
 from .pipelines.pncp import (
     BACKFILL_PIPELINE_NAME,
@@ -52,7 +59,9 @@ app = typer.Typer(help="Declarative PNCP pipeline runner")
 
 
 class _HttpClient(Protocol):
-    def get(self, url: str, params: Optional[Dict[str, Any]] = None) -> Any:  # pragma: no cover - protocol definition
+    def get(
+        self, url: str, params: Optional[Dict[str, Any]] = None
+    ) -> Any:  # pragma: no cover - protocol definition
         ...
 
 
@@ -119,11 +128,73 @@ class _FallbackClient(AbstractContextManager["_FallbackClient"]):
         return _FallbackResponse(status_code=status, text=text)
 
 
+class _SecureClient(AbstractContextManager["_SecureClient"]):
+    """Wraps httpx.Client to enforce security policies (size limit, schemes)."""
+
+    def __init__(
+        self, client: "httpx.Client", *, max_size: int = 10 * 1024 * 1024
+    ) -> None:  # pragma: no cover - conditional definition
+        self.client = client
+        self.max_size = max_size
+
+    def __enter__(self) -> "_SecureClient":
+        self.client.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc, exc_tb) -> None:  # pragma: no cover - proxy
+        self.client.__exit__(exc_type, exc, exc_tb)
+
+    def get(self, url: str, params: Optional[Dict[str, Any]] = None) -> Any:
+        from urllib import parse
+
+        if not url.startswith(("http://", "https://")):
+            raise ValueError("URL scheme must be http or https")
+
+        try:
+            # Stream the response to enforce size limit
+            with self.client.stream("GET", url, params=params) as response:
+                content = bytearray()
+                for chunk in response.iter_bytes():
+                    content.extend(chunk)
+                    if len(content) > self.max_size:
+                        raise RuntimeError(f"Response too large (exceeded {self.max_size} bytes)")
+
+                # Manually construct response with full content
+                # Re-wrap the content in a new Response object or modify the existing one
+                # Since we are inside stream context, we need to reconstruct a usable response object
+                # that acts like a normal get() result.
+                # httpx.Response is what users expect.
+                final_response = httpx.Response(
+                    status_code=response.status_code,
+                    headers=response.headers,
+                    content=bytes(content),
+                    request=response.request,
+                )
+                return final_response
+
+        except Exception as exc:
+            # Security: Redact query parameters in error logs
+            # If exc is an httpx exception, it might contain the request URL.
+            # We want to catch everything and re-raise with a clean message if possible,
+            # or rely on httpx's internal redaction if it exists (it doesn't for params usually).
+            # But the simplest consistency with _FallbackClient is to wrap and redact.
+
+            # Reconstruct full URL for logging purposes (safely)
+            full_url = url
+            if params:
+                query = parse.urlencode(params, doseq=True)
+                full_url = f"{url}?{query}"
+
+            safe_url = parse.urlparse(full_url)._replace(query="").geturl()
+            raise RuntimeError(f"HTTP request to {safe_url} failed: {exc}") from exc
+
+
 def _default_http_client_factory(
     *, headers: dict[str, str] | None = None, timeout: int = 30
 ) -> AbstractContextManager[_HttpClient]:
     if httpx is not None:
-        return httpx.Client(headers=headers or None, timeout=timeout)
+        client = httpx.Client(headers=headers or None, timeout=timeout)
+        return _SecureClient(client)
     return _FallbackClient(headers=headers or None, timeout=timeout)
 
 
@@ -145,15 +216,11 @@ def _resolve_config_path(config: Path | None) -> Path:
     return config
 
 
-def _month_windows(
-    start_month: str, end_month: str
-) -> Iterable[Tuple[datetime, datetime]]:
+def _month_windows(start_month: str, end_month: str) -> Iterable[Tuple[datetime, datetime]]:
     """Generate inclusive month windows between two YYYY-MM strings."""
 
     try:
-        start = datetime.strptime(start_month, "%Y-%m").replace(
-            tzinfo=timezone.utc, day=1
-        )
+        start = datetime.strptime(start_month, "%Y-%m").replace(tzinfo=timezone.utc, day=1)
     except ValueError as exc:  # pragma: no cover - handled by Typer
         raise typer.BadParameter("start_month must follow YYYY-MM format") from exc
 
@@ -200,9 +267,7 @@ def _parse_optional_date(value: Optional[str], *, option_name: str) -> Optional[
     try:
         return date.fromisoformat(value)
     except ValueError as exc:  # pragma: no cover - handled by Typer
-        raise typer.BadParameter(
-            f"{option_name} must follow YYYY-MM-DD format"
-        ) from exc
+        raise typer.BadParameter(f"{option_name} must follow YYYY-MM-DD format") from exc
 
 
 @app.command("extract")
@@ -318,9 +383,7 @@ def extract(
         )
 
         if not gaps:
-            typer.secho(
-                "✓ No gaps found. All windows are up to date.", fg=typer.colors.GREEN
-            )
+            typer.secho("✓ No gaps found. All windows are up to date.", fg=typer.colors.GREEN)
             return
 
         # Check for incomplete runs
@@ -335,9 +398,7 @@ def extract(
             original_count = len(gaps)
             gaps = gap_detector.merge_adjacent_windows(gaps, max_merge_days=max_merge_days)
             if len(gaps) < original_count:
-                typer.echo(
-                    f"Merged {original_count} windows into {len(gaps)} to reduce API calls."
-                )
+                typer.echo(f"Merged {original_count} windows into {len(gaps)} to reduce API calls.")
 
         # Show summary
         gap_detector.count_gaps_by_reason(gaps)
@@ -363,7 +424,7 @@ def extract(
                 str(i),
                 str(gap.start.date()),
                 str(gap.end.date()),
-                f"[{color_tag}]{gap.reason}[/{color_tag}]"
+                f"[{color_tag}]{gap.reason}[/{color_tag}]",
             )
 
         console.print(table)
@@ -387,14 +448,15 @@ def extract(
                 TimeElapsedColumn(),
                 transient=False,
             ) as progress:
-
                 task_id = progress.add_task(
-                    description=f"Processing {len(gaps)} windows...",
-                    total=len(gaps)
+                    description=f"Processing {len(gaps)} windows...", total=len(gaps)
                 )
 
                 for i, window in enumerate(gaps, 1):
-                    progress.update(task_id, description=f"Processing {window.start.date()} to {window.end.date()} ({window.reason})")
+                    progress.update(
+                        task_id,
+                        description=f"Processing {window.start.date()} to {window.end.date()} ({window.reason})",
+                    )
 
                     # Run extraction for this window
                     _, run_info = run_pncp(
@@ -428,30 +490,24 @@ def extract(
                     periodo = state_manager.tracker.period_label(window.start, window.end)
                     state_manager.tracker.mark_window_status(resource, periodo, "ok")
 
-                    progress.console.print(f"  [green]✓[/green] Completed {window.start.date()} to {window.end.date()}")
+                    progress.console.print(
+                        f"  [green]✓[/green] Completed {window.start.date()} to {window.end.date()}"
+                    )
 
                     progress.advance(task_id)
 
             # Complete the run
             state_manager.complete_run(run_id, {"windows_completed": windows_completed})
 
-            typer.secho(
-            "\n✓ Extraction completed successfully!", fg=typer.colors.GREEN
-            )
-            typer.echo(
-                json.dumps(
-                    {"run_id": run_id, "windows": results}, indent=2, default=str
-                )
-            )
+            typer.secho("\n✓ Extraction completed successfully!", fg=typer.colors.GREEN)
+            typer.echo(json.dumps({"run_id": run_id, "windows": results}, indent=2, default=str))
 
         except Exception as e:
             # Fail the run but preserve state
             state_manager.fail_run(run_id, str(e))
             typer.secho(f"\n✗ Extraction failed: {e}", fg=typer.colors.RED, err=True)
             typer.echo(f"\nRun ID: {run_id} (marked as failed)")
-            typer.echo(
-                f"Completed {windows_completed}/{len(gaps)} windows before failure."
-            )
+            typer.echo(f"Completed {windows_completed}/{len(gaps)} windows before failure.")
             typer.echo("Incomplete windows will be resumed on next run.")
             raise typer.Exit(code=1)
 
@@ -502,9 +558,7 @@ def backfill(
         )
 
         for window_start, window_end in windows:
-            progress.update(
-                task_id, description=f"Backfilling {window_start.strftime('%Y-%m')}..."
-            )
+            progress.update(task_id, description=f"Backfilling {window_start.strftime('%Y-%m')}...")
 
             _, run_info = run_pncp(
                 config_path=config_path,
@@ -578,17 +632,11 @@ def verify(
         config_data = load_pncp_config(config_path)
         resources_cfg = config_data.get("resources", [])
         resource_cfg = next(
-            (
-                r
-                for r in resources_cfg
-                if isinstance(r, dict) and r.get("name") == resource
-            ),
+            (r for r in resources_cfg if isinstance(r, dict) and r.get("name") == resource),
             None,
         )
         if resource_cfg is None:
-            raise typer.BadParameter(
-                f"resource '{resource}' not found in configuration"
-            )
+            raise typer.BadParameter(f"resource '{resource}' not found in configuration")
 
         endpoint_cfg = resource_cfg.get("endpoint", {}) or {}
         table_name = resource_cfg.get("table_name") or resource
@@ -606,13 +654,9 @@ def verify(
             params_cfg = {}
         default_params = _filter_dict_none(dict(params_cfg))
 
-        coverage = tracker.fetch_pages_by_window(
-            resource, start=inicio_filtro, end=fim_exclusivo
-        )
+        coverage = tracker.fetch_pages_by_window(resource, start=inicio_filtro, end=fim_exclusivo)
         coverage_keys = set(coverage.keys())
-        status_map = {
-            row["periodo"]: row for row in tracker.fetch_window_statuses(resource)
-        }
+        status_map = {row["periodo"]: row for row in tracker.fetch_window_statuses(resource)}
         pending_pages: Dict[str, list[int]] = {}
         hash_alerts: list[Dict[str, Any]] = []
 
@@ -637,9 +681,7 @@ def verify(
                 )
 
                 for periodo, entry in coverage.items():
-                    progress.update(
-                        task_id, description=f"Verifying {periodo}..."
-                    )
+                    progress.update(task_id, description=f"Verifying {periodo}...")
                     params = dict(default_params)
                     params["pagina"] = 1
                     inicio = entry.get("janela_inicio")
@@ -673,9 +715,7 @@ def verify(
 
                     if faltantes:
                         motivo = f"paginas faltantes: {faltantes}"
-                        tracker.mark_window_status(
-                            resource, periodo, "incompleto", motivo
-                        )
+                        tracker.mark_window_status(resource, periodo, "incompleto", motivo)
                     else:
                         if (
                             existing_status
@@ -693,9 +733,7 @@ def verify(
                         if stored_page and stored_page.hash_ids:
                             sample_params = dict(params)
                             sample_params["pagina"] = sample_page
-                            sample_response = client.get(
-                                endpoint_url, params=sample_params
-                            )
+                            sample_response = client.get(endpoint_url, params=sample_params)
                             if sample_response.status_code == 204:
                                 sample_payload: Dict[str, Any] = {"data": []}
                             else:
@@ -709,10 +747,8 @@ def verify(
                             )
                             try:
                                 try:
-                                    algoritmo, stored_digest = (
-                                        CoverageTracker.parse_hash_value(
-                                            stored_page.hash_ids
-                                        )
+                                    algoritmo, stored_digest = CoverageTracker.parse_hash_value(
+                                        stored_page.hash_ids
                                     )
                                 except ValueError:
                                     algoritmo = None
@@ -727,12 +763,8 @@ def verify(
                                 raise typer.Exit(code=1) from exc
                             if sample_digest and sample_digest != stored_digest:
                                 motivo = f"hash divergente na pagina {sample_page}"
-                                tracker.mark_window_status(
-                                    resource, periodo, "suspeito", motivo
-                                )
-                                hash_alerts.append(
-                                    {"periodo": periodo, "pagina": sample_page}
-                                )
+                                tracker.mark_window_status(resource, periodo, "suspeito", motivo)
+                                hash_alerts.append({"periodo": periodo, "pagina": sample_page})
 
                     progress.advance(task_id)
 
@@ -754,9 +786,7 @@ def verify(
 
         status_rows = tracker.fetch_window_statuses(resource)
         lacunas = [
-            row
-            for row in status_rows
-            if row.get("status") in {"incompleto", "nao_processado"}
+            row for row in status_rows if row.get("status") in {"incompleto", "nao_processado"}
         ]
         suspeitas = [row for row in status_rows if row.get("status") == "suspeito"]
         resumo = tracker.summarize_windows(
@@ -961,9 +991,7 @@ def export(
                     total=None,
                 )
                 # Use verbose=False to keep stdout clean.
-                target_item.upload(
-                    str(archive_dir), metadata=ia_metadata, verbose=False
-                )
+                target_item.upload(str(archive_dir), metadata=ia_metadata, verbose=False)
 
             upload_metadata = {
                 "identifier": ia_identifier,
@@ -1002,9 +1030,7 @@ def state_show(
     duckdb: Path = typer.Option(
         Path("baliza.duckdb"), "--duckdb", "-d", help="Path to the DuckDB database file"
     ),
-    dataset: str = typer.Option(
-        "baliza_raw", "--dataset", "-s", help="Dataset name inside DuckDB"
-    ),
+    dataset: str = typer.Option("baliza_raw", "--dataset", "-s", help="Dataset name inside DuckDB"),
 ) -> None:
     """Show extraction state summary for a resource."""
     manager = StateManager(duckdb, dataset=dataset)
@@ -1051,9 +1077,7 @@ def state_show(
             str(counts["nao_processado"]),
             fmt_pct(counts["nao_processado"]),
         )
-        table.add_row(
-            "Total windows", str(total), "100.0%", style="bold"
-        )
+        table.add_row("Total windows", str(total), "100.0%", style="bold")
 
         console.print(table)
 
@@ -1083,9 +1107,7 @@ def state_gaps(
     duckdb: Path = typer.Option(
         Path("baliza.duckdb"), "--duckdb", "-d", help="Path to the DuckDB database file"
     ),
-    dataset: str = typer.Option(
-        "baliza_raw", "--dataset", "-s", help="Dataset name inside DuckDB"
-    ),
+    dataset: str = typer.Option("baliza_raw", "--dataset", "-s", help="Dataset name inside DuckDB"),
     lookback_days: int = typer.Option(
         0, "--lookback-days", "-l", min=0, help="Lookback days to include"
     ),
@@ -1102,9 +1124,7 @@ def state_gaps(
             else datetime.now(timezone.utc)
         )
 
-        gaps = detector.find_gaps(
-            resource, start_dt, end_dt, lookback_days=lookback_days
-        )
+        gaps = detector.find_gaps(resource, start_dt, end_dt, lookback_days=lookback_days)
 
         if not gaps:
             typer.secho("✓ No gaps found!", fg=typer.colors.GREEN)
@@ -1134,7 +1154,7 @@ def state_gaps(
             table.add_row(
                 str(gap.start.date()),
                 str(gap.end.date()),
-                f"[{color_tag}]{gap.reason}[/{color_tag}]"
+                f"[{color_tag}]{gap.reason}[/{color_tag}]",
             )
 
         console.print(table)
@@ -1149,9 +1169,7 @@ def state_history(
     duckdb: Path = typer.Option(
         Path("baliza.duckdb"), "--duckdb", "-d", help="Path to the DuckDB database file"
     ),
-    dataset: str = typer.Option(
-        "baliza_raw", "--dataset", "-s", help="Dataset name inside DuckDB"
-    ),
+    dataset: str = typer.Option("baliza_raw", "--dataset", "-s", help="Dataset name inside DuckDB"),
 ) -> None:
     """Show extraction run history for a resource."""
     manager = StateManager(duckdb, dataset=dataset)
@@ -1195,9 +1213,7 @@ def state_history(
                 duration_secs = (run.completed_at - run.started_at).total_seconds()
                 duration = humanize_duration(duration_secs)
             elif run.status == "running":
-                duration_secs = (
-                    datetime.now(timezone.utc) - run.started_at
-                ).total_seconds()
+                duration_secs = (datetime.now(timezone.utc) - run.started_at).total_seconds()
                 duration = f"[yellow]{humanize_duration(duration_secs)}[/yellow]"
 
             table.add_row(
