@@ -1012,6 +1012,18 @@ def state_show(
     try:
         statuses = manager.tracker.fetch_window_statuses(resource)
 
+        if not statuses:
+            console.print(
+                Panel(
+                    f"No coverage data found for resource [bold cyan]'{resource}'[/bold cyan].\n\n"
+                    f"To start tracking coverage, run:\n[bold green]baliza extract --resource {resource}[/bold green]",
+                    title="[yellow]No Coverage Data[/yellow]",
+                    border_style="yellow",
+                    padding=(1, 2),
+                )
+            )
+            return
+
         counts = {"ok": 0, "incompleto": 0, "suspeito": 0, "nao_processado": 0}
         for status_entry in statuses:
             status = status_entry.get("status", "unknown")
