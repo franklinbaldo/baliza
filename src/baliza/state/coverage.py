@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import string
+import threading
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -80,6 +81,9 @@ class CoverageTracker:
         self.dataset = dataset
         self.conn = duckdb.connect(str(self.database_path))
         self._ensure_tables()
+        self._buffer: list[tuple[Any, ...]] = []
+        self._buffer_limit = 1000
+        self._lock = threading.Lock()
 
     # ------------------------------------------------------------------
     # Setup & lifecycle helpers
@@ -121,8 +125,57 @@ class CoverageTracker:
     def close(self) -> None:
         """Flush changes and close the DuckDB connection."""
 
+        self.flush()
         self.conn.commit()
         self.conn.close()
+
+    def flush(self) -> None:
+        """Flush buffered writes to the database."""
+        with self._lock:
+            if not self._buffer:
+                return
+
+            # Use a temporary table for atomic bulk update (delete-then-insert)
+            self.conn.execute(
+                """
+                CREATE TEMPORARY TABLE IF NOT EXISTS staging_cobertura (
+                    recurso TEXT,
+                    janela_inicio TIMESTAMP,
+                    janela_fim TIMESTAMP,
+                    pagina INTEGER,
+                    total_paginas_observado INTEGER,
+                    n_registros_pagina INTEGER,
+                    hash_ids TEXT,
+                    fetched_at TIMESTAMP
+                )
+                """
+            )
+
+            try:
+                self.conn.executemany(
+                    "INSERT INTO staging_cobertura VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    self._buffer,
+                )
+
+                # Delete existing records that match the new ones in staging
+                self.conn.execute(
+                    """
+                    DELETE FROM baliza_state.cobertura
+                    USING staging_cobertura
+                    WHERE baliza_state.cobertura.recurso = staging_cobertura.recurso
+                      AND baliza_state.cobertura.pagina = staging_cobertura.pagina
+                      AND baliza_state.cobertura.janela_inicio IS NOT DISTINCT FROM staging_cobertura.janela_inicio
+                      AND baliza_state.cobertura.janela_fim IS NOT DISTINCT FROM staging_cobertura.janela_fim
+                    """
+                )
+
+                # Insert the new records
+                self.conn.execute(
+                    "INSERT INTO baliza_state.cobertura SELECT * FROM staging_cobertura"
+                )
+            finally:
+                self.conn.execute("DROP TABLE IF EXISTS staging_cobertura")
+                self._buffer.clear()
 
     # ------------------------------------------------------------------
     # Formatting helpers
@@ -167,41 +220,23 @@ class CoverageTracker:
         # Optimization: Unified pass to compute hash and detect anomalies
         hash_ids, anomalies = self._analyze_records(registros_list)
 
-        self.conn.execute(
-            """
-            DELETE FROM baliza_state.cobertura
-            WHERE recurso = ?
-              AND pagina = ?
-              AND janela_inicio IS NOT DISTINCT FROM ?
-              AND janela_fim IS NOT DISTINCT FROM ?
-            """,
-            [recurso, pagina, janela_inicio_dt, janela_fim_dt],
+        record = (
+            recurso,
+            janela_inicio_dt,
+            janela_fim_dt,
+            pagina,
+            total_paginas,
+            n_registros,
+            hash_ids,
+            fetched_at,
         )
-        self.conn.execute(
-            """
-            INSERT INTO baliza_state.cobertura (
-                recurso,
-                janela_inicio,
-                janela_fim,
-                pagina,
-                total_paginas_observado,
-                n_registros_pagina,
-                hash_ids,
-                fetched_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            [
-                recurso,
-                janela_inicio_dt,
-                janela_fim_dt,
-                pagina,
-                total_paginas,
-                n_registros,
-                hash_ids,
-                fetched_at,
-            ],
-        )
+
+        with self._lock:
+            self._buffer.append(record)
+            should_flush = len(self._buffer) >= self._buffer_limit
+
+        if should_flush:
+            self.flush()
 
         if anomalies:
             motivo = "; ".join(
@@ -421,6 +456,7 @@ class CoverageTracker:
         end: datetime | None = None,
     ) -> dict[str, dict[str, Any]]:
         """Return recorded pages grouped by window key."""
+        self.flush()
 
         query = (
             "SELECT janela_inicio, janela_fim, pagina, total_paginas_observado, "
