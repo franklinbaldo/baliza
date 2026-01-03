@@ -44,6 +44,8 @@ from .utils.dates import humanize_duration, humanize_naturaltime, to_pncp_window
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
+from rich.progress_bar import ProgressBar
+from rich.text import Text
 from rich import box
 
 console = Console()
@@ -1022,7 +1024,7 @@ def state_show(
         table = Table(title=f"State Summary for '{resource}'", box=box.ROUNDED)
         table.add_column("Status", style="bold")
         table.add_column("Count", justify="right")
-        table.add_column("Percentage", justify="right")
+        table.add_column("Percentage", width=30)
 
         total = len(statuses)
 
@@ -1031,29 +1033,31 @@ def state_show(
                 return "0.0%"
             return f"{(value / total) * 100:.1f}%"
 
-        table.add_row(
-            "[green]Complete windows[/green]",
-            str(counts["ok"]),
-            fmt_pct(counts["ok"]),
-        )
-        table.add_row(
-            "[yellow]Incomplete windows[/yellow]",
-            str(counts["incompleto"]),
-            fmt_pct(counts["incompleto"]),
-        )
-        table.add_row(
-            "[red]Suspect windows[/red]",
-            str(counts["suspeito"]),
-            fmt_pct(counts["suspeito"]),
-        )
-        table.add_row(
-            "[cyan]Unprocessed windows[/cyan]",
-            str(counts["nao_processado"]),
-            fmt_pct(counts["nao_processado"]),
-        )
-        table.add_row(
-            "Total windows", str(total), "100.0%", style="bold"
-        )
+        def _make_bar_cell(label: str, style: str, status_key: str) -> None:
+            count = counts[status_key]
+            pct_text = Text(fmt_pct(count), style="bold " + style)
+            bar = ProgressBar(
+                total=total,
+                completed=count,
+                width=20,
+                style="dim",
+                complete_style=style,
+                finished_style=style,
+            )
+
+            grid = Table.grid(expand=True)
+            grid.add_column()
+            grid.add_column(justify="right")
+            grid.add_row(bar, pct_text)
+
+            table.add_row(label, str(count), grid)
+
+        _make_bar_cell("[green]Complete windows[/green]", "green", "ok")
+        _make_bar_cell("[yellow]Incomplete windows[/yellow]", "yellow", "incompleto")
+        _make_bar_cell("[red]Suspect windows[/red]", "red", "suspeito")
+        _make_bar_cell("[cyan]Unprocessed windows[/cyan]", "cyan", "nao_processado")
+
+        table.add_row("Total windows", str(total), "100.0%", style="bold")
 
         console.print(table)
 
