@@ -47,6 +47,9 @@ def test_record_page_creates_manifest_and_hash(temp_tracker: CoverageTracker) ->
     assert algoritmo in {"xxh64", "sha256"}
     assert digest
 
+    # Flush the buffer to ensure data is written
+    temp_tracker.flush()
+
     rows = temp_tracker.conn.execute(
         "SELECT recurso, pagina, total_paginas_observado, hash_ids FROM baliza_state.cobertura"
     ).fetchall()
@@ -90,6 +93,8 @@ def test_summarize_windows_detects_missing_periods(
         'INSERT INTO "baliza_raw"."contratos" VALUES (?, ?)',
         ("B-2", datetime(2024, 1, 4, 9, 0)),
     )
+
+    # summarize_windows implicitly flushes because it calls fetch_pages_by_window
 
     summary = temp_tracker.summarize_windows("contratos", "contratos")
     assert summary["windows"]

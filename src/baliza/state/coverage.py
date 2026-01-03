@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import string
+import threading
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -79,6 +80,13 @@ class CoverageTracker:
         self.database_path = Path(duckdb_path)
         self.dataset = dataset
         self.conn = duckdb.connect(str(self.database_path))
+
+        # Buffering state
+        # Key: (recurso, pagina, janela_inicio, janela_fim) -> Value: row tuple
+        self._buffer: dict[tuple[Any, ...], tuple[Any, ...]] = {}
+        self._buffer_lock = threading.Lock()
+        self._batch_limit = 1000
+
         self._ensure_tables()
 
     # ------------------------------------------------------------------
@@ -117,12 +125,81 @@ class CoverageTracker:
             ON baliza_state.cobertura (recurso, pagina, janela_inicio, janela_fim)
             """
         )
+        # Create temporary table for buffered writes
+        self.conn.execute(
+            """
+            CREATE TEMPORARY TABLE IF NOT EXISTS staging_cobertura (
+                recurso TEXT,
+                janela_inicio TIMESTAMP,
+                janela_fim TIMESTAMP,
+                pagina INTEGER,
+                total_paginas_observado INTEGER,
+                n_registros_pagina INTEGER,
+                hash_ids TEXT,
+                fetched_at TIMESTAMP
+            )
+            """
+        )
 
     def close(self) -> None:
         """Flush changes and close the DuckDB connection."""
-
-        self.conn.commit()
+        self.flush()
         self.conn.close()
+
+    def flush(self) -> None:
+        """Write buffered records to the database."""
+        with self._buffer_lock:
+            if not self._buffer:
+                return
+
+            rows_to_insert = list(self._buffer.values())
+
+            # Clear staging table
+            self.conn.execute("DELETE FROM staging_cobertura")
+
+            # Bulk insert into staging
+            self.conn.executemany(
+                """
+                INSERT INTO staging_cobertura (
+                    recurso,
+                    janela_inicio,
+                    janela_fim,
+                    pagina,
+                    total_paginas_observado,
+                    n_registros_pagina,
+                    hash_ids,
+                    fetched_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                rows_to_insert,
+            )
+
+            # Atomic merge (delete existing + insert new)
+            self.conn.begin()
+            try:
+                self.conn.execute(
+                    """
+                    DELETE FROM baliza_state.cobertura
+                    USING staging_cobertura s
+                    WHERE cobertura.recurso = s.recurso
+                      AND cobertura.pagina = s.pagina
+                      AND cobertura.janela_inicio IS NOT DISTINCT FROM s.janela_inicio
+                      AND cobertura.janela_fim IS NOT DISTINCT FROM s.janela_fim
+                    """
+                )
+                self.conn.execute(
+                    """
+                    INSERT INTO baliza_state.cobertura
+                    SELECT * FROM staging_cobertura
+                    """
+                )
+                self.conn.commit()
+            except Exception:
+                self.conn.rollback()
+                raise
+
+            self._buffer.clear()
 
     # ------------------------------------------------------------------
     # Formatting helpers
@@ -167,41 +244,26 @@ class CoverageTracker:
         # Optimization: Unified pass to compute hash and detect anomalies
         hash_ids, anomalies = self._analyze_records(registros_list)
 
-        self.conn.execute(
-            """
-            DELETE FROM baliza_state.cobertura
-            WHERE recurso = ?
-              AND pagina = ?
-              AND janela_inicio IS NOT DISTINCT FROM ?
-              AND janela_fim IS NOT DISTINCT FROM ?
-            """,
-            [recurso, pagina, janela_inicio_dt, janela_fim_dt],
+        row_data = (
+            recurso,
+            janela_inicio_dt,
+            janela_fim_dt,
+            pagina,
+            total_paginas,
+            n_registros,
+            hash_ids,
+            fetched_at,
         )
-        self.conn.execute(
-            """
-            INSERT INTO baliza_state.cobertura (
-                recurso,
-                janela_inicio,
-                janela_fim,
-                pagina,
-                total_paginas_observado,
-                n_registros_pagina,
-                hash_ids,
-                fetched_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            [
-                recurso,
-                janela_inicio_dt,
-                janela_fim_dt,
-                pagina,
-                total_paginas,
-                n_registros,
-                hash_ids,
-                fetched_at,
-            ],
-        )
+
+        # Unique key for deduplication in buffer (Last-Write-Wins)
+        key = (recurso, pagina, janela_inicio_dt, janela_fim_dt)
+
+        with self._buffer_lock:
+            self._buffer[key] = row_data
+            should_flush = len(self._buffer) >= self._batch_limit
+
+        if should_flush:
+            self.flush()
 
         if anomalies:
             motivo = "; ".join(
@@ -220,6 +282,7 @@ class CoverageTracker:
     ) -> None:
         """Persist (or update) the status for a given coverage window."""
 
+        # Note: Status updates are not buffered as they are low volume and critical
         atualizado_em = datetime.now(UTC).replace(tzinfo=None)
         self.conn.execute(
             """
@@ -422,6 +485,9 @@ class CoverageTracker:
     ) -> dict[str, dict[str, Any]]:
         """Return recorded pages grouped by window key."""
 
+        # Ensure pending writes are visible
+        self.flush()
+
         query = (
             "SELECT janela_inicio, janela_fim, pagina, total_paginas_observado, "
             "n_registros_pagina, hash_ids, fetched_at "
@@ -470,6 +536,9 @@ class CoverageTracker:
         return grouped
 
     def fetch_window_statuses(self, recurso: str) -> list[dict[str, Any]]:
+        # Status writes are not buffered, but good practice to flush consistency
+        self.flush()
+
         rows = self.conn.execute(
             "SELECT periodo, status, motivo, atualizado_em FROM baliza_state.janelas WHERE recurso = ?",
             [recurso],
@@ -493,6 +562,10 @@ class CoverageTracker:
         date_field: str = "dataPublicacaoPncp",
     ) -> list[tuple[datetime, datetime]]:
         """Inspect the raw dataset to infer available daily windows."""
+
+        # This reads from RAW data, which is not buffered here (managed by dlt)
+        # But we flush anyway for consistency
+        self.flush()
 
         dataset_ident = _quote_identifier(self.dataset)
         table_ident = _quote_identifier(table_name)
