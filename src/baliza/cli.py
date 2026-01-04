@@ -119,11 +119,65 @@ class _FallbackClient(AbstractContextManager["_FallbackClient"]):
         return _FallbackResponse(status_code=status, text=text)
 
 
+if httpx is not None:
+    class _SecureClient(httpx.Client):  # type: ignore[name-defined]
+        """
+        Secure subclass of httpx.Client to enforce security policies.
+        """
+
+        def __init__(self, *, headers: dict[str, str] | None = None, timeout: int = 30, **kwargs: Any) -> None:
+            super().__init__(headers=headers, timeout=timeout, **kwargs)
+            self.max_size = 10 * 1024 * 1024  # 10 MB limit
+
+        def send(self, request: httpx.Request, *, stream: bool = False, **kwargs: Any) -> httpx.Response:
+            # Enforce URL scheme
+            if not str(request.url).startswith(("http://", "https://")):
+                raise ValueError("URL scheme must be http or https")
+
+            # We ignore the `stream` argument from caller (which defaults to False in .request())
+            # and force it to True to inspect content size.
+            response = super().send(request, stream=True, **kwargs)
+
+            content = bytearray()
+            try:
+                for chunk in response.iter_bytes():
+                    content.extend(chunk)
+                    if len(content) > self.max_size:
+                        response.close()
+                        raise RuntimeError(f"Response too large (exceeded {self.max_size} bytes)")
+            except Exception:
+                response.close()
+                raise
+
+            response.close()
+
+            # Reconstruct response
+            # We must strip Content-Encoding because 'content' is already decoded by iter_bytes()
+            # If we leave it, httpx.Response will try to decode it again and fail.
+            headers = dict(response.headers)
+            headers.pop("Content-Encoding", None)
+            headers.pop("Content-Length", None)
+
+            new_response = httpx.Response(
+                status_code=response.status_code,
+                headers=headers,
+                content=bytes(content),
+                request=response.request,
+                extensions=response.extensions,
+                history=response.history,
+                default_encoding=response.default_encoding,
+            )
+            return new_response
+
+else:
+    _SecureClient = None  # type: ignore[assignment]
+
+
 def _default_http_client_factory(
     *, headers: dict[str, str] | None = None, timeout: int = 30
 ) -> AbstractContextManager[_HttpClient]:
     if httpx is not None:
-        return httpx.Client(headers=headers or None, timeout=timeout)
+        return _SecureClient(headers=headers or None, timeout=timeout)
     return _FallbackClient(headers=headers or None, timeout=timeout)
 
 
