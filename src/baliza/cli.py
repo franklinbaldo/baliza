@@ -24,6 +24,7 @@ except ModuleNotFoundError:  # pragma: no cover - fallback path
 
 import typer
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn
+from rich.progress_bar import ProgressBar
 
 from .pipelines.pncp import (
     BACKFILL_PIPELINE_NAME,
@@ -1012,6 +1013,19 @@ def state_show(
     try:
         statuses = manager.tracker.fetch_window_statuses(resource)
 
+        if not statuses:
+            console.print(
+                Panel(
+                    f"No state data found for resource [bold cyan]'{resource}'[/bold cyan].\n\n"
+                    f"To start collecting data, run:\n[bold green]baliza extract --resource {resource}[/bold green]\n"
+                    f"or verify existing data:\n[bold green]baliza verify --resource {resource}[/bold green]",
+                    title="[yellow]No State Data[/yellow]",
+                    border_style="yellow",
+                    padding=(1, 2),
+                )
+            )
+            return
+
         counts = {"ok": 0, "incompleto": 0, "suspeito": 0, "nao_processado": 0}
         for status_entry in statuses:
             status = status_entry.get("status", "unknown")
@@ -1023,36 +1037,28 @@ def state_show(
         table.add_column("Status", style="bold")
         table.add_column("Count", justify="right")
         table.add_column("Percentage", justify="right")
+        table.add_column("Distribution", width=20)
 
         total = len(statuses)
 
-        def fmt_pct(value: int) -> str:
-            if total == 0:
-                return "0.0%"
-            return f"{(value / total) * 100:.1f}%"
+        def make_row(label: str, count: int, color: str) -> None:
+            pct = (count / total) * 100 if total > 0 else 0
+            bar = ProgressBar(
+                total=100,
+                completed=pct,
+                width=20,
+                complete_style=color,
+                finished_style=color,
+            )
+            table.add_row(label, str(count), f"{pct:.1f}%", bar)
+
+        make_row("[green]Complete windows[/green]", counts["ok"], "green")
+        make_row("[yellow]Incomplete windows[/yellow]", counts["incompleto"], "yellow")
+        make_row("[red]Suspect windows[/red]", counts["suspeito"], "red")
+        make_row("[cyan]Unprocessed windows[/cyan]", counts["nao_processado"], "cyan")
 
         table.add_row(
-            "[green]Complete windows[/green]",
-            str(counts["ok"]),
-            fmt_pct(counts["ok"]),
-        )
-        table.add_row(
-            "[yellow]Incomplete windows[/yellow]",
-            str(counts["incompleto"]),
-            fmt_pct(counts["incompleto"]),
-        )
-        table.add_row(
-            "[red]Suspect windows[/red]",
-            str(counts["suspeito"]),
-            fmt_pct(counts["suspeito"]),
-        )
-        table.add_row(
-            "[cyan]Unprocessed windows[/cyan]",
-            str(counts["nao_processado"]),
-            fmt_pct(counts["nao_processado"]),
-        )
-        table.add_row(
-            "Total windows", str(total), "100.0%", style="bold"
+            "Total windows", str(total), "100.0%", "", style="bold"
         )
 
         console.print(table)
