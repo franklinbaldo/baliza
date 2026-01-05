@@ -119,11 +119,66 @@ class _FallbackClient(AbstractContextManager["_FallbackClient"]):
         return _FallbackResponse(status_code=status, text=text)
 
 
+if httpx is not None:
+
+    class _SecureClient(httpx.Client):
+        def send(
+            self, request: httpx.Request, *, stream: bool = False, **kwargs: Any
+        ) -> httpx.Response:
+            if request.url.scheme not in ("http", "https"):
+                raise ValueError("URL scheme must be http or https")
+
+            try:
+                # Force streaming to enforce size limit
+                response = super().send(request, stream=True, **kwargs)
+
+                try:
+                    content = bytearray()
+                    max_size = 10 * 1024 * 1024  # 10 MB limit
+
+                    for chunk in response.iter_bytes(chunk_size=8192):
+                        content.extend(chunk)
+                        if len(content) > max_size:
+                            raise RuntimeError(f"Response too large (exceeded {max_size} bytes)")
+                finally:
+                    response.close()
+
+                # Reconstruct response with full content
+                # IMPORTANT: We must strip Content-Encoding because we've already decoded the body
+                # when reading from response.iter_bytes(). If we leave it, httpx.Response will
+                # try to decode it again (e.g. gzip) and fail.
+                headers = response.headers.copy()
+                headers.pop("Content-Encoding", None)
+                headers.pop("Content-Length", None)  # Length changed due to decoding
+
+                new_response = httpx.Response(
+                    status_code=response.status_code,
+                    headers=headers,
+                    content=bytes(content),
+                    request=response.request,
+                    extensions=response.extensions,
+                    history=response.history,
+                )
+                return new_response
+
+            except httpx.RequestError as exc:
+                # Security: Redact query parameters to prevent secret leakage.
+                # We wrap the exception in RuntimeError to avoid leaking the URL,
+                # but we ensure the safe URL is logged.
+                safe_url = request.url.copy_with(query=None)
+
+                # Ideally we would re-raise the same exception type, but httpx exceptions
+                # are coupled with the request object which contains the full URL.
+                # To guarantee no leak, we prefer a generic exception with a clean message.
+                msg = f"HTTP request to {safe_url} failed: {exc}"
+                raise RuntimeError(msg) from exc
+
+
 def _default_http_client_factory(
     *, headers: dict[str, str] | None = None, timeout: int = 30
 ) -> AbstractContextManager[_HttpClient]:
     if httpx is not None:
-        return httpx.Client(headers=headers or None, timeout=timeout)
+        return _SecureClient(headers=headers or None, timeout=timeout)
     return _FallbackClient(headers=headers or None, timeout=timeout)
 
 
