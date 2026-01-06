@@ -24,6 +24,7 @@ except ModuleNotFoundError:  # pragma: no cover - fallback path
 
 import typer
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn
+from rich.progress_bar import ProgressBar
 
 from .pipelines.pncp import (
     BACKFILL_PIPELINE_NAME,
@@ -1023,6 +1024,7 @@ def state_show(
         table.add_column("Status", style="bold")
         table.add_column("Count", justify="right")
         table.add_column("Percentage", justify="right")
+        table.add_column("Distribution", width=20)
 
         total = len(statuses)
 
@@ -1031,28 +1033,41 @@ def state_show(
                 return "0.0%"
             return f"{(value / total) * 100:.1f}%"
 
+        def make_bar(value: int, style: str) -> ProgressBar:
+            return ProgressBar(
+                total=max(total, 1),
+                completed=value,
+                width=20,
+                complete_style=style,
+                finished_style=style,
+            )
+
         table.add_row(
             "[green]Complete windows[/green]",
             str(counts["ok"]),
             fmt_pct(counts["ok"]),
+            make_bar(counts["ok"], "green"),
         )
         table.add_row(
             "[yellow]Incomplete windows[/yellow]",
             str(counts["incompleto"]),
             fmt_pct(counts["incompleto"]),
+            make_bar(counts["incompleto"], "yellow"),
         )
         table.add_row(
             "[red]Suspect windows[/red]",
             str(counts["suspeito"]),
             fmt_pct(counts["suspeito"]),
+            make_bar(counts["suspeito"], "red"),
         )
         table.add_row(
             "[cyan]Unprocessed windows[/cyan]",
             str(counts["nao_processado"]),
             fmt_pct(counts["nao_processado"]),
+            make_bar(counts["nao_processado"], "cyan"),
         )
         table.add_row(
-            "Total windows", str(total), "100.0%", style="bold"
+            "Total windows", str(total), "100.0%", "", style="bold"
         )
 
         console.print(table)
