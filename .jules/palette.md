@@ -14,3 +14,7 @@
 ## 2025-12-20 - Helpful Empty States
 **Learning:** Empty states in CLI tools often look like errors or silent failures.
 **Action:** Use `rich.Panel` to wrap empty state messages. Include a clear explanation of *why* it's empty and a specific call-to-action (command to run) to fix it. This turns a dead end into a guidepost.
+
+## 2025-02-18 - Visualizing Distribution in Tables
+**Learning:** Percentage columns in CLI tables are informative but hard to scan for "at-a-glance" status.
+**Action:** Embed `rich.progress_bar.ProgressBar` directly into table cells to create visual distribution bars. Use distinct colors (green/yellow/red) to reinforce the status meaning visually.

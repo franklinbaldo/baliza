@@ -19,3 +19,4 @@ build/
 uv.lock
 repomix-output.*
 data/catalog.yml
+baliza.duckdb
