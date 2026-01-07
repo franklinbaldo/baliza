@@ -44,6 +44,7 @@ from .utils.dates import humanize_duration, humanize_naturaltime, to_pncp_window
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
+from rich.progress_bar import ProgressBar
 from rich import box
 
 console = Console()
@@ -1023,6 +1024,7 @@ def state_show(
         table.add_column("Status", style="bold")
         table.add_column("Count", justify="right")
         table.add_column("Percentage", justify="right")
+        table.add_column("Distribution", ratio=1)
 
         total = len(statuses)
 
@@ -1031,28 +1033,42 @@ def state_show(
                 return "0.0%"
             return f"{(value / total) * 100:.1f}%"
 
+        def get_bar(value: int, style: str) -> ProgressBar:
+            return ProgressBar(
+                total=max(total, 1),
+                completed=value,
+                width=None,
+                style="dim",
+                complete_style=style,
+                finished_style=style,
+            )
+
         table.add_row(
             "[green]Complete windows[/green]",
             str(counts["ok"]),
             fmt_pct(counts["ok"]),
+            get_bar(counts["ok"], "green"),
         )
         table.add_row(
             "[yellow]Incomplete windows[/yellow]",
             str(counts["incompleto"]),
             fmt_pct(counts["incompleto"]),
+            get_bar(counts["incompleto"], "yellow"),
         )
         table.add_row(
             "[red]Suspect windows[/red]",
             str(counts["suspeito"]),
             fmt_pct(counts["suspeito"]),
+            get_bar(counts["suspeito"], "red"),
         )
         table.add_row(
             "[cyan]Unprocessed windows[/cyan]",
             str(counts["nao_processado"]),
             fmt_pct(counts["nao_processado"]),
+            get_bar(counts["nao_processado"], "cyan"),
         )
         table.add_row(
-            "Total windows", str(total), "100.0%", style="bold"
+            "Total windows", str(total), "100.0%", "", style="bold"
         )
 
         console.print(table)
