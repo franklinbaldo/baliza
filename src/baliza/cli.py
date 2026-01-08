@@ -94,14 +94,22 @@ class _FallbackClient(AbstractContextManager["_FallbackClient"]):
     def get(self, url: str, params: dict[str, Any] | None = None) -> _FallbackResponse:
         from urllib import parse, request
 
+        class NoRedirectHandler(request.HTTPRedirectHandler):
+            def http_error_302(self, req, fp, code, msg, headers):
+                return fp
+
+            http_error_301 = http_error_303 = http_error_307 = http_error_308 = http_error_302
+
         if not url.startswith(("http://", "https://")):
             raise ValueError("URL scheme must be http or https")
 
         query = parse.urlencode(params or {}, doseq=True)
         full_url = f"{url}?{query}" if query else url
         req = request.Request(full_url, headers=self.headers)
+
+        opener = request.build_opener(NoRedirectHandler())
         try:
-            with request.urlopen(req, timeout=self.timeout) as response:  # type: ignore[attr-defined]
+            with opener.open(req, timeout=self.timeout) as response:
                 status = int(response.getcode() or 0)
 
                 # Security: Limit response size to prevent DoS via memory exhaustion
