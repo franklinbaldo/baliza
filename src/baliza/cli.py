@@ -35,6 +35,7 @@ from rich.progress import (
     TextColumn,
     TimeElapsedColumn,
 )
+from rich.progress_bar import ProgressBar
 from rich.table import Table
 
 from .pipelines.pncp import (
@@ -48,13 +49,6 @@ from .pipelines.pncp import (
 from .state import CoverageTracker, GapDetector, StateManager
 from .utils import export_parquet
 from .utils.dates import humanize_duration, humanize_naturaltime, to_pncp_window
-
-# Rich imports for improved CLI UX
-from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
-from rich.progress_bar import ProgressBar
-from rich import box
 
 console = Console()
 
@@ -1031,6 +1025,19 @@ def state_show(
     try:
         statuses = manager.tracker.fetch_window_statuses(resource)
 
+        if not statuses:
+            console.print(
+                Panel(
+                    f"No extraction state found for resource [bold cyan]'{resource}'[/bold cyan].\n\n"
+                    "This usually means no extraction has been performed yet.\n"
+                    f"To start a new extraction, run:\n[bold green]baliza extract --resource {resource}[/bold green]",
+                    title="[yellow]No State Data Found[/yellow]",
+                    border_style="yellow",
+                    padding=(1, 2),
+                )
+            )
+            return
+
         counts = {"ok": 0, "incompleto": 0, "suspeito": 0, "nao_processado": 0}
         for status_entry in statuses:
             status = status_entry.get("status", "unknown")
@@ -1085,9 +1092,7 @@ def state_show(
             fmt_pct(counts["nao_processado"]),
             get_bar(counts["nao_processado"], "cyan"),
         )
-        table.add_row(
-            "Total windows", str(total), "100.0%", "", style="bold"
-        )
+        table.add_row("Total windows", str(total), "100.0%", "", style="bold")
 
         console.print(table)
 
