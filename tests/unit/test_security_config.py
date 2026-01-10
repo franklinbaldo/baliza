@@ -1,5 +1,6 @@
 import pytest
-
+import shutil
+import sys
 from baliza.pipelines.pncp import _import_from_string, load_pncp_config
 
 
@@ -37,3 +38,21 @@ def test_import_from_string_blocks_other_packages():
     """Test that _import_from_string blocks other packages."""
     with pytest.raises(ValueError, match="is not allowed"):
         _import_from_string("json.loads")
+
+
+def test_import_from_string_blocks_reexported_modules():
+    """Test that _import_from_string blocks re-exported modules from baliza namespace."""
+    # baliza.cli imports shutil, so baliza.cli.shutil exists
+    # but we should not be able to import it
+    with pytest.raises(ValueError, match="Importing module 'shutil' via 'baliza.cli.shutil' is forbidden"):
+        _import_from_string("baliza.cli.shutil")
+
+def test_import_from_string_blocks_reexported_classes():
+    """Test that _import_from_string blocks re-exported classes from baliza namespace."""
+    # baliza.cli imports Panel from rich.panel
+    with pytest.raises(ValueError, match="Importing object 'Panel' from 'baliza.cli' is forbidden"):
+        _import_from_string("baliza.cli.Panel")
+
+    # baliza.cli imports Path from pathlib
+    with pytest.raises(ValueError, match="Importing object 'Path' from 'baliza.cli' is forbidden"):
+        _import_from_string("baliza.cli.Path")

@@ -38,9 +38,28 @@ def _import_from_string(dotted_path: str) -> Any:
         raise ValueError(f"Invalid import path '{dotted_path}'")
     module = import_module(module_path)
     try:
-        return getattr(module, attr)
+        obj = getattr(module, attr)
     except AttributeError as exc:  # pragma: no cover - defensive guard
         raise ValueError(f"Object '{attr}' not found in module '{module_path}'") from exc
+
+    # Security: Ensure the object itself is defined in the baliza namespace
+    # or is a sub-module of baliza. This prevents accessing re-exported
+    # modules (like 'shutil') or external objects from baliza modules.
+
+    # 1. Check if it's a module
+    if isinstance(obj, type(import_module("sys"))):
+        if not obj.__name__.startswith("baliza."):
+            raise ValueError(f"Importing module '{obj.__name__}' via '{dotted_path}' is forbidden.")
+    else:
+        # 2. Check if it's a function/class/object with __module__
+        obj_module = getattr(obj, "__module__", None)
+        if obj_module and not obj_module.startswith("baliza."):
+            raise ValueError(
+                f"Importing object '{attr}' from '{module_path}' is forbidden "
+                f"because it is defined in '{obj_module}' (not 'baliza.*')."
+            )
+
+    return obj
 
 
 def _resolve_callable_entries(node: Any) -> None:
