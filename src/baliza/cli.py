@@ -907,7 +907,22 @@ def export(
                 end_date=finish.isoformat() if finish else None,
             )
     except (duckdb.Error, ValueError) as exc:
-        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        msg = str(exc)
+        if "No catalog + schema named" in msg:
+            err_console = Console(stderr=True)
+            err_console.print(
+                Panel(
+                    f"Dataset [bold cyan]'{dataset}'[/bold cyan] not found in DuckDB.\n\n"
+                    "This usually means no extraction has been performed yet.\n"
+                    "To start a new extraction, run:\n"
+                    "[bold green]baliza extract[/bold green]",
+                    title="[yellow]Missing Dataset[/yellow]",
+                    border_style="yellow",
+                    padding=(1, 2),
+                )
+            )
+        else:
+            typer.secho(msg, fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
 
     typer.echo(json.dumps(metadata.asdict(), indent=2, default=str))
