@@ -1,3 +1,5 @@
-## 2024-05-23 - Date Parsing Optimization
-**Learning:** `datetime.fromisoformat()` in Python 3.11+ is significantly faster (up to ~75x) than iterating through `datetime.strptime()` with multiple format strings for ISO 8601 dates. It also natively handles "Z" and timezone offsets, which older versions or manual parsing often struggle with.
-**Action:** When working with Python 3.11+ projects, always prioritize `datetime.fromisoformat()` for parsing ISO dates. Ensure fallbacks are kept only for non-standard formats.
+# Bolt's Journal
+
+## 2026-01-10 - httpx/requests caching behavior
+**Learning:** `httpx.Response.json()` and `requests.Response.json()` do NOT cache their results by default. In pipelines where multiple components (like `dlt` and custom wrappers) both need to parse the same JSON response, this leads to double parsing which can be significant for large payloads (1MB+).
+**Action:** Use a context manager to monkey-patch `Response.json` with a caching wrapper during the execution of such pipelines to ensure O(1) parsing cost per response.
