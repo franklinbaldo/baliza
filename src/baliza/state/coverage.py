@@ -370,23 +370,25 @@ class CoverageTracker:
 
     @staticmethod
     def _extract_cnpj(item: dict[str, Any]) -> str | None:
-        cnpj = item.get("cnpj")
-        if cnpj:
-            return str(cnpj)
+        if val := item.get("cnpj"):
+            return str(val)
+
         contratante = item.get("contratante")
-        if isinstance(contratante, dict) and contratante.get("cnpj"):
-            return str(contratante["cnpj"])
+        if isinstance(contratante, dict) and (val := contratante.get("cnpj")):
+            return str(val)
         return None
 
     @staticmethod
     def _extract_ano(item: dict[str, Any]) -> str | None:
         for key in ("ano", "anoCompra", "anoContrato"):
-            if item.get(key):
-                return str(item[key])
+            # Optimization: use walrus to avoid double lookup
+            if val := item.get(key):
+                return str(val)
+
         for key in ("dataPublicacaoPncp", "dataPublicacao"):
-            val = item.get(key)
-            if not val:
+            if not (val := item.get(key)):
                 continue
+
             text = str(val).strip()
 
             # Optimization: fast path for common ISO date formats "YYYY-MM-DD" and "YYYY"
@@ -399,7 +401,13 @@ class CoverageTracker:
 
             # Optimization: fast path for ISO timestamps ending in 'Z' (UTC).
             # Since they are already UTC, we can safely slice the year without parsing/conversion.
-            if len(text) >= 11 and text.endswith("Z") and text[4] == "-" and text[7] == "-" and text[:4].isdigit():
+            if (
+                len(text) >= 11
+                and text.endswith("Z")
+                and text[4] == "-"
+                and text[7] == "-"
+                and text[:4].isdigit()
+            ):
                 return text[:4]
 
             try:
