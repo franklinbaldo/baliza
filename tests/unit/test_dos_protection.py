@@ -1,7 +1,11 @@
 from __future__ import annotations
-import pytest
+
 from unittest.mock import MagicMock, patch
+
+import pytest
+
 from baliza.cli import _FallbackClient
+
 
 def test_fallback_client_unbounded_read_dos():
     """
@@ -20,6 +24,10 @@ def test_fallback_client_unbounded_read_dos():
 
     client = _FallbackClient()
 
-    with patch("urllib.request.urlopen", return_value=mock_response):
+    # The implementation uses opener.open(), which is created via build_opener()
+    mock_opener = MagicMock()
+    mock_opener.open.return_value = mock_response
+
+    with patch("urllib.request.build_opener", return_value=mock_opener):
         with pytest.raises(RuntimeError, match="Response too large"):
             client.get("http://example.com/large")

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import tempfile
 from collections.abc import Callable, Iterable
 from contextlib import AbstractContextManager
 from datetime import UTC, date, datetime, timedelta
@@ -946,7 +947,6 @@ def export(
             )
             return
 
-        archive_dir: Path | None = None
         try:
             session = get_session(access_key=ia_access_key, secret_key=ia_secret_key)
             ia_metadata: dict[str, Any] = {
@@ -967,51 +967,49 @@ def export(
             if metadata.partition_count is not None:
                 ia_metadata["numberOfFiles"] = metadata.partition_count
 
-            archive_dir = Path(f"ia_archive_{ia_identifier}")
-            archive_dir.mkdir(parents=True, exist_ok=True)
-            shutil.copytree(Path(metadata.output_dir), archive_dir, dirs_exist_ok=True)
+            # Security: Use TemporaryDirectory to prevent arbitrary directory deletion vulnerability
+            # (previous implementation used a predictable path in CWD and deleted it)
+            with tempfile.TemporaryDirectory(prefix=f"ia_archive_{ia_identifier}_") as tmp_dir:
+                archive_dir = Path(tmp_dir)
+                shutil.copytree(Path(metadata.output_dir), archive_dir, dirs_exist_ok=True)
 
-            target_item = session.get_item(ia_identifier)
+                target_item = session.get_item(ia_identifier)
 
-            # Use a spinner on stderr to show progress without polluting stdout
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                TimeElapsedColumn(),
-                console=Console(stderr=True),
-                transient=True,
-            ) as progress:
-                progress.add_task(
-                    description=f"Uploading to Internet Archive (Identifier: {ia_identifier})...",
-                    total=None,
-                )
-                # Use verbose=False to keep stdout clean.
-                target_item.upload(str(archive_dir), metadata=ia_metadata, verbose=False)
+                # Use a spinner on stderr to show progress without polluting stdout
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[progress.description]{task.description}"),
+                    TimeElapsedColumn(),
+                    console=Console(stderr=True),
+                    transient=True,
+                ) as progress:
+                    progress.add_task(
+                        description=f"Uploading to Internet Archive (Identifier: {ia_identifier})...",
+                        total=None,
+                    )
+                    # Use verbose=False to keep stdout clean.
+                    target_item.upload(str(archive_dir), metadata=ia_metadata, verbose=False)
 
-            upload_metadata = {
-                "identifier": ia_identifier,
-                "upload_time": datetime.now().isoformat(),
-                "ia_metadata": ia_metadata,
-                "local_output_dir": metadata.output_dir,
-                "local_archive_dir": str(archive_dir),
-            }
-            metadata_path = ia_metadata_path or Path("internet-archive-summary.json")
-            metadata_path.parent.mkdir(parents=True, exist_ok=True)
-            with metadata_path.open("w", encoding="utf-8") as fh:
-                json.dump(upload_metadata, fh, indent=2)
-            typer.echo(f"Internet Archive upload metadata saved to: {metadata_path}", err=True)
+                upload_metadata = {
+                    "identifier": ia_identifier,
+                    "upload_time": datetime.now().isoformat(),
+                    "ia_metadata": ia_metadata,
+                    "local_output_dir": metadata.output_dir,
+                    "local_archive_dir": str(archive_dir),
+                }
+                metadata_path = ia_metadata_path or Path("internet-archive-summary.json")
+                metadata_path.parent.mkdir(parents=True, exist_ok=True)
+                with metadata_path.open("w", encoding="utf-8") as fh:
+                    json.dump(upload_metadata, fh, indent=2)
+                typer.echo(f"Internet Archive upload metadata saved to: {metadata_path}", err=True)
 
-            typer.echo("Successfully uploaded to Internet Archive.", err=True)
+                typer.echo("Successfully uploaded to Internet Archive.", err=True)
         except Exception as exc:  # pragma: no cover - network dependent
             typer.secho(
                 f"Error during Internet Archive upload: {exc}",
                 fg=typer.colors.RED,
                 err=True,
             )
-        finally:
-            if archive_dir and archive_dir.exists():
-                shutil.rmtree(archive_dir)
-                typer.echo("Temporary archive directory cleaned.", err=True)
 
 
 # State management command group
