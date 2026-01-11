@@ -1134,6 +1134,9 @@ def state_gaps(
     lookback_days: int = typer.Option(
         0, "--lookback-days", "-l", min=0, help="Lookback days to include"
     ),
+    limit: int = typer.Option(
+        20, "--limit", "-n", min=1, help="Maximum number of gaps to display"
+    ),
 ) -> None:
     """List gaps in extraction coverage."""
     manager = StateManager(duckdb, dataset=dataset)
@@ -1163,7 +1166,7 @@ def state_gaps(
         table.add_column("End Date", style="cyan")
         table.add_column("Reason", style="bold")
 
-        for gap in gaps:
+        for gap in gaps[:limit]:
             color_tag = {
                 "incomplete": "yellow",
                 "suspect": "red",
@@ -1179,6 +1182,13 @@ def state_gaps(
             )
 
         console.print(table)
+
+        if len(gaps) > limit:
+            remaining = len(gaps) - limit
+            console.print(
+                f"... and {remaining} more gap(s) hidden. Use --limit to see more.",
+                style="dim",
+            )
     finally:
         manager.close()
 
