@@ -268,6 +268,19 @@ def _parse_optional_date(value: str | None, *, option_name: str) -> date | None:
         raise typer.BadParameter(f"{option_name} must follow YYYY-MM-DD format") from exc
 
 
+def _format_gap_reason(reason: str) -> str:
+    """Format gap reason with consistent colors and icons."""
+    mapping = {
+        "incomplete": ("yellow", "🚧"),
+        "suspect": ("red", "🚩"),
+        "missing": ("blue", "📥"),
+        "unprocessed": ("cyan", "🆕"),
+        "lookback": ("magenta", "🔙"),
+    }
+    color, icon = mapping.get(reason, ("white", ""))
+    return f"[{color}]{icon} {reason}[/{color}]"
+
+
 @app.command("extract")
 def extract(
     config: Path | None = typer.Option(
@@ -408,19 +421,11 @@ def extract(
 
         limit_rows = 10
         for i, gap in enumerate(gaps[:limit_rows], 1):
-            color_tag = {
-                "incomplete": "yellow",
-                "suspect": "red",
-                "missing": "blue",
-                "unprocessed": "cyan",
-                "lookback": "magenta",
-            }.get(gap.reason, "white")
-
             table.add_row(
                 str(i),
                 str(gap.start.date()),
                 str(gap.end.date()),
-                f"[{color_tag}]{gap.reason}[/{color_tag}]",
+                _format_gap_reason(gap.reason),
             )
 
         console.print(table)
@@ -1134,9 +1139,7 @@ def state_gaps(
     lookback_days: int = typer.Option(
         0, "--lookback-days", "-l", min=0, help="Lookback days to include"
     ),
-    limit: int = typer.Option(
-        20, "--limit", "-n", min=1, help="Maximum number of gaps to display"
-    ),
+    limit: int = typer.Option(20, "--limit", "-n", min=1, help="Maximum number of gaps to display"),
 ) -> None:
     """List gaps in extraction coverage."""
     manager = StateManager(duckdb, dataset=dataset)
@@ -1167,18 +1170,10 @@ def state_gaps(
         table.add_column("Reason", style="bold")
 
         for gap in gaps[:limit]:
-            color_tag = {
-                "incomplete": "yellow",
-                "suspect": "red",
-                "missing": "blue",
-                "unprocessed": "cyan",
-                "lookback": "magenta",
-            }.get(gap.reason, "white")
-
             table.add_row(
                 str(gap.start.date()),
                 str(gap.end.date()),
-                f"[{color_tag}]{gap.reason}[/{color_tag}]",
+                _format_gap_reason(gap.reason),
             )
 
         console.print(table)
@@ -1230,7 +1225,7 @@ def state_history(
         table.add_column("Duration")
         table.add_column("Windows", justify="right")
         table.add_column("Rows", justify="right")
-        table.add_column("Error", style="red")
+        table.add_column("Error", style="red", overflow="ellipsis", no_wrap=True)
 
         for run in history:
             status_style = {
