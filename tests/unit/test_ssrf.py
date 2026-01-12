@@ -70,11 +70,15 @@ def test_fallback_client_does_not_follow_redirects():
     redirect_url = f"{base_url}/redirect"
 
     try:
+        # We need to allow private networks for this test
+        os.environ["BALIZA_ALLOW_PRIVATE_NETWORKS"] = "1"
         with _FallbackClient() as client:
             response = client.get(redirect_url)
             # Should be 302, not 200
             assert response.status_code == 302
             assert "Target Reached" not in response._text
     finally:
+        if "BALIZA_ALLOW_PRIVATE_NETWORKS" in os.environ:
+            del os.environ["BALIZA_ALLOW_PRIVATE_NETWORKS"]
         server.shutdown()
         server.server_close()

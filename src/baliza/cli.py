@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import ipaddress
 import json
+import os
 import shutil
 from collections.abc import Callable, Iterable
 from contextlib import AbstractContextManager
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Protocol
+from urllib.parse import urlparse
 
 import duckdb
 
@@ -53,6 +56,39 @@ from .utils.dates import humanize_duration, humanize_naturaltime, to_pncp_window
 console = Console()
 
 app = typer.Typer(help="Declarative PNCP pipeline runner")
+
+
+def _is_safe_url(url: str) -> bool:
+    """
+    Check if the URL is safe to request (prevents SSRF).
+    Blocks private IPs, loopback, and link-local addresses.
+    Can be bypassed by setting BALIZA_ALLOW_PRIVATE_NETWORKS=1.
+    """
+    if os.environ.get("BALIZA_ALLOW_PRIVATE_NETWORKS") == "1":
+        return True
+
+    try:
+        parsed = urlparse(str(url))
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+
+        # Block localhost explicitly
+        if hostname.lower() == "localhost":
+            return False
+
+        # Check for IP address
+        try:
+            ip = ipaddress.ip_address(hostname)
+            if ip.is_private or ip.is_loopback or ip.is_link_local:
+                return False
+        except ValueError:
+            # Domain name - assume safe (no DNS resolution to avoid rebinding/complexity)
+            pass
+
+        return True
+    except Exception:
+        return False
 
 
 class _HttpClient(Protocol):
@@ -103,6 +139,9 @@ class _FallbackClient(AbstractContextManager["_FallbackClient"]):
         if not url.startswith(("http://", "https://")):
             raise ValueError("URL scheme must be http or https")
 
+        if not _is_safe_url(url):
+            raise RuntimeError(f"URL {url} blocked by SSRF protection")
+
         query = parse.urlencode(params or {}, doseq=True)
         full_url = f"{url}?{query}" if query else url
         req = request.Request(full_url, headers=self.headers)
@@ -141,6 +180,9 @@ if httpx is not None:
         ) -> httpx.Response:
             if request.url.scheme not in ("http", "https"):
                 raise ValueError("URL scheme must be http or https")
+
+            if not _is_safe_url(str(request.url)):
+                raise RuntimeError(f"URL {request.url} blocked by SSRF protection")
 
             try:
                 # Force stream=True to inspect/limit content
@@ -1134,9 +1176,7 @@ def state_gaps(
     lookback_days: int = typer.Option(
         0, "--lookback-days", "-l", min=0, help="Lookback days to include"
     ),
-    limit: int = typer.Option(
-        20, "--limit", "-n", min=1, help="Maximum number of gaps to display"
-    ),
+    limit: int = typer.Option(20, "--limit", "-n", min=1, help="Maximum number of gaps to display"),
 ) -> None:
     """List gaps in extraction coverage."""
     manager = StateManager(duckdb, dataset=dataset)
