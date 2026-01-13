@@ -268,6 +268,15 @@ def _parse_optional_date(value: str | None, *, option_name: str) -> date | None:
         raise typer.BadParameter(f"{option_name} must follow YYYY-MM-DD format") from exc
 
 
+_GAP_ICONS = {
+    "incomplete": "🚧",
+    "suspect": "🚩",
+    "missing": "📥",
+    "unprocessed": "🆕",
+    "lookback": "🔙",
+}
+
+
 @app.command("extract")
 def extract(
     config: Path | None = typer.Option(
@@ -415,12 +424,13 @@ def extract(
                 "unprocessed": "cyan",
                 "lookback": "magenta",
             }.get(gap.reason, "white")
+            icon = _GAP_ICONS.get(gap.reason, "")
 
             table.add_row(
                 str(i),
                 str(gap.start.date()),
                 str(gap.end.date()),
-                f"[{color_tag}]{gap.reason}[/{color_tag}]",
+                f"{icon} [{color_tag}]{gap.reason}[/{color_tag}]",
             )
 
         console.print(table)
@@ -1134,9 +1144,7 @@ def state_gaps(
     lookback_days: int = typer.Option(
         0, "--lookback-days", "-l", min=0, help="Lookback days to include"
     ),
-    limit: int = typer.Option(
-        20, "--limit", "-n", min=1, help="Maximum number of gaps to display"
-    ),
+    limit: int = typer.Option(20, "--limit", "-n", min=1, help="Maximum number of gaps to display"),
 ) -> None:
     """List gaps in extraction coverage."""
     manager = StateManager(duckdb, dataset=dataset)
@@ -1174,11 +1182,12 @@ def state_gaps(
                 "unprocessed": "cyan",
                 "lookback": "magenta",
             }.get(gap.reason, "white")
+            icon = _GAP_ICONS.get(gap.reason, "")
 
             table.add_row(
                 str(gap.start.date()),
                 str(gap.end.date()),
-                f"[{color_tag}]{gap.reason}[/{color_tag}]",
+                f"{icon} [{color_tag}]{gap.reason}[/{color_tag}]",
             )
 
         console.print(table)
