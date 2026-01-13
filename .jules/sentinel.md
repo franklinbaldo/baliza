@@ -7,3 +7,8 @@
 **Vulnerability:** SQL Injection in `CoverageTracker.derive_window_candidates`. The `date_field` parameter was interpolated directly into a SQL query string without quoting or validation, allowing arbitrary SQL execution if exposed to user input.
 **Learning:** Always use identifier quoting (or parameterized queries where applicable) for dynamic column/table names in SQL construction, even if the input currently comes from a trusted source (config defaults), as future changes might expose it.
 **Prevention:** Applied `_quote_identifier` to `date_field` before interpolation in `src/baliza/state/coverage.py`.
+
+## 2024-05-25 - Prevent SSRF in HTTP Clients
+**Vulnerability:** Server-Side Request Forgery (SSRF) in `_SecureClient` and `_FallbackClient`. The application did not validate target IPs, allowing access to private networks (localhost, 127.0.0.1, LAN) via CLI arguments or configuration.
+**Learning:** Checking URL schemes (`http`/`https`) is insufficient. DNS resolution must be performed to check the actual destination IP against private ranges.
+**Prevention:** Implemented `_is_safe_url` helper in `src/baliza/cli.py` to resolve and validate hostnames before making requests, blocking private/loopback IPs by default.

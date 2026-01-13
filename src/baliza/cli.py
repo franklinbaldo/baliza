@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import ipaddress
 import json
+import os
 import shutil
+import socket
 from collections.abc import Callable, Iterable
 from contextlib import AbstractContextManager
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Protocol
+from urllib.parse import urlparse
 
 import duckdb
 
@@ -80,6 +84,37 @@ class _FallbackResponse:
             raise RuntimeError(f"HTTP request failed with status {self.status_code}")
 
 
+def _is_safe_url(url: str) -> bool:
+    """
+    Check if a URL is safe to access (blocks private networks).
+    """
+    if os.environ.get("BALIZA_ALLOW_PRIVATE_NETWORKS") == "1":
+        return True
+
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+
+        if hostname.lower() == "localhost":
+            return False
+
+        # Resolve to IP
+        try:
+            ip_str = socket.gethostbyname(hostname)
+        except socket.gaierror:
+            return False
+
+        ip = ipaddress.ip_address(ip_str)
+        if ip.is_private or ip.is_loopback or ip.is_link_local:
+            return False
+
+        return True
+    except Exception:
+        return False
+
+
 class _FallbackClient(AbstractContextManager["_FallbackClient"]):
     def __init__(self, *, headers: dict[str, str] | None = None, timeout: int = 30) -> None:
         self.headers = headers or {}
@@ -102,6 +137,9 @@ class _FallbackClient(AbstractContextManager["_FallbackClient"]):
 
         if not url.startswith(("http://", "https://")):
             raise ValueError("URL scheme must be http or https")
+
+        if not _is_safe_url(url):
+            raise ValueError(f"Access to {url} is blocked (private network protection)")
 
         query = parse.urlencode(params or {}, doseq=True)
         full_url = f"{url}?{query}" if query else url
@@ -141,6 +179,11 @@ if httpx is not None:
         ) -> httpx.Response:
             if request.url.scheme not in ("http", "https"):
                 raise ValueError("URL scheme must be http or https")
+
+            if not _is_safe_url(str(request.url)):
+                raise ValueError(
+                    f"Access to {request.url} is blocked (private network protection)"
+                )
 
             try:
                 # Force stream=True to inspect/limit content
