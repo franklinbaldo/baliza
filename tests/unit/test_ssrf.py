@@ -1,10 +1,13 @@
 
 import os
-import pytest
 import threading
-import time
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from unittest.mock import patch
+
+import pytest
+
 from baliza.cli import _FallbackClient
+
 
 def test_fallback_client_rejects_file_scheme(tmp_path):
     """Test that _FallbackClient refuses to load file:// URLs."""
@@ -70,11 +73,12 @@ def test_fallback_client_does_not_follow_redirects():
     redirect_url = f"{base_url}/redirect"
 
     try:
-        with _FallbackClient() as client:
-            response = client.get(redirect_url)
-            # Should be 302, not 200
-            assert response.status_code == 302
-            assert "Target Reached" not in response._text
+        with patch.dict(os.environ, {"BALIZA_ALLOW_PRIVATE_NETWORKS": "1"}):
+            with _FallbackClient() as client:
+                response = client.get(redirect_url)
+                # Should be 302, not 200
+                assert response.status_code == 302
+                assert "Target Reached" not in response._text
     finally:
         server.shutdown()
         server.server_close()
