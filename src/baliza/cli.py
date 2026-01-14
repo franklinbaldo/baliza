@@ -52,6 +52,14 @@ from .utils.dates import humanize_duration, humanize_naturaltime, to_pncp_window
 
 console = Console()
 
+_GAP_ICONS = {
+    "incomplete": "🚧",
+    "suspect": "🚩",
+    "missing": "📥",
+    "unprocessed": "🆕",
+    "lookback": "🔙",
+}
+
 app = typer.Typer(help="Declarative PNCP pipeline runner")
 
 
@@ -416,11 +424,14 @@ def extract(
                 "lookback": "magenta",
             }.get(gap.reason, "white")
 
+            icon = _GAP_ICONS.get(gap.reason, "")
+            reason_str = f"{icon} {gap.reason}" if icon else gap.reason
+
             table.add_row(
                 str(i),
                 str(gap.start.date()),
                 str(gap.end.date()),
-                f"[{color_tag}]{gap.reason}[/{color_tag}]",
+                f"[{color_tag}]{reason_str}[/{color_tag}]",
             )
 
         console.print(table)
@@ -1001,7 +1012,12 @@ def export(
                 json.dump(upload_metadata, fh, indent=2)
             typer.echo(f"Internet Archive upload metadata saved to: {metadata_path}", err=True)
 
-            typer.echo("Successfully uploaded to Internet Archive.", err=True)
+            item_url = f"https://archive.org/details/{ia_identifier}"
+            console.print(
+                f"Successfully uploaded to Internet Archive: [link={item_url}]{item_url}[/link]",
+                style="bold green",
+                highlight=False,
+            )
         except Exception as exc:  # pragma: no cover - network dependent
             typer.secho(
                 f"Error during Internet Archive upload: {exc}",
@@ -1078,29 +1094,29 @@ def state_show(
 
         table.add_row(
             "[green]Complete windows[/green]",
-            str(counts["ok"]),
+            f"{counts['ok']:,}",
             fmt_pct(counts["ok"]),
             get_bar(counts["ok"], "green"),
         )
         table.add_row(
             "[yellow]Incomplete windows[/yellow]",
-            str(counts["incompleto"]),
+            f"{counts['incompleto']:,}",
             fmt_pct(counts["incompleto"]),
             get_bar(counts["incompleto"], "yellow"),
         )
         table.add_row(
             "[red]Suspect windows[/red]",
-            str(counts["suspeito"]),
+            f"{counts['suspeito']:,}",
             fmt_pct(counts["suspeito"]),
             get_bar(counts["suspeito"], "red"),
         )
         table.add_row(
             "[cyan]Unprocessed windows[/cyan]",
-            str(counts["nao_processado"]),
+            f"{counts['nao_processado']:,}",
             fmt_pct(counts["nao_processado"]),
             get_bar(counts["nao_processado"], "cyan"),
         )
-        table.add_row("Total windows", str(total), "100.0%", "", style="bold")
+        table.add_row("Total windows", f"{total:,}", "100.0%", "", style="bold")
 
         console.print(table)
 
@@ -1175,10 +1191,13 @@ def state_gaps(
                 "lookback": "magenta",
             }.get(gap.reason, "white")
 
+            icon = _GAP_ICONS.get(gap.reason, "")
+            reason_str = f"{icon} {gap.reason}" if icon else gap.reason
+
             table.add_row(
                 str(gap.start.date()),
                 str(gap.end.date()),
-                f"[{color_tag}]{gap.reason}[/{color_tag}]",
+                f"[{color_tag}]{reason_str}[/{color_tag}]",
             )
 
         console.print(table)

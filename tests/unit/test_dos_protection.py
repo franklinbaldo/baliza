@@ -20,6 +20,9 @@ def test_fallback_client_unbounded_read_dos():
 
     client = _FallbackClient()
 
-    with patch("urllib.request.urlopen", return_value=mock_response):
+    mock_opener = MagicMock()
+    mock_opener.open.return_value = mock_response
+
+    with patch("urllib.request.build_opener", return_value=mock_opener):
         with pytest.raises(RuntimeError, match="Response too large"):
             client.get("http://example.com/large")
