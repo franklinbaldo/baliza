@@ -91,18 +91,26 @@ def test_run_pncp_uses_duckdb_destination(tmp_path: Path) -> None:
 
 
 def test_cli_extract_emits_json(monkeypatch) -> None:
-    run_info = MagicMock()
-    run_info.asdict.return_value = {"rows": 10}
-    monkeypatch.setattr(
-        cli, "run_pncp", MagicMock(return_value=(MagicMock(), run_info))
-    )
+    # Mock StateManager and GapDetector classes
+    mock_state_manager_instance = MagicMock()
+    mock_gap_detector_instance = MagicMock()
+
+    # Configure mock responses
+    mock_state_manager_instance.get_last_successful_run.return_value = None
+    mock_gap_detector_instance.find_gaps.return_value = []
+
+    mock_state_manager_class = MagicMock(return_value=mock_state_manager_instance)
+    mock_gap_detector_class = MagicMock(return_value=mock_gap_detector_instance)
+
+    monkeypatch.setattr("baliza.cli.StateManager", mock_state_manager_class)
+    monkeypatch.setattr("baliza.cli.GapDetector", mock_gap_detector_class)
 
     result = runner.invoke(
         cli.app, ["extract", "--dataset", "cli_demo", "--lookback-days", "2"]
     )
 
     assert result.exit_code == 0
-    assert '"rows": 10' in result.stdout
+    assert "No gaps found" in result.stdout
 
 
 def test_cli_backfill_invokes_pipeline_per_month(monkeypatch) -> None:
