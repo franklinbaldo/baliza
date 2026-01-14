@@ -27,7 +27,8 @@ test = [
     "pytest-mock>=3.14.0",
     "pytest-httpx>=0.30.0",
     "vcrpy>=6.0.0",
-    "pytest-vcr>=1.0.2"
+    "pytest-vcr>=1.0.2",
+    "pytest-bdd>=7.0.0"
 ]
 dev = [
     "ruff>=0.1.0",
