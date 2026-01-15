@@ -1,0 +1,145 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - baliza/0.1 declarative pipeline
+    method: GET
+    uri: https://pncp.gov.br/api/consulta/v1/contratos?pagina=1&tamanhoPagina=500&dataInicial=20300101&dataFinal=20300101
+  response:
+    body:
+      string: ''
+    headers:
+      access-control-allow-credentials:
+      - 'true'
+      access-control-allow-headers:
+      - Content-Type,Authorization,X-Requested-With,Content-Length,Accept,Origin,
+      access-control-allow-methods:
+      - GET,PUT,POST,DELETE,OPTIONS
+      access-control-allow-origin:
+      - '*'
+      cache-control:
+      - no-cache, no-store, max-age=0, must-revalidate
+      content-type:
+      - application/json
+      date:
+      - Thu, 15 Jan 2026 14:24:11 GMT
+      expires:
+      - '0'
+      pragma:
+      - no-cache
+      strict-transport-security:
+      - max-age=15768000
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - DENY
+      x-xss-protection:
+      - '0'
+    status:
+      code: 204
+      message: ''
+- request:
+    body: '{"anonymousId": "0dd9d20713f986902fe297457a37486a", "event": "pipeline_extract",
+      "properties": {"elapsed": 0.707032, "success": true, "destination_name": "duckdb",
+      "destination_type": "dlt.destinations.duckdb", "pipeline_name_hash": "YdcopT/GyvAmpTKDI+sD",
+      "dataset_name_hash": "WYMaZlSmszj7mE+Ijpuo", "default_schema_name_hash": "fkTOrODHHBIZwALikgzg",
+      "transaction_id": "5cc629632c94759785ff37a60fb6dc78", "extract_data": [{"name":
+      "rest_api", "data_type": "source"}], "event_category": "pipeline", "event_name":
+      "extract"}, "context": {"ci_run": false, "python": "3.12.12", "cpu": 4, "exec_info":
+      [], "os": {"name": "Linux", "version": "6.8.0"}, "library": {"name": "dlt",
+      "version": "1.20.0"}, "run_context": "dlt"}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '720'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - dlt/1.20.0
+    method: POST
+    uri: https://telemetry.scalevector.ai/
+  response:
+    body:
+      string: ''
+    headers:
+      CF-RAY:
+      - 9be60905fe4c106c-ORD
+      Connection:
+      - keep-alive
+      Date:
+      - Thu, 15 Jan 2026 14:24:11 GMT
+      NEL:
+      - '{"success_fraction":0,"report_to":"cf-nel","max_age":604800}'
+      Report-To:
+      - '{"endpoints":[{"url":"https:\/\/a.nel.cloudflare.com\/report\/v4?s=un8h%2FPfR6iVCxb0lV6Txq9OE3CM5Zy9gKl76U8yOn6%2B9VtUtwIuyvJTtXmcFB%2BWp0evl9W13GZRI8YkB7lwphLWhHOwCLFIXsUXWjwULl9DS9RoipUL10IZR7X9Bo9lH6GzBwEqPumiwlFs%3D"}],"group":"cf-nel","max_age":604800}'
+      Server:
+      - cloudflare
+      Vary:
+      - Accept-Encoding
+      alt-svc:
+      - h3=":443"; ma=86400
+      server-timing:
+      - cfL4;desc="?proto=TCP&rtt=11757&min_rtt=11675&rtt_var=4437&sent=4&recv=7&lost=0&retrans=0&sent_bytes=2856&recv_bytes=1558&delivery_rate=248051&cwnd=251&unsent_bytes=0&cid=158f5c67716ea647&ts=42&x=0"
+    status:
+      code: 204
+      message: No Content
+- request:
+    body: '{"anonymousId": "0dd9d20713f986902fe297457a37486a", "event": "pipeline_normalize",
+      "properties": {"elapsed": 0.762752, "success": true, "destination_name": "duckdb",
+      "destination_type": "dlt.destinations.duckdb", "pipeline_name_hash": "YdcopT/GyvAmpTKDI+sD",
+      "dataset_name_hash": "WYMaZlSmszj7mE+Ijpuo", "default_schema_name_hash": "fkTOrODHHBIZwALikgzg",
+      "transaction_id": "5cc629632c94759785ff37a60fb6dc78", "event_category": "pipeline",
+      "event_name": "normalize"}, "context": {"ci_run": false, "python": "3.12.12",
+      "cpu": 4, "exec_info": [], "os": {"name": "Linux", "version": "6.8.0"}, "library":
+      {"name": "dlt", "version": "1.20.0"}, "run_context": "dlt"}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '661'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - dlt/1.20.0
+    method: POST
+    uri: https://telemetry.scalevector.ai/
+  response:
+    body:
+      string: ''
+    headers:
+      CF-RAY:
+      - 9be60906aa16fa0f-ORD
+      Connection:
+      - keep-alive
+      Date:
+      - Thu, 15 Jan 2026 14:24:11 GMT
+      Nel:
+      - '{"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}'
+      Report-To:
+      - '{"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=SBl67Xwerz6FAIR9hsxzgTcmUsiO1Ku151Rx1X6ZtOwFEys6TLvtOYXFolwP7dvM%2FqVaB9%2Bv%2BmuqwcAxem12%2FGW33h4OYz3yPNCTdc9DJu08Rkeo3Prk8Q%3D%3D"}]}'
+      Server:
+      - cloudflare
+      Vary:
+      - accept-encoding
+      alt-svc:
+      - h3=":443"; ma=86400
+    status:
+      code: 204
+      message: No Content
+version: 1

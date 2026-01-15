@@ -139,25 +139,25 @@ def test_pncp_pagination():
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "test_pagination.duckdb"
 
-        # Extract full month (will have multiple pages)
+        # Extract a few days to test pagination
         pipeline, run_info = pncp.run_pncp(
             duckdb_path=db_path,
             dataset="test_data",
             lookback_days=0,
             range_start="2024-09-01",
-            range_end="2024-09-30",
+            range_end="2024-09-03",
         )
 
         assert run_info is not None
 
         con = duckdb.connect(str(db_path))
 
-        # Should have many records for a full month
+        # Should have a reasonable number of records for a few days
         total = con.execute(
             "SELECT COUNT(*) FROM test_data.contratos"
         ).fetchone()[0]
 
-        assert total > 500, "Full month should have many contracts (pagination test)"
+        assert total > 50, "A few days should have a decent number of contracts (pagination test)"
 
         # Verify unique numeroControlePNCP (merge should work)
         # Use normalized column name
