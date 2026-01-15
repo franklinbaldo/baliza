@@ -54,6 +54,22 @@ console = Console()
 
 app = typer.Typer(help="Declarative PNCP pipeline runner")
 
+_GAP_ICONS = {
+    "incomplete": "🚧",
+    "suspect": "🚩",
+    "missing": "📥",
+    "unprocessed": "🆕",
+    "lookback": "🔙",
+}
+
+_GAP_COLORS = {
+    "incomplete": "yellow",
+    "suspect": "red",
+    "missing": "blue",
+    "unprocessed": "cyan",
+    "lookback": "magenta",
+}
+
 
 class _HttpClient(Protocol):
     def get(
@@ -408,19 +424,14 @@ def extract(
 
         limit_rows = 10
         for i, gap in enumerate(gaps[:limit_rows], 1):
-            color_tag = {
-                "incomplete": "yellow",
-                "suspect": "red",
-                "missing": "blue",
-                "unprocessed": "cyan",
-                "lookback": "magenta",
-            }.get(gap.reason, "white")
+            color_tag = _GAP_COLORS.get(gap.reason, "white")
+            icon = _GAP_ICONS.get(gap.reason, "")
 
             table.add_row(
                 str(i),
                 str(gap.start.date()),
                 str(gap.end.date()),
-                f"[{color_tag}]{gap.reason}[/{color_tag}]",
+                f"[{color_tag}]{icon} {gap.reason}[/{color_tag}]",
             )
 
         console.print(table)
@@ -1157,7 +1168,9 @@ def state_gaps(
         counts = detector.count_gaps_by_reason(gaps)
         typer.echo(f"Found {len(gaps)} gap(s):")
         for reason, count in counts.items():
-            typer.echo(f"  • {count} {reason}")
+            icon = _GAP_ICONS.get(reason, "")
+            color = _GAP_COLORS.get(reason, "white")
+            console.print(f"  • {count} {icon} [{color}]{reason}[/{color}]")
 
         typer.echo("\nDetails:")
 
@@ -1167,18 +1180,13 @@ def state_gaps(
         table.add_column("Reason", style="bold")
 
         for gap in gaps[:limit]:
-            color_tag = {
-                "incomplete": "yellow",
-                "suspect": "red",
-                "missing": "blue",
-                "unprocessed": "cyan",
-                "lookback": "magenta",
-            }.get(gap.reason, "white")
+            color_tag = _GAP_COLORS.get(gap.reason, "white")
+            icon = _GAP_ICONS.get(gap.reason, "")
 
             table.add_row(
                 str(gap.start.date()),
                 str(gap.end.date()),
-                f"[{color_tag}]{gap.reason}[/{color_tag}]",
+                f"[{color_tag}]{icon} {gap.reason}[/{color_tag}]",
             )
 
         console.print(table)
