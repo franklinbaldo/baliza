@@ -32,9 +32,11 @@ pesquisadores e órgãos de controle.
 - **Documentação de arquitetura:** os arquivos em `docs/` registram decisões e
   próximos passos para evolução do pipeline.
 
-> 📌 **Escopo atual:** o pipeline cobre o endpoint de **contratos**. A inclusão
-> de demais recursos do PNCP está detalhada na
-> [`docs/endpoint_extraction_strategy.md`](docs/endpoint_extraction_strategy.md).
+> 📌 **Recursos Suportados:**
+> - **`contratos`**: ✅ Disponível (padrão)
+> - **`compras`**: 🔜 Em desenvolvimento
+>
+> Veja o nosso [`MASTERPLAN.md`](docs/MASTERPLAN.md) para a lista completa de recursos planejados.
 
 ## Instalação
 
@@ -88,17 +90,20 @@ uv run baliza export --table contratos --out data/contratos
 # Alias para simplificar (adicione ao seu .bashrc ou .zshrc)
 alias baliza='uvx --from "git+https://github.com/franklinbaldo/baliza" baliza'
 
-# Extrair dados dos últimos 3 dias
+# Extrair contratos dos últimos 3 dias (recurso padrão)
 baliza extract
+
+# Extrair compras (novo recurso)
+baliza extract --resource compras
 
 # Exportar para Parquet
 baliza export --table contratos --out data/contratos
 
 # Backfill mensal
-baliza backfill 2024-01 2024-03
+baliza backfill 2024-01 2024-03 --resource contratos
 
 # Verificar cobertura
-baliza verify
+baliza verify --resource contratos
 ```
 
 ### Usando instalação local
