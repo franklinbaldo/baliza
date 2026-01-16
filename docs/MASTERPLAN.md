@@ -33,7 +33,7 @@ To be the most reliable, transparent, and accessible tool for extracting and pre
 
 ## 4. Prioritized Backlog
 
-### Epic 1: Resumable Extraction Pipeline
+### Epic 1: Resumable Extraction Pipeline (✅ Completed)
 
 *   **Feature:** Implement `StateManager` for persistent run tracking.
 *   **Feature:** Implement `GapDetector` to identify missing or incomplete data windows.
@@ -68,7 +68,6 @@ To be the most reliable, transparent, and accessible tool for extracting and pre
 
 ## 6. Known Gaps / Technical Debt
 
--   **Stateless Pipeline:** The current pipeline is stateless and relies on a simple lookback window, making it brittle. (This is addressed in Epic 1).
 -   **Limited Test Coverage:** The current test suite primarily covers happy paths and needs to be expanded with more unit tests and failure-case scenarios.
 -   **Lack of Observability:** The CLI provides minimal structured output (logs, metrics). This will be improved as part of the state management implementation.
 -   **Manual Publishing:** Data releases are currently a manual process. (This is addressed in Epic 2).

@@ -17,21 +17,16 @@ entender a separação de responsabilidades.
   um pipeline `dlt` que abre janelas `dataInicial`/`dataFinal` (formato
   `AAAAMMDD`), pagina com `tamanhoPagina=500` e grava resultados em DuckDB via
   `write_disposition=merge`.
+- ✅ **Estado e Resumibilidade:** A extração é totalmente resumível. O `StateManager`
+  e o `GapDetector` rastreiam janelas de extração, permitindo que o `baliza extract`
+  retome automaticamente de falhas e processe apenas lacunas de dados.
 - ⚠️ **Limitações conhecidas:**
-  - o pipeline é *stateless* — a janela incremental depende apenas do
-    *lookback* informado pelo usuário;
   - não há monitoramento estruturado nem relatórios de execução;
   - a suíte de testes cobre somente o fluxo principal da CLI.
 
 ## Prioridades imediatas
 
-1. **Persistência de estado incremental**
-   - Implementar o `StateManager` e o `GapDetector` descritos em
-     `docs/extraction_resumability_plan.md`, conectando-os diretamente ao
-     pipeline declarativo existente.
-   - Consolidar o manifesto de janelas (`totalPaginas`, hashes, status) como
-     fonte de verdade para retomada e auditoria de cobertura.
-2. **Observabilidade e resiliência**
+1. **Observabilidade e resiliência**
    - Adicionar logs estruturados com contagem de páginas, tempo total e totais
      de linhas processadas.
    - Documentar opções de *retry* e *timeout* do `dlt` para lidar com instabilidade
