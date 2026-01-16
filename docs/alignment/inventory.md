@@ -6,10 +6,12 @@ This document outlines the testing frameworks, configuration, and execution comm
 
 - **Primary Framework:** `pytest` is the core test runner.
 - **HTTP Mocking:** `pytest-httpx` and `vcrpy` are used for mocking HTTP requests in tests, ensuring that tests are repeatable and don't rely on the live PNCP API.
-- **BDD Framework:** The project **does not** currently use a formal BDD framework like `pytest-bdd` or `behave`. There are no `.feature` files in the repository. The tests are written in Python using `pytest`.
+- **BDD Framework:** `pytest-bdd` is used for Behavior-Driven Development.
 
 ## Test Locations
 
+- **BDD Features:** `tests/features/`
+- **Step Definitions:** `tests/step_defs/`
 - **Unit Tests:** `tests/unit/`
 - **End-to-End Tests:** `tests/e2e/`
 - **Integration Tests:** `tests/integration/`
