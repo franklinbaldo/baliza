@@ -1116,16 +1116,30 @@ def state_show(
         console.print(table)
 
         if last_run:
-            console.print("\n[bold]Last successful run:[/bold]")
-            last_run_table = Table(box=box.SIMPLE, show_header=False)
-            last_run_table.add_column("Field", style="dim")
-            last_run_table.add_column("Value")
+            duration_str = "-"
+            if last_run.completed_at and last_run.started_at:
+                duration_secs = (last_run.completed_at - last_run.started_at).total_seconds()
+                duration_str = humanize_duration(duration_secs)
 
-            last_run_table.add_row("Run ID", last_run.run_id)
-            last_run_table.add_row("Completed at", str(last_run.completed_at))
-            last_run_table.add_row("Windows", str(last_run.windows_completed))
-            last_run_table.add_row("Rows extracted", f"{last_run.rows_extracted:,}")
-            console.print(last_run_table)
+            grid = Table.grid(padding=(0, 2))
+            grid.add_column(style="dim")
+            grid.add_column(style="bold")
+
+            grid.add_row("Completed:", humanize_naturaltime(last_run.completed_at))
+            grid.add_row("Duration:", duration_str)
+            grid.add_row("Windows:", str(last_run.windows_completed))
+            grid.add_row("Rows:", f"{last_run.rows_extracted:,}")
+            grid.add_row("Run ID:", last_run.run_id)
+
+            console.print(
+                Panel(
+                    grid,
+                    title="[green]Last Successful Run[/green]",
+                    title_align="left",
+                    border_style="green",
+                    padding=(1, 2),
+                )
+            )
 
     finally:
         manager.close()
