@@ -38,6 +38,8 @@ from rich.progress import (
 from rich.progress_bar import ProgressBar
 from rich.table import Table
 
+from causaganha.schemas.manifest import ParquetSchema
+
 from .pipelines.pncp import (
     BACKFILL_PIPELINE_NAME,
     DEFAULT_PIPELINE_NAME,
@@ -1023,6 +1025,49 @@ def export(
             if archive_dir and archive_dir.exists():
                 shutil.rmtree(archive_dir)
                 typer.echo("Temporary archive directory cleaned.", err=True)
+
+
+# Manifest command group
+manifest_app = typer.Typer(help="Inspect and manage the data manifest")
+app.add_typer(manifest_app, name="manifest")
+
+
+@manifest_app.command("export")
+def manifest_export(
+    limit: int = typer.Option(
+        100,
+        "--limit",
+        "-l",
+        min=1,
+        help="Maximum number of records to return",
+    ),
+    duckdb_path: Path = typer.Option(
+        Path("baliza.duckdb"),
+        "--duckdb",
+        "-d",
+        help="Path to the DuckDB database file",
+    ),
+) -> None:
+    """Export the data manifest as a JSON stream."""
+    # NOTE: The data source for this manifest is not specified in the brief.
+    # This implementation returns dummy data that conforms to the schema
+    # to allow the command and its tests to be created.
+    # The actual data source needs to be clarified.
+    dummy_data = [
+        ParquetSchema(
+            intimation_id=i,
+            process_number=f"0000{i}-00.2023.1.00.0000",
+            tribunal="TJSP",
+            decision_date=date(2023, 1, i),
+            download_url=f"http://example.com/doc/{i}",
+            needs_download=True,
+            ia_url=None,
+        )
+        for i in range(1, limit + 1)
+    ]
+
+    output = [item.model_dump(mode="json") for item in dummy_data]
+    typer.echo(json.dumps(output, indent=2))
 
 
 # State management command group
