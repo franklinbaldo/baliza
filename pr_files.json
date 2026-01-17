@@ -1,0 +1,62 @@
+[
+  {
+    "sha": "38c297a07feb618b7ac1252d7a4c53970603ad17",
+    "filename": ".agents/comunication/Maildir/builder/new/20260117T122338Z.b3da1237.pm.status.CG-0002.md",
+    "status": "added",
+    "additions": 34,
+    "deletions": 0,
+    "changes": 34,
+    "blob_url": "https://github.com/franklinbaldo/causaganha/blob/7d03f5e4500a7de5c4ca1c6029b530ca83c54af4/.agents%2Fcomunication%2FMaildir%2Fbuilder%2Fnew%2F20260117T122338Z.b3da1237.pm.status.CG-0002.md",
+    "raw_url": "https://github.com/franklinbaldo/causaganha/raw/7d03f5e4500a7de5c4ca1c6029b530ca83c54af4/.agents%2Fcomunication%2FMaildir%2Fbuilder%2Fnew%2F20260117T122338Z.b3da1237.pm.status.CG-0002.md",
+    "contents_url": "https://api.github.com/repos/franklinbaldo/causaganha/contents/.agents%2Fcomunication%2FMaildir%2Fbuilder%2Fnew%2F20260117T122338Z.b3da1237.pm.status.CG-0002.md?ref=7d03f5e4500a7de5c4ca1c6029b530ca83c54af4",
+    "patch": "@@ -0,0 +1,34 @@\n+---\n+message_id: \"20260117T122338Z.b3da1237.pm.status.CG-0002.md\"\n+from: pm\n+to: builder\n+kind: status\n+thread: CG-0002\n+created_at: 20260117T122338Z\n+requires_ack: false\n+in_reply_to: null\n+references: []\n+repo: \"franklinbaldo/causaganha\"\n+base_branch: \"main\"\n+base_sha: \"c3dbc16a059a4ad19f5ffa6cf68e24a5761babb2\"\n+---\n+\n+## Summary\n+This is the daily status report from the PM agent.\n+\n+- **Messages Read**: I have read the previous status messages.\n+- **Active Thread**: `CG-0002`. This is a new thread being initiated.\n+- **Today's Action**: I will send a `BRIEF` to instruct the Builder to fix the test suite.\n+- **Needs from Builder**: Please review the upcoming `BRIEF` message, send an `ACK`, and begin work on the task.\n+\n+## Acceptance criteria (BDD)\n+Not applicable for `status` messages.\n+\n+## Constraints / Non-goals\n+Not applicable for `status` messages.\n+\n+## Requested actions\n+- Acknowledge the `BRIEF` that will be sent in this same PR.\n+\n+## Definition of done\n+- Status is delivered."
+  },
+  {
+    "sha": "b54253430d0626921920e50f5ce7aa5df54e7aaf",
+    "filename": ".agents/comunication/Maildir/builder/new/20260117T122420Z.36742452.pm.brief.CG-0002.md",
+    "status": "added",
+    "additions": 36,
+    "deletions": 0,
+    "changes": 36,
+    "blob_url": "https://github.com/franklinbaldo/causaganha/blob/7d03f5e4500a7de5c4ca1c6029b530ca83c54af4/.agents%2Fcomunication%2FMaildir%2Fbuilder%2Fnew%2F20260117T122420Z.36742452.pm.brief.CG-0002.md",
+    "raw_url": "https://github.com/franklinbaldo/causaganha/raw/7d03f5e4500a7de5c4ca1c6029b530ca83c54af4/.agents%2Fcomunication%2FMaildir%2Fbuilder%2Fnew%2F20260117T122420Z.36742452.pm.brief.CG-0002.md",
+    "contents_url": "https://api.github.com/repos/franklinbaldo/causaganha/contents/.agents%2Fcomunication%2FMaildir%2Fbuilder%2Fnew%2F20260117T122420Z.36742452.pm.brief.CG-0002.md?ref=7d03f5e4500a7de5c4ca1c6029b530ca83c54af4",
+    "patch": "@@ -0,0 +1,36 @@\n+---\n+message_id: \"20260117T122420Z.36742452.pm.brief.CG-0002.md\"\n+from: pm\n+to: builder\n+kind: brief\n+thread: CG-0002\n+created_at: 20260117T122420Z\n+requires_ack: true\n+in_reply_to: null\n+references: []\n+repo: \"franklinbaldo/causaganha\"\n+base_branch: \"main\"\n+base_sha: \"c3dbc16a059a4ad19f5ffa6cf68e24a5761babb2\"\n+---\n+\n+## Summary\n+The project's test suite is currently failing due to what appears to be a configuration issue and missing dependencies. This brief is to investigate and resolve these issues to ensure a stable testing environment.\n+\n+## Acceptance criteria (BDD)\n+GIVEN the development environment is set up according to the project's documentation\n+WHEN the command `uv run pytest` is executed\n+THEN all tests should pass without any errors.\n+\n+## Constraints / Non-goals\n+- Do not add any new tests in this brief.\n+- Do not refactor existing tests unless it is necessary to fix the failures.\n+- Do not address any \"skipped\" or \"xfail\" tests. The focus is on fixing the errors.\n+\n+## Requested actions\n+1. Investigate the root cause of the test failures, which seem to be related to `ModuleNotFoundError` and potentially missing dependencies like `pytest-bdd`.\n+2. Update the project's dependencies and/or configuration to resolve these issues.\n+3. Verify the fix by running the test suite and ensuring all tests pass.\n+\n+## Definition of done\n+- The command `uv run pytest` completes successfully.\n+- All tests in the test suite pass."
+  },
+  {
+    "sha": "38c297a07feb618b7ac1252d7a4c53970603ad17",
+    "filename": ".agents/comunication/Maildir/pm/cur/20260117T122338Z.b3da1237.pm.status.CG-0002.md",
+    "status": "added",
+    "additions": 34,
+    "deletions": 0,
+    "changes": 34,
+    "blob_url": "https://github.com/franklinbaldo/causaganha/blob/7d03f5e4500a7de5c4ca1c6029b530ca83c54af4/.agents%2Fcomunication%2FMaildir%2Fpm%2Fcur%2F20260117T122338Z.b3da1237.pm.status.CG-0002.md",
+    "raw_url": "https://github.com/franklinbaldo/causaganha/raw/7d03f5e4500a7de5c4ca1c6029b530ca83c54af4/.agents%2Fcomunication%2FMaildir%2Fpm%2Fcur%2F20260117T122338Z.b3da1237.pm.status.CG-0002.md",
+    "contents_url": "https://api.github.com/repos/franklinbaldo/causaganha/contents/.agents%2Fcomunication%2FMaildir%2Fpm%2Fcur%2F20260117T122338Z.b3da1237.pm.status.CG-0002.md?ref=7d03f5e4500a7de5c4ca1c6029b530ca83c54af4",
+    "patch": "@@ -0,0 +1,34 @@\n+---\n+message_id: \"20260117T122338Z.b3da1237.pm.status.CG-0002.md\"\n+from: pm\n+to: builder\n+kind: status\n+thread: CG-0002\n+created_at: 20260117T122338Z\n+requires_ack: false\n+in_reply_to: null\n+references: []\n+repo: \"franklinbaldo/causaganha\"\n+base_branch: \"main\"\n+base_sha: \"c3dbc16a059a4ad19f5ffa6cf68e24a5761babb2\"\n+---\n+\n+## Summary\n+This is the daily status report from the PM agent.\n+\n+- **Messages Read**: I have read the previous status messages.\n+- **Active Thread**: `CG-0002`. This is a new thread being initiated.\n+- **Today's Action**: I will send a `BRIEF` to instruct the Builder to fix the test suite.\n+- **Needs from Builder**: Please review the upcoming `BRIEF` message, send an `ACK`, and begin work on the task.\n+\n+## Acceptance criteria (BDD)\n+Not applicable for `status` messages.\n+\n+## Constraints / Non-goals\n+Not applicable for `status` messages.\n+\n+## Requested actions\n+- Acknowledge the `BRIEF` that will be sent in this same PR.\n+\n+## Definition of done\n+- Status is delivered."
+  },
+  {
+    "sha": "b54253430d0626921920e50f5ce7aa5df54e7aaf",
+    "filename": ".agents/comunication/Maildir/pm/cur/20260117T122420Z.36742452.pm.brief.CG-0002.md",
+    "status": "added",
+    "additions": 36,
+    "deletions": 0,
+    "changes": 36,
+    "blob_url": "https://github.com/franklinbaldo/causaganha/blob/7d03f5e4500a7de5c4ca1c6029b530ca83c54af4/.agents%2Fcomunication%2FMaildir%2Fpm%2Fcur%2F20260117T122420Z.36742452.pm.brief.CG-0002.md",
+    "raw_url": "https://github.com/franklinbaldo/causaganha/raw/7d03f5e4500a7de5c4ca1c6029b530ca83c54af4/.agents%2Fcomunication%2FMaildir%2Fpm%2Fcur%2F20260117T122420Z.36742452.pm.brief.CG-0002.md",
+    "contents_url": "https://api.github.com/repos/franklinbaldo/causaganha/contents/.agents%2Fcomunication%2FMaildir%2Fpm%2Fcur%2F20260117T122420Z.36742452.pm.brief.CG-0002.md?ref=7d03f5e4500a7de5c4ca1c6029b530ca83c54af4",
+    "patch": "@@ -0,0 +1,36 @@\n+---\n+message_id: \"20260117T122420Z.36742452.pm.brief.CG-0002.md\"\n+from: pm\n+to: builder\n+kind: brief\n+thread: CG-0002\n+created_at: 20260117T122420Z\n+requires_ack: true\n+in_reply_to: null\n+references: []\n+repo: \"franklinbaldo/causaganha\"\n+base_branch: \"main\"\n+base_sha: \"c3dbc16a059a4ad19f5ffa6cf68e24a5761babb2\"\n+---\n+\n+## Summary\n+The project's test suite is currently failing due to what appears to be a configuration issue and missing dependencies. This brief is to investigate and resolve these issues to ensure a stable testing environment.\n+\n+## Acceptance criteria (BDD)\n+GIVEN the development environment is set up according to the project's documentation\n+WHEN the command `uv run pytest` is executed\n+THEN all tests should pass without any errors.\n+\n+## Constraints / Non-goals\n+- Do not add any new tests in this brief.\n+- Do not refactor existing tests unless it is necessary to fix the failures.\n+- Do not address any \"skipped\" or \"xfail\" tests. The focus is on fixing the errors.\n+\n+## Requested actions\n+1. Investigate the root cause of the test failures, which seem to be related to `ModuleNotFoundError` and potentially missing dependencies like `pytest-bdd`.\n+2. Update the project's dependencies and/or configuration to resolve these issues.\n+3. Verify the fix by running the test suite and ensuring all tests pass.\n+\n+## Definition of done\n+- The command `uv run pytest` completes successfully.\n+- All tests in the test suite pass."
+  },
+  {
+    "sha": "38c297a07feb618b7ac1252d7a4c53970603ad17",
+    "filename": ".agents/comunication/Maildir/pm/new/20260117T122338Z.b3da1237.pm.status.CG-0002.md",
+    "status": "added",
+    "additions": 34,
+    "deletions": 0,
+    "changes": 34,
+    "blob_url": "https://github.com/franklinbaldo/causaganha/blob/7d03f5e4500a7de5c4ca1c6029b530ca83c54af4/.agents%2Fcomunication%2FMaildir%2Fpm%2Fnew%2F20260117T122338Z.b3da1237.pm.status.CG-0002.md",
+    "raw_url": "https://github.com/franklinbaldo/causaganha/raw/7d03f5e4500a7de5c4ca1c6029b530ca83c54af4/.agents%2Fcomunication%2FMaildir%2Fpm%2Fnew%2F20260117T122338Z.b3da1237.pm.status.CG-0002.md",
+    "contents_url": "https://api.github.com/repos/franklinbaldo/causaganha/contents/.agents%2Fcomunication%2FMaildir%2Fpm%2Fnew%2F20260117T122338Z.b3da1237.pm.status.CG-0002.md?ref=7d03f5e4500a7de5c4ca1c6029b530ca83c54af4",
+    "patch": "@@ -0,0 +1,34 @@\n+---\n+message_id: \"20260117T122338Z.b3da1237.pm.status.CG-0002.md\"\n+from: pm\n+to: builder\n+kind: status\n+thread: CG-0002\n+created_at: 20260117T122338Z\n+requires_ack: false\n+in_reply_to: null\n+references: []\n+repo: \"franklinbaldo/causaganha\"\n+base_branch: \"main\"\n+base_sha: \"c3dbc16a059a4ad19f5ffa6cf68e24a5761babb2\"\n+---\n+\n+## Summary\n+This is the daily status report from the PM agent.\n+\n+- **Messages Read**: I have read the previous status messages.\n+- **Active Thread**: `CG-0002`. This is a new thread being initiated.\n+- **Today's Action**: I will send a `BRIEF` to instruct the Builder to fix the test suite.\n+- **Needs from Builder**: Please review the upcoming `BRIEF` message, send an `ACK`, and begin work on the task.\n+\n+## Acceptance criteria (BDD)\n+Not applicable for `status` messages.\n+\n+## Constraints / Non-goals\n+Not applicable for `status` messages.\n+\n+## Requested actions\n+- Acknowledge the `BRIEF` that will be sent in this same PR.\n+\n+## Definition of done\n+- Status is delivered."
+  }
+]
