@@ -1077,7 +1077,8 @@ def state_show(
             status = status_entry.get("status", "unknown")
             counts[status] = counts.get(status, 0) + 1
 
-        last_run = manager.get_last_successful_run(resource)
+        last_successful = manager.get_last_successful_run(resource)
+        last_attempt = manager.get_last_run(resource)
 
         table = Table(title=f"State Summary for '{resource}'", box=box.ROUNDED)
         table.add_column("Status", style="bold")
@@ -1130,21 +1131,61 @@ def state_show(
 
         console.print(table)
 
-        if last_run:
+        if last_attempt and last_attempt.status != "completed":
             duration_str = "-"
-            if last_run.completed_at and last_run.started_at:
-                duration_secs = (last_run.completed_at - last_run.started_at).total_seconds()
+            if last_attempt.completed_at:
+                duration_secs = (last_attempt.completed_at - last_attempt.started_at).total_seconds()
+                duration_str = humanize_duration(duration_secs)
+            elif last_attempt.status == "running":
+                duration_secs = (datetime.now(UTC) - last_attempt.started_at).total_seconds()
                 duration_str = humanize_duration(duration_secs)
 
             grid = Table.grid(padding=(0, 2))
             grid.add_column(style="dim")
             grid.add_column(style="bold")
 
-            grid.add_row("Completed:", humanize_naturaltime(last_run.completed_at))
+            grid.add_row("Started:", humanize_naturaltime(last_attempt.started_at))
             grid.add_row("Duration:", duration_str)
-            grid.add_row("Windows:", str(last_run.windows_completed))
-            grid.add_row("Rows:", f"{last_run.rows_extracted:,}")
-            grid.add_row("Run ID:", last_run.run_id)
+            grid.add_row("Windows:", str(last_attempt.windows_completed))
+            grid.add_row("Rows:", f"{last_attempt.rows_extracted:,}")
+            grid.add_row("Run ID:", last_attempt.run_id)
+            if last_attempt.error_message:
+                grid.add_row("Error:", f"[red]{last_attempt.error_message}[/red]")
+
+            color = "red" if last_attempt.status == "failed" else "yellow"
+            title = (
+                "[red]Last Extraction Failed[/red]"
+                if last_attempt.status == "failed"
+                else "[yellow]Extraction In Progress[/yellow]"
+            )
+
+            console.print(
+                Panel(
+                    grid,
+                    title=title,
+                    title_align="left",
+                    border_style=color,
+                    padding=(1, 2),
+                )
+            )
+
+        if last_successful:
+            duration_str = "-"
+            if last_successful.completed_at and last_successful.started_at:
+                duration_secs = (
+                    last_successful.completed_at - last_successful.started_at
+                ).total_seconds()
+                duration_str = humanize_duration(duration_secs)
+
+            grid = Table.grid(padding=(0, 2))
+            grid.add_column(style="dim")
+            grid.add_column(style="bold")
+
+            grid.add_row("Completed:", humanize_naturaltime(last_successful.completed_at))
+            grid.add_row("Duration:", duration_str)
+            grid.add_row("Windows:", str(last_successful.windows_completed))
+            grid.add_row("Rows:", f"{last_successful.rows_extracted:,}")
+            grid.add_row("Run ID:", last_successful.run_id)
 
             console.print(
                 Panel(
