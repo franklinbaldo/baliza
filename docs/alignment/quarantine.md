@@ -1,5 +1,7 @@
-# Test Quarantine Registry
+# Test Quarantine Log
 
-This document lists all tests currently under a `skip` or `xfail` quarantine.
+This document lists all tests that are currently under a **skip** or **xfail** quarantine.
 
-*There are currently no tests in quarantine.*
+---
+
+*No tests are currently quarantined.*

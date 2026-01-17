@@ -1,31 +1,27 @@
-# Baliza Test & BDD Inventory
+# BDD & Test Framework Inventory
 
-This document outlines the testing frameworks, configuration, and execution commands for the Baliza project.
+This document outlines the testing frameworks, tools, and conventions used in the Baliza project.
 
 ## Testing Frameworks
 
-- **Primary Framework:** `pytest` is the core test runner.
-- **HTTP Mocking:** `pytest-httpx` and `vcrpy` are used for mocking HTTP requests in tests, ensuring that tests are repeatable and don't rely on the live PNCP API.
-- **BDD Framework:** `pytest-bdd` is used for Behavior-Driven Development.
+- **Primary Runner:** `pytest` is used as the main test runner.
+- **BDD Framework:** `pytest-bdd` is used to enable Behavior-Driven Development with Gherkin `.feature` files.
+- **HTTP Mocking:** `pytest-vcr` is used to record and replay HTTP interactions, ensuring tests are fast and reliable.
 
-## Test Locations
+## File Locations
 
-- **BDD Features:** `tests/features/`
-- **Step Definitions:** `tests/step_defs/`
-- **Unit Tests:** `tests/unit/`
-- **End-to-End Tests:** `tests/e2e/`
-- **Integration Tests:** `tests/integration/`
+- **BDD Features:** Gherkin `.feature` files are located in `tests/features/`.
+- **Step Definitions:** Python step implementations are located in `tests/step_defs/`.
+- **Test Fixtures:** Shared test fixtures are defined in `tests/conftest.py` and `tests/fixtures/`.
+- **Recorded HTTP Cassettes:** `pytest-vcr` cassettes are stored in `tests/cassettes/`.
+- **Unit Tests:** Unit tests are located in `tests/unit/`.
+- **Integration Tests:** Integration tests are located in `tests/integration/`.
+- **End-to-End Tests:** E2E tests are located in `tests/e2e/`.
 
 ## How to Run Tests
 
-Tests are executed using `pytest`. The recommended way to run the tests is through the `uv` command, which ensures the tests run in the correct environment with the project's dependencies.
+To run the full test suite, use the following command from the project root:
 
-To run all tests:
 ```bash
 uv run pytest
-```
-
-To run a specific test file:
-```bash
-uv run pytest tests/unit/test_dates.py
 ```
