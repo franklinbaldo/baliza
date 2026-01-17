@@ -7,6 +7,9 @@ from contextlib import AbstractContextManager
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Protocol
+import ipaddress
+import os
+import socket
 
 import duckdb
 
@@ -71,6 +74,52 @@ _GAP_COLORS = {
 }
 
 
+def _is_safe_url(url: str) -> bool:
+    """
+    Validate that a URL points to a safe public host, blocking private/local networks.
+    Can be bypassed by setting BALIZA_ALLOW_PRIVATE_NETWORKS=1.
+    """
+    if os.environ.get("BALIZA_ALLOW_PRIVATE_NETWORKS") == "1":
+        return True
+
+    from urllib.parse import urlparse
+
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+
+        # Resolve hostname to IP address(es)
+        # We use getaddrinfo to handle both IPv4 and IPv6
+        addr_info = socket.getaddrinfo(hostname, None)
+
+        for _, _, _, _, sockaddr in addr_info:
+            ip_addr = sockaddr[0]
+            ip = ipaddress.ip_address(ip_addr)
+
+            # Block loopback (127.0.0.0/8, ::1)
+            if ip.is_loopback:
+                return False
+
+            # Block private networks (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, fc00::/7)
+            if ip.is_private:
+                return False
+
+            # Block link-local (169.254.0.0/16, fe80::/10)
+            if ip.is_link_local:
+                return False
+
+            # Block reserved/multicast
+            if ip.is_reserved or ip.is_multicast:
+                return False
+
+        return True
+    except (ValueError, socket.gaierror):
+        # Fail secure if hostname cannot be resolved or parsed
+        return False
+
+
 class _HttpClient(Protocol):
     def get(
         self, url: str, params: dict[str, Any] | None = None
@@ -119,6 +168,9 @@ class _FallbackClient(AbstractContextManager["_FallbackClient"]):
         if not url.startswith(("http://", "https://")):
             raise ValueError("URL scheme must be http or https")
 
+        if not _is_safe_url(url):
+            raise ValueError(f"Blocked request to potentially unsafe URL: {url}")
+
         query = parse.urlencode(params or {}, doseq=True)
         full_url = f"{url}?{query}" if query else url
         req = request.Request(full_url, headers=self.headers)
@@ -157,6 +209,9 @@ if httpx is not None:
         ) -> httpx.Response:
             if request.url.scheme not in ("http", "https"):
                 raise ValueError("URL scheme must be http or https")
+
+            if not _is_safe_url(str(request.url)):
+                raise ValueError(f"Blocked request to potentially unsafe URL: {request.url}")
 
             try:
                 # Force stream=True to inspect/limit content
