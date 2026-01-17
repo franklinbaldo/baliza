@@ -10,9 +10,8 @@ from baliza.cli import app
 runner = CliRunner()
 
 
-@pytest.mark.vcr
-@scenario('../features/extraction.feature', 'Extracting data for a given period')
-def test_extracting_data_for_a_given_period():
+@scenario('../features/backfill.feature', 'Backfilling data for a given month')
+def test_backfilling_data_for_a_given_month():
     pass
 
 
@@ -24,18 +23,16 @@ def db_path(tmp_path: Path) -> Path:
     return db
 
 
-@when("I run the baliza extract command for a specific date range", target_fixture="run_result")
-def run_extract_command(db_path, patched_pncp_source):
+@when("I run the baliza backfill command for a specific month", target_fixture="run_result")
+def run_backfill_command(db_path, patched_pncp_source):
     result = runner.invoke(
         app,
         [
-            "extract",
+            "backfill",
+            "2024-01",
+            "2024-01",
             "--duckdb",
             str(db_path),
-            "--start-date",
-            "2024-01-01",
-            "--end-date",
-            "2024-01-01",
             "--dataset",
             "test_dataset",
         ],
@@ -44,7 +41,7 @@ def run_extract_command(db_path, patched_pncp_source):
     return result
 
 
-@then("the data should be extracted and saved to the DuckDB database")
+@then("the data for that month should be extracted and saved to the DuckDB database")
 def check_data_in_db(db_path):
     with duckdb.connect(str(db_path), read_only=True) as con:
         count = con.execute("SELECT COUNT(*) FROM test_dataset.contratos").fetchone()[0]

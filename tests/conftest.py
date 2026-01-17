@@ -7,8 +7,11 @@ from typing import Any, Callable, Dict, Iterable, List, Optional
 from urllib.parse import urlencode
 
 import pytest
+from dlt.common import pendulum
+from dlt.sources import DltResource
 
 from baliza import cli
+from baliza.pipelines import pncp
 
 
 # =============================================================================
@@ -129,3 +132,22 @@ def httpx_mock() -> HttpxMock:
         yield mock
     finally:
         cli.set_http_client_factory(original_factory)
+
+
+def parse_dates(item):
+    if "dataAtualizacao" in item and isinstance(item["dataAtualizacao"], str):
+        item["dataAtualizacao"] = pendulum.parse(item["dataAtualizacao"])
+    return item
+
+
+@pytest.fixture
+def patched_pncp_source(monkeypatch):
+    """Patches the pncp_source to add a date parsing transformer."""
+    original_pncp_source = pncp.pncp_source
+
+    def new_pncp_source(*args, **kwargs) -> DltResource:
+        source = original_pncp_source(*args, **kwargs)
+        source.resources["contratos"].add_map(parse_dates)
+        return source
+
+    monkeypatch.setattr(pncp, "pncp_source", new_pncp_source)
