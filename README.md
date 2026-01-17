@@ -32,9 +32,9 @@ pesquisadores e órgãos de controle.
 - **Documentação de arquitetura:** os arquivos em `docs/` registram decisões e
   próximos passos para evolução do pipeline.
 
-> 📌 **Escopo atual:** o pipeline cobre o endpoint de **contratos**. A inclusão
-> de demais recursos do PNCP está detalhada na
-> [`docs/endpoint_extraction_strategy.md`](docs/endpoint_extraction_strategy.md).
+> 📌 **Escopo atual:** o pipeline cobre o endpoint de **contratos**. O suporte
+> para **compras** está em desenvolvimento. A inclusão de demais recursos do
+> PNCP está detalhada na [`docs/endpoint_extraction_strategy.md`](docs/endpoint_extraction_strategy.md).
 
 ## Instalação
 

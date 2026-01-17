@@ -49,7 +49,7 @@ To be the most reliable, transparent, and accessible tool for extracting and pre
 
 ### Epic 3: Expanded Endpoint Coverage
 
-*   **Feature:** Add support for the `compras` (procurements) endpoint.
+*   **Feature:** Add support for the `compras` (procurements) endpoint. (In Progress)
 *   **Feature:** Add support for the `licitacoes` (tenders) endpoint.
 *   **Feature:** Refactor the configuration to easily support multiple endpoints.
 
