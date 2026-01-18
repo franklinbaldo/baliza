@@ -495,7 +495,9 @@ def extract(
 
                     # Mark window as complete
                     periodo = state_manager.tracker.period_label(window.start, window.end)
-                    state_manager.tracker.mark_window_status(resource, periodo, "ok")
+                    state_manager.tracker.mark_window_status(
+                        resource, periodo, "completed"
+                    )
 
                     progress.console.print(
                         f"  [green]✓[/green] Completed {window.start.date()} to {window.end.date()}"
@@ -731,7 +733,7 @@ def verify(
                         # Preserve previous suspicion when sequence audits are disabled
                         pass
                     else:
-                        tracker.mark_window_status(resource, periodo, "ok")
+                        tracker.mark_window_status(resource, periodo, "completed")
 
                     if sequencia and atual_total > 0:
                         sample_page = min(atual_total, max(1, atual_total // 2))

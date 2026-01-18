@@ -32,8 +32,11 @@ def patched_pncp_source(monkeypatch):
     monkeypatch.setattr(pncp, "pncp_source", new_pncp_source)
 
 
+from pytest_bdd import parsers
+
+
 @pytest.mark.vcr
-@scenario('../features/extraction.feature', 'Extracting data for a given period')
+@scenario('../features/extraction.feature', 'Basic extraction for a specific date range')
 def test_extracting_data_for_a_given_period():
     pass
 
@@ -46,8 +49,8 @@ def db_path(tmp_path: Path) -> Path:
     return db
 
 
-@when("I run the baliza extract command for a specific date range", target_fixture="run_result")
-def run_extract_command(db_path, patched_pncp_source):
+@when(parsers.parse('I run "baliza extract" from "{start_date}" to "{end_date}"'), target_fixture="run_result")
+def run_extract_command(db_path, patched_pncp_source, start_date, end_date):
     result = runner.invoke(
         app,
         [
@@ -55,9 +58,9 @@ def run_extract_command(db_path, patched_pncp_source):
             "--duckdb",
             str(db_path),
             "--start-date",
-            "2024-01-01",
+            start_date,
             "--end-date",
-            "2024-01-01",
+            end_date,
             "--dataset",
             "test_dataset",
         ],
@@ -66,8 +69,14 @@ def run_extract_command(db_path, patched_pncp_source):
     return result
 
 
-@then("the data should be extracted and saved to the DuckDB database")
-def check_data_in_db(db_path):
+@then("the command should succeed")
+def command_succeeded(run_result):
+    assert run_result.exit_code == 0
+
+
+@then(parsers.parse("the coverage table should contain {count:d} completed time windows"))
+def check_window_count(db_path, count):
     with duckdb.connect(str(db_path), read_only=True) as con:
-        count = con.execute("SELECT COUNT(*) FROM test_dataset.contratos").fetchone()[0]
-        assert count > 0
+        # We only count completed windows for this assertion
+        actual_count = con.execute("SELECT COUNT(*) FROM baliza_state.janelas WHERE status = 'completed'").fetchone()[0]
+        assert actual_count == count
