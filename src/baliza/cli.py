@@ -814,6 +814,70 @@ def verify(
         if hash_alerts:
             resultado["hash_alertas"] = hash_alerts
 
+        # UX: Print summary to stderr
+        err_console = Console(stderr=True)
+
+        # Check if there are any issues
+        has_issues = bool(
+            lacunas or suspeitas or pending_pages or resumo.get("missing") or hash_alerts
+        )
+
+        if not has_issues:
+            err_console.print(
+                Panel(
+                    f"All windows for [bold cyan]'{resource}'[/bold cyan] verified successfully! ✨",
+                    style="green",
+                    title="Verification Passed",
+                    border_style="green",
+                )
+            )
+        else:
+            # Create a summary table
+            summary_table = Table(
+                title=f"Verification Issues: {resource}", box=box.ROUNDED, style="red"
+            )
+            summary_table.add_column("Issue Type", style="bold")
+            summary_table.add_column("Count", justify="right")
+            summary_table.add_column("Details", style="dim")
+
+            if lacunas:
+                summary_table.add_row(
+                    "[yellow]Incomplete Windows[/yellow]",
+                    str(len(lacunas)),
+                    "Run 'extract --auto-resume' to fix",
+                )
+
+            if suspeitas:
+                summary_table.add_row(
+                    "[red]Suspect Windows[/red]", str(len(suspeitas)), "Data mismatch detected"
+                )
+
+            if pending_pages:
+                total_pending = sum(len(pages) for pages in pending_pages.values())
+                summary_table.add_row(
+                    "[blue]Pending Pages[/blue]",
+                    str(total_pending),
+                    f"across {len(pending_pages)} windows",
+                )
+
+            if resumo.get("missing"):
+                summary_table.add_row(
+                    "[magenta]Missing Windows[/magenta]",
+                    str(len(resumo["missing"])),
+                    "Windows not present in local DB",
+                )
+
+            if hash_alerts:
+                summary_table.add_row(
+                    "[red]Hash Mismatches[/red]", str(len(hash_alerts)), "Content integrity failure"
+                )
+
+            err_console.print("\n")  # Spacing
+            err_console.print(summary_table)
+            err_console.print(
+                "[dim italic]Tip: JSON output on stdout contains full details.[/dim italic]\n",
+            )
+
         typer.echo(json.dumps(resultado, indent=2, default=str))
 
     finally:
@@ -1174,9 +1238,7 @@ def state_gaps(
     lookback_days: int = typer.Option(
         0, "--lookback-days", "-l", min=0, help="Lookback days to include"
     ),
-    limit: int = typer.Option(
-        20, "--limit", "-n", min=1, help="Maximum number of gaps to display"
-    ),
+    limit: int = typer.Option(20, "--limit", "-n", min=1, help="Maximum number of gaps to display"),
 ) -> None:
     """List gaps in extraction coverage."""
     manager = StateManager(duckdb, dataset=dataset)
