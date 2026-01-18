@@ -331,7 +331,14 @@ class CoverageTracker:
                     seq_int = int(seq_value)
                 except (TypeError, ValueError):  # pragma: no cover - guard
                     continue
-                grouped.setdefault((field, cnpj, ano), []).append(seq_int)
+
+                # Optimization: Avoid setdefault() which creates a new list on every hit.
+                # Since we group many items by (field, cnpj, ano), this key is often repeated.
+                key = (field, cnpj, ano)
+                try:
+                    grouped[key].append(seq_int)
+                except KeyError:
+                    grouped[key] = [seq_int]
 
         # Finalize Hash
         hash_ids = None
@@ -456,16 +463,20 @@ class CoverageTracker:
                 fetched_at,
             ) = row
             key = self._period_key(janela_inicio_dt, janela_fim_dt)
-            entry = grouped.setdefault(
-                key,
-                {
+
+        # Optimization: Avoid setdefault() which eagerly creates a complex dict
+        # with new sets and inner dicts on every row.
+        try:
+            entry = grouped[key]
+        except KeyError:
+            entry = grouped[key] = {
                     "janela_inicio": janela_inicio_dt,
                     "janela_fim": janela_fim_dt,
                     "pages": {},
                     "recorded_pages": set(),
                     "max_total": 0,
-                },
-            )
+            }
+
             entry["pages"][pagina] = WindowPage(
                 pagina=pagina,
                 total_paginas=total_paginas,
