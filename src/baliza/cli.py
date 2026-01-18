@@ -516,6 +516,11 @@ def extract(
             typer.echo(f"\nRun ID: {run_id} (marked as failed)")
             typer.echo(f"Completed {windows_completed}/{len(gaps)} windows before failure.")
             typer.echo("Incomplete windows will be resumed on next run.")
+
+            import os
+            if os.environ.get("BALIZA_TEST_MODE") == "1":
+                raise e
+
             raise typer.Exit(code=1)
 
     finally:
