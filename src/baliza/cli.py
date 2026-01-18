@@ -9,6 +9,9 @@ from pathlib import Path
 from typing import Any, Protocol
 
 import duckdb
+import ipaddress
+import socket
+import os
 
 try:  # pragma: no cover - optional dependency
     import httpx
@@ -71,6 +74,52 @@ _GAP_COLORS = {
 }
 
 
+def _is_safe_url(url: str) -> bool:
+    """
+    Validate that a URL does not point to a private network address (SSRF protection).
+
+    Allows bypassing this check if BALIZA_ALLOW_PRIVATE_NETWORKS env var is set to '1'.
+    """
+    if os.environ.get("BALIZA_ALLOW_PRIVATE_NETWORKS") == "1":
+        return True
+
+    from urllib.parse import urlparse
+
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+
+        # Block localhost explicitly
+        if hostname == "localhost":
+            return False
+
+        # Resolve hostname to IP addresses
+        # We use getaddrinfo to handle both IPv4 and IPv6 and potential multiple IPs
+        addr_info = socket.getaddrinfo(hostname, None)
+
+        for _, _, _, _, sockaddr in addr_info:
+            ip_str = sockaddr[0]
+            ip = ipaddress.ip_address(ip_str)
+
+            # Check for private, loopback, link-local, multicast, reserved
+            if (
+                ip.is_private
+                or ip.is_loopback
+                or ip.is_link_local
+                or ip.is_multicast
+                or ip.is_reserved
+                or ip.is_unspecified
+            ):
+                return False
+
+        return True
+    except Exception:
+        # If we can't resolve or parse, treat it as unsafe
+        return False
+
+
 class _HttpClient(Protocol):
     def get(
         self, url: str, params: dict[str, Any] | None = None
@@ -119,6 +168,9 @@ class _FallbackClient(AbstractContextManager["_FallbackClient"]):
         if not url.startswith(("http://", "https://")):
             raise ValueError("URL scheme must be http or https")
 
+        if not _is_safe_url(url):
+            raise ValueError(f"URL {url} is blocked by SSRF protection (points to private network)")
+
         query = parse.urlencode(params or {}, doseq=True)
         full_url = f"{url}?{query}" if query else url
         req = request.Request(full_url, headers=self.headers)
@@ -157,6 +209,11 @@ if httpx is not None:
         ) -> httpx.Response:
             if request.url.scheme not in ("http", "https"):
                 raise ValueError("URL scheme must be http or https")
+
+            if not _is_safe_url(str(request.url)):
+                raise ValueError(
+                    f"URL {request.url} is blocked by SSRF protection (points to private network)"
+                )
 
             try:
                 # Force stream=True to inspect/limit content
