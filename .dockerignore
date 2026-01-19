@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Data files
+*.duckdb
+*.duckdb.wal
+*.parquet
+data/
+
+# Git
+.git/
+.gitignore
+
+# CI
+.github/
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Other
+.DS_Store
+*.log
+.env
+.env.local
