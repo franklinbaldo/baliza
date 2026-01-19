@@ -1,9 +1,10 @@
-# Feature-Goal Alignment Matrix
+# Feature Goal Matrix
 
-This document tracks the alignment of BDD features with the project's primary goals.
+This document maps each BDD feature to its primary project goal.
 
-| Feature File                  | Primary Goal Supported                    | Status | Action Taken / Notes                               |
-| ----------------------------- | ----------------------------------------- | ------ | -------------------------------------------------- |
-| `tests/features/extraction.feature` | Reliable Data Extraction    | ✅     | Aligned. Covers the core data extraction process.  |
-| `tests/features/export.feature`     | Accessibility for Analysis             | ✅     | Aligned. Covers exporting data to Parquet.         |
-| `tests/features/state_management.feature` | Reliable Data Extraction | ✅     | Aligned. Crucial for ensuring resumability and reliability. |
+| Feature File | Primary Goal Supported | Status | Action Taken |
+|--------------|------------------------|--------|--------------|
+| `export.feature` | Enable Data Analysis | ✅ | - |
+| `extraction.feature` | Provide a Robust Extraction Pipeline | ✅ | - |
+| `state_management.feature` | Provide a Robust Extraction Pipeline | ✅ | - |
+| `verification.feature` | Provide a Robust Extraction Pipeline | ✅ | - |

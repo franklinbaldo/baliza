@@ -1,5 +1,7 @@
-# Test Quarantine Registry
+# Quarantine Registry
 
-This document lists all tests currently under a `skip` or `xfail` quarantine.
+This document lists all skipped or xfailed tests, with justification.
 
-*There are currently no tests in quarantine.*
+| Test / Scenario | Reason | Reference | Added on | Expiry | Owner |
+|-----------------|--------|-----------|----------|--------|-------|
+|                 |        |           |          |        |       |
