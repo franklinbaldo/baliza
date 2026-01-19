@@ -48,6 +48,7 @@ from .pipelines.pncp import (
     run_pncp,
 )
 from .state import CoverageTracker, GapDetector, StateManager
+from .tiers import get_tier_summary, tier0, tier1, tier2
 from .utils import export_parquet
 from .utils.dates import humanize_duration, humanize_naturaltime
 
@@ -60,6 +61,7 @@ app = typer.Typer(help="Declarative PNCP pipeline runner")
 
 
 @app.command("extract")
+@tier0
 def extract(
     config: Path | None = typer.Option(
         None,
@@ -298,6 +300,7 @@ def extract(
 
 
 @app.command("backfill")
+@tier1
 def backfill(
     start_month: str,
     end_month: str,
@@ -364,6 +367,7 @@ def backfill(
 
 
 @app.command("verify")
+@tier1
 def verify(
     resource: str = typer.Option(
         ..., "--resource", "-r", help="Resource name declared in the PNCP configuration"
@@ -660,6 +664,7 @@ def verify(
 
 
 @app.command("export")
+@tier0
 def export(
     duckdb_path: Path = typer.Option(
         Path("baliza.duckdb"),
@@ -885,6 +890,7 @@ app.add_typer(state_app, name="state")
 
 
 @state_app.command("show")
+@tier2
 def state_show(
     resource: str = typer.Option(..., "--resource", "-r", help="Resource name"),
     duckdb: Path = typer.Option(
@@ -1000,6 +1006,7 @@ def state_show(
 
 
 @state_app.command("gaps")
+@tier2
 def state_gaps(
     resource: str = typer.Option(..., "--resource", "-r", help="Resource name"),
     start_date: str = typer.Option(..., "--start", help="Start date (YYYY-MM-DD)"),
@@ -1068,6 +1075,7 @@ def state_gaps(
 
 
 @state_app.command("history")
+@tier2
 def state_history(
     resource: str = typer.Option(..., "--resource", "-r", help="Resource name"),
     limit: int = typer.Option(10, "--limit", "-n", min=1, help="Number of runs to show"),
@@ -1134,6 +1142,23 @@ def state_history(
         console.print(table)
     finally:
         manager.close()
+
+
+@app.command("tiers")
+@tier2
+def show_tiers() -> None:
+    """Display the feature tier classification for all commands.
+
+    Baliza organizes features into 4 tiers based on criticality:
+
+    - Tier 0 (🔴 Critical): Without these, tool is useless
+    - Tier 1 (🟠 Core): Essential for production use
+    - Tier 2 (🟡 Enhanced): Quality-of-life improvements
+    - Tier 3 (⚪ Future): Aspirational features (not yet implemented)
+
+    This helps prioritize development and maintenance efforts.
+    """
+    console.print(Panel(get_tier_summary(), title="Baliza Feature Tiers", border_style="cyan"))
 
 
 if __name__ == "__main__":
