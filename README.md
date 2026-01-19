@@ -74,11 +74,47 @@ uv run baliza extract
 uv run baliza export --table contratos --out data/contratos
 ```
 
+### Opção 3: Docker (Produção e CI/CD)
+
+Execute o Baliza em um container isolado:
+
+```bash
+# Baixar imagem do GitHub Container Registry
+docker pull ghcr.io/franklinbaldo/baliza:latest
+
+# Verificar versão
+docker run --rm ghcr.io/franklinbaldo/baliza:latest --version
+
+# Extrair dados (com volume montado)
+docker run --rm -v $(pwd)/data:/data ghcr.io/franklinbaldo/baliza:latest extract
+
+# Exportar para Parquet
+docker run --rm -v $(pwd)/data:/data ghcr.io/franklinbaldo/baliza:latest export --table contratos --out /data/contratos
+
+# Backfill
+docker run --rm -v $(pwd)/data:/data ghcr.io/franklinbaldo/baliza:latest backfill 2024-01 2024-03
+```
+
+**Vantagens:**
+- ✅ Ambiente completamente isolado
+- ✅ Sem necessidade de instalar Python ou uv
+- ✅ Ideal para produção e CI/CD
+- ✅ Reprodutível em qualquer sistema com Docker
+
+> **Nota:** O arquivo `baliza.duckdb` será criado no diretório montado (`-v $(pwd)/data:/data`).
+> Certifique-se de montar um volume para persistir o estado entre execuções.
+
 ### Requisitos
 
+**Para uvx ou instalação local:**
 - Python 3.11 ou superior
 - [uv](https://github.com/astral-sh/uv) instalado (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
 - Acesso à internet para consultar a API pública do PNCP
+
+**Para Docker:**
+- Docker instalado ([Guia de instalação](https://docs.docker.com/get-docker/))
+- ~500MB de espaço em disco para imagem
+- Acesso à internet para download da imagem e consulta à API
 
 ## Início rápido
 

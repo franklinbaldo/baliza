@@ -40,12 +40,24 @@ To be the most reliable, transparent, and accessible tool for extracting and pre
 *   **Feature:** Integrate StateManager and GapDetector into the `extract` command.
 *   **Feature:** Add `state` CLI commands (`show`, `gaps`, `history`) for observability.
 
-### Epic 2: Automated Data Publishing
+### Epic 2: Automated Data Publishing *(MOVED TO baliza-site REPOSITORY)*
 
-*   **Feature:** Create a GitHub Actions workflow for daily incremental extraction.
-*   **Feature:** Enhance the workflow to export new data to Parquet.
-*   **Feature:** Add a step to create a versioned GitHub Release and upload Parquet files as assets.
-*   **Feature:** Implement a manifest file that lists all Parquet files in the release.
+**⚠️ SCOPE CLARIFICATION:** This epic belongs in the `franklinbaldo/baliza-site` repository, NOT here.
+
+This repository (`franklinbaldo/baliza`) provides the **CLI engine** that extracts data. The `baliza-site` repository will:
+*   Create a GitHub Actions workflow for daily incremental extraction (using the `baliza` CLI).
+*   Enhance the workflow to export new data to Parquet (using `baliza export`).
+*   Create a versioned GitHub Release and upload Parquet files as assets.
+*   Implement a manifest file that lists all Parquet files in the release.
+*   Host web interface, dashboards, and public data coverage reports.
+
+**What THIS repository needs to support Epic 2:**
+*   ✅ Stable `baliza extract` command
+*   ✅ Stable `baliza export` command
+*   ✅ Clear exit codes for CI/CD integration
+*   ✅ JSON output mode for machine consumption
+*   ⏳ Documentation for orchestration/automation
+*   ⏳ Container/Docker image for easy CI/CD usage
 
 ### Epic 3: Expanded Endpoint Coverage
 
