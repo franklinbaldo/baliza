@@ -361,6 +361,7 @@ def extract(
     # Initialize state management
     state_manager = StateManager(duckdb, dataset=dataset)
     gap_detector = GapDetector(state_manager)
+    err_console = Console(stderr=True)
 
     try:
         # Determine date range
@@ -383,7 +384,8 @@ def extract(
         # Analyze coverage
         typer.echo(
             f"Analyzing coverage from {start_dt.date()} to {end_dt.date()} "
-            f"(lookback: {lookback_days} days)..."
+            f"(lookback: {lookback_days} days)...",
+            err=True,
         )
 
         gaps = gap_detector.find_gaps(
@@ -395,14 +397,25 @@ def extract(
         )
 
         if not gaps:
-            typer.secho("✓ No gaps found. All windows are up to date.", fg=typer.colors.GREEN)
+            err_console.print(
+                Panel(
+                    f"No gaps found for [bold cyan]'{resource}'[/bold cyan].\n"
+                    "All windows are up to date and covered by previous extractions.",
+                    title="[green]Up to Date[/green]",
+                    border_style="green",
+                    padding=(1, 2),
+                )
+            )
+            # Output empty JSON for pipeline compatibility
+            typer.echo(json.dumps({"windows": []}, indent=2))
             return
 
         # Check for incomplete runs
         incomplete = [g for g in gaps if g.reason == "incomplete"]
         if incomplete and auto_resume:
             typer.echo(
-                f"Found {len(incomplete)} incomplete window(s) from previous run. Resuming..."
+                f"Found {len(incomplete)} incomplete window(s) from previous run. Resuming...",
+                err=True,
             )
 
         # Optionally merge adjacent windows
@@ -410,11 +423,14 @@ def extract(
             original_count = len(gaps)
             gaps = gap_detector.merge_adjacent_windows(gaps, max_merge_days=max_merge_days)
             if len(gaps) < original_count:
-                typer.echo(f"Merged {original_count} windows into {len(gaps)} to reduce API calls.")
+                typer.echo(
+                    f"Merged {original_count} windows into {len(gaps)} to reduce API calls.",
+                    err=True,
+                )
 
         # Show summary
         gap_detector.count_gaps_by_reason(gaps)
-        typer.echo(f"\nProcessing {len(gaps)} window(s):")
+        typer.echo(f"\nProcessing {len(gaps)} window(s):", err=True)
 
         table = Table(title="Extraction Plan", box=box.ROUNDED)
         table.add_column("Order", justify="right", style="dim")
@@ -434,14 +450,14 @@ def extract(
                 f"[{color_tag}]{icon} {gap.reason}[/{color_tag}]",
             )
 
-        console.print(table)
+        err_console.print(table)
 
         if len(gaps) > limit_rows:
-            typer.echo(f"... and {len(gaps) - limit_rows} more windows")
+            typer.echo(f"... and {len(gaps) - limit_rows} more windows", err=True)
 
         # Start extraction run
         run_id = state_manager.start_run(resource)
-        typer.echo(f"\nStarted extraction run: {run_id}\n")
+        typer.echo(f"\nStarted extraction run: {run_id}\n", err=True)
 
         results = []
         windows_completed = 0
@@ -454,6 +470,7 @@ def extract(
                 TaskProgressColumn(),
                 TimeElapsedColumn(),
                 transient=False,
+                console=err_console,
             ) as progress:
                 task_id = progress.add_task(
                     description=f"Processing {len(gaps)} windows...", total=len(gaps)
@@ -513,9 +530,11 @@ def extract(
             # Fail the run but preserve state
             state_manager.fail_run(run_id, str(e))
             typer.secho(f"\n✗ Extraction failed: {e}", fg=typer.colors.RED, err=True)
-            typer.echo(f"\nRun ID: {run_id} (marked as failed)")
-            typer.echo(f"Completed {windows_completed}/{len(gaps)} windows before failure.")
-            typer.echo("Incomplete windows will be resumed on next run.")
+            typer.echo(f"\nRun ID: {run_id} (marked as failed)", err=True)
+            typer.echo(
+                f"Completed {windows_completed}/{len(gaps)} windows before failure.", err=True
+            )
+            typer.echo("Incomplete windows will be resumed on next run.", err=True)
             raise typer.Exit(code=1)
 
     finally:

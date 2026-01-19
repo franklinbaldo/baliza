@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import timezone
 from pathlib import Path
 from unittest.mock import ANY, MagicMock, patch
@@ -110,7 +111,8 @@ def test_cli_extract_emits_json(monkeypatch) -> None:
     )
 
     assert result.exit_code == 0
-    assert "No gaps found" in result.stdout
+    assert "No gaps found" in result.stderr
+    assert json.loads(result.stdout) == {"windows": []}
 
 
 def test_cli_backfill_invokes_pipeline_per_month(monkeypatch) -> None:
