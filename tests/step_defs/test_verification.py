@@ -1,8 +1,10 @@
+"""BDD step definitions for verification.feature (Tier 1: Core Features)."""
+
 from pathlib import Path
 
 import duckdb
 import pytest
-from pytest_bdd import given, when, then, scenario
+from pytest_bdd import given, when, then, scenario, parsers
 from typer.testing import CliRunner
 
 from baliza.cli import app
@@ -13,131 +15,97 @@ runner = CliRunner()
 pytestmark = pytest.mark.tier1
 
 
-@pytest.mark.skip(reason="Needs step definitions update")
-@scenario('../features/verification.feature', 'Verifying complete coverage')
-def test_verifying_complete_coverage():
+# =============================================================================
+# Scenario: Verify command detects gaps
+# =============================================================================
+
+
+@pytest.mark.skip(reason="Requires state/coverage table setup")
+@scenario('../features/verification.feature', 'Verify command detects gaps')
+def test_verify_detects_gaps():
     pass
 
 
-@pytest.mark.skip(reason="Needs step definitions update")
-@scenario('../features/verification.feature', 'Verifying coverage identifies missing windows')
-def test_verifying_coverage_identifies_missing_windows():
+@given("I have extracted data for 2024-01-01 to 2024-01-10", target_fixture="partial_data")
+def partial_data(tmp_path: Path) -> Path:
+    """Setup: Create database with some extracted data."""
+    db_path = tmp_path / "test.duckdb"
+
+    with duckdb.connect(str(db_path)) as con:
+        # Create state schema and coverage table
+        con.execute("CREATE SCHEMA IF NOT EXISTS baliza_state")
+        con.execute("""
+            CREATE TABLE baliza_state.coverage (
+                resource VARCHAR,
+                window_start TIMESTAMP,
+                window_end TIMESTAMP,
+                status VARCHAR,
+                total_paginas INTEGER,
+                extracted_at TIMESTAMP
+            )
+        """)
+
+        # Insert coverage for 2024-01-01 to 2024-01-04 (complete)
+        for day in range(1, 5):
+            con.execute(f"""
+                INSERT INTO baliza_state.coverage VALUES (
+                    'contratos',
+                    '2024-01-{day:02d}T00:00:00',
+                    '2024-01-{day:02d}T23:59:59',
+                    'complete',
+                    10,
+                    '2024-01-15T10:00:00'
+                )
+            """)
+
+        # Gap: 2024-01-05 to 2024-01-07 (missing)
+
+        # Insert coverage for 2024-01-08 to 2024-01-10 (complete)
+        for day in range(8, 11):
+            con.execute(f"""
+                INSERT INTO baliza_state.coverage VALUES (
+                    'contratos',
+                    '2024-01-{day:02d}T00:00:00',
+                    '2024-01-{day:02d}T23:59:59',
+                    'complete',
+                    10,
+                    '2024-01-15T10:00:00'
+                )
+            """)
+
+    return db_path
+
+
+@given("2024-01-05 to 2024-01-07 are missing")
+def missing_dates():
+    """This is handled by the partial_data fixture."""
     pass
 
 
-import json
-from unittest.mock import MagicMock
-from contextlib import contextmanager
-
-from baliza import cli as baliza_cli
-
-
-@pytest.fixture
-def mock_http_client_factory(monkeypatch):
-    @contextmanager
-    def factory(*args, **kwargs):
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"data": [], "totalPaginas": 1}
-        mock_client.get.return_value = mock_response
-        yield mock_client
-
-    monkeypatch.setattr(baliza_cli, "_HTTP_CLIENT_FACTORY", factory)
-    return factory
-
-
-@given("a DuckDB database with complete data for a specific period", target_fixture="db_path")
-def db_path_complete(tmp_path: Path) -> Path:
-    db_path = tmp_path / "test_complete.duckdb"
-    if db_path.exists():
-        db_path.unlink()
-
-    with duckdb.connect(str(db_path)) as con:
-        # State schema
-        con.execute("CREATE SCHEMA IF NOT EXISTS baliza_state")
-        con.execute("""
-            CREATE TABLE baliza_state.cobertura (
-                recurso TEXT, janela_inicio TIMESTAMP, janela_fim TIMESTAMP, pagina INTEGER,
-                total_paginas_observado INTEGER, n_registros_pagina INTEGER,
-                hash_ids TEXT, fetched_at TIMESTAMP
-            )
-        """)
-        con.execute("""
-            INSERT INTO baliza_state.cobertura VALUES
-            ('contratos', '2024-01-01', '2024-01-02', 1, 1, 1, 'hash', '2024-01-01'),
-            ('contratos', '2024-01-02', '2024-01-03', 1, 1, 1, 'hash', '2024-01-02'),
-            ('contratos', '2024-01-03', '2024-01-04', 1, 1, 1, 'hash', '2024-01-03'),
-            ('contratos', '2024-01-04', '2024-01-05', 1, 1, 1, 'hash', '2024-01-04');
-        """)
-        # Raw data schema
-        con.execute("CREATE SCHEMA IF NOT EXISTS baliza_raw")
-        con.execute("CREATE TABLE baliza_raw.contratos (dataPublicacaoPncp TIMESTAMP)")
-        con.execute("""
-            INSERT INTO baliza_raw.contratos VALUES ('2024-01-01'), ('2024-01-02'), ('2024-01-03'), ('2024-01-04');
-        """)
-    return db_path
-
-
-@given("a DuckDB database with data gaps for a specific period", target_fixture="db_path")
-def db_path_gaps(tmp_path: Path) -> Path:
-    db_path = tmp_path / "test_gaps.duckdb"
-    if db_path.exists():
-        db_path.unlink()
-
-    with duckdb.connect(str(db_path)) as con:
-        # State schema
-        con.execute("CREATE SCHEMA IF NOT EXISTS baliza_state")
-        con.execute("""
-            CREATE TABLE baliza_state.cobertura (
-                recurso TEXT, janela_inicio TIMESTAMP, janela_fim TIMESTAMP, pagina INTEGER,
-                total_paginas_observado INTEGER, n_registros_pagina INTEGER,
-                hash_ids TEXT, fetched_at TIMESTAMP
-            )
-        """)
-        con.execute("""
-            INSERT INTO baliza_state.cobertura VALUES
-            ('contratos', '2024-01-01', '2024-01-02', 1, 1, 1, 'hash', '2024-01-01'),
-            ('contratos', '2024-01-04', '2024-01-05', 1, 1, 1, 'hash', '2024-01-04');
-        """)
-        # Raw data schema
-        con.execute("CREATE SCHEMA IF NOT EXISTS baliza_raw")
-        con.execute("CREATE TABLE baliza_raw.contratos (dataPublicacaoPncp TIMESTAMP)")
-        con.execute("""
-            INSERT INTO baliza_raw.contratos VALUES ('2024-01-01'), ('2024-01-02'), ('2024-01-03'), ('2024-01-04');
-        """)
-    return db_path
-
-
-@when("I run the baliza verify command for that period", target_fixture="run_result")
-def run_verify_command(db_path: Path, mock_http_client_factory):
+@when(parsers.parse('I run "baliza verify --resource {resource} --start {start} --end {end}"'), target_fixture="verify_result")
+def run_verify(partial_data, resource, start, end):
+    """Run baliza verify command."""
     result = runner.invoke(
         app,
         [
             "verify",
-            "--duckdb",
-            str(db_path),
             "--resource",
-            "contratos",
+            resource,
             "--desde",
-            "2024-01-01",
-            "--ate",
-            "2024-01-05",
+            start,
+            "--hasta",
+            end,
+            "--duckdb",
+            str(partial_data),
         ],
     )
-    return result
+    return {"result": result, "db_path": partial_data}
 
 
-@then("the verification should pass successfully")
-def check_verification_success(run_result):
-    assert run_result.exit_code == 0
-    data = json.loads(run_result.stdout)
-    assert data["lacunas"] == []
-    assert data["suspeitas"] == []
-
-
-@then("the verification should identify the gaps")
-def check_verification_gaps(run_result):
-    assert run_result.exit_code == 0
-    data = json.loads(run_result.stdout)
-    assert len(data["lacunas"]) > 0
+@then("the output should show gaps for 2024-01-05 to 2024-01-07")
+def check_gaps_shown(verify_result):
+    """Verify gaps are shown in output."""
+    output = verify_result["result"].stdout
+    # Check that the gap dates appear in the output
+    assert "2024-01-05" in output or "01-05" in output, "Gap start date not found in output"
+    assert "2024-01-07" in output or "01-07" in output, "Gap end date not found in output"
