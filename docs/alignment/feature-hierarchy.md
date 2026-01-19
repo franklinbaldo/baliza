@@ -4,6 +4,8 @@
 
 **Last Updated:** 2026-01-19
 
+**Implementation Status:** ✅ Tier system is now implemented in code. Run `baliza tiers` to view the classification of all commands.
+
 ## Overview
 
 Baliza features are organized into **4 tiers** based on criticality to the project's mission:
@@ -242,6 +244,55 @@ Review feature hierarchy quarterly:
 - Are Tier 2 features actually used?
 - Should any Tier 3 be promoted?
 - Should any Tier 1 be demoted?
+
+## Implementation
+
+### Code Organization
+
+The tier system is now implemented in code at `src/baliza/tiers.py`:
+
+**Key Components:**
+- `FeatureTier` enum: Defines the 4 tier levels with badges and descriptions
+- `COMMAND_TIERS` dict: Maps each CLI command to its tier classification
+- Tier decorators (`@tier0`, `@tier1`, `@tier2`, `@tier3`): Mark commands with their tier
+- `get_tier_summary()`: Generate formatted tier hierarchy display
+
+**Usage in CLI:**
+
+Each command is decorated with its tier classification:
+
+```python
+@app.command("extract")
+@tier0  # Critical Path
+def extract(...):
+    pass
+
+@app.command("backfill")
+@tier1  # Core Features
+def backfill(...):
+    pass
+
+@app.command("state")
+@tier2  # Operator Experience
+def state(...):
+    pass
+```
+
+**View Tier Classifications:**
+
+```bash
+baliza tiers  # Display complete tier hierarchy
+```
+
+Output shows all commands organized by tier with emoji badges (🔴 🟠 🟡 ⚪).
+
+### Future Enhancements
+
+The tier system enables:
+- **Feature toggling**: Disable higher tiers for minimal installations
+- **Documentation generation**: Auto-generate tier-based feature docs
+- **Metrics tracking**: Measure usage by tier to guide development
+- **Deprecation planning**: Identify underused Tier 2/3 features for removal
 
 ## Conclusion
 
