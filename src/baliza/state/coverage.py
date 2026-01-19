@@ -54,6 +54,9 @@ def _to_naive_utc(value: Any | None) -> datetime | None:
     # Optimization: Avoid replace() copy if already naive
     if dt.tzinfo is None:
         return dt
+    # Optimization: If already in UTC, just strip tzinfo without astimezone overhead
+    if dt.tzinfo == UTC:
+        return dt.replace(tzinfo=None)
     return dt.astimezone(UTC).replace(tzinfo=None)
 
 
@@ -331,7 +334,14 @@ class CoverageTracker:
                     seq_int = int(seq_value)
                 except (TypeError, ValueError):  # pragma: no cover - guard
                     continue
-                grouped.setdefault((field, cnpj, ano), []).append(seq_int)
+
+                # Optimization: prefer try/except over setdefault for hot loop performance
+                # This avoids creating a new list [] on every iteration when key exists.
+                key = (field, cnpj, ano)
+                try:
+                    grouped[key].append(seq_int)
+                except KeyError:
+                    grouped[key] = [seq_int]
 
         # Finalize Hash
         hash_ids = None
