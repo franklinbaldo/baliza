@@ -60,8 +60,7 @@ Feature: Data Export
     When I run "baliza export --table contratos"
     Then the export should detect the data quality issue
     And should display a warning message
-    And should continue with valid records only
-    Or optionally fail if --strict mode is enabled
+    And should continue with valid records only or fail if --strict mode is enabled
 
   Scenario: Export shows progress for large datasets
     Given the database contains 1 million contracts
