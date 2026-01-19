@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import ipaddress
 import json
+import os
 import shutil
+import socket
 from collections.abc import Callable, Iterable
 from contextlib import AbstractContextManager
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Protocol
+from urllib.parse import urlparse
 
 import duckdb
 
@@ -71,6 +75,38 @@ _GAP_COLORS = {
 }
 
 
+def _is_safe_url(url: str) -> bool:
+    """
+    Validates that a URL does not point to a private network address (SSRF protection).
+
+    Allow-list can be enabled via BALIZA_ALLOW_PRIVATE_NETWORKS env var for testing.
+    """
+    if os.environ.get("BALIZA_ALLOW_PRIVATE_NETWORKS") == "1":
+        return True
+
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+
+        # Get all IP addresses for the hostname
+        # We need to check all of them to prevent DNS rebinding attacks or multi-A record bypasses
+        addr_info = socket.getaddrinfo(hostname, None)
+
+        for _, _, _, _, sockaddr in addr_info:
+            ip_str = sockaddr[0]
+            ip = ipaddress.ip_address(ip_str)
+
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_unspecified:
+                return False
+
+        return True
+    except Exception:
+        # If we can't resolve it or parse it, it's unsafe
+        return False
+
+
 class _HttpClient(Protocol):
     def get(
         self, url: str, params: dict[str, Any] | None = None
@@ -109,6 +145,9 @@ class _FallbackClient(AbstractContextManager["_FallbackClient"]):
 
     def get(self, url: str, params: dict[str, Any] | None = None) -> _FallbackResponse:
         from urllib import parse, request
+
+        if not _is_safe_url(url):
+            raise RuntimeError(f"URL {url} is blocked by SSRF protection")
 
         class NoRedirectHandler(request.HTTPRedirectHandler):
             def http_error_302(self, req, fp, code, msg, headers):
@@ -157,6 +196,9 @@ if httpx is not None:
         ) -> httpx.Response:
             if request.url.scheme not in ("http", "https"):
                 raise ValueError("URL scheme must be http or https")
+
+            if not _is_safe_url(str(request.url)):
+                raise RuntimeError(f"URL {request.url} is blocked by SSRF protection")
 
             try:
                 # Force stream=True to inspect/limit content

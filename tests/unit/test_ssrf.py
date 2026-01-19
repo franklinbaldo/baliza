@@ -18,11 +18,17 @@ def test_fallback_client_rejects_file_scheme(tmp_path):
     client = _FallbackClient()
 
     # It should raise an error now (we expect ValueError or RuntimeError)
-    with pytest.raises((ValueError, RuntimeError), match="URL scheme must be http or https"):
+    # Note: SSRF protection might kick in before scheme check depending on implementation order,
+    # but file:// typically fails parsing or scheme check.
+    # In our implementation, _is_safe_url is called first, and file:// usually parses with empty hostname,
+    # causing _is_safe_url to return False, raising "blocked by SSRF protection".
+    with pytest.raises((ValueError, RuntimeError)):
         client.get(file_url)
 
-def test_fallback_client_allows_http():
+def test_fallback_client_allows_http(monkeypatch):
     """Test that _FallbackClient still attempts http:// URLs (mocked)."""
+    # Allow localhost for this test if needed, though example.com is external
+    # monkeypatch.setenv("BALIZA_ALLOW_PRIVATE_NETWORKS", "1")
     client = _FallbackClient()
 
     # It seems the sandbox environment allows network access, so this might succeed.
@@ -36,8 +42,11 @@ def test_fallback_client_allows_http():
         # If it failed due to network, that's fine too, as long as it wasn't the ValueError scheme check
         pass
 
-def test_fallback_client_does_not_follow_redirects():
+def test_fallback_client_does_not_follow_redirects(monkeypatch):
     """Test that _FallbackClient does NOT follow redirects."""
+
+    # Allow localhost for this test since we spin up a local server
+    monkeypatch.setenv("BALIZA_ALLOW_PRIVATE_NETWORKS", "1")
 
     class RedirectHandler(BaseHTTPRequestHandler):
         def do_GET(self):
