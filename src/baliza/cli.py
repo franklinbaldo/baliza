@@ -1109,6 +1109,57 @@ state_app = typer.Typer(help="Manage and inspect extraction state")
 app.add_typer(state_app, name="state")
 
 
+# Internet Archive command group
+archive_app = typer.Typer(help="Inspect Internet Archive items")
+app.add_typer(archive_app, name="archive")
+
+
+@archive_app.command("status")
+def archive_status(
+    identifier: str = typer.Argument(..., help="The Internet Archive identifier"),
+) -> None:
+    """Show the status of an Internet Archive item."""
+    if get_session is None:
+        typer.secho(
+            "InternetArchive library not found. Cannot check status.",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        typer.secho(
+            "Install with: pip install 'baliza[internet-archive]'",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    try:
+        session = get_session()
+        item = session.get_item(identifier)
+
+        if not item.exists:
+            typer.secho(f"Identifier '{identifier}' not found.", fg=typer.colors.RED, err=True)
+            raise typer.Exit(code=1)
+
+        table = Table(title=f"Status for {identifier}", box=box.ROUNDED)
+        table.add_column("Property", style="bold")
+        table.add_column("Value")
+
+        table.add_row("Exists", "[green]Yes[/green]")
+        table.add_row("Item Size", str(item.item_size))
+        table.add_row("Created", str(item.metadata.get('publicdate', 'N/A')))
+        table.add_row("Updated", str(item.metadata.get('updatedate', 'N/A')))
+
+        console.print(table)
+
+    except Exception as exc:
+        typer.secho(
+            f"Error fetching status for '{identifier}': {exc}",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+
 @state_app.command("show")
 def state_show(
     resource: str = typer.Option(..., "--resource", "-r", help="Resource name"),
