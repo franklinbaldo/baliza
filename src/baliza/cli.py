@@ -1,30 +1,16 @@
+"""Baliza CLI - Command-line interface for PNCP data extraction."""
+
 from __future__ import annotations
 
 import json
 import shutil
-from collections.abc import Callable, Iterable
-from contextlib import AbstractContextManager
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any
 
 import duckdb
-
-try:  # pragma: no cover - optional dependency
-    import httpx
-except ModuleNotFoundError:  # pragma: no cover - fallback path
-    httpx = None  # type: ignore[assignment]
-
-try:  # pragma: no cover - optional dependency
-    from internetarchive import get_session  # type: ignore[import-untyped]
-except ModuleNotFoundError:  # pragma: no cover - fallback path
-    get_session = None  # type: ignore[assignment]
-
-
 import typer
 from rich import box
-
-# Rich imports for improved CLI UX
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import (
@@ -38,250 +24,39 @@ from rich.progress import (
 from rich.progress_bar import ProgressBar
 from rich.table import Table
 
+try:  # pragma: no cover - optional dependency
+    from internetarchive import get_session  # type: ignore[import-untyped]
+except ModuleNotFoundError:  # pragma: no cover - fallback path
+    get_session = None  # type: ignore[assignment]
+
+# Import extracted modules
+from .cli_formatting import GAP_COLORS, GAP_ICONS, console
+from .cli_validation import (
+    filter_dict_none,
+    month_windows,
+    parse_day,
+    parse_optional_date,
+    pncp_date_param,
+    resolve_config_path,
+)
+from .http_client import _http_client_factory
 from .pipelines.pncp import (
     BACKFILL_PIPELINE_NAME,
     DEFAULT_PIPELINE_NAME,
     _extract_total_paginas,
-    default_config_path,
     load_pncp_config,
     run_pncp,
 )
 from .state import CoverageTracker, GapDetector, StateManager
 from .utils import export_parquet
-from .utils.dates import humanize_duration, humanize_naturaltime, to_pncp_window
-
-console = Console()
+from .utils.dates import humanize_duration, humanize_naturaltime
 
 app = typer.Typer(help="Declarative PNCP pipeline runner")
 
-_GAP_ICONS = {
-    "incomplete": "🚧",
-    "suspect": "🚩",
-    "missing": "📥",
-    "unprocessed": "🆕",
-    "lookback": "🔙",
-}
 
-_GAP_COLORS = {
-    "incomplete": "yellow",
-    "suspect": "red",
-    "missing": "blue",
-    "unprocessed": "cyan",
-    "lookback": "magenta",
-}
-
-
-class _HttpClient(Protocol):
-    def get(
-        self, url: str, params: dict[str, Any] | None = None
-    ) -> Any:  # pragma: no cover - protocol definition
-        ...
-
-
-HttpClientFactory = Callable[..., AbstractContextManager[_HttpClient]]
-
-
-class _FallbackResponse:
-    def __init__(self, *, status_code: int, text: str) -> None:
-        self.status_code = status_code
-        self._text = text
-
-    def json(self) -> Any:
-        if not self._text:
-            return {}
-        return json.loads(self._text)
-
-    def raise_for_status(self) -> None:
-        if 400 <= self.status_code:
-            raise RuntimeError(f"HTTP request failed with status {self.status_code}")
-
-
-class _FallbackClient(AbstractContextManager["_FallbackClient"]):
-    def __init__(self, *, headers: dict[str, str] | None = None, timeout: int = 30) -> None:
-        self.headers = headers or {}
-        self.timeout = timeout
-
-    def __enter__(self) -> _FallbackClient:
-        return self
-
-    def __exit__(self, exc_type, exc, exc_tb) -> None:  # pragma: no cover - no cleanup needed
-        return None
-
-    def get(self, url: str, params: dict[str, Any] | None = None) -> _FallbackResponse:
-        from urllib import parse, request
-
-        class NoRedirectHandler(request.HTTPRedirectHandler):
-            def http_error_302(self, req, fp, code, msg, headers):
-                return fp
-
-            http_error_301 = http_error_303 = http_error_307 = http_error_308 = http_error_302
-
-        if not url.startswith(("http://", "https://")):
-            raise ValueError("URL scheme must be http or https")
-
-        query = parse.urlencode(params or {}, doseq=True)
-        full_url = f"{url}?{query}" if query else url
-        req = request.Request(full_url, headers=self.headers)
-
-        opener = request.build_opener(NoRedirectHandler())
-        try:
-            with opener.open(req, timeout=self.timeout) as response:
-                status = int(response.getcode() or 0)
-
-                # Security: Limit response size to prevent DoS via memory exhaustion
-                content = bytearray()
-                chunk_size = 8192  # 8KB chunks
-                max_size = 10 * 1024 * 1024  # 10 MB limit
-
-                while True:
-                    chunk = response.read(chunk_size)
-                    if not chunk:
-                        break
-                    content.extend(chunk)
-                    if len(content) > max_size:
-                        raise RuntimeError(f"Response too large (exceeded {max_size} bytes)")
-
-                text = content.decode("utf-8")
-        except Exception as exc:  # pragma: no cover - network not exercised in tests
-            # Security: Redact query parameters in error logs to prevent secret leakage
-            safe_url = parse.urlparse(full_url)._replace(query="").geturl()
-            raise RuntimeError(f"HTTP request to {safe_url} failed: {exc}") from exc
-        return _FallbackResponse(status_code=status, text=text)
-
-
-if httpx is not None:
-
-    class _SecureClient(httpx.Client):
-        def send(
-            self, request: httpx.Request, *, stream: bool = False, **kwargs: Any
-        ) -> httpx.Response:
-            if request.url.scheme not in ("http", "https"):
-                raise ValueError("URL scheme must be http or https")
-
-            try:
-                # Force stream=True to inspect/limit content
-                response = super().send(request, stream=True, **kwargs)
-            except httpx.RequestError as exc:
-                safe_url = str(request.url.copy_with(query=None))
-                raise RuntimeError(f"HTTP request to {safe_url} failed: {exc}") from exc
-
-            max_size = 10 * 1024 * 1024  # 10 MB
-
-            def _check_size(chunk: bytes, total: int) -> int:
-                total += len(chunk)
-                if total > max_size:
-                    raise RuntimeError(f"Response too large (exceeded {max_size} bytes)")
-                return total
-
-            if stream:
-                original_iter = response.iter_bytes()
-
-                def limited_iter() -> Iterable[bytes]:
-                    total = 0
-                    for chunk in original_iter:
-                        total = _check_size(chunk, total)
-                        yield chunk
-
-                response.stream = limited_iter()
-            else:
-                try:
-                    content = bytearray()
-                    total = 0
-                    for chunk in response.iter_bytes():
-                        total = _check_size(chunk, total)
-                        content.extend(chunk)
-
-                    # Manually populate response content
-                    response._content = bytes(content)
-                    # We must close the underlying stream since we've consumed it
-                    # and won't be using the response as a stream.
-                    response.close()
-                except Exception as exc:
-                    response.close()
-                    safe_url = str(request.url.copy_with(query=None))
-                    raise RuntimeError(f"HTTP request to {safe_url} failed: {exc}") from exc
-
-            return response
-
-
-def _default_http_client_factory(
-    *, headers: dict[str, str] | None = None, timeout: int = 30
-) -> AbstractContextManager[_HttpClient]:
-    if httpx is not None:
-        return _SecureClient(headers=headers or None, timeout=timeout)
-    return _FallbackClient(headers=headers or None, timeout=timeout)
-
-
-_HTTP_CLIENT_FACTORY: HttpClientFactory = _default_http_client_factory
-
-
-def set_http_client_factory(factory: HttpClientFactory) -> None:
-    global _HTTP_CLIENT_FACTORY
-    _HTTP_CLIENT_FACTORY = factory
-
-
-def reset_http_client_factory() -> None:
-    set_http_client_factory(_default_http_client_factory)
-
-
-def _resolve_config_path(config: Path | None) -> Path:
-    if config is None:
-        return default_config_path()
-    return config
-
-
-def _month_windows(start_month: str, end_month: str) -> Iterable[tuple[datetime, datetime]]:
-    """Generate inclusive month windows between two YYYY-MM strings."""
-
-    try:
-        start = datetime.strptime(start_month, "%Y-%m").replace(tzinfo=UTC, day=1)
-    except ValueError as exc:  # pragma: no cover - handled by Typer
-        raise typer.BadParameter("start_month must follow YYYY-MM format") from exc
-
-    try:
-        end = datetime.strptime(end_month, "%Y-%m").replace(tzinfo=UTC, day=1)
-    except ValueError as exc:  # pragma: no cover - handled by Typer
-        raise typer.BadParameter("end_month must follow YYYY-MM format") from exc
-
-    if start > end:
-        raise typer.BadParameter("start_month must be before or equal to end_month")
-
-    current = start
-    while current <= end:
-        if current.month == 12:
-            next_month = current.replace(year=current.year + 1, month=1)
-        else:
-            next_month = current.replace(month=current.month + 1)
-        yield current, next_month
-        current = next_month
-
-
-def _parse_day(value: str | None, param_name: str) -> datetime | None:
-    if value is None:
-        return None
-    try:
-        return datetime.strptime(value, "%Y-%m-%d").replace(tzinfo=None)
-    except ValueError as exc:  # pragma: no cover - handled by Typer
-        raise typer.BadParameter(f"{param_name} must follow YYYY-MM-DD format") from exc
-
-
-def _pncp_date_param(value: datetime | None) -> str | None:
-    if value is None:
-        return None
-    return to_pncp_window(value)
-
-
-def _filter_dict_none(values: dict[str, Any]) -> dict[str, Any]:
-    return {k: v for k, v in values.items() if v is not None}
-
-
-def _parse_optional_date(value: str | None, *, option_name: str) -> date | None:
-    if value is None:
-        return None
-    try:
-        return date.fromisoformat(value)
-    except ValueError as exc:  # pragma: no cover - handled by Typer
-        raise typer.BadParameter(f"{option_name} must follow YYYY-MM-DD format") from exc
+# ===================================================================
+# Command Definitions
+# ===================================================================
 
 
 @app.command("extract")
@@ -356,7 +131,7 @@ def extract(
     The extraction is fully resumable - if interrupted, re-run the same command
     and it will continue from where it left off.
     """
-    config_path = _resolve_config_path(config)
+    config_path = resolve_config_path(config)
 
     # Initialize state management
     state_manager = StateManager(duckdb, dataset=dataset)
@@ -424,8 +199,8 @@ def extract(
 
         limit_rows = 10
         for i, gap in enumerate(gaps[:limit_rows], 1):
-            color_tag = _GAP_COLORS.get(gap.reason, "white")
-            icon = _GAP_ICONS.get(gap.reason, "")
+            color_tag = GAP_COLORS.get(gap.reason, "white")
+            icon = GAP_ICONS.get(gap.reason, "")
 
             table.add_row(
                 str(i),
@@ -547,8 +322,8 @@ def backfill(
 ) -> None:
     """Run stateless monthly backfills between two months (inclusive)."""
 
-    config_path = _resolve_config_path(config)
-    windows = list(_month_windows(start_month, end_month))
+    config_path = resolve_config_path(config)
+    windows = list(month_windows(start_month, end_month))
     results = []
 
     with Progress(
@@ -629,11 +404,11 @@ def verify(
 ) -> None:
     """Inspect the coverage tracker and detect missing or suspect windows."""
 
-    inicio_filtro = _parse_day(desde, "--desde")
-    fim_filtro = _parse_day(ate, "--ate")
+    inicio_filtro = parse_day(desde, "--desde")
+    fim_filtro = parse_day(ate, "--ate")
     fim_exclusivo = fim_filtro + timedelta(days=1) if fim_filtro else None
 
-    config_path = _resolve_config_path(config)
+    config_path = resolve_config_path(config)
     tracker = CoverageTracker(duckdb, dataset=dataset)
     try:
         config_data = load_pncp_config(config_path)
@@ -652,14 +427,14 @@ def verify(
         headers_cfg = client_cfg.get("headers")
         if not isinstance(headers_cfg, dict):
             headers_cfg = {}
-        headers = _filter_dict_none(headers_cfg or {})
+        headers = filter_dict_none(headers_cfg or {})
         timeout = client_cfg.get("timeout", 30)
         base_url = client_cfg.get("base_url", "") or ""
         endpoint_path = endpoint_cfg.get("path", "")
         params_cfg = endpoint_cfg.get("params")
         if not isinstance(params_cfg, dict):
             params_cfg = {}
-        default_params = _filter_dict_none(dict(params_cfg))
+        default_params = filter_dict_none(dict(params_cfg))
 
         coverage = tracker.fetch_pages_by_window(resource, start=inicio_filtro, end=fim_exclusivo)
         coverage_keys = set(coverage.keys())
@@ -667,7 +442,7 @@ def verify(
         pending_pages: dict[str, list[int]] = {}
         hash_alerts: list[dict[str, Any]] = []
 
-        with _HTTP_CLIENT_FACTORY(headers=headers or None, timeout=timeout) as client:
+        with _http_client_factory(headers=headers or None, timeout=timeout) as client:
             if endpoint_path.startswith("http"):
                 endpoint_url = endpoint_path
             else:
@@ -694,10 +469,10 @@ def verify(
                     inicio = entry.get("janela_inicio")
                     fim = entry.get("janela_fim")
                     if inicio:
-                        params["dataInicial"] = _pncp_date_param(inicio)
+                        params["dataInicial"] = pncp_date_param(inicio)
                     if fim:
-                        params["dataFinal"] = _pncp_date_param(fim)
-                    params = _filter_dict_none(params)
+                        params["dataFinal"] = pncp_date_param(fim)
+                    params = filter_dict_none(params)
 
                     response = client.get(endpoint_url, params=params)
                     if response.status_code == 204:
@@ -955,8 +730,8 @@ def export(
 ) -> None:
     """Export a DuckDB table to partitioned Parquet files."""
 
-    start = _parse_optional_date(start_date, option_name="--start-date")
-    finish = _parse_optional_date(end_date, option_name="--end-date")
+    start = parse_optional_date(start_date, option_name="--start-date")
+    finish = parse_optional_date(end_date, option_name="--end-date")
     if start and finish and start > finish:
         raise typer.BadParameter("--start-date must be before or equal to --end-date")
 
@@ -1259,8 +1034,8 @@ def state_gaps(
         counts = detector.count_gaps_by_reason(gaps)
         typer.echo(f"Found {len(gaps)} gap(s):")
         for reason, count in counts.items():
-            icon = _GAP_ICONS.get(reason, "")
-            color = _GAP_COLORS.get(reason, "white")
+            icon = GAP_ICONS.get(reason, "")
+            color = GAP_COLORS.get(reason, "white")
             console.print(f"  • {count} {icon} [{color}]{reason}[/{color}]")
 
         typer.echo("\nDetails:")
@@ -1271,8 +1046,8 @@ def state_gaps(
         table.add_column("Reason", style="bold")
 
         for gap in gaps[:limit]:
-            color_tag = _GAP_COLORS.get(gap.reason, "white")
-            icon = _GAP_ICONS.get(gap.reason, "")
+            color_tag = GAP_COLORS.get(gap.reason, "white")
+            icon = GAP_ICONS.get(gap.reason, "")
 
             table.add_row(
                 str(gap.start.date()),
