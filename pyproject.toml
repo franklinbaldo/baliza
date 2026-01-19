@@ -51,6 +51,12 @@ baliza = ["config/*.yml", "config/*.yaml"]
 # Ensure pytest discovers the local source package without requiring PYTHONPATH hacks
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+markers = [
+    "tier0: Tier 0 (Critical Path) - Without these, tool is useless",
+    "tier1: Tier 1 (Core Features) - Essential for production use",
+    "tier2: Tier 2 (Operator Experience) - Quality-of-life improvements",
+    "tier3: Tier 3 (Future Enhancements) - Aspirational features",
+]
 
 # Ruff configuration
 [tool.ruff]
