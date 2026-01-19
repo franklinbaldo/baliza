@@ -1,8 +1,30 @@
 # Feature Creep Analysis & Clean Hierarchy Proposal
 
 **Date:** 2026-01-19
-**Status:** 🔴 **MODERATE FEATURE CREEP DETECTED**
+**Status:** 🔴 **MODERATE FEATURE CREEP DETECTED** (Updated with scope correction)
 **Confidence:** High
+
+## 🎯 Critical Scope Clarification
+
+**IMPORTANT:** During this analysis, we discovered a key architectural misunderstanding:
+
+**Two-Repository Architecture:**
+1. **`franklinbaldo/baliza`** (THIS REPO) = Extraction ENGINE/CLI tool
+2. **`franklinbaldo/baliza-site`** (SEPARATE REPO) = Orchestration, publishing, web interface
+
+**Impact on Feature Creep Assessment:**
+- Epic 2 (Automated Publishing) does NOT belong in this repo
+- It belongs in `baliza-site` which will consume this CLI
+- THIS repo's responsibility: provide stable, production-ready CLI tool
+- THAT repo's responsibility: GitHub Actions workflows, web UI, public data platform
+
+**What This Changes:**
+- ✅ This repo is MORE complete than initially assessed (~95% for its scope)
+- ✅ Focus should be on stability, documentation, Docker packaging
+- ✅ Not on implementing GitHub Actions workflows here
+- ⚠️ Feature creep assessment remains valid for UX over-engineering
+
+See `docs/ARCHITECTURE.md` for detailed two-repository design.
 
 ## Executive Summary
 
@@ -210,10 +232,10 @@ Future:
    - Could we use ✓, ⚠, ✗ only?
    - Review Rich usage for over-engineering
 
-7. **Focus on Epic 2**
-   - Automated publishing is NOT implemented
-   - This is higher ROI than more UX polish
-   - Redirect effort here
+7. **Focus on Epic 2 Support**
+   - Automated publishing belongs in baliza-site repo
+   - THIS repo needs: documentation for orchestration, Docker image
+   - Ensure CLI is production-ready for automated usage
 
 ### Long-Term Strategy
 
@@ -228,9 +250,9 @@ Future:
    ```
 
 9. **Create "Feature Freeze" Policy**
-   - Once Epic 2 (Automated Publishing) starts, freeze Tier 2-3
-   - No new UX features until publishing works
-   - Focus on core stability
+   - Once baliza-site development starts, freeze Tier 2-3 in this repo
+   - No new UX features until CLI is production-ready
+   - Focus on stability, documentation, Docker packaging
 
 10. **Measure Feature Usage**
     - Add telemetry (opt-in) to understand what's actually used
@@ -275,7 +297,7 @@ However, the **core extraction mission remains intact** and the features added g
 **Recommended Path Forward:**
 1. Refactor cli.py immediately (reduce from 1,365 → 400 lines)
 2. Implement the proposed 4-tier feature hierarchy
-3. Focus on Epic 2 (Automated Publishing) rather than more UX polish
+3. Prepare for baliza-site (documentation, Docker, stable CLI) rather than more UX polish
 4. Rationalize BDD scenarios to reflect reality vs. aspiration
 
 **With these changes, Baliza can return to lean, focused development aligned with its North Star.**
@@ -295,11 +317,17 @@ However, the **core extraction mission remains intact** and the features added g
 - ✅ Backfill command
 - ⏳ Advanced resilience (retry logic, timeouts) - partially done
 
-**Epic 2: Automated Publishing (0% Complete)**
-- ❌ GitHub Actions daily workflow
-- ❌ Automated Parquet export
-- ❌ GitHub Release creation
-- ❌ Release manifest generation
+**Epic 2: Automated Publishing** *(MOVED TO baliza-site REPOSITORY)*
+**⚠️ SCOPE CORRECTION:** This epic belongs in franklinbaldo/baliza-site, NOT this repo.
+- ✅ THIS REPO: Stable CLI commands (extract, export, verify)
+- ✅ THIS REPO: Clear exit codes for CI/CD integration
+- ✅ THIS REPO: JSON output mode for machine consumption
+- ⏳ THIS REPO: Documentation for orchestration
+- ⏳ THIS REPO: Docker container image
+- ❌ BALIZA-SITE: GitHub Actions daily workflow
+- ❌ BALIZA-SITE: Automated Parquet publish to Releases
+- ❌ BALIZA-SITE: Release manifest generation
+- ❌ BALIZA-SITE: Web interface and dashboards
 
 **Epic 3: Expanded Endpoints (0% Complete)**
 - ❌ compras endpoint
