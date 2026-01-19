@@ -51,6 +51,7 @@ baliza = ["config/*.yml", "config/*.yaml"]
 # Ensure pytest discovers the local source package without requiring PYTHONPATH hacks
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+bdd_features_base_dir = "tests/features"
 
 # Ruff configuration
 [tool.ruff]
