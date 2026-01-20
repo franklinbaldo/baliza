@@ -8,8 +8,6 @@ from urllib.parse import urlencode
 
 import pytest
 
-from baliza import cli
-
 
 # =============================================================================
 # VCR Configuration for Integration Tests
@@ -116,16 +114,9 @@ class HttpxMock:
         return _MockClient(self._entries)
 
 
-@pytest.fixture()
-def httpx_mock() -> HttpxMock:
-    mock = HttpxMock()
-
-    def factory(*, headers: Optional[Dict[str, str]] = None, timeout: int = 30):
-        return mock.create_client()
-
-    original_factory = cli._HTTP_CLIENT_FACTORY
-    cli.set_http_client_factory(factory)
-    try:
-        yield mock
-    finally:
-        cli.set_http_client_factory(original_factory)
+# Old httpx_mock fixture for dlt CLI - no longer needed
+# New simple tests mock httpx.Client.get directly with unittest.mock
+#
+# @pytest.fixture()
+# def httpx_mock() -> HttpxMock:
+#     ...

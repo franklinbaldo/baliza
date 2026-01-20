@@ -5,17 +5,13 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "baliza"
 version = "0.1.0"
-description = "Streamlined PNCP data extraction to Parquet using DLT pipeline."
+description = "Simple PNCP data extraction tool using httpx and DuckDB."
 authors = [{ name = "Franklin Baldo", email = "frank@franklinbaldo.com" }]
 requires-python = ">=3.11"
 
 dependencies = [
-    "dlt[duckdb]>=1.14.1",
     "typer>=0.9.0",
-    "pyyaml>=6.0",
     "httpx>=0.27.0",
-    "xxhash>=3.4.1",
-    "internetarchive>=4.1.0",
     "rich>=13.0.0",
     "duckdb>=1.4.3",
 ]
@@ -40,7 +36,7 @@ internet-archive = [
 ]
 
 [project.scripts]
-baliza = "baliza.cli:app"
+baliza = "baliza.cli_simple:app"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
