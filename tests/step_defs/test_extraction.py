@@ -4,15 +4,38 @@ from pathlib import Path
 
 import duckdb
 import pytest
+from dlt.common import pendulum
+from dlt.sources import DltResource
 from pytest_bdd import given, when, then, scenario, parsers
 from typer.testing import CliRunner
 
 from baliza.cli import app
+from baliza.pipelines import pncp
 
 runner = CliRunner()
 
 # Mark all extraction scenarios as Tier 0 (Critical Path)
 pytestmark = pytest.mark.tier0
+
+
+def parse_dates(item):
+    """Parse date strings to datetime objects for dlt incremental cursor."""
+    if "dataAtualizacao" in item and isinstance(item["dataAtualizacao"], str):
+        item["dataAtualizacao"] = pendulum.parse(item["dataAtualizacao"])
+    return item
+
+
+@pytest.fixture
+def patched_pncp_source(monkeypatch):
+    """Patches the pncp_source to add a date parsing transformer."""
+    original_pncp_source = pncp.pncp_source
+
+    def new_pncp_source(*args, **kwargs) -> DltResource:
+        source = original_pncp_source(*args, **kwargs)
+        source.resources["contratos"].add_map(parse_dates)
+        return source
+
+    monkeypatch.setattr(pncp, "pncp_source", new_pncp_source)
 
 
 # =============================================================================
@@ -36,7 +59,7 @@ def clean_db(tmp_path: Path) -> Path:
 
 
 @when(parsers.parse('I run "baliza extract --start {start} --end {end}"'), target_fixture="run_result")
-def run_extract(db_path, start, end):
+def run_extract(db_path, patched_pncp_source, start, end):
     """Run baliza extract command."""
     result = runner.invoke(
         app,
@@ -52,6 +75,15 @@ def run_extract(db_path, start, end):
             "test_dataset",
         ],
     )
+    # Debug: print output if command failed
+    if result.exit_code != 0:
+        print(f"\n=== COMMAND FAILED ===")
+        print(f"Exit code: {result.exit_code}")
+        print(f"Output:\n{result.stdout}")
+        if result.stderr:
+            print(f"Stderr:\n{result.stderr}")
+        if result.exception:
+            print(f"Exception: {result.exception}")
     return {"result": result, "db_path": db_path}
 
 
