@@ -5,7 +5,7 @@ Replaces the dlt pipeline with straightforward httpx + DuckDB code.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -90,135 +90,166 @@ class PNCPExtractor:
             )
         """)
 
+    def run(
+        self,
+        resource: str = "contratos",
+        lookback_days: int = 3,
+        project_start_date: datetime = datetime(2023, 1, 1),
+    ) -> dict[str, Any]:
+        """Run the state-aware, resumable extraction pipeline."""
+        console.print("[cyan]Starting automatic extraction...")
+
+        with duckdb.connect(str(self.db_path)) as con:
+            self._ensure_schema(con)
+            last_date = self._get_last_extracted_date(con, resource)
+
+        if last_date:
+            start_date = last_date - timedelta(days=lookback_days - 1)
+            console.print(
+                f"Found last run on {last_date.date()}. Resuming from {start_date.date()} "
+                f"(with {lookback_days}-day lookback)."
+            )
+        else:
+            start_date = project_start_date
+            console.print(f"No previous run found. Starting from project start: {start_date.date()}")
+
+        end_date = datetime.now()
+        total_rows = 0
+        windows_processed = 0
+
+        current_date = start_date
+        while current_date < end_date:
+            window_start = current_date
+            window_end = current_date.replace(hour=23, minute=59, second=59)
+
+            console.print(f"\n[bold]Processing {window_start.date()}...[/bold]")
+            try:
+                result = self.extract(window_start, window_end, resource)
+                total_rows += result["rows_extracted"]
+                windows_processed += 1
+            except Exception:
+                console.print(f"[red]✗ Failed to process window {window_start.date()}. Continuing.")
+
+            current_date += timedelta(days=1)
+
+        return {
+            "total_rows": total_rows,
+            "windows_processed": windows_processed,
+            "start_date": start_date,
+            "end_date": end_date,
+        }
+
+    def _get_last_extracted_date(
+        self, con: duckdb.DuckDBPyConnection, resource: str
+    ) -> datetime | None:
+        """Get the latest successfully extracted date from the coverage table."""
+        result = con.execute(
+            """
+            SELECT MAX(window_end)
+            FROM baliza_state.coverage
+            WHERE resource = ? AND status IN ('complete', 'failed')
+        """,
+            [resource],
+        ).fetchone()
+        return result[0] if result and result[0] else None
+
     def extract(
         self,
         start_date: datetime,
         end_date: datetime,
         resource: str = "contratos",
     ) -> dict[str, Any]:
-        """Extract data from PNCP API for a date range.
-
-        Args:
-            start_date: Start of date range
-            end_date: End of date range
-            resource: Resource type (default: contratos)
-
-        Returns:
-            Dict with extraction results (rows_extracted, pages, etc.)
-        """
-        # Format dates for PNCP API (YYYYMMDD)
-        data_inicial = start_date.strftime("%Y%m%d")
-        data_final = end_date.strftime("%Y%m%d")
-
+        """Extract data from PNCP API for a single, specific date range (window)."""
         all_rows = []
         page = 1
-        total_pages = None
+        status = "complete"
 
-        console.print(
-            f"[cyan]Extracting {resource} from {start_date.date()} to {end_date.date()}..."
-        )
+        try:
+            data_inicial = start_date.strftime("%Y%m%d")
+            data_final = end_date.strftime("%Y%m%d")
 
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TaskProgressColumn(),
-            console=console,
-        ) as progress:
-            task = progress.add_task("Fetching pages...", total=None)
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                TaskProgressColumn(),
+                console=console,
+                transient=True,
+            ) as progress:
+                task = progress.add_task("Fetching pages...", total=None)
+                total_pages = None
 
-            while True:
-                # Call PNCP API
-                url = f"{self.base_url}/{resource}"
-                params = {
-                    "dataInicial": data_inicial,
-                    "dataFinal": data_final,
-                    "pagina": page,
-                    "tamanhoPagina": 500,
-                }
+                while True:
+                    url = f"{self.base_url}/{resource}"
+                    params = {
+                        "dataInicial": data_inicial, "dataFinal": data_final,
+                        "pagina": page, "tamanhoPagina": 500,
+                    }
+                    response = self.client.get(url, params=params)
+                    response.raise_for_status()
 
-                response = self.client.get(url, params=params)
-                response.raise_for_status()
+                    if response.status_code == 204:
+                        console.print(f"  [yellow]No data found for {start_date.date()}.")
+                        break
 
-                data = response.json()
-                rows = data.get("data", [])
+                    data = response.json()
+                    rows = data.get("data", [])
+                    if not rows:
+                        break
 
-                if not rows:
-                    break
+                    all_rows.extend(rows)
+                    if total_pages is None:
+                        total_pages = data.get("totalPaginas", 1)
+                        progress.update(task, total=total_pages)
 
-                all_rows.extend(rows)
+                    progress.update(task, completed=page, description=f"Page {page}/{total_pages}")
+                    if page >= total_pages:
+                        break
+                    page += 1
 
-                # Update progress
-                if total_pages is None:
-                    total_pages = data.get("totalPaginas", 1)
-                    progress.update(task, total=total_pages)
-
-                progress.update(
-                    task, completed=page, description=f"Fetching page {page}/{total_pages}"
-                )
-
-                if page >= total_pages:
-                    break
-
-                page += 1
-
-        console.print(f"[green]✓ Fetched {len(all_rows)} rows across {page} pages")
-
-        # Insert into DuckDB
-        with duckdb.connect(str(self.db_path)) as con:
-            self._ensure_schema(con)
+            console.print(f"  [green]✓ Fetched {len(all_rows)} rows across {page} pages.")
 
             if all_rows:
-                # Prepare data for insertion
-                values = []
-                for row in all_rows:
-                    values.append(
-                        (
-                            row.get("numeroControlePNCP"),
-                            row.get("anoCompra"),
-                            row.get("sequencialCompra"),
-                            row.get("orgaoEntidade", {}).get("cnpj"),
-                            row.get("orgaoEntidade", {}).get("razaoSocial"),
-                            row.get("orgaoEntidade", {}).get("poderId"),
-                            row.get("unidadeOrgao", {}).get("codigoUnidade"),
-                            row.get("unidadeOrgao", {}).get("nomeUnidade"),
-                            row.get("modalidadeId"),
-                            row.get("modalidadeNome"),
-                            row.get("valorInicial"),
-                            row.get("dataPublicacao"),
-                            row.get("dataVigenciaInicio"),
-                            row.get("dataVigenciaFim"),
-                            row.get("objetoContrato"),
-                            row.get("informacaoComplementar"),
-                            row.get("numeroProcesso"),
-                            row.get("linkSistemaOrigem"),
-                            row.get("dataInclusao"),
-                            row.get("dataAtualizacao"),
-                            row.get("usuarioNome"),
-                        )
+                with duckdb.connect(str(self.db_path)) as con:
+                    self._ensure_schema(con)
+                    con.executemany(
+                        f"INSERT OR IGNORE INTO {self.dataset}.contratos VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        [
+                            (
+                                r.get("numeroControlePNCP"), r.get("anoCompra"),
+                                r.get("sequencialCompra"),
+                                r.get("orgaoEntidade", {}).get("cnpj"),
+                                r.get("orgaoEntidade", {}).get("razaoSocial"),
+                                r.get("orgaoEntidade", {}).get("poderId"),
+                                r.get("unidadeOrgao", {}).get("codigoUnidade"),
+                                r.get("unidadeOrgao", {}).get("nomeUnidade"),
+                                r.get("modalidadeId"), r.get("modalidadeNome"),
+                                r.get("valorInicial"), r.get("dataPublicacao"),
+                                r.get("dataVigenciaInicio"), r.get("dataVigenciaFim"),
+                                r.get("objetoContrato"), r.get("informacaoComplementar"),
+                                r.get("numeroProcesso"), r.get("linkSistemaOrigem"),
+                                r.get("dataInclusao"), r.get("dataAtualizacao"),
+                                r.get("usuarioNome"),
+                            )
+                            for r in all_rows
+                        ],
                     )
+                    console.print(f"  [green]✓ Inserted data into {self.dataset}.contratos.")
 
-                # Insert or ignore (append-only, deduplication by primary key)
-                con.executemany(
-                    f"""
-                    INSERT OR IGNORE INTO {self.dataset}.contratos
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                    values,
+        except Exception as e:
+            status = "failed"
+            console.print(f"\n[red]✗ An error occurred: {e}")
+            raise
+        finally:
+            with duckdb.connect(str(self.db_path)) as con:
+                self._ensure_schema(con)
+                con.execute(
+                    """
+                    INSERT OR REPLACE INTO baliza_state.coverage
+                    VALUES (?, ?, ?, ?, ?, ?, NOW())
+                    """,
+                    [resource, start_date, end_date, status, page, len(all_rows)],
                 )
-
-                console.print(
-                    f"[green]✓ Inserted {len(all_rows)} rows into {self.dataset}.contratos (duplicates ignored)"
-                )
-
-            # Record coverage
-            con.execute(
-                """
-                INSERT OR REPLACE INTO baliza_state.coverage
-                VALUES (?, ?, ?, 'complete', ?, ?, NOW())
-            """,
-                [resource, start_date, end_date, page, len(all_rows)],
-            )
 
         return {
             "rows_extracted": len(all_rows),

@@ -13,28 +13,13 @@ pesquisadores e órgãos de controle.
 
 ## Visão geral
 
-- **Pipeline declarativo com [dlt](https://dlthub.com/):** a configuração YAML
-  em `src/baliza/config/pncp.yml` descreve como chamar o endpoint público
-  `GET /v1/contratos` do PNCP, paginando com `tamanhoPagina=500` e janelas de
-  `dataInicial`/`dataFinal` no formato `AAAAMMDD`.
-- **CLI enxuta:** o comando `baliza extract` executa o pipeline incremental e
-  `baliza backfill` permite processar janelas mensais de forma determinística.
-- **Fluxo bronze → parquet:** `baliza extract` mantém o histórico bruto no
-  DuckDB (`baliza.duckdb`) enquanto `baliza export` gera arquivos Parquet
-  particionados por ano/mês em `data/<recurso>/ano=YYYY/mes=MM/*.parquet`.
-- **Entrega analítica imediata:** os dados são gravados no arquivo
-  `baliza.duckdb` (dataset `baliza_raw`) com *merge* incremental baseado na
-  chave oficial `numeroControlePNCP` (string completa `CNPJ-2-sequencial/ano`).
-- **Manifesto de cobertura:** cada página coletada gera metadados com
-  `totalPaginas` reportado, hashes de `numeroControlePNCP` e status das janelas.
-  O comando `baliza verify` audita o manifesto chamando apenas a primeira página
-  de cada janela e marcando lacunas ou crescimento tardio informado pela API.
-- **Documentação de arquitetura:** os arquivos em `docs/` registram decisões e
-  próximos passos para evolução do pipeline.
+- **Extrator Resiliente com DuckDB:** O Baliza utiliza um pipeline robusto construído com `httpx` para chamadas de API e `DuckDB` para armazenamento de dados e estado. Ele foi projetado para ser resiliente a falhas e totalmente resumível.
+- **CLI Inteligente:** O comando `baliza extract` opera em modo automático por padrão. Ele consulta seu próprio banco de dados de estado (`baliza_state.coverage` no DuckDB) para encontrar a última data extraída com sucesso e continua o trabalho a partir daí, garantindo que nenhuma janela de dados seja perdida.
+- **Fluxo Bronze → Parquet:** `baliza extract` salva os dados brutos no DuckDB (`baliza.duckdb`). O comando `baliza export` pode ser usado para gerar arquivos Parquet para análise e arquivamento de longo prazo.
+- **Transparência e Estado:** Cada janela diária processada é registrada na tabela `baliza_state.coverage`, armazenando o status (`complete` ou `failed`), o número de páginas e registros extraídos. O comando `baliza verify` pode ser usado para auditar a cobertura e encontrar lacunas.
+- **Documentação de Arquitetura:** As decisões de design e os planos de evolução do pipeline são mantidos no diretório `docs/`.
 
-> 📌 **Escopo atual:** o pipeline cobre o endpoint de **contratos**. A inclusão
-> de demais recursos do PNCP está detalhada na
-> [`docs/endpoint_extraction_strategy.md`](docs/endpoint_extraction_strategy.md).
+> 📌 **Escopo atual:** O pipeline atualmente foca no endpoint de **contratos**. A estratégia para incluir outros recursos do PNCP está detalhada nos documentos de arquitetura.
 
 ## Instalação
 
@@ -124,34 +109,36 @@ docker run --rm -v $(pwd)/data:/data ghcr.io/franklinbaldo/baliza:latest backfil
 # Alias para simplificar (adicione ao seu .bashrc ou .zshrc)
 alias baliza='uvx --from "git+https://github.com/franklinbaldo/baliza" baliza'
 
-# Extrair dados dos últimos 3 dias
+# Executar a extração automática (recomendado)
+# O Baliza encontrará a última data salva e continuará de onde parou.
 baliza extract
 
-# Exportar para Parquet
-baliza export --table contratos --out data/contratos
+# Extrair um período específico (modo manual)
+baliza extract --start 2024-01-01 --end 2024-01-31
 
-# Backfill mensal
-baliza backfill 2024-01 2024-03
+# Exportar para Parquet
+baliza export --table contratos --output data/contratos
 
 # Verificar cobertura
-baliza verify
+baliza verify --start 2024-01-01 --end 2024-01-31
 ```
 
 ### Usando instalação local
 
 ```bash
 # Dentro do diretório do projeto
+# Executar a extração automática
 uv run baliza extract
-uv run baliza export --table contratos --out data/contratos
-uv run baliza backfill 2024-01 2024-03
+
+# Exportar para Parquet
+uv run baliza export --table contratos --output data/contratos
 ```
 
 O comando `baliza extract` cria (ou atualiza) o arquivo `baliza.duckdb` no
-diretório atual. Por padrão, a execução retrocede alguns dias (lookback) e abre
-janelas diárias `dataInicial`/`dataFinal`, enviando requisições paginadas com
-`tamanhoPagina=500` até que `totalPaginas` seja percorrido. Em seguida,
-`baliza export` lê a tabela do DuckDB e escreve os dados como Parquet
-particionado (ano/mês) no diretório informado (`data/contratos`, no exemplo).
+diretório atual. Por padrão, ele é executado em **modo automático**, consultando o
+estado interno para determinar o intervalo de datas a ser processado. Se uma
+extração falhar, basta executá-lo novamente para que ele continue do último dia
+bem-sucedido.
 
 ## Inspecionando os dados
 
@@ -178,149 +165,61 @@ contratos = con.execute("SELECT * FROM contratos").df()
 print(contratos.head())
 ```
 
-## Configuração
-
-A configuração declarativa do pipeline fica em `src/baliza/config/pncp.yml`.
-Nela é possível ajustar:
-
-- Parâmetros padrão de paginação (`tamanhoPagina=500`, `pagina=1`).
-- Datas inicial/final utilizadas pelo incremental (`initial_value`,
-  `lookback_days` via CLI) sempre convertidas para `AAAAMMDD`.
-- Mapeamento da resposta padronizada (`data`, `totalPaginas`, etc.),
-  preservando `numeroControlePNCP` como chave primária textual.
-
-A API pública do PNCP fica em `https://pncp.gov.br/api/consulta` e retorna um
-envelope com `data`, `totalRegistros`, `totalPaginas`, `numeroPagina`,
-`paginasRestantes` e `empty`. A configuração do Baliza consome esses campos,
-tratando respostas `204 No Content` como janelas vazias (sem erro) e sempre
-respeitando `tamanhoPagina ≤ 500`.
-
-Para usar uma configuração customizada, forneça o caminho via `--config`:
-
-```bash
-uv run baliza extract --config configs/pncp-custom.yml
-```
-
 ## Comandos disponíveis
 
-### Comandos de Extração
-
 | Comando | Descrição |
 |---------|-----------|
-| `baliza extract` | Executa o pipeline incremental com **detecção automática de lacunas** e **resumibilidade**. Identifica janelas incompletas, suspeitas ou ausentes e extrai apenas o necessário. |
-| `baliza backfill <AAAA-MM> <AAAA-MM>` | Processa, mês a mês, o intervalo informado sem reaproveitar estado. |
-| `baliza export --table <tabela>` | Exporta a tabela DuckDB para Parquet particionado por ano/mês. |
-| `baliza verify --resource <recurso>` | Audita a cobertura e detecta janelas incompletas ou suspeitas. |
+| `baliza extract` | Executa o pipeline de extração. Por padrão, opera em modo automático e resumível. |
+| `baliza export` | Exporta uma tabela do DuckDB para um arquivo Parquet. |
+| `baliza verify` | Audita a cobertura de dados em um intervalo de datas e reporta lacunas. |
 
-### Comandos de Estado (novo)
+**Opções úteis para `extract`:**
 
-| Comando | Descrição |
-|---------|-----------|
-| `baliza state show --resource contratos` | Exibe resumo do estado: janelas completas, incompletas, suspeitas. |
-| `baliza state gaps --resource contratos --start 2024-01-01` | Lista todas as lacunas de cobertura no período. |
-| `baliza state history --resource contratos` | Exibe histórico das últimas execuções (sucessos e falhas). |
-
-Opções úteis:
-
-- `--duckdb /caminho/arquivo.duckdb` — define o arquivo DuckDB de destino.
-- `--dataset nome` — define o *schema* dentro do DuckDB (padrão: `baliza_raw`).
-- `--lookback-days N` — retrocede `N` dias em relação ao último cursor salvo ao
-  construir a janela incremental.
-- `baliza export --start-date AAAA-MM-DD --end-date AAAA-MM-DD` — delimita o
-  intervalo exportado e cria `data/<recurso>/ano=YYYY/mes=MM/*.parquet`.
+- `--start <AAAA-MM-DD> --end <AAAA-MM-DD>`: Ativa o modo manual para extrair um intervalo específico.
+- `--lookback-days N`: No modo automático, define quantos dias retroceder a partir da última data bem-sucedida para buscar atualizações (padrão: 3).
+- `--duckdb /caminho/arquivo.duckdb`: Define um caminho customizado para o arquivo DuckDB.
 
 Use `uv run baliza --help` para ver todos os parâmetros suportados.
 
 ### Extração Resumível (Resumable Extraction) ✨
 
-O Baliza agora possui **extração completamente resumível**, tornando o pipeline
-robusto e pronto para produção:
+O Baliza possui uma extração **resumível e baseada em estado**, tornando o pipeline robusto e confiável.
 
 **Como funciona:**
-1. **Detecção inteligente de lacunas:** antes de cada extração, o Baliza analisa
-   o estado atual e identifica quais janelas temporais precisam ser processadas:
-   - Janelas **incompletas** de execuções anteriores que falharam (prioridade máxima)
-   - Janelas **suspeitas** com anomalias de dados
-   - Janelas **ausentes** que nunca foram extraídas
-   - Janelas **recentes** dentro do período de *lookback* (re-extração de atualizações)
 
-2. **Rastreamento de execuções:** cada run é registrado em `baliza_state.extraction_runs`
-   com ID único, status (running/completed/failed), janelas processadas e métricas.
+1.  **Estado no DuckDB:** O Baliza rastreia cada janela diária de extração na tabela `baliza_state.coverage` dentro do arquivo `baliza.duckdb`. Cada registro armazena a data, o status (`complete` ou `failed`), e metadados da execução.
 
-3. **Retomada automática:** se uma extração falhar (erro de rede, timeout, crash),
-   basta executar `baliza extract` novamente e o processo continua de onde parou,
-   priorizando janelas incompletas.
+2.  **Inicialização Automática:** Ao executar `baliza extract` sem especificar `--start` ou `--end`, o pipeline consulta essa tabela para encontrar a data mais recente que foi concluída com sucesso.
+
+3.  **Retomada Inteligente:** A extração começa a partir do dia seguinte ao último sucesso. Se a última execução falhou no meio do caminho, o Baliza a retomará automaticamente, reprocessando apenas os dias que faltam. Um período de *lookback* (configurável com `--lookback-days`) garante que dados atualizados recentemente também sejam capturados.
 
 **Exemplo de uso:**
 
 ```bash
-# Primeira execução - processa últimos 30 dias
-$ baliza extract
-Analyzing coverage from 2024-10-05 to 2024-11-04 (lookback: 3 days)...
-Processing 30 window(s):
-  • 30 missing
-[1/30] Processing 2024-10-05 to 2024-10-06 (missing)...
-  ✓ Completed
+# Primeira execução: O Baliza começa do início do projeto (ex: 2023-01-01)
+$ uv run baliza extract
+Starting automatic extraction...
+No previous run found. Starting from project start: 2023-01-01
 ...
-[15/30] Processing 2024-10-20 to 2024-10-21 (missing)...
+Processing 2023-01-15...
 ✗ Extraction failed: Connection timeout
 
-# Retoma automaticamente da janela 15
-$ baliza extract
-Found 1 incomplete window(s) from previous run. Resuming...
-Merged 16 windows into 2 to reduce API calls.
-Processing 2 window(s):
-  • 1 incomplete
-  • 15 missing
-[1/2] Processing 2024-10-20 to 2024-10-21 (incomplete)...
-  ✓ Completed
-[2/2] Processing 2024-10-21 to 2024-11-05 (missing)...
-  ✓ Completed
-✓ Extraction completed successfully!
+# O processo parou. Basta rodar o comando novamente para continuar.
+$ uv run baliza extract
+Starting automatic extraction...
+Found last completed run. Starting from 2023-01-12 (last success on 2023-01-14 with 3-day lookback).
+...
+Processing 2023-01-12...
+✓ Completed
+...
+✓ Automatic extraction complete!
 ```
 
 **Benefícios:**
-- ✅ **Sem desperdício:** não refaz trabalho já concluído
-- ✅ **Resiliência:** recupera automaticamente de falhas
-- ✅ **Observabilidade:** histórico completo de execuções com `baliza state history`
-- ✅ **Otimização:** mescla janelas adjacentes para reduzir chamadas à API
 
-### Política incremental
-
-- **Lookback configurável:** por padrão, `baliza extract` retrocede 3 dias em
-  relação à última execução bem-sucedida, mas isso é totalmente configurável
-  via `--lookback-days`.
-- **Detecção de lacunas:** o Baliza compara as janelas processadas com as esperadas,
-  identificando automaticamente períodos ausentes ou incompletos.
-- **Backfill mensal:** o comando `baliza backfill <AAAA-MM> <AAAA-MM>` reexecuta
-  meses inteiros em sequência, ideal para consolidar históricos.
-- **Manifesto de cobertura:** além de `write_disposition=merge`, o Baliza registra
-  `totalPaginas`, contagem de itens e hashes por página em `baliza_state.cobertura`
-  para auditar janelas e identificar páginas ausentes.
-
-### Exportação analítica
-
-- **Bronze no DuckDB:** os dados brutos permanecem em `baliza.duckdb` dentro do
-  dataset `baliza_raw`.
-- **Parquet particionado:** `baliza export` gera `data/<recurso>/ano=YYYY/mes=MM/*.parquet`
-  a partir de uma coluna de data do domínio (no caso de contratos, a data de
-  publicação no PNCP; na ausência, usa-se a melhor proxy disponível e ela é
-  documentada na CLI).
-- **Consumo incremental:** os arquivos Parquet seguem a mesma chave primária
-  utilizada no DuckDB, preservando a máscara oficial do `numeroControlePNCP`.
-
-## Detecção de Gaps
-
-O plano descrito em [`docs/extraction_resumability_plan.md`](docs/extraction_resumability_plan.md)
-foi implementado a partir da criação de um manifesto de cobertura em
-`baliza_state.cobertura` e `baliza_state.janelas`. Cada página registrada guarda
-`pagina`, `total_paginas_observado`, hash dos `numeroControlePNCP` e momento da
-captura. O comando `baliza verify` chama apenas a página 1 de cada janela para
-comparar `totalPaginas` informado pela API com o manifesto, marcando janelas
-`ok`, `incompleto`, `nao_processado` ou `suspeito` (quando o hash diverge). O
-relatório em JSON lista lacunas abertas, páginas pendentes e quaisquer
-sequências suspeitas (`--sequencia` ativa a auditoria de
-`sequencialCompra`/`sequencialContrato`).
+- ✅ **Confiabilidade:** Recupera-se automaticamente de falhas de rede ou da API.
+- ✅ **Eficiência:** Não refaz o trabalho já concluído, economizando tempo e chamadas de API.
+- ✅ **Simplicidade:** A complexidade do estado é gerenciada automaticamente. O usuário só precisa executar o mesmo comando simples.
 
 ## Arquitetura do Ecossistema
 
@@ -337,17 +236,10 @@ Veja [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) para detalhes completos.
 
 ```
 ├── src/baliza/
-│   ├── cli.py              # Interface de linha de comando
-│   ├── pipelines/pncp.py   # Execução do pipeline dlt
-│   ├── config/pncp.yml     # Configuração declarativa do endpoint
-│   ├── state/              # Rastreamento de cobertura
-│   └── utils/              # Funções auxiliares (datas, hashing, export)
+│   ├── cli.py              # Interface de linha de comando (Typer)
+│   └── extractor.py        # Lógica de extração e controle de estado
 ├── docs/                   # Guias de arquitetura e planos de evolução
-│   ├── ARCHITECTURE.md     # Separação entre CLI e site
-│   └── ROADMAP.md          # Roadmap do CLI
 ├── tests/                  # Testes automatizados
-│   ├── unit/               # Testes unitários
-│   └── e2e/                # Testes end-to-end
 └── pyproject.toml          # Metadados e dependências do projeto
 ```
 
