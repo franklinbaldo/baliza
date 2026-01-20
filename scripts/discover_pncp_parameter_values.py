@@ -3,9 +3,10 @@
 Script to discover available parameter values for PNCP endpoints
 """
 
-import requests
 import json
 from urllib.parse import urljoin
+
+import requests
 
 BASE_URL = "https://pncp.gov.br/api/consulta/v1/"
 
@@ -48,18 +49,14 @@ def test_parameter_values(endpoint, base_params, param_name, test_values):
                         )
                     else:
                         print("   ✅ SUCCESS: Valid response structure")
-                        working_values.append(
-                            {"value": value, "item_count": 0, "total_records": 0}
-                        )
+                        working_values.append({"value": value, "item_count": 0, "total_records": 0})
 
                 except json.JSONDecodeError:
                     print("   ⚠️  SUCCESS but no JSON")
 
             elif response.status_code == 204:
                 print("   ✅ SUCCESS: No content (valid)")
-                working_values.append(
-                    {"value": value, "item_count": 0, "total_records": 0}
-                )
+                working_values.append({"value": value, "item_count": 0, "total_records": 0})
 
             else:
                 print(f"   ❌ FAILED: {response.text[:100]}...")
@@ -128,9 +125,7 @@ def main():
         "codigoClassificacaoSuperior": "00",
     }
 
-    results["years_pca"] = test_parameter_values(
-        "pca/", base_params_pca_year, "anoPca", years
-    )
+    results["years_pca"] = test_parameter_values("pca/", base_params_pca_year, "anoPca", years)
 
     # 4. Test user IDs for pca_usuario (common IDs from manual)
     user_ids = [1, 2, 3, 4, 5, 36, 100, 194035]  # Mix of small and known IDs
@@ -189,9 +184,7 @@ def main():
 
     # Years with data
     years_with_data = [
-        item["value"]
-        for item in results.get("years_pca", [])
-        if item["total_records"] > 0
+        item["value"] for item in results.get("years_pca", []) if item["total_records"] > 0
     ]
     if years_with_data:
         print(f"YEARS_WITH_DATA = {years_with_data}")

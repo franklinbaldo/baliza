@@ -55,7 +55,24 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "PL"]
-ignore = []
+ignore = [
+    "PLR2004",  # Magic values are fine in tests/scripts
+    "B008",     # Function calls in default args (common with typer)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "E501",     # Line length in tests is flexible
+    "PLC0415",  # Imports in functions are common in tests (traceback)
+    "PLR0913",  # Many arguments in test fixtures is fine
+]
+"scripts/**/*.py" = [
+    "E501",     # Line length in scripts is flexible
+    "PLR0913",  # Many arguments in scripts is fine
+]
+"*.py" = [
+    "E501",  # Relax line length everywhere (100 is strict)
+]
 
 [tool.ruff.format]
 quote-style = "double"

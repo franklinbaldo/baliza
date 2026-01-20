@@ -1,20 +1,30 @@
 repos:
--   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.4.0
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.7
     hooks:
-    -   id: check-yaml
-    -   id: end-of-file-fixer
-    -   id: trailing-whitespace
--   repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.1.6
+      - id: ruff
+        args: ["--fix", "--unsafe-fixes"]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
     hooks:
-    -   id: ruff
-        args: [--fix, --exit-non-zero-on-fix, --select, "PLE1205"]
-    -   id: ruff-format
--   repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.7.0
+      - id: check-added-large-files
+      - id: check-ast
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-json
+      - id: check-toml
+      - id: check-yaml
+      - id: debug-statements
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+      - id: trailing-whitespace
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.13.0
     hooks:
-    -   id: mypy
+      - id: mypy
         args: [--ignore-missing-imports]
         files: ^src/
         additional_dependencies: [types-PyYAML]

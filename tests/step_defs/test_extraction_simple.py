@@ -4,7 +4,7 @@ from pathlib import Path
 
 import duckdb
 import pytest
-from pytest_bdd import given, when, then, scenario, parsers
+from pytest_bdd import given, parsers, scenario, then, when
 from typer.testing import CliRunner
 
 from baliza.cli_simple import app
@@ -21,7 +21,7 @@ pytestmark = [pytest.mark.tier0, pytest.mark.vcr]
 
 
 @pytest.mark.vcr()
-@scenario('../features/extraction.feature', 'Basic extraction works')
+@scenario("../features/extraction.feature", "Basic extraction works")
 def test_basic_extraction_works():
     """Test basic extraction with real PNCP API responses (via VCR cassette)."""
     pass
@@ -36,7 +36,9 @@ def clean_db(tmp_path: Path) -> Path:
     return db
 
 
-@when(parsers.parse('I run "baliza extract --start {start} --end {end}"'), target_fixture="run_result")
+@when(
+    parsers.parse('I run "baliza extract --start {start} --end {end}"'), target_fixture="run_result"
+)
 def run_extract(request, start, end):
     """Run baliza extract command with real API calls (recorded by VCR).
 
@@ -66,13 +68,15 @@ def run_extract(request, start, end):
     )
 
     if result.exit_code != 0:
-        print(f"\n=== COMMAND FAILED ===")
+        print("\n=== COMMAND FAILED ===")
         print(f"Exit code: {result.exit_code}")
         print(f"Output:\n{result.stdout}")
         if result.exception:
             import traceback
 
-            print(f"Exception:\n{''.join(traceback.format_exception(type(result.exception), result.exception, result.exception.__traceback__))}")
+            print(
+                f"Exception:\n{''.join(traceback.format_exception(type(result.exception), result.exception, result.exception.__traceback__))}"
+            )
 
     return {"result": result, "db_path": db_path}
 
@@ -98,7 +102,7 @@ def check_exit_success(run_result):
 
 
 @pytest.mark.vcr()
-@scenario('../features/extraction.feature', 'Incremental extraction doesn\'t duplicate data')
+@scenario("../features/extraction.feature", "Incremental extraction doesn't duplicate data")
 def test_incremental_no_duplicates():
     """Test incremental extraction with real PNCP API responses (via VCR cassette)."""
     pass
@@ -128,11 +132,14 @@ def previous_extraction(tmp_path: Path):
     )
 
     if result.exit_code != 0:
-        print(f"\n=== SETUP EXTRACTION FAILED ===")
+        print("\n=== SETUP EXTRACTION FAILED ===")
         print(f"Output: {result.stdout}")
         if result.exception:
             import traceback
-            traceback.print_exception(type(result.exception), result.exception, result.exception.__traceback__)
+
+            traceback.print_exception(
+                type(result.exception), result.exception, result.exception.__traceback__
+            )
 
     assert result.exit_code == 0, f"Setup extraction failed with exit code {result.exit_code}"
     return db_path
@@ -163,7 +170,7 @@ def check_data_preserved(run_result):
         total = con.execute("SELECT COUNT(*) FROM test_dataset.contratos").fetchone()[0]
 
         # Data should exist (we extracted something)
-        assert total > 0, f"No data found in database"
+        assert total > 0, "No data found in database"
 
         # With real API data, we can't predict exact counts, but we can verify
         # that the data extraction succeeded and produced results

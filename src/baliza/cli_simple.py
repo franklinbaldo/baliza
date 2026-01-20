@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
+import duckdb
 import typer
 from rich.console import Console
 
@@ -59,13 +60,13 @@ def extract(
         with PNCPExtractor(db_path, dataset) as extractor:
             result = extractor.extract(start_date, end_date, resource)
 
-        console.print(f"\n[green]✓ Extraction complete!")
+        console.print("\n[green]✓ Extraction complete!")
         console.print(f"  Rows: {result['rows_extracted']}")
         console.print(f"  Pages: {result['pages']}")
 
     except Exception as e:
         console.print(f"[red]✗ Extraction failed: {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @app.command("verify")
@@ -76,23 +77,23 @@ def verify(
     db_path: Path = typer.Option(Path("baliza.duckdb"), "--duckdb", "-d", help="DuckDB file"),
 ) -> None:
     """Verify data coverage and detect gaps."""
-    import duckdb
-    from datetime import datetime, timedelta
-
     try:
         start_date = datetime.strptime(start, "%Y-%m-%d")
         end_date = datetime.strptime(end, "%Y-%m-%d")
 
         with duckdb.connect(str(db_path), read_only=True) as con:
             # Get coverage records
-            coverage = con.execute("""
+            coverage = con.execute(
+                """
                 SELECT window_start, window_end, status
                 FROM baliza_state.coverage
                 WHERE resource = ?
                 AND window_start >= ?
                 AND window_end <= ?
                 ORDER BY window_start
-            """, [resource, start_date, end_date]).fetchall()
+            """,
+                [resource, start_date, end_date],
+            ).fetchall()
 
             if not coverage:
                 console.print(f"[yellow]⚠ No coverage found for {resource} from {start} to {end}")
@@ -103,7 +104,7 @@ def verify(
             current = start_date
             one_day = timedelta(days=1)
 
-            for window_start, window_end, status in coverage:
+            for window_start, window_end, _status in coverage:
                 # Check if there's a significant gap (more than 1 day)
                 gap_duration = (window_start - current).total_seconds()
                 if gap_duration > one_day.total_seconds():
@@ -128,7 +129,7 @@ def verify(
 
     except Exception as e:
         console.print(f"[red]✗ Verify failed: {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @app.command("export")
@@ -137,11 +138,11 @@ def export(
     output: Path = typer.Option(..., "--output", "-o", help="Output directory"),
     db_path: Path = typer.Option(Path("baliza.duckdb"), "--duckdb", "-d", help="DuckDB file"),
     dataset: str = typer.Option("baliza_raw", "--dataset", "-s", help="Dataset name"),
-    date_col: str = typer.Option("dataPublicacao", "--date-col", help="Date column for partitioning"),
+    date_col: str = typer.Option(
+        "dataPublicacao", "--date-col", help="Date column for partitioning"
+    ),
 ) -> None:
     """Export DuckDB table to Parquet files."""
-    import duckdb
-
     try:
         output.mkdir(parents=True, exist_ok=True)
 
@@ -156,7 +157,7 @@ def export(
 
     except Exception as e:
         console.print(f"[red]✗ Export failed: {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 if __name__ == "__main__":
