@@ -1,17 +1,18 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional
+from typing import Any
 from urllib.parse import urlencode
 
 import pytest
 
-
 # =============================================================================
 # VCR Configuration for Integration Tests
 # =============================================================================
+
 
 @pytest.fixture(scope="module")
 def vcr_config():
@@ -71,13 +72,13 @@ class _MockClient:
     def __init__(self, responses: Iterable[tuple[Matcher, _MockResponse]]):
         self._responses = list(responses)
 
-    def __enter__(self) -> "_MockClient":
+    def __enter__(self) -> _MockClient:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
         return None
 
-    def get(self, url: str, params: Optional[Dict[str, Any]] = None) -> _MockResponse:
+    def get(self, url: str, params: dict[str, Any] | None = None) -> _MockResponse:
         if params:
             query = urlencode(params, doseq=True)
             if query:
@@ -90,24 +91,27 @@ class _MockClient:
 
 class HttpxMock:
     def __init__(self) -> None:
-        self._entries: List[tuple[Matcher, _MockResponse]] = []
+        self._entries: list[tuple[Matcher, _MockResponse]] = []
 
     def add_response(
         self,
         *,
-        url: Optional[str | re.Pattern[str]] = None,
-        json: Optional[Any] = None,
+        url: str | re.Pattern[str] | None = None,
+        json: Any | None = None,
         status_code: int = 200,
     ) -> None:
         payload = json if json is not None else {}
         if url is None:
+
             def matcher(target: str) -> bool:
                 return True
         elif isinstance(url, re.Pattern):
             matcher = url.match
         else:
+
             def matcher(target: str, *, expected: str = url) -> bool:
                 return target == expected
+
         self._entries.append((matcher, _MockResponse(status_code=status_code, _json_data=payload)))
 
     def create_client(self) -> _MockClient:

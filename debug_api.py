@@ -3,9 +3,10 @@
 Debug script to test PNCP API endpoints directly
 """
 
-import requests
 import json
 from datetime import datetime
+
+import requests
 
 
 def test_pncp_endpoint(endpoint_path, params):
@@ -158,9 +159,7 @@ def main():
         status = result.get("status", "unknown")
         if status == "success":
             data_count = (
-                len(result["data"].get("data", []))
-                if isinstance(result["data"], dict)
-                else 0
+                len(result["data"].get("data", [])) if isinstance(result["data"], dict) else 0
             )
             print(f"✅ {name}: SUCCESS ({data_count} records)")
         elif status == "empty":
@@ -169,9 +168,7 @@ def main():
             print(f"❌ {name}: {status.upper()}")
 
     print("\n💡 Recommendations:")
-    print(
-        "- If all tests return 204 (No Content), the API may not have data for those date ranges"
-    )
+    print("- If all tests return 204 (No Content), the API may not have data for those date ranges")
     print("- If JSON errors occur, there might be API response format issues")
     print("- Try different date ranges or modalidades to find data")
     print("- Consider checking PNCP documentation for data availability periods")

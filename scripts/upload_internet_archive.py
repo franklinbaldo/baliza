@@ -13,8 +13,9 @@ import argparse
 import json
 import os
 import sys
+from collections.abc import Iterable, Mapping
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping
+from typing import Any
 
 try:  # pragma: no cover - optional dependency
     import internetarchive  # type: ignore[import-untyped]
@@ -22,10 +23,10 @@ except ModuleNotFoundError:  # pragma: no cover - fallback path
     internetarchive = None  # type: ignore[assignment]
 
 
-Summary = Dict[str, Any]
+Summary = dict[str, Any]
 
 
-def _load_manifest(manifest_path: Path) -> Dict[str, Any]:
+def _load_manifest(manifest_path: Path) -> dict[str, Any]:
     if not manifest_path.exists():
         raise FileNotFoundError(f"Manifest not found: {manifest_path}")
     try:
@@ -38,10 +39,10 @@ def _load_manifest(manifest_path: Path) -> Dict[str, Any]:
 
 
 def _build_metadata(
-    manifest: Dict[str, Any] | None,
+    manifest: dict[str, Any] | None,
     extra_metadata: Iterable[str],
-) -> Dict[str, Any]:
-    metadata: Dict[str, Any] = {
+) -> dict[str, Any]:
+    metadata: dict[str, Any] = {
         "mediatype": "data",
         "collection": "opensource",
         "language": "por",
@@ -62,13 +63,11 @@ def _build_metadata(
         checksum = manifest.get("sha256")
 
         if dataset_version:
-            metadata.setdefault(
-                "title", f"Baliza contratos {dataset_version}"
-            )
+            metadata.setdefault("title", f"Baliza contratos {dataset_version}")
             metadata.setdefault("date", dataset_version)
             metadata.setdefault("dataset_version", dataset_version)
 
-        description_lines: List[str] = []
+        description_lines: list[str] = []
         if dataset_version:
             description_lines.append(f"Versão do dataset: {dataset_version}")
         if row_count is not None:
@@ -88,9 +87,7 @@ def _build_metadata(
 
     for pair in extra_metadata:
         if "=" not in pair:
-            raise ValueError(
-                f"Invalid metadata entry '{pair}'. Use the format key=value."
-            )
+            raise ValueError(f"Invalid metadata entry '{pair}'. Use the format key=value.")
         key, value = pair.split("=", 1)
         key = key.strip()
         value = value.strip()
@@ -156,7 +153,7 @@ def upload_dataset(
     if upload_func is None:
         upload_func = internetarchive.upload  # type: ignore[assignment]
 
-    manifest_dict: Dict[str, Any] | None = dict(manifest) if manifest else None
+    manifest_dict: dict[str, Any] | None = dict(manifest) if manifest else None
     metadata = _build_metadata(manifest_dict, extra_metadata)
 
     access_key = access_key or _require_env("IA_ACCESS_KEY")
@@ -204,18 +201,12 @@ def upload_dataset(
         verify=True,
     )
 
-    errors = [
-        response
-        for response in responses
-        if getattr(response, "status_code", 200) >= 400
-    ]
+    errors = [response for response in responses if getattr(response, "status_code", 200) >= 400]
     if errors:
         for response in errors:
             status = getattr(response, "status_code", "unknown")
             reason = getattr(response, "reason", "")
-            sys.stderr.write(
-                f"Upload failed with status {status} {reason}\n"
-            )
+            sys.stderr.write(f"Upload failed with status {status} {reason}\n")
         raise SystemExit(1)
 
     summary["uploaded"] = True
@@ -224,9 +215,7 @@ def upload_dataset(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Upload a Baliza archive to the Internet Archive"
-    )
+    parser = argparse.ArgumentParser(description="Upload a Baliza archive to the Internet Archive")
     parser.add_argument(
         "--file",
         dest="file_path",

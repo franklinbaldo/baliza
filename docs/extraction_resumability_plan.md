@@ -81,9 +81,9 @@ flowchart TD
 
 | Etapa | Descrição | Resultado esperado |
 |-------|-----------|--------------------|
-| 1 | Implementar `StateManager` com leitura/escrita atômica | Arquivo de estado confiável | 
-| 2 | Criar `GapDetector` que calcula diferença entre intervalos solicitados e concluídos | Lista de lacunas correta | 
-| 3 | Integrar na CLI (`baliza extract`) executando o pipeline uma vez por lacuna | Extração resiliente | 
+| 1 | Implementar `StateManager` com leitura/escrita atômica | Arquivo de estado confiável |
+| 2 | Criar `GapDetector` que calcula diferença entre intervalos solicitados e concluídos | Lista de lacunas correta |
+| 3 | Integrar na CLI (`baliza extract`) executando o pipeline uma vez por lacuna | Extração resiliente |
 | 4 | Adicionar testes unitários para `StateManager` e `GapDetector` | Garantia contra regressões |
 | 5 | Documentar variáveis de configuração (ex.: caminho do estado) | Onboarding facilitado |
 

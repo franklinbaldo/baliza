@@ -6,7 +6,7 @@ from unittest.mock import Mock
 import duckdb
 import httpx
 import pytest
-from pytest_bdd import given, when, then, scenario, parsers
+from pytest_bdd import given, parsers, scenario, then, when
 from typer.testing import CliRunner
 
 from baliza.cli_simple import app
@@ -22,7 +22,7 @@ pytestmark = pytest.mark.tier1
 # =============================================================================
 
 
-@scenario('../features/resilience.feature', 'Handles PNCP API errors gracefully')
+@scenario("../features/resilience.feature", "Handles PNCP API errors gracefully")
 def test_handles_api_errors_gracefully():
     pass
 
@@ -36,7 +36,10 @@ def api_error_setup(tmp_path: Path):
     return db_path
 
 
-@when(parsers.parse('I run "baliza extract --start {start} --end {end}"'), target_fixture="error_result")
+@when(
+    parsers.parse('I run "baliza extract --start {start} --end {end}"'),
+    target_fixture="error_result",
+)
 def run_extract_with_error(api_error_setup, monkeypatch, start, end):
     """Run baliza extract when API is returning errors."""
 
@@ -47,11 +50,7 @@ def run_extract_with_error(api_error_setup, monkeypatch, start, end):
         response.text = "Internal Server Error"
 
         def raise_for_status():
-            raise httpx.HTTPStatusError(
-                "500 Server Error",
-                request=Mock(),
-                response=response
-            )
+            raise httpx.HTTPStatusError("500 Server Error", request=Mock(), response=response)
 
         response.raise_for_status = raise_for_status
         return response
@@ -78,7 +77,9 @@ def run_extract_with_error(api_error_setup, monkeypatch, start, end):
 @then("the command should fail with exit code 1")
 def check_exit_code_1(error_result):
     """Verify command failed with exit code 1."""
-    assert error_result["result"].exit_code == 1, f"Expected exit code 1, got {error_result['result'].exit_code}"
+    assert error_result["result"].exit_code == 1, (
+        f"Expected exit code 1, got {error_result['result'].exit_code}"
+    )
 
 
 @then("the error message should be clear")
@@ -87,7 +88,9 @@ def check_clear_error(error_result):
     output = error_result["result"].stdout
     # Check that error message contains something useful
     assert len(output) > 0, "No error message displayed"
-    assert "✗" in output or "fail" in output.lower() or "error" in output.lower(), "No clear error indicator"
+    assert "✗" in output or "fail" in output.lower() or "error" in output.lower(), (
+        "No clear error indicator"
+    )
 
 
 @then("no partial data should be saved")

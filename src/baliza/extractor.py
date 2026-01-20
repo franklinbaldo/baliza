@@ -12,7 +12,7 @@ from typing import Any
 import duckdb
 import httpx
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
+from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 
 console = Console()
 
@@ -114,7 +114,9 @@ class PNCPExtractor:
         page = 1
         total_pages = None
 
-        console.print(f"[cyan]Extracting {resource} from {start_date.date()} to {end_date.date()}...")
+        console.print(
+            f"[cyan]Extracting {resource} from {start_date.date()} to {end_date.date()}..."
+        )
 
         with Progress(
             SpinnerColumn(),
@@ -151,7 +153,9 @@ class PNCPExtractor:
                     total_pages = data.get("totalPaginas", 1)
                     progress.update(task, total=total_pages)
 
-                progress.update(task, completed=page, description=f"Fetching page {page}/{total_pages}")
+                progress.update(
+                    task, completed=page, description=f"Fetching page {page}/{total_pages}"
+                )
 
                 if page >= total_pages:
                     break
@@ -168,43 +172,53 @@ class PNCPExtractor:
                 # Prepare data for insertion
                 values = []
                 for row in all_rows:
-                    values.append((
-                        row.get("numeroControlePNCP"),
-                        row.get("anoCompra"),
-                        row.get("sequencialCompra"),
-                        row.get("orgaoEntidade", {}).get("cnpj"),
-                        row.get("orgaoEntidade", {}).get("razaoSocial"),
-                        row.get("orgaoEntidade", {}).get("poderId"),
-                        row.get("unidadeOrgao", {}).get("codigoUnidade"),
-                        row.get("unidadeOrgao", {}).get("nomeUnidade"),
-                        row.get("modalidadeId"),
-                        row.get("modalidadeNome"),
-                        row.get("valorInicial"),
-                        row.get("dataPublicacao"),
-                        row.get("dataVigenciaInicio"),
-                        row.get("dataVigenciaFim"),
-                        row.get("objetoContrato"),
-                        row.get("informacaoComplementar"),
-                        row.get("numeroProcesso"),
-                        row.get("linkSistemaOrigem"),
-                        row.get("dataInclusao"),
-                        row.get("dataAtualizacao"),
-                        row.get("usuarioNome"),
-                    ))
+                    values.append(
+                        (
+                            row.get("numeroControlePNCP"),
+                            row.get("anoCompra"),
+                            row.get("sequencialCompra"),
+                            row.get("orgaoEntidade", {}).get("cnpj"),
+                            row.get("orgaoEntidade", {}).get("razaoSocial"),
+                            row.get("orgaoEntidade", {}).get("poderId"),
+                            row.get("unidadeOrgao", {}).get("codigoUnidade"),
+                            row.get("unidadeOrgao", {}).get("nomeUnidade"),
+                            row.get("modalidadeId"),
+                            row.get("modalidadeNome"),
+                            row.get("valorInicial"),
+                            row.get("dataPublicacao"),
+                            row.get("dataVigenciaInicio"),
+                            row.get("dataVigenciaFim"),
+                            row.get("objetoContrato"),
+                            row.get("informacaoComplementar"),
+                            row.get("numeroProcesso"),
+                            row.get("linkSistemaOrigem"),
+                            row.get("dataInclusao"),
+                            row.get("dataAtualizacao"),
+                            row.get("usuarioNome"),
+                        )
+                    )
 
                 # Insert or ignore (append-only, deduplication by primary key)
-                con.executemany(f"""
+                con.executemany(
+                    f"""
                     INSERT OR IGNORE INTO {self.dataset}.contratos
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, values)
+                """,
+                    values,
+                )
 
-                console.print(f"[green]✓ Inserted {len(all_rows)} rows into {self.dataset}.contratos (duplicates ignored)")
+                console.print(
+                    f"[green]✓ Inserted {len(all_rows)} rows into {self.dataset}.contratos (duplicates ignored)"
+                )
 
             # Record coverage
-            con.execute(f"""
+            con.execute(
+                """
                 INSERT OR REPLACE INTO baliza_state.coverage
                 VALUES (?, ?, ?, 'complete', ?, ?, NOW())
-            """, [resource, start_date, end_date, page, len(all_rows)])
+            """,
+                [resource, start_date, end_date, page, len(all_rows)],
+            )
 
         return {
             "rows_extracted": len(all_rows),
@@ -217,7 +231,7 @@ class PNCPExtractor:
         """Close HTTP client."""
         self.client.close()
 
-    def __enter__(self) -> "PNCPExtractor":
+    def __enter__(self) -> PNCPExtractor:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:

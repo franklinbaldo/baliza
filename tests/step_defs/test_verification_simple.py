@@ -5,7 +5,7 @@ from pathlib import Path
 
 import duckdb
 import pytest
-from pytest_bdd import given, when, then, scenario, parsers
+from pytest_bdd import given, parsers, scenario, then, when
 from typer.testing import CliRunner
 
 from baliza.cli_simple import app
@@ -21,7 +21,7 @@ pytestmark = pytest.mark.tier1
 # =============================================================================
 
 
-@scenario('../features/verification.feature', 'Verify command detects gaps')
+@scenario("../features/verification.feature", "Verify command detects gaps")
 def test_verify_detects_gaps():
     pass
 
@@ -51,7 +51,8 @@ def partial_coverage(tmp_path: Path) -> Path:
 
         # Insert coverage for 2024-01-01 to 2024-01-04 (complete)
         for day in range(1, 5):
-            con.execute("""
+            con.execute(
+                """
                 INSERT INTO baliza_state.coverage VALUES (
                     'contratos',
                     ?,
@@ -61,16 +62,16 @@ def partial_coverage(tmp_path: Path) -> Path:
                     100,
                     NOW()
                 )
-            """, [
-                datetime(2024, 1, day),
-                datetime(2024, 1, day, 23, 59, 59)
-            ])
+            """,
+                [datetime(2024, 1, day), datetime(2024, 1, day, 23, 59, 59)],
+            )
 
         # GAP: 2024-01-05 to 2024-01-07 (missing)
 
         # Insert coverage for 2024-01-08 to 2024-01-10 (complete)
         for day in range(8, 11):
-            con.execute("""
+            con.execute(
+                """
                 INSERT INTO baliza_state.coverage VALUES (
                     'contratos',
                     ?,
@@ -80,10 +81,9 @@ def partial_coverage(tmp_path: Path) -> Path:
                     100,
                     NOW()
                 )
-            """, [
-                datetime(2024, 1, day),
-                datetime(2024, 1, day, 23, 59, 59)
-            ])
+            """,
+                [datetime(2024, 1, day), datetime(2024, 1, day, 23, 59, 59)],
+            )
 
     return db_path
 
@@ -94,7 +94,10 @@ def missing_dates():
     pass
 
 
-@when(parsers.parse('I run "baliza verify --resource {resource} --start {start} --end {end}"'), target_fixture="verify_result")
+@when(
+    parsers.parse('I run "baliza verify --resource {resource} --start {start} --end {end}"'),
+    target_fixture="verify_result",
+)
 def run_verify(partial_coverage, resource, start, end):
     """Run baliza verify command."""
     result = runner.invoke(
@@ -113,12 +116,15 @@ def run_verify(partial_coverage, resource, start, end):
     )
 
     if result.exit_code != 0:
-        print(f"\n=== VERIFY FAILED ===")
+        print("\n=== VERIFY FAILED ===")
         print(f"Exit code: {result.exit_code}")
         print(f"Output:\n{result.stdout}")
         if result.exception:
             import traceback
-            traceback.print_exception(type(result.exception), result.exception, result.exception.__traceback__)
+
+            traceback.print_exception(
+                type(result.exception), result.exception, result.exception.__traceback__
+            )
 
     return {"result": result, "db_path": partial_coverage}
 

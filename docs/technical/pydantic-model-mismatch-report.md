@@ -28,7 +28,7 @@ Our validation testing revealed significant mismatches between our current Pydan
 ### API Response Sample Fields (from validation test)
 ```
 - anoContrato: int
-- categoriaProcesso: dict  
+- categoriaProcesso: dict
 - codigoPaisFornecedor: str
 - dataAssinatura: str
 - dataAtualizacao: str
@@ -50,7 +50,7 @@ According to `docs/openapi/api-pncp-consulta.json`, the `contratos` endpoint ret
   "properties": {
     "valorAcumulado": {"type": "number"},
     "niFornecedorSubContratado": {"type": "string"},
-    "nomeFornecedorSubContratado": {"type": "string"}, 
+    "nomeFornecedorSubContratado": {"type": "string"},
     "tipoPessoaSubContratada": {"type": "string", "enum": ["PJ", "PF", "PE"]},
     "identificadorCipi": {"type": "string"},
     "urlCipi": {"type": "string"},
@@ -62,7 +62,7 @@ According to `docs/openapi/api-pncp-consulta.json`, the `contratos` endpoint ret
 
 **🎯 Root Cause**: API returns `null` values for numeric fields that OpenAPI spec defines as required numbers.
 
-## 🔍 Detailed Analysis: Contratacoes Publicacao Endpoint  
+## 🔍 Detailed Analysis: Contratacoes Publicacao Endpoint
 
 ### Current Issues
 - **situacaoCompraId**: Expected enum `["1", "2", "3", "4"]`, getting other values
@@ -100,7 +100,7 @@ from pydantic import BaseModel, Field, validator
 
 class RecuperarContratoDTO(BaseModel):
     """Updated model based on OpenAPI spec with flexible typing"""
-    
+
     # Core fields with flexible typing to handle API inconsistencies
     valorAcumulado: Optional[Union[str, float]] = None
     niFornecedorSubContratado: Optional[str] = None
@@ -108,7 +108,7 @@ class RecuperarContratoDTO(BaseModel):
     tipoPessoaSubContratada: Optional[str] = None  # Remove enum constraint
     identificadorCipi: Optional[str] = None
     urlCipi: Optional[str] = None
-    
+
     # Convert string numbers to float when possible
     @validator('valorAcumulado', pre=True)
     def parse_valor_acumulado(cls, v):
@@ -118,7 +118,7 @@ class RecuperarContratoDTO(BaseModel):
             except (ValueError, TypeError):
                 return None
         return v
-        
+
     class Config:
         extra = "allow"  # Allow additional fields from API
 ```
@@ -142,12 +142,12 @@ Based on our validation testing, these fields exist in API responses but not in 
 
 **Contratos Endpoint:**
 - `ni_fornecedor_sub_contratado` → `niFornecedorSubContratado` ✅ (in OpenAPI)
-- `nome_fornecedor_sub_contratado` → `nomeFornecedorSubContratado` ✅ (in OpenAPI)  
+- `nome_fornecedor_sub_contratado` → `nomeFornecedorSubContratado` ✅ (in OpenAPI)
 - `tipo_pessoa_sub_contratada` → `tipoPessoaSubContratada` ✅ (in OpenAPI)
 - `identificador_cipi` → `identificadorCipi` ✅ (in OpenAPI)
 - `url_cipi` → `urlCipi` ✅ (in OpenAPI)
 
-**Atas Endpoint:** 
+**Atas Endpoint:**
 - `data_cancelamento` → `dataCancelamento` ✅ (in OpenAPI)
 - `cnpj_orgao_subrogado` → `cnpjOrgaoSubrogado` ✅ (in OpenAPI)
 - `nome_orgao_subrogado` → `nomeOrgaoSubrogado` ✅ (in OpenAPI)
@@ -159,7 +159,7 @@ Based on our validation testing, these fields exist in API responses but not in 
 ### Step 1: Extract Schema Definitions
 The OpenAPI spec contains complete schema definitions for all response models:
 - `PaginaRetornoRecuperarContratoDTO`
-- `PaginaRetornoRecuperarCompraPublicacaoDTO`  
+- `PaginaRetornoRecuperarCompraPublicacaoDTO`
 - `PaginaRetornoAtaRegistroPrecoPeriodoDTO`
 - `PaginaRetornoConsultarInstrumentoCobrancaDTO`
 - `PaginaRetornoPlanoContratacaoComItensDoUsuarioDTO`

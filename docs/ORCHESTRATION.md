@@ -869,4 +869,3 @@ For `baliza-site` specific issues, use the baliza-site repository.
 | Version | Date | Changes |
 |---------|------|---------|
 | 0.4.0 | 2026-01-19 | Initial orchestration guide |
-

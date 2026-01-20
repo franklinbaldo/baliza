@@ -4,7 +4,7 @@ from pathlib import Path
 
 import duckdb
 import pytest
-from pytest_bdd import given, when, then, scenario, parsers
+from pytest_bdd import given, parsers, scenario, then, when
 from typer.testing import CliRunner
 
 from baliza.cli_simple import app
@@ -20,7 +20,7 @@ pytestmark = pytest.mark.tier0
 # =============================================================================
 
 
-@scenario('../features/export.feature', 'Export creates valid parquet')
+@scenario("../features/export.feature", "Export creates valid parquet")
 def test_export_creates_valid_parquet():
     pass
 
@@ -58,7 +58,10 @@ def db_with_data(tmp_path: Path, count: int) -> dict:
     return {"db_path": db_file, "output_dir": output_dir, "expected_count": count}
 
 
-@when(parsers.parse('I run "baliza export --table {table} --output {output}"'), target_fixture="export_result")
+@when(
+    parsers.parse('I run "baliza export --table {table} --output {output}"'),
+    target_fixture="export_result",
+)
 def run_export(db_with_data, table, output):
     """Run baliza export command."""
     db_path = db_with_data["db_path"]
@@ -82,12 +85,15 @@ def run_export(db_with_data, table, output):
     )
 
     if result.exit_code != 0:
-        print(f"\n=== EXPORT FAILED ===")
+        print("\n=== EXPORT FAILED ===")
         print(f"Exit code: {result.exit_code}")
         print(f"Output:\n{result.stdout}")
         if result.exception:
             import traceback
-            traceback.print_exception(type(result.exception), result.exception, result.exception.__traceback__)
+
+            traceback.print_exception(
+                type(result.exception), result.exception, result.exception.__traceback__
+            )
 
     return {
         "result": result,

@@ -8,8 +8,8 @@
 ## 🔍 Problema Identificado
 
 ```
-[WARNING] Destination does not support any merge strategies and `merge` write disposition 
-for table `contratacoes_publicacao` cannot be met and will fall back to `append`. 
+[WARNING] Destination does not support any merge strategies and `merge` write disposition
+for table `contratacoes_publicacao` cannot be met and will fall back to `append`.
 Change write disposition or try different table format which may offer `merge`: ['delta', 'iceberg'].
 ```
 
@@ -17,7 +17,7 @@ Change write disposition or try different table format which may offer `merge`: 
 
 ### Causa Raiz
 - **DLT está configurado com `write_disposition: "replace"`** no código
-- **Mas algumas tabelas ainda estão tentando usar `merge`** 
+- **Mas algumas tabelas ainda estão tentando usar `merge`**
 - **Destino atual (filesystem/parquet)** não suporta merge nativamente
 - **DLT está fazendo fallback para `append`** automaticamente
 
@@ -136,7 +136,7 @@ def deduplicate_table(table_name):
 
 **Alterações Implementadas:**
 1. **Schema Contract**: Configurado como `"evolve"` para máxima flexibilidade
-2. **Write Disposition**: Confirmado `"replace"` em todas as resources  
+2. **Write Disposition**: Confirmado `"replace"` em todas as resources
 3. **Pydantic Models**: Removidos para evitar validação estrita que causava erros NULL
 4. **Teste Realizado**: Extração de 1812 registros sem warnings de merge strategy
 
@@ -183,6 +183,6 @@ logging.info(f"Total resources: {len(resources)}")
 
 Esta abordagem garante:
 - ✅ **Resolução imediata** do problema
-- ✅ **Dados consistentes** e sem duplicados  
+- ✅ **Dados consistentes** e sem duplicados
 - ✅ **Base sólida** para evolução futura
 - ✅ **Mínima disrupção** no workflow atual

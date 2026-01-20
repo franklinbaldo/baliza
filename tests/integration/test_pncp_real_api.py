@@ -11,12 +11,10 @@ To re-record cassettes (e.g., after API changes):
 """
 
 import tempfile
-from datetime import date
 from pathlib import Path
 
 import duckdb
 import pytest
-
 from baliza.pipelines import pncp
 
 
@@ -49,9 +47,7 @@ def test_pncp_extract_real_api_single_day():
 
         # Query the database
         con = duckdb.connect(str(db_path))
-        result = con.execute(
-            "SELECT COUNT(*) as total FROM test_data.contratos"
-        ).fetchone()
+        result = con.execute("SELECT COUNT(*) as total FROM test_data.contratos").fetchone()
 
         total_rows = result[0]
         assert total_rows > 0, "Should have extracted at least one contract"
@@ -67,17 +63,23 @@ def test_pncp_extract_real_api_single_day():
         normalized_columns = [c.lower() for c in column_names]
 
         # 'numeroControlePNCP' -> 'numero_controle_pncp'
-        assert "numero_controle_pncp" in normalized_columns or "numerocontrolepncp" in normalized_columns
+        assert (
+            "numero_controle_pncp" in normalized_columns
+            or "numerocontrolepncp" in normalized_columns
+        )
         assert "valor_inicial" in normalized_columns or "valorinicial" in normalized_columns
 
         # Verify data format
         # Use normalized column name in query
-        col_name = "numero_controle_pncp" if "numero_controle_pncp" in normalized_columns else "numeroControlePNCP"
+        col_name = (
+            "numero_controle_pncp"
+            if "numero_controle_pncp" in normalized_columns
+            else "numeroControlePNCP"
+        )
         val_col_name = "valor_inicial" if "valor_inicial" in normalized_columns else "valorInicial"
 
         sample = con.execute(
-            f"SELECT {col_name}, {val_col_name} "
-            "FROM test_data.contratos LIMIT 1"
+            f"SELECT {col_name}, {val_col_name} FROM test_data.contratos LIMIT 1"
         ).fetchone()
 
         assert sample is not None
@@ -119,9 +121,7 @@ def test_pncp_extract_with_lookback():
         assert run_info is not None
 
         con = duckdb.connect(str(db_path))
-        result = con.execute(
-            "SELECT COUNT(*) as total FROM test_data.contratos"
-        ).fetchone()
+        result = con.execute("SELECT COUNT(*) as total FROM test_data.contratos").fetchone()
 
         # With lookback, should get data from multiple days
         assert result[0] > 0
@@ -153,9 +153,7 @@ def test_pncp_pagination():
         con = duckdb.connect(str(db_path))
 
         # Should have many records for a full month
-        total = con.execute(
-            "SELECT COUNT(*) FROM test_data.contratos"
-        ).fetchone()[0]
+        total = con.execute("SELECT COUNT(*) FROM test_data.contratos").fetchone()[0]
 
         assert total > 500, "Full month should have many contracts (pagination test)"
 
@@ -166,7 +164,11 @@ def test_pncp_pagination():
             "WHERE table_schema = 'test_data' AND table_name = 'contratos'"
         ).fetchall()
         column_names = [row[0].lower() for row in schema]
-        col_name = "numero_controle_pncp" if "numero_controle_pncp" in column_names else "numeroControlePNCP"
+        col_name = (
+            "numero_controle_pncp"
+            if "numero_controle_pncp" in column_names
+            else "numeroControlePNCP"
+        )
 
         unique_count = con.execute(
             f"SELECT COUNT(DISTINCT {col_name}) FROM test_data.contratos"
@@ -205,11 +207,11 @@ def test_pncp_api_error_handling():
 
         # May have 0 records if no data for that date
         # Check if table exists first
-        tables = con.execute("SELECT * FROM information_schema.tables WHERE table_schema='test_data' AND table_name='contratos'").fetchall()
+        tables = con.execute(
+            "SELECT * FROM information_schema.tables WHERE table_schema='test_data' AND table_name='contratos'"
+        ).fetchall()
         if tables:
-            result = con.execute(
-                "SELECT COUNT(*) FROM test_data.contratos"
-            ).fetchone()
+            result = con.execute("SELECT COUNT(*) FROM test_data.contratos").fetchone()
             assert result[0] >= 0
         else:
             # If table doesn't exist, count is effectively 0
@@ -240,8 +242,7 @@ def test_pncp_coverage_tracker():
 
         # Check if coverage tables exist
         tables = con.execute(
-            "SELECT table_name FROM information_schema.tables "
-            "WHERE table_schema = 'baliza_state'"
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = 'baliza_state'"
         ).fetchall()
 
         table_names = [row[0] for row in tables]
