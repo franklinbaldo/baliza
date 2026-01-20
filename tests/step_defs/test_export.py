@@ -7,7 +7,7 @@ import pytest
 from pytest_bdd import given, when, then, scenario, parsers
 from typer.testing import CliRunner
 
-from baliza.cli import app
+from baliza.cli_simple import app
 
 runner = CliRunner()
 
@@ -74,12 +74,20 @@ def run_export(db_with_data, table, output):
             table,
             "--dataset",
             "test_dataset",
-            "--out",
+            "--output",
             str(output_dir),
             "--date-col",
             "dataPublicacao",
         ],
     )
+
+    if result.exit_code != 0:
+        print(f"\n=== EXPORT FAILED ===")
+        print(f"Exit code: {result.exit_code}")
+        print(f"Output:\n{result.stdout}")
+        if result.exception:
+            import traceback
+            traceback.print_exception(type(result.exception), result.exception, result.exception.__traceback__)
 
     return {
         "result": result,

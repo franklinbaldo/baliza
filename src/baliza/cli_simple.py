@@ -28,7 +28,7 @@ def extract(
         "--end",
         help="End date (YYYY-MM-DD)",
     ),
-    duckdb: Path = typer.Option(
+    db_path: Path = typer.Option(
         Path("baliza.duckdb"),
         "--duckdb",
         "-d",
@@ -58,7 +58,7 @@ def extract(
         end_date = datetime.strptime(end, "%Y-%m-%d")
 
         # Extract data
-        with PNCPExtractor(duckdb, dataset) as extractor:
+        with PNCPExtractor(db_path, dataset) as extractor:
             result = extractor.extract(start_date, end_date, resource)
 
         console.print(f"\n[green]✓ Extraction complete!")
@@ -75,7 +75,7 @@ def extract(
 def export(
     table: str = typer.Option(..., "--table", help="Table name to export"),
     output: Path = typer.Option(..., "--output", "-o", help="Output directory"),
-    duckdb: Path = typer.Option(Path("baliza.duckdb"), "--duckdb", "-d", help="DuckDB file"),
+    db_path: Path = typer.Option(Path("baliza.duckdb"), "--duckdb", "-d", help="DuckDB file"),
     dataset: str = typer.Option("baliza_raw", "--dataset", "-s", help="Dataset name"),
     date_col: str = typer.Option("dataPublicacao", "--date-col", help="Date column for partitioning"),
 ) -> None:
@@ -85,7 +85,7 @@ def export(
     try:
         output.mkdir(parents=True, exist_ok=True)
 
-        with duckdb.connect(str(duckdb)) as con:
+        with duckdb.connect(str(db_path)) as con:
             # Simple export - dump everything to parquet
             parquet_file = output / f"{table}.parquet"
             con.execute(f"""
