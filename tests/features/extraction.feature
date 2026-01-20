@@ -13,4 +13,5 @@ Feature: Data Extraction
     Given I have previously extracted data for 2024-01-01
     When I run "baliza extract --start 2024-01-01 --end 2024-01-02"
     Then the database should not contain duplicate records
-    And the 2024-01-01 data should be updated, not duplicated
+    And the 2024-01-01 data should be preserved, not duplicated
+    And new 2024-01-02 data should be added

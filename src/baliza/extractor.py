@@ -192,13 +192,13 @@ class PNCPExtractor:
                         row.get("usuarioNome"),
                     ))
 
-                # Insert or replace (deduplication by primary key)
+                # Insert or ignore (append-only, deduplication by primary key)
                 con.executemany(f"""
-                    INSERT OR REPLACE INTO {self.dataset}.contratos
+                    INSERT OR IGNORE INTO {self.dataset}.contratos
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, values)
 
-                console.print(f"[green]✓ Inserted {len(all_rows)} rows into {self.dataset}.contratos")
+                console.print(f"[green]✓ Inserted {len(all_rows)} rows into {self.dataset}.contratos (duplicates ignored)")
 
             # Record coverage
             con.execute(f"""

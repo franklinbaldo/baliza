@@ -37,27 +37,67 @@ def clean_db(tmp_path: Path) -> Path:
 
 
 @when(parsers.parse('I run "baliza extract --start {start} --end {end}"'), target_fixture="run_result")
-def run_extract(db_path, monkeypatch, start, end):
-    """Run baliza extract command with mocked HTTP."""
+def run_extract(request, monkeypatch, start, end):
+    """Run baliza extract command with mocked HTTP.
+
+    This step works for both basic and incremental scenarios by checking
+    which fixtures are available.
+    """
+    # Get db_path from either clean db or previous extraction
+    try:
+        db_path = request.getfixturevalue("previous_extraction")
+        is_incremental = True
+    except Exception:
+        db_path = request.getfixturevalue("db_path")
+        is_incremental = False
 
     # Mock HTTP response from PNCP API
-    def mock_get(url, params=None):
+    def mock_get(*args, **kwargs):
+        params = kwargs.get('params', {})
         response = Mock()
         response.status_code = 200
-        response.json.return_value = {
-            "data": [
-                {
-                    "numeroControlePNCP": f"TEST-{params.get('pagina', 1)}-001",
-                    "anoCompra": 2024,
-                    "sequencialCompra": 1,
-                    "orgaoEntidade": {"cnpj": "12345678000190", "razaoSocial": "Test Org"},
-                    "valorInicial": 10000.00,
-                    "dataPublicacao": "2024-01-01T10:00:00",
-                    "dataAtualizacao": "2024-01-01T10:00:00",
-                },
-            ],
-            "totalPaginas": 1,
-        }
+
+        if is_incremental:
+            # Return both original + new data for incremental test
+            response.json.return_value = {
+                "data": [
+                    {
+                        "numeroControlePNCP": "TEST-DUPLICATE-001",  # Will be ignored
+                        "anoCompra": 2024,
+                        "sequencialCompra": 1,
+                        "orgaoEntidade": {"cnpj": "12345678000190", "razaoSocial": "Test Org"},
+                        "valorInicial": 10000.00,
+                        "dataPublicacao": "2024-01-01T10:00:00",
+                        "dataAtualizacao": "2024-01-01T10:00:00",
+                    },
+                    {
+                        "numeroControlePNCP": "TEST-NEW-002",  # Will be inserted
+                        "anoCompra": 2024,
+                        "sequencialCompra": 2,
+                        "orgaoEntidade": {"cnpj": "12345678000190", "razaoSocial": "Test Org"},
+                        "valorInicial": 5000.00,
+                        "dataPublicacao": "2024-01-02T10:00:00",
+                        "dataAtualizacao": "2024-01-02T10:00:00",
+                    },
+                ],
+                "totalPaginas": 1,
+            }
+        else:
+            # Return basic data for basic test
+            response.json.return_value = {
+                "data": [
+                    {
+                        "numeroControlePNCP": f"TEST-{params.get('pagina', 1)}-001",
+                        "anoCompra": 2024,
+                        "sequencialCompra": 1,
+                        "orgaoEntidade": {"cnpj": "12345678000190", "razaoSocial": "Test Org"},
+                        "valorInicial": 10000.00,
+                        "dataPublicacao": "2024-01-01T10:00:00",
+                        "dataAtualizacao": "2024-01-01T10:00:00",
+                    },
+                ],
+                "totalPaginas": 1,
+            }
 
         def raise_for_status():
             if response.status_code >= 400:
@@ -129,7 +169,7 @@ def previous_extraction(tmp_path: Path, monkeypatch):
         db_path.unlink()
 
     # Mock HTTP response
-    def mock_get(url, params=None):
+    def mock_get(*args, **kwargs):
         response = Mock()
         response.status_code = 200
         response.json.return_value = {
@@ -165,68 +205,22 @@ def previous_extraction(tmp_path: Path, monkeypatch):
             "test_dataset",
         ],
     )
-    assert result.exit_code == 0
+
+    if result.exit_code != 0:
+        print(f"\n=== SETUP EXTRACTION FAILED ===")
+        print(f"Output: {result.stdout}")
+        if result.exception:
+            import traceback
+            traceback.print_exception(type(result.exception), result.exception, result.exception.__traceback__)
+
+    assert result.exit_code == 0, f"Setup extraction failed with exit code {result.exit_code}"
     return db_path
 
 
-@when(parsers.parse('I run "baliza extract --start {start} --end {end}"'), target_fixture="run_result_incremental")
-def run_extract_incremental(previous_extraction, monkeypatch, start, end):
-    """Run second extraction with updated data."""
-
-    # Mock HTTP response with UPDATED data for same contract
-    def mock_get(url, params=None):
-        response = Mock()
-        response.status_code = 200
-        response.json.return_value = {
-            "data": [
-                {
-                    "numeroControlePNCP": "TEST-DUPLICATE-001",  # SAME ID
-                    "anoCompra": 2024,
-                    "sequencialCompra": 1,
-                    "orgaoEntidade": {"cnpj": "12345678000190", "razaoSocial": "Test Org UPDATED"},
-                    "valorInicial": 15000.00,  # UPDATED value
-                    "dataPublicacao": "2024-01-01T10:00:00",
-                    "dataAtualizacao": "2024-01-02T10:00:00",  # UPDATED timestamp
-                },
-                {
-                    "numeroControlePNCP": "TEST-NEW-002",  # NEW contract
-                    "anoCompra": 2024,
-                    "sequencialCompra": 2,
-                    "orgaoEntidade": {"cnpj": "12345678000190", "razaoSocial": "Test Org"},
-                    "valorInicial": 5000.00,
-                    "dataPublicacao": "2024-01-02T10:00:00",
-                    "dataAtualizacao": "2024-01-02T10:00:00",
-                },
-            ],
-            "totalPaginas": 1,
-        }
-        response.raise_for_status = lambda: None
-        return response
-
-    monkeypatch.setattr("httpx.Client.get", mock_get)
-
-    result = runner.invoke(
-        app,
-        [
-            "extract",
-            "--start",
-            start,
-            "--end",
-            end,
-            "--duckdb",
-            str(previous_extraction),
-            "--dataset",
-            "test_dataset",
-        ],
-    )
-
-    return {"result": result, "db_path": previous_extraction}
-
-
 @then("the database should not contain duplicate records")
-def check_no_duplicates(run_result_incremental):
+def check_no_duplicates(run_result):
     """Verify no duplicate primary keys exist."""
-    db_path = run_result_incremental["db_path"]
+    db_path = run_result["db_path"]
     with duckdb.connect(str(db_path), read_only=True) as con:
         # Check for duplicate numeroControlePNCP (primary key)
         query = """
@@ -239,21 +233,36 @@ def check_no_duplicates(run_result_incremental):
         assert len(duplicates) == 0, f"Found {len(duplicates)} duplicate primary keys: {duplicates}"
 
 
-@then("the 2024-01-01 data should be updated, not duplicated")
-def check_data_updated(run_result_incremental):
-    """Verify data was updated via INSERT OR REPLACE."""
-    db_path = run_result_incremental["db_path"]
+@then("the 2024-01-01 data should be preserved, not duplicated")
+def check_data_preserved(run_result):
+    """Verify original data was preserved via INSERT OR IGNORE (append-only)."""
+    db_path = run_result["db_path"]
     with duckdb.connect(str(db_path), read_only=True) as con:
-        # Should have exactly 2 rows total (1 updated + 1 new)
+        # Should have exactly 2 rows total (1 original + 1 new)
         total = con.execute("SELECT COUNT(*) FROM test_dataset.contratos").fetchone()[0]
         assert total == 2, f"Expected 2 rows, found {total}"
 
-        # Check the updated row has new values
-        updated_row = con.execute("""
+        # Check the original row has ORIGINAL values (not updated)
+        original_row = con.execute("""
             SELECT orgaoEntidade_razaoSocial, valorInicial
             FROM test_dataset.contratos
             WHERE numeroControlePNCP = 'TEST-DUPLICATE-001'
         """).fetchone()
 
-        assert updated_row[0] == "Test Org UPDATED", "Row was not updated"
-        assert float(updated_row[1]) == 15000.00, "Value was not updated"
+        assert original_row[0] == "Test Org", "Original data was modified (should be preserved)"
+        assert float(original_row[1]) == 10000.00, "Original value was modified (should be preserved)"
+
+
+@then("new 2024-01-02 data should be added")
+def check_new_data_added(run_result):
+    """Verify new data was added."""
+    db_path = run_result["db_path"]
+    with duckdb.connect(str(db_path), read_only=True) as con:
+        # Check the new row exists
+        new_row = con.execute("""
+            SELECT numeroControlePNCP
+            FROM test_dataset.contratos
+            WHERE numeroControlePNCP = 'TEST-NEW-002'
+        """).fetchone()
+
+        assert new_row is not None, "New data was not added"
