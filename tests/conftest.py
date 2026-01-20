@@ -26,7 +26,7 @@ def vcr_config():
     - decode_compressed_response: Handle gzip/deflate responses
     """
     return {
-        "record_mode": "once",
+        "record_mode": "new_episodes",  # Allow recording new interactions
         "match_on": ["uri", "method"],
         "filter_headers": [
             ("authorization", "REDACTED"),
