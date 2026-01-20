@@ -39,7 +39,9 @@ def db_with_data(tmp_path: Path, count: int) -> dict:
                 numeroControlePNCP VARCHAR,
                 dataPublicacao TIMESTAMP,
                 dataAtualizacao TIMESTAMP,
-                valorInicial DECIMAL(15,2)
+                valorInicial DECIMAL(15,2),
+                ano INTEGER,
+                mes INTEGER
             )
         """)
 
@@ -51,7 +53,9 @@ def db_with_data(tmp_path: Path, count: int) -> dict:
                     'CTRL-{i:06d}',
                     '2024-01-15T10:00:00',
                     '2024-01-15T10:00:00',
-                    {1000.00 + i}
+                    {1000.00 + i},
+                    2024,
+                    1
                 )
             """)
 

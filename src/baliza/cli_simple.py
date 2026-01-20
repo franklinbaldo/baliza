@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from __future__ import annotations
+
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Optional
 
 import duckdb
 import typer
@@ -17,15 +20,20 @@ console = Console()
 
 @app.command("extract")
 def extract(
-    start: str = typer.Option(
-        ...,
+    start: Optional[str] = typer.Option(
+        None,
         "--start",
-        help="Start date (YYYY-MM-DD)",
+        help="Start date (YYYY-MM-DD). Defaults to lookback period.",
     ),
-    end: str = typer.Option(
-        ...,
+    end: Optional[str] = typer.Option(
+        None,
         "--end",
-        help="End date (YYYY-MM-DD)",
+        help="End date (YYYY-MM-DD). Defaults to today.",
+    ),
+    lookback_days: int = typer.Option(
+        30,
+        "--lookback-days",
+        help="Number of days to look back for missing data if start/end are not provided.",
     ),
     db_path: Path = typer.Option(
         Path("baliza.duckdb"),
@@ -46,26 +54,27 @@ def extract(
         help="Resource to extract (contratos, etc.)",
     ),
 ) -> None:
-    """Extract data from PNCP API to DuckDB.
-
-    Simple extraction command without complex gap detection or resumability.
-    Just fetches data from start to end date and saves to DuckDB.
-    """
-    try:
-        # Parse dates
-        start_date = datetime.strptime(start, "%Y-%m-%d")
+    """Extract data from PNCP API to DuckDB using a stateful, resumable pipeline."""
+    # Determine date range
+    if end:
         end_date = datetime.strptime(end, "%Y-%m-%d")
+    else:
+        end_date = datetime.now()
 
-        # Extract data
-        with PNCPExtractor(db_path, dataset) as extractor:
-            result = extractor.extract(start_date, end_date, resource)
+    if start:
+        start_date = datetime.strptime(start, "%Y-%m-%d")
+    else:
+        start_date = end_date - timedelta(days=lookback_days)
 
-        console.print("\n[green]✓ Extraction complete!")
-        console.print(f"  Rows: {result['rows_extracted']}")
-        console.print(f"  Pages: {result['pages']}")
+    console.print(f"Analyzing coverage from {start_date.date()} to {end_date.date()}...")
 
-    except Exception as e:
-        console.print(f"[red]✗ Extraction failed: {e}")
+    with PNCPExtractor(db_path, dataset) as extractor:
+        result = extractor.run(start_date, end_date, resource)
+
+    if result["windows_failed"] > 0:
+        console.print(
+            f"\n[yellow]⚠ Extraction finished with {result['windows_failed']} failed window(s)."
+        )
         raise typer.Exit(1) from None
 
 
@@ -77,59 +86,37 @@ def verify(
     db_path: Path = typer.Option(Path("baliza.duckdb"), "--duckdb", "-d", help="DuckDB file"),
 ) -> None:
     """Verify data coverage and detect gaps."""
-    try:
-        start_date = datetime.strptime(start, "%Y-%m-%d")
-        end_date = datetime.strptime(end, "%Y-%m-%d")
+    start_date = datetime.strptime(start, "%Y-%m-%d")
+    end_date = datetime.strptime(end, "%Y-%m-%d")
 
-        with duckdb.connect(str(db_path), read_only=True) as con:
-            # Get coverage records
-            coverage = con.execute(
+    with duckdb.connect(str(db_path), read_only=True) as con:
+        # Get all completed windows
+        completed_dates = {
+            row[0].date()
+            for row in con.execute(
                 """
-                SELECT window_start, window_end, status
-                FROM baliza_state.coverage
-                WHERE resource = ?
-                AND window_start >= ?
-                AND window_end <= ?
-                ORDER BY window_start
-            """,
+                SELECT window_start FROM baliza_state.coverage
+                WHERE resource = ? AND status = 'completed' AND window_start >= ? AND window_start <= ?
+                """,
                 [resource, start_date, end_date],
             ).fetchall()
+        }
 
-            if not coverage:
-                console.print(f"[yellow]⚠ No coverage found for {resource} from {start} to {end}")
-                return
+    # Find missing dates
+    gaps = []
+    current_date = start_date
+    while current_date <= end_date:
+        if current_date.date() not in completed_dates:
+            gaps.append(current_date.date())
+        current_date += timedelta(days=1)
 
-            # Find gaps (with 1-day tolerance for adjacent windows)
-            gaps = []
-            current = start_date
-            one_day = timedelta(days=1)
-
-            for window_start, window_end, _status in coverage:
-                # Check if there's a significant gap (more than 1 day)
-                gap_duration = (window_start - current).total_seconds()
-                if gap_duration > one_day.total_seconds():
-                    gaps.append((current, window_start))
-                current = max(current, window_end)
-
-            # Check final gap
-            gap_duration = (end_date - current).total_seconds()
-            if gap_duration > one_day.total_seconds():
-                gaps.append((current, end_date))
-
-            # Display results
-            if gaps:
-                console.print(f"[yellow]⚠ Found {len(gaps)} gap(s):")
-                for gap_start, gap_end in gaps:
-                    # Show the first missing day to last missing day
-                    first_missing = (gap_start + one_day).date()
-                    last_missing = (gap_end - one_day).date()
-                    console.print(f"  • {first_missing} to {last_missing}")
-            else:
-                console.print(f"[green]✓ Complete coverage from {start} to {end}")
-
-    except Exception as e:
-        console.print(f"[red]✗ Verify failed: {e}")
-        raise typer.Exit(1) from None
+    # Display results
+    if gaps:
+        console.print(f"[yellow]⚠ Found {len(gaps)} gap(s) from {start} to {end}:")
+        for gap_date in gaps:
+            console.print(f"  • {gap_date}")
+    else:
+        console.print(f"[green]✓ Complete coverage from {start} to {end}")
 
 
 @app.command("export")
@@ -142,22 +129,17 @@ def export(
         "dataPublicacao", "--date-col", help="Date column for partitioning"
     ),
 ) -> None:
-    """Export DuckDB table to Parquet files."""
-    try:
-        output.mkdir(parents=True, exist_ok=True)
+    """Export DuckDB table to partitioned Parquet files."""
+    output.mkdir(parents=True, exist_ok=True)
 
-        with duckdb.connect(str(db_path)) as con:
-            # Simple export - dump everything to parquet
-            parquet_file = output / f"{table}.parquet"
-            con.execute(f"""
-                COPY {dataset}.{table} TO '{parquet_file}' (FORMAT PARQUET)
-            """)
+    with duckdb.connect(str(db_path)) as con:
+        con.execute(f"""
+            COPY (SELECT * FROM {dataset}.{table})
+            TO '{output}'
+            (FORMAT PARQUET, PARTITION_BY (ano, mes), OVERWRITE_OR_IGNORE)
+        """)
 
-        console.print(f"[green]✓ Exported {dataset}.{table} to {parquet_file}")
-
-    except Exception as e:
-        console.print(f"[red]✗ Export failed: {e}")
-        raise typer.Exit(1) from None
+    console.print(f"[green]✓ Exported {dataset}.{table} to {output}")
 
 
 if __name__ == "__main__":

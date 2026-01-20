@@ -13,22 +13,18 @@ pesquisadores e órgãos de controle.
 
 ## Visão geral
 
-- **Pipeline declarativo com [dlt](https://dlthub.com/):** a configuração YAML
-  em `src/baliza/config/pncp.yml` descreve como chamar o endpoint público
-  `GET /v1/contratos` do PNCP, paginando com `tamanhoPagina=500` e janelas de
-  `dataInicial`/`dataFinal` no formato `AAAAMMDD`.
-- **CLI enxuta:** o comando `baliza extract` executa o pipeline incremental e
-  `baliza backfill` permite processar janelas mensais de forma determinística.
-- **Fluxo bronze → parquet:** `baliza extract` mantém o histórico bruto no
-  DuckDB (`baliza.duckdb`) enquanto `baliza export` gera arquivos Parquet
-  particionados por ano/mês em `data/<recurso>/ano=YYYY/mes=MM/*.parquet`.
-- **Entrega analítica imediata:** os dados são gravados no arquivo
-  `baliza.duckdb` (dataset `baliza_raw`) com *merge* incremental baseado na
-  chave oficial `numeroControlePNCP` (string completa `CNPJ-2-sequencial/ano`).
-- **Manifesto de cobertura:** cada página coletada gera metadados com
-  `totalPaginas` reportado, hashes de `numeroControlePNCP` e status das janelas.
-  O comando `baliza verify` audita o manifesto chamando apenas a primeira página
-  de cada janela e marcando lacunas ou crescimento tardio informado pela API.
+- **Extração robusta e resumível:** `baliza extract` baixa dados do PNCP em
+  janelas diárias, registrando o estado de cada uma. Se o processo for
+  interrompido, ele recomeça de onde parou.
+- **CLI direta:** os comandos `extract`, `verify` e `export` oferecem uma
+  interface direta para interagir com os dados.
+- **Armazenamento local com DuckDB:** os dados brutos são armazenados em um
+  arquivo `baliza.duckdb`, permitindo análise imediata com SQL.
+- **Exportação para Parquet:** o comando `baliza export` converte os dados para
+  o formato Parquet, ideal para compartilhar e integrar com outras ferramentas
+  de análise.
+- **Verificação de cobertura:** `baliza verify` analisa o banco de dados local
+  para encontrar lacunas e garantir a integridade dos dados.
 - **Documentação de arquitetura:** os arquivos em `docs/` registram decisões e
   próximos passos para evolução do pipeline.
 
@@ -337,17 +333,11 @@ Veja [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) para detalhes completos.
 
 ```
 ├── src/baliza/
-│   ├── cli.py              # Interface de linha de comando
-│   ├── pipelines/pncp.py   # Execução do pipeline dlt
-│   ├── config/pncp.yml     # Configuração declarativa do endpoint
-│   ├── state/              # Rastreamento de cobertura
-│   └── utils/              # Funções auxiliares (datas, hashing, export)
-├── docs/                   # Guias de arquitetura e planos de evolução
-│   ├── ARCHITECTURE.md     # Separação entre CLI e site
-│   └── ROADMAP.md          # Roadmap do CLI
-├── tests/                  # Testes automatizados
-│   ├── unit/               # Testes unitários
-│   └── e2e/                # Testes end-to-end
+│   ├── cli_simple.py       # Interface de linha de comando
+│   └── extractor.py        # Lógica de extração e controle de estado
+├── tests/
+│   ├── features/           # Cenários de BDD (Gherkin)
+│   └── step_defs/          # Implementação dos cenários de teste
 └── pyproject.toml          # Metadados e dependências do projeto
 ```
 
