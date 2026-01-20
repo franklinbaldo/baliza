@@ -5,17 +5,13 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "baliza"
 version = "0.1.0"
-description = "Streamlined PNCP data extraction to Parquet using DLT pipeline."
+description = "Simple PNCP data extraction tool using httpx and DuckDB."
 authors = [{ name = "Franklin Baldo", email = "frank@franklinbaldo.com" }]
 requires-python = ">=3.11"
 
 dependencies = [
-    "dlt[duckdb]>=1.14.1",
     "typer>=0.9.0",
-    "pyyaml>=6.0",
     "httpx>=0.27.0",
-    "xxhash>=3.4.1",
-    "internetarchive>=4.1.0",
     "rich>=13.0.0",
     "duckdb>=1.4.3",
 ]
@@ -35,18 +31,12 @@ dev = [
     "mypy>=1.8.0",
     "pre-commit>=3.6.0"
 ]
-internet-archive = [
-    "internetarchive>=3.5.0"
-]
 
 [project.scripts]
-baliza = "baliza.cli:app"
+baliza = "baliza.cli_simple:app"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-
-[tool.setuptools.package-data]
-baliza = ["config/*.yml", "config/*.yaml"]
 
 # Ensure pytest discovers the local source package without requiring PYTHONPATH hacks
 [tool.pytest.ini_options]
