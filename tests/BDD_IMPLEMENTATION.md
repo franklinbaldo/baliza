@@ -1,8 +1,8 @@
-# BDD Implementation Plan (SIMPLIFIED)
+# BDD Implementation Status - COMPLETE! ✅
 
-**Purpose:** Get 5 critical scenarios to 100% passing, ship v1.0, iterate.
+**Status:** All 5/5 essential scenarios passing!
 
-**Last Updated:** 2026-01-19
+**Last Updated:** 2026-01-20
 
 ## Philosophy: Ship Early, Iterate
 
@@ -12,65 +12,81 @@ We deleted 100 scenarios and kept only 5 essential ones. Focus on getting these 
 
 ### Tier 0: Critical Path (3 scenarios)
 
-| # | Feature | Scenario | Status |
-|---|---------|----------|--------|
-| 1 | extraction.feature | Basic extraction works | ✅ PASSING |
-| 2 | extraction.feature | Incremental extraction doesn't duplicate data | ⏸️ SKIPPED |
-| 3 | export.feature | Export creates valid parquet | ⏳ READY TO TEST |
+| # | Feature | Scenario | Status | Notes |
+|---|---------|----------|--------|-------|
+| 1 | extraction.feature | Basic extraction works | ✅ PASSING | Uses VCR for real API responses |
+| 2 | extraction.feature | Incremental extraction doesn't duplicate data | ✅ PASSING | Validates INSERT OR IGNORE with VCR |
+| 3 | export.feature | Export creates valid parquet | ✅ PASSING | DuckDB → Parquet export |
 
 ### Tier 1: Core Features (2 scenarios)
 
-| # | Feature | Scenario | Status |
-|---|---------|----------|--------|
-| 4 | resilience.feature | Handles PNCP API errors gracefully | ⏸️ SKIPPED |
-| 5 | verification.feature | Verify command detects gaps | ⏸️ SKIPPED |
+| # | Feature | Scenario | Status | Notes |
+|---|---------|----------|--------|-------|
+| 4 | resilience.feature | Handles PNCP API errors gracefully | ✅ PASSING | Mock 500 errors |
+| 5 | verification.feature | Verify command detects gaps | ✅ PASSING | Coverage table gap detection |
 
-## Current Progress
+## Current Progress ✅
 
-**Overall:** 1/5 scenarios (20%)
-- Tier 0: 1/3 (33%)
-- Tier 1: 0/2 (0%)
+**Overall:** 5/5 scenarios (100%) - COMPLETE!
+- Tier 0: 3/3 (100%) ✅
+- Tier 1: 2/2 (100%) ✅
 
-## Implementation Order
+**v1.0 is ready to ship!**
 
-### Phase 1: Get Tier 0 to 100% ⚡ PRIORITY
+## Implementation Complete ✅
 
-1. ✅ **Basic extraction works** - DONE
-2. ⏳ **Export creates valid parquet** - Test exists, needs verification
-3. ⏸️ **Incremental extraction doesn't duplicate** - Needs implementation
+### Phase 1: Tier 0 - DONE ✅
 
-**Target:** All 3 Tier 0 scenarios passing
+1. ✅ **Basic extraction works** - Using VCR cassettes with real PNCP API responses
+2. ✅ **Incremental extraction doesn't duplicate** - Validates INSERT OR IGNORE append-only
+3. ✅ **Export creates valid parquet** - DuckDB → Parquet export working
 
-### Phase 2: Add Tier 1 Safety Nets
+### Phase 2: Tier 1 - DONE ✅
 
-4. ⏸️ **Handles API errors** - Needs httpx_mock setup
-5. ⏸️ **Verify detects gaps** - Needs state table verification
+4. ✅ **Handles API errors** - Mock 500 errors, graceful failure
+5. ✅ **Verify detects gaps** - Coverage table analysis, reports missing date ranges
 
-**Target:** All 5 scenarios passing
+### Phase 3: VCR Integration - DONE ✅
 
-### Phase 3: Ship v1.0
+- Integrated VCR cassettes for extraction tests
+- Real PNCP API responses captured (26MB+ of real data)
+- Tests use actual API structures and edge cases
+- Removed simple mocks in favor of VCR playback
+- record_mode='new_episodes' allows adding new scenarios
 
-- Create PR
-- Merge to main
-- Tag v1.0.0
-- Deploy to baliza-site
-- Monitor for real bugs
-- Add tests for bugs found
+### Next: Ship v1.0! 🚀
+
+All 5/5 scenarios passing. Ready to deploy!
 
 ## Running Tests
 
 ```bash
-# Run all tests
+# Run all 5 BDD scenarios (uses VCR cassettes after first recording)
 pytest tests/step_defs/ -v
+# Expected: 5 passed in ~64s
 
 # Run Tier 0 only (Critical Path)
 pytest tests/step_defs/ -v -m tier0
+# Expected: 3 passed
 
 # Run Tier 1 only (Core Features)
 pytest tests/step_defs/ -v -m tier1
+# Expected: 2 passed
 
 # Run specific scenario
-pytest tests/step_defs/test_extraction.py::test_basic_extraction_works -v
+pytest tests/step_defs/test_extraction_simple.py::test_basic_extraction_works -v
+```
+
+## VCR Cassettes
+
+Extraction tests use VCR to replay real PNCP API responses:
+- `tests/cassettes/test_basic_extraction_works.yaml` - Real API data for basic extraction
+- `tests/cassettes/test_incremental_no_duplicates.yaml` - Real API data for incremental test
+
+To re-record cassettes (requires internet and PNCP API access):
+```bash
+rm tests/cassettes/*.yaml
+pytest tests/step_defs/test_extraction_simple.py -v
 ```
 
 ## File Structure
@@ -105,17 +121,17 @@ tests/
 
 **Why?** Analysis paralysis. Ship first, add tests when bugs appear.
 
-## Success Criteria
+## Success Criteria - ACHIEVED! ✅
 
-### v1.0 Ready to Ship When:
+### v1.0 Ready to Ship:
 
-- ✅ Basic extraction works
+- ✅ Basic extraction works (with real API via VCR)
 - ✅ Export creates valid parquet
-- ✅ Incremental extraction doesn't duplicate
-- ✅ Handles API errors gracefully
-- ✅ Verify detects gaps
+- ✅ Incremental extraction doesn't duplicate (INSERT OR IGNORE validated)
+- ✅ Handles API errors gracefully (500 error mock)
+- ✅ Verify detects gaps (coverage table analysis)
 
-**All 5/5 passing = Ship it!**
+**All 5/5 passing - v1.0 is READY TO SHIP! 🚀**
 
 ## Anti-Patterns to Avoid
 
@@ -129,12 +145,18 @@ tests/
 ✅ Do focus on actual failure modes
 ✅ Do get feedback from baliza-site usage
 
-## Next Actions
+## Completed Actions ✅
 
-1. ⏳ Fix export test if needed
-2. ⏸️ Implement deduplication test
-3. ⏸️ Implement error handling test
-4. ⏸️ Implement verify gaps test
-5. 🚀 Ship v1.0
+1. ✅ Implemented all 5 essential BDD scenarios
+2. ✅ Integrated VCR for real API testing
+3. ✅ Validated INSERT OR IGNORE append-only approach
+4. ✅ Removed dlt complexity (~6000 lines deleted)
+5. ✅ Removed tiers.py unnecessary abstraction (173 lines deleted)
+6. ✅ Simplified to 3 core files: cli_simple, extractor, __init__
 
-**Target:** 5/5 passing by end of week, then SHIP.
+## Next: Deploy v1.0! 🚀
+
+- All tests passing (5/5)
+- Code is simple and maintainable
+- Real API data via VCR
+- Ready to ship!

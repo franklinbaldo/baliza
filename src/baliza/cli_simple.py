@@ -9,14 +9,12 @@ import typer
 from rich.console import Console
 
 from .extractor import PNCPExtractor
-from .tiers import tier0, tier1
 
 app = typer.Typer(help="Baliza - Simple PNCP extraction tool")
 console = Console()
 
 
 @app.command("extract")
-@tier0
 def extract(
     start: str = typer.Option(
         ...,
@@ -71,7 +69,6 @@ def extract(
 
 
 @app.command("verify")
-@tier1
 def verify(
     resource: str = typer.Option("contratos", "--resource", "-r", help="Resource to verify"),
     start: str = typer.Option(..., "--start", help="Start date (YYYY-MM-DD)"),
@@ -135,7 +132,6 @@ def verify(
 
 
 @app.command("export")
-@tier0
 def export(
     table: str = typer.Option(..., "--table", help="Table name to export"),
     output: Path = typer.Option(..., "--output", "-o", help="Output directory"),
