@@ -8,6 +8,7 @@ from pathlib import Path
 import duckdb
 import typer
 from rich.console import Console
+from rich.panel import Panel
 
 from .extractor import PNCPExtractor
 
@@ -96,7 +97,24 @@ def verify(
             ).fetchall()
 
             if not coverage:
-                console.print(f"[yellow]⚠ No coverage found for {resource} from {start} to {end}")
+                extract_cmd = f"baliza extract --start {start} --end {end} --resource {resource}"
+                if str(db_path) != "baliza.duckdb":
+                    extract_cmd += f" --duckdb {db_path}"
+
+                msg = (
+                    f"No extraction data found for [bold]{resource}[/bold] "
+                    f"between [bold]{start}[/bold] and [bold]{end}[/bold].\n\n"
+                    f"[white]To fix this, run:[/white]\n"
+                    f"[cyan]{extract_cmd}[/cyan]"
+                )
+                console.print(
+                    Panel(
+                        msg,
+                        title="[yellow]⚠ No Coverage Found[/yellow]",
+                        border_style="yellow",
+                        padding=(1, 2),
+                    )
+                )
                 return
 
             # Find gaps (with 1-day tolerance for adjacent windows)
