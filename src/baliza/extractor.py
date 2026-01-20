@@ -107,8 +107,8 @@ class PNCPExtractor:
             Dict with extraction results (rows_extracted, pages, etc.)
         """
         # Format dates for PNCP API (YYYYMMDD)
-        data_inicial = start_date.strftime("%Y%m%d")
-        data_final = end_date.strftime("%Y%m%d")
+        data_inicial = f"{start_date.year:04}{start_date.month:02}{start_date.day:02}"
+        data_final = f"{end_date.year:04}{end_date.month:02}{end_date.day:02}"
 
         all_rows = []
         page = 1
@@ -172,16 +172,18 @@ class PNCPExtractor:
                 # Prepare data for insertion
                 values = []
                 for row in all_rows:
+                    orgao = row.get("orgaoEntidade")
+                    unidade = row.get("unidadeOrgao")
                     values.append(
                         (
                             row.get("numeroControlePNCP"),
                             row.get("anoCompra"),
                             row.get("sequencialCompra"),
-                            row.get("orgaoEntidade", {}).get("cnpj"),
-                            row.get("orgaoEntidade", {}).get("razaoSocial"),
-                            row.get("orgaoEntidade", {}).get("poderId"),
-                            row.get("unidadeOrgao", {}).get("codigoUnidade"),
-                            row.get("unidadeOrgao", {}).get("nomeUnidade"),
+                            orgao.get("cnpj") if orgao else None,
+                            orgao.get("razaoSocial") if orgao else None,
+                            orgao.get("poderId") if orgao else None,
+                            unidade.get("codigoUnidade") if unidade else None,
+                            unidade.get("nomeUnidade") if unidade else None,
                             row.get("modalidadeId"),
                             row.get("modalidadeNome"),
                             row.get("valorInicial"),
