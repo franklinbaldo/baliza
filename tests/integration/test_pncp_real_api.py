@@ -11,11 +11,12 @@ To re-record cassettes (e.g., after API changes):
 """
 
 import tempfile
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import duckdb
 import pytest
-from baliza.pipelines import pncp
+from baliza.extractor import PNCPExtractor
 
 
 @pytest.mark.vcr()
@@ -34,16 +35,14 @@ def test_pncp_extract_real_api_single_day():
         db_path = Path(tmpdir) / "test.duckdb"
 
         # Extract data for a specific date
-        pipeline, run_info = pncp.run_pncp(
-            duckdb_path=db_path,
-            dataset="test_data",
-            lookback_days=0,
-            range_start="2024-10-01",
-            range_end="2024-10-01",
-        )
+        with PNCPExtractor(db_path=db_path, dataset="test_data") as extractor:
+            start_date = datetime.fromisoformat("2024-10-01")
+            end_date = datetime.fromisoformat("2024-10-01")
+            run_info = extractor.extract(start_date=start_date, end_date=end_date)
 
         # Verify pipeline executed
         assert run_info is not None
+        assert run_info["rows_extracted"] > 0
 
         # Query the database
         con = duckdb.connect(str(db_path))
@@ -59,27 +58,13 @@ def test_pncp_extract_real_api_single_day():
         ).fetchall()
 
         column_names = [row[0] for row in schema]
-        # dlt normalizes column names to snake_case
-        normalized_columns = [c.lower() for c in column_names]
-
-        # 'numeroControlePNCP' -> 'numero_controle_pncp'
-        assert (
-            "numero_controle_pncp" in normalized_columns
-            or "numerocontrolepncp" in normalized_columns
-        )
-        assert "valor_inicial" in normalized_columns or "valorinicial" in normalized_columns
+        # The new extractor does not normalize column names to snake_case
+        assert "numeroControlePNCP" in column_names
+        assert "valorInicial" in column_names
 
         # Verify data format
-        # Use normalized column name in query
-        col_name = (
-            "numero_controle_pncp"
-            if "numero_controle_pncp" in normalized_columns
-            else "numeroControlePNCP"
-        )
-        val_col_name = "valor_inicial" if "valor_inicial" in normalized_columns else "valorInicial"
-
         sample = con.execute(
-            f"SELECT {col_name}, {val_col_name} FROM test_data.contratos LIMIT 1"
+            "SELECT numeroControlePNCP, valorInicial FROM test_data.contratos LIMIT 1"
         ).fetchone()
 
         assert sample is not None
@@ -92,7 +77,7 @@ def test_pncp_extract_real_api_single_day():
         assert "/" in numero_controle
 
         # Valor should be numeric
-        assert isinstance(valor, (int, float))
+        assert isinstance(valor, (float, int))
         assert valor >= 0
 
         con.close()
@@ -110,13 +95,10 @@ def test_pncp_extract_with_lookback():
         db_path = Path(tmpdir) / "test_lookback.duckdb"
 
         # Extract with 3 days lookback from Oct 5, 2024
-        pipeline, run_info = pncp.run_pncp(
-            duckdb_path=db_path,
-            dataset="test_data",
-            lookback_days=3,
-            range_start="2024-10-05",
-            range_end="2024-10-05",
-        )
+        with PNCPExtractor(db_path=db_path, dataset="test_data") as extractor:
+            end_date = datetime.fromisoformat("2024-10-05")
+            start_date = end_date - timedelta(days=3)  # Simulate lookback
+            run_info = extractor.extract(start_date=start_date, end_date=end_date)
 
         assert run_info is not None
 
@@ -140,13 +122,10 @@ def test_pncp_pagination():
         db_path = Path(tmpdir) / "test_pagination.duckdb"
 
         # Extract full month (will have multiple pages)
-        pipeline, run_info = pncp.run_pncp(
-            duckdb_path=db_path,
-            dataset="test_data",
-            lookback_days=0,
-            range_start="2024-09-01",
-            range_end="2024-09-30",
-        )
+        with PNCPExtractor(db_path=db_path, dataset="test_data") as extractor:
+            start_date = datetime.fromisoformat("2024-09-01")
+            end_date = datetime.fromisoformat("2024-09-30")
+            run_info = extractor.extract(start_date=start_date, end_date=end_date)
 
         assert run_info is not None
 
@@ -158,20 +137,8 @@ def test_pncp_pagination():
         assert total > 500, "Full month should have many contracts (pagination test)"
 
         # Verify unique numeroControlePNCP (merge should work)
-        # Use normalized column name
-        schema = con.execute(
-            "SELECT column_name FROM information_schema.columns "
-            "WHERE table_schema = 'test_data' AND table_name = 'contratos'"
-        ).fetchall()
-        column_names = [row[0].lower() for row in schema]
-        col_name = (
-            "numero_controle_pncp"
-            if "numero_controle_pncp" in column_names
-            else "numeroControlePNCP"
-        )
-
         unique_count = con.execute(
-            f"SELECT COUNT(DISTINCT {col_name}) FROM test_data.contratos"
+            "SELECT COUNT(DISTINCT numeroControlePNCP) FROM test_data.contratos"
         ).fetchone()[0]
 
         assert unique_count == total, "All numeroControlePNCP should be unique"
@@ -192,13 +159,10 @@ def test_pncp_api_error_handling():
 
         # Try to extract from far future (should handle gracefully)
         # PNCP API returns 204 No Content for dates with no data
-        pipeline, run_info = pncp.run_pncp(
-            duckdb_path=db_path,
-            dataset="test_data",
-            lookback_days=0,
-            range_start="2030-01-01",
-            range_end="2030-01-01",
-        )
+        with PNCPExtractor(db_path=db_path, dataset="test_data") as extractor:
+            start_date = datetime.fromisoformat("2030-01-01")
+            end_date = datetime.fromisoformat("2030-01-01")
+            run_info = extractor.extract(start_date=start_date, end_date=end_date)
 
         # Should complete without error
         assert run_info is not None
@@ -228,13 +192,10 @@ def test_pncp_coverage_tracker():
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "test_coverage.duckdb"
 
-        pipeline, run_info = pncp.run_pncp(
-            duckdb_path=db_path,
-            dataset="test_data",
-            lookback_days=0,
-            range_start="2024-10-15",
-            range_end="2024-10-15",
-        )
+        with PNCPExtractor(db_path=db_path, dataset="test_data") as extractor:
+            start_date = datetime.fromisoformat("2024-10-15")
+            end_date = datetime.fromisoformat("2024-10-15")
+            run_info = extractor.extract(start_date=start_date, end_date=end_date)
 
         assert run_info is not None
 
@@ -248,6 +209,6 @@ def test_pncp_coverage_tracker():
         table_names = [row[0] for row in tables]
 
         # Coverage tracking tables should exist
-        assert "cobertura" in table_names or "janelas" in table_names
+        assert "coverage" in table_names
 
         con.close()

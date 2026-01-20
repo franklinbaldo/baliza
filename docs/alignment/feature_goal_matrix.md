@@ -1,140 +1,40 @@
-# Feature-Goal Alignment Matrix
+# Feature-Goal Alignment Matrix (Re-baselined)
 
-This document tracks the alignment of BDD features with the project's primary goals and MASTERPLAN epics.
+This document has been regenerated based on an analysis of the existing `.feature` files in the repository. It supersedes the previous, inaccurate version.
 
-## Summary Statistics
+## Summary
+
+The current BDD tests cover a minimal, functional core for the Baliza CLI but lack the advanced features described in previous documentation. The foundation is solid, but features for resumability, state management, and historical backfill are missing.
 
 | Metric | Count |
 |--------|-------|
-| Total Feature Files | 7 |
-| Total Scenarios | 105 |
-| Coverage | Comprehensive |
-| Last Updated | 2026-01-19 |
+| Total Feature Files | 4 |
+| Total Scenarios | 5 |
+| Last Updated | 2026-01-20 |
 
 ## Feature-Goal Mapping
 
-| Feature File | Scenarios | Primary Goal | MASTERPLAN Epic | Status | Notes |
-|-------------|-----------|--------------|-----------------|--------|-------|
-| `extraction.feature` | 10 | Reliable Data Extraction | Epic 1: Resumable Extraction | ✅ Enhanced | Covers incremental extraction, pagination, security, deduplication |
-| `state_management.feature` | 14 | Resumability & Coverage Tracking | Epic 1: Resumable Extraction | ✅ Enhanced | Gap detection, window merging, state persistence, observability |
-| `backfill.feature` | 14 | Deterministic Historical Processing | Epic 1: Resumable Extraction | ✅ New | Monthly backfill, idempotence, separate pipeline |
-| `verification.feature` | 14 | Data Quality Monitoring | Epic 4: Data Quality | ✅ Enhanced | Coverage audit, gap reasons, integrity checks, statistics |
-| `data_quality.feature` | 20 | Data Integrity & Validation | Epic 4: Data Quality | ✅ New | Schema validation, uniqueness, encoding, quality reports |
-| `export.feature` | 13 | Data Accessibility | Epic 3: Data Publishing | ✅ Enhanced | Parquet export, partitioning, IA upload, filtering |
-| `resilience.feature` | 20 | Pipeline Reliability | Epic 1: Resumable Extraction | ✅ New | Error handling, retries, network failures, graceful shutdown |
+| Feature File | Scenarios | Primary Goal | Status | Notes |
+|---|---|---|---|---|
+| `extraction.feature` | 2 | Reliable Data Extraction | ⚠️ **Partial** | Covers basic daily extraction. Lacks state management, resumability, and error recovery. |
+| `export.feature` | 1 | Data Accessibility | ⚠️ **Partial** | Covers basic Parquet export. Lacks partitioning, filtering, and automation. |
+| `resilience.feature`| 1 | Reliable Data Extraction | ⚠️ **Partial** | Covers basic API error handling for a single request. Lacks retry logic or complex failure modes. |
+| `verification.feature`| 1 | Data Preservation | ⚠️ **Partial** | Covers simple gap detection. Lacks automated reporting or integration with state management. |
 
-## Goal Coverage Analysis
+## Gap Analysis & Next Steps
 
-### Goal 1: Reliable Data Extraction ✅
-**Features:** `extraction.feature`, `state_management.feature`, `backfill.feature`, `resilience.feature`
-**Scenarios:** 58 total
-**Coverage:** Comprehensive - covers incremental extraction, resumability, backfill, error handling, retries
+The most significant finding is the absence of features that were previously documented as complete. The following features do **not** currently exist and should be prioritized for implementation:
 
-### Goal 2: Data Preservation ✅
-**Features:** `backfill.feature`, `export.feature`, `data_quality.feature`
-**Scenarios:** 47 total
-**Coverage:** Comprehensive - covers historical consolidation, archival format, Internet Archive publishing
+1.  **State Management (`state_management.feature`):**
+    *   **Description:** The ability to track which date ranges have been successfully extracted to prevent redundant work and data duplication. This is critical for a reliable, resumable pipeline.
+    *   **Priority:** High. This is the top priority for closing the gap between documentation and reality.
 
-### Goal 3: Data Quality Monitoring ✅
-**Features:** `verification.feature`, `data_quality.feature`
-**Scenarios:** 34 total
-**Coverage:** Comprehensive - covers gap detection, integrity checks, validation, quality reports
+2.  **Backfill (`backfill.feature`):**
+    *   **Description:** A dedicated workflow for efficiently extracting large amounts of historical data (e.g., entire months or years).
+    *   **Priority:** Medium. Essential for achieving the goal of data preservation.
 
-### Goal 4: Data Accessibility ✅
-**Features:** `export.feature`
-**Scenarios:** 13 total
-**Coverage:** Comprehensive - covers Parquet export, partitioning, filtering, Internet Archive
+3.  **Data Quality (`data_quality.feature`):**
+    *   **Description:** Scenarios for validating the schema, integrity, and correctness of the extracted data beyond simple gap detection.
+    *   **Priority:** Medium. Important for ensuring the data is trustworthy for analysis.
 
-### Goal 5: Excellent Operator Experience ✅
-**Features:** `state_management.feature`, `verification.feature`, `resilience.feature`
-**Scenarios:** 48 total (overlaps with above)
-**Coverage:** Comprehensive - covers CLI observability, error messages, progress tracking, state commands
-
-## Epic Coverage Analysis
-
-### Epic 1: Resumable Extraction Pipeline ✅ ~95% Complete
-**Features:** `extraction.feature`, `state_management.feature`, `backfill.feature`, `resilience.feature`
-- ✅ StateManager for persistent run tracking (14 scenarios)
-- ✅ GapDetector for missing/incomplete data (7 scenarios)
-- ✅ Integration with extract command (10 scenarios)
-- ✅ State CLI commands (show, gaps, history) (6 scenarios)
-- ✅ Error handling and retries (20 scenarios)
-- ✅ Backfill for historical data (14 scenarios)
-
-### Epic 2: Automated Data Publishing 🚧 Not Started
-**Features:** None yet (requires GitHub Actions implementation)
-**Planned:**
-- Daily incremental extraction workflow
-- Automated Parquet export
-- GitHub Release creation
-- Release manifest generation
-
-### Epic 3: Data Export & Publishing ✅ 80% Complete
-**Features:** `export.feature`
-- ✅ Parquet export with partitioning (13 scenarios)
-- ✅ Internet Archive upload support
-- ✅ Date filtering and compression
-- ⏳ Automated publishing pipeline (Epic 2 dependency)
-
-### Epic 4: Data Quality & Verification ✅ 90% Complete
-**Features:** `verification.feature`, `data_quality.feature`
-- ✅ Coverage verification (14 scenarios)
-- ✅ Data validation (20 scenarios)
-- ✅ Gap detection and reporting
-- ✅ Integrity checks with hashes
-- ⏳ Public data coverage report (requires Epic 2)
-
-## Scenario Breakdown by Type
-
-| Scenario Type | Count | Examples |
-|--------------|-------|----------|
-| Happy Path | 25 | Basic extraction, export, verification |
-| Error Handling | 20 | Network errors, timeouts, malformed data |
-| Data Quality | 20 | Validation, uniqueness, encoding |
-| State Management | 14 | Gap detection, window merging, persistence |
-| Backfill | 14 | Historical processing, idempotence |
-| Observability | 12 | CLI output, progress, state commands |
-
-## Commands Covered
-
-| Command | Feature Files | Scenario Count | Coverage |
-|---------|--------------|----------------|----------|
-| `baliza extract` | extraction, state_management, resilience | 34 | ✅ Comprehensive |
-| `baliza backfill` | backfill | 14 | ✅ Comprehensive |
-| `baliza export` | export | 13 | ✅ Comprehensive |
-| `baliza verify` | verification | 14 | ✅ Comprehensive |
-| `baliza state show` | state_management | 3 | ✅ Comprehensive |
-| `baliza state gaps` | state_management | 2 | ✅ Comprehensive |
-| `baliza state history` | state_management | 2 | ✅ Comprehensive |
-
-## Gap Analysis
-
-### Missing Coverage
-1. **Multi-endpoint support** - Only contratos endpoint is covered; compras and licitacoes need features
-2. **Configuration testing** - No explicit configuration.feature for testing different settings
-3. **Performance benchmarks** - No performance.feature for SLA validation
-4. **Observability details** - No explicit observability.feature for logging/metrics testing
-5. **CI/CD integration** - No features for automated pipeline (part of Epic 2)
-
-### Next Steps
-1. ✅ Phase 1 Complete: Enhanced core features (extraction, state, export, verification)
-2. ✅ Phase 2 Complete: Added missing features (backfill, resilience, data_quality)
-3. 🚧 Phase 3 (Epic 2): Implement automated publishing workflow
-4. ⏳ Phase 4: Add multi-endpoint support (compras, licitacoes)
-5. ⏳ Phase 5: Add configuration and observability features
-
-## Quality Metrics
-
-| Metric | Value | Target | Status |
-|--------|-------|--------|--------|
-| Feature Files | 7 | 7-10 | ✅ On track |
-| Total Scenarios | 105 | 80-120 | ✅ Excellent |
-| Commands Covered | 7/7 | 100% | ✅ Complete |
-| Goals Covered | 5/5 | 100% | ✅ Complete |
-| Epics Covered | 3/4 | 75% | ✅ Good (Epic 2 pending) |
-| Error Scenarios | 20 | 15-25 | ✅ Comprehensive |
-| Happy Path Scenarios | 25 | 20-30 | ✅ Good |
-
-## Confidence Level
-
-**High** - The BDD feature set now comprehensively describes the Baliza project and provides clear guidance for development. All existing commands are covered with both happy path and error scenarios. The features align well with project goals and MASTERPLAN epics.
+**Recommendation:** The next development cycle should focus entirely on implementing a `state_management.feature` to create a truly resumable extraction pipeline.
