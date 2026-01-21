@@ -1,9 +1,7 @@
-
-import pytest
 import duckdb
 from typer.testing import CliRunner
+
 from baliza.cli_simple import app
-from pathlib import Path
 
 runner = CliRunner()
 
@@ -41,7 +39,3 @@ def test_export_sqli_vulnerability(tmp_path):
     # The fix should result in either success (if dir existed) or IO Error (file/dir not found),
     # but NEVER a Parser Error.
     assert "Parser Error" not in result.stdout, "SQL Injection detected: Parser Error found in output"
-
-    # We expect the command to fail because the directory doesn't exist or is invalid on disk,
-    # but it should NOT be a syntax error.
-    # Currently, before fix, it might be crashing with Parser Error.

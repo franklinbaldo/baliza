@@ -172,10 +172,8 @@ def export(
         with duckdb.connect(str(db_path)) as con:
             # Simple export - dump everything to parquet
             parquet_file = output / f"{table}.parquet"
-            # Use parameterized query to prevent SQL injection in file path
-            con.execute(f"""
-                COPY {dataset}.{table} TO ? (FORMAT PARQUET)
-            """, [str(parquet_file)])
+            # Use Relation API to safely export to Parquet (prevents SQL injection)
+            con.table(f"{dataset}.{table}").to_parquet(str(parquet_file))
 
         console.print(f"[green]✓ Exported {dataset}.{table} to {parquet_file}")
 
