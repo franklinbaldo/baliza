@@ -101,16 +101,20 @@ class HttpxMock:
         status_code: int = 200,
     ) -> None:
         payload = json if json is not None else {}
+        matcher: Matcher
         if url is None:
 
             def matcher(target: str) -> bool:
                 return True
+
         elif isinstance(url, re.Pattern):
             matcher = url.match
         else:
+            # We need to bind the expected value to the closure
+            expected_url = url
 
-            def matcher(target: str, *, expected: str = url) -> bool:
-                return target == expected
+            def matcher(target: str) -> bool:
+                return target == expected_url
 
         self._entries.append((matcher, _MockResponse(status_code=status_code, _json_data=payload)))
 
