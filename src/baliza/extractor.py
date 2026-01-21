@@ -5,9 +5,10 @@ Replaces the dlt pipeline with straightforward httpx + DuckDB code.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 import duckdb
 import httpx
@@ -19,10 +20,18 @@ from .utils import validate_identifier
 console = Console()
 
 
+class ResourceConfig(TypedDict):
+    """Configuration for a PNCP resource."""
+
+    schema: str
+    columns: list[str]
+    value_extractor: Callable[[dict[str, Any]], tuple[Any, ...]]
+
+
 class PNCPExtractor:
     """Simple extractor for PNCP API data."""
 
-    RESOURCE_CONFIG = {
+    RESOURCE_CONFIG: dict[str, ResourceConfig] = {
         "contratos": {
             "schema": """
                 CREATE TABLE IF NOT EXISTS {table_path} (
@@ -50,13 +59,27 @@ class PNCPExtractor:
                 )
             """,
             "columns": [
-                "numeroControlePNCP", "anoCompra", "sequencialCompra",
-                "orgaoEntidade_cnpj", "orgaoEntidade_razaoSocial", "orgaoEntidade_poderId",
-                "unidadeOrgao_codigoUnidade", "unidadeOrgao_nomeUnidade",
-                "modalidadeId", "modalidadeNome", "valorInicial", "dataPublicacao",
-                "dataVigenciaInicio", "dataVigenciaFim", "objetoContrato",
-                "informacaoComplementar", "numeroProcesso", "linkSistemaOrigem",
-                "dataInclusao", "dataAtualizacao", "usuarioNome"
+                "numeroControlePNCP",
+                "anoCompra",
+                "sequencialCompra",
+                "orgaoEntidade_cnpj",
+                "orgaoEntidade_razaoSocial",
+                "orgaoEntidade_poderId",
+                "unidadeOrgao_codigoUnidade",
+                "unidadeOrgao_nomeUnidade",
+                "modalidadeId",
+                "modalidadeNome",
+                "valorInicial",
+                "dataPublicacao",
+                "dataVigenciaInicio",
+                "dataVigenciaFim",
+                "objetoContrato",
+                "informacaoComplementar",
+                "numeroProcesso",
+                "linkSistemaOrigem",
+                "dataInclusao",
+                "dataAtualizacao",
+                "usuarioNome",
             ],
             "value_extractor": lambda row: (
                 row.get("numeroControlePNCP"),
@@ -80,7 +103,7 @@ class PNCPExtractor:
                 row.get("dataInclusao"),
                 row.get("dataAtualizacao"),
                 row.get("usuarioNome"),
-            )
+            ),
         },
         "contratacoes": {
             "schema": """
@@ -104,11 +127,22 @@ class PNCPExtractor:
                 )
             """,
             "columns": [
-                "numeroControlePNCP", "anoCompra", "sequencialCompra", "objetoCompra",
-                "valorTotalEstimado", "dataPublicacaoPncp", "orgaoEntidade_cnpj",
-                "orgaoEntidade_razaoSocial", "unidadeOrgao_codigoUnidade",
-                "unidadeOrgao_nomeUnidade", "modalidadeId", "modalidadeNome",
-                "modoDisputaId", "modoDisputaNome", "dataInclusao", "dataAtualizacao"
+                "numeroControlePNCP",
+                "anoCompra",
+                "sequencialCompra",
+                "objetoCompra",
+                "valorTotalEstimado",
+                "dataPublicacaoPncp",
+                "orgaoEntidade_cnpj",
+                "orgaoEntidade_razaoSocial",
+                "unidadeOrgao_codigoUnidade",
+                "unidadeOrgao_nomeUnidade",
+                "modalidadeId",
+                "modalidadeNome",
+                "modoDisputaId",
+                "modoDisputaNome",
+                "dataInclusao",
+                "dataAtualizacao",
             ],
             "value_extractor": lambda row: (
                 row.get("numeroControlePNCP"),
@@ -127,8 +161,8 @@ class PNCPExtractor:
                 row.get("modoDisputaNome"),
                 row.get("dataInclusao"),
                 row.get("dataAtualizacao"),
-            )
-        }
+            ),
+        },
     }
 
     def __init__(
@@ -271,8 +305,8 @@ class PNCPExtractor:
                 values = [config["value_extractor"](row) for row in all_rows]
 
                 table_path = f"{self.dataset}.{resource}"
-                columns = ", ".join(config['columns'])
-                placeholders = ", ".join(["?"] * len(config['columns']))
+                columns = ", ".join(config["columns"])
+                placeholders = ", ".join(["?"] * len(config["columns"]))
 
                 con.executemany(
                     f"""

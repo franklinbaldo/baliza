@@ -1,16 +1,17 @@
-
-from pytest_bdd import scenarios, given, when, then, parsers
-from typer.testing import CliRunner
-from baliza.cli_simple import app
 import duckdb
 import pytest
-from pathlib import Path
+from pytest_bdd import given, parsers, scenarios, then, when
+from typer.testing import CliRunner
 
-scenarios('../features/contratacoes.feature')
+from baliza.cli_simple import app
+
+scenarios("../features/contratacoes.feature")
+
 
 @pytest.fixture
 def runner():
     return CliRunner()
+
 
 @pytest.fixture
 def db_path(tmp_path):
@@ -19,10 +20,12 @@ def db_path(tmp_path):
         db.unlink()
     return db
 
+
 @given("a clean database")
 def a_clean_database(db_path):
     # The db_path fixture already handles this
     pass
+
 
 @given('a mock PNCP API for "contratacoes"')
 def mock_pncp_api_contratacoes(httpx_mock):
@@ -45,11 +48,24 @@ def mock_pncp_api_contratacoes(httpx_mock):
         status_code=200,
     )
 
-@when(parsers.parse('I run the extract command for "{resource}" from "{start_date}" to "{end_date}"'))
+
+@when(
+    parsers.parse('I run the extract command for "{resource}" from "{start_date}" to "{end_date}"')
+)
 def run_extract_command(runner, db_path, resource, start_date, end_date):
     result = runner.invoke(
         app,
-        ["extract", "--start", start_date, "--end", end_date, "--resource", resource, "--duckdb", str(db_path)],
+        [
+            "extract",
+            "--start",
+            start_date,
+            "--end",
+            end_date,
+            "--resource",
+            resource,
+            "--duckdb",
+            str(db_path),
+        ],
     )
     assert result.exit_code == 0
 
