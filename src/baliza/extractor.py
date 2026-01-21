@@ -133,7 +133,7 @@ class PNCPExtractor:
             while True:
                 # Call PNCP API
                 url = f"{self.base_url}/{resource}"
-                params = {
+                params: dict[str, str | int] = {
                     "dataInicial": data_inicial,
                     "dataFinal": data_final,
                     "pagina": page,
