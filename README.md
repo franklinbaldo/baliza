@@ -13,32 +13,29 @@ pesquisadores e órgãos de controle.
 
 ## Visão geral
 
-- **Pipeline declarativo com [dlt](https://dlthub.com/):** a configuração YAML
-  em `src/baliza/config/pncp.yml` descreve como chamar o endpoint público
-  `GET /v1/contratos` do PNCP, paginando com `tamanhoPagina=500` e janelas de
-  `dataInicial`/`dataFinal` no formato `AAAAMMDD`.
-- **CLI enxuta:** o comando `baliza extract` executa o pipeline incremental e
-  `baliza backfill` permite processar janelas mensais de forma determinística.
-- **Fluxo bronze → parquet:** `baliza extract` mantém o histórico bruto no
-  DuckDB (`baliza.duckdb`) enquanto `baliza export` gera arquivos Parquet
-  particionados por ano/mês em `data/<recurso>/ano=YYYY/mes=MM/*.parquet`.
-- **Entrega analítica imediata:** os dados são gravados no arquivo
-  `baliza.duckdb` (dataset `baliza_raw`) com *merge* incremental baseado na
-  chave oficial `numeroControlePNCP` (string completa `CNPJ-2-sequencial/ano`).
-- **Manifesto de cobertura:** cada página coletada gera metadados com
-  `totalPaginas` reportado, hashes de `numeroControlePNCP` e status das janelas.
-  O comando `baliza verify` audita o manifesto chamando apenas a primeira página
-  de cada janela e marcando lacunas ou crescimento tardio informado pela API.
-- **Documentação de arquitetura:** os arquivos em `docs/` registram decisões e
-  próximos passos para evolução do pipeline.
+- **Pipeline Resumível e Robusto:** O Baliza utiliza uma arquitetura customizada
+  com `httpx` e DuckDB para garantir extrações de dados resilientes. A lógica
+  principal fica na classe `PNCPExtractor` em `src/baliza/extractor.py`.
+- **Estado no DuckDB:** Todas as operações são rastreadas em um schema
+  `baliza_state` dentro do arquivo DuckDB, permitindo que o pipeline pare e
+  continue de onde parou, detectando e preenchendo lacunas de dados
+  automaticamente.
+- **CLI Intuitiva:** Comandos como `baliza extract` executam o pipeline
+  incremental, `baliza verify` audita a integridade dos dados e `baliza export`
+  gera arquivos Parquet.
+- **Fluxo de Dados Direto:** Os dados são extraídos da API do PNCP e salvos
+  diretamente no DuckDB, utilizando a chave `numeroControlePNCP` para evitar
+  duplicatas.
+- **Arquitetura Clara:** O projeto segue uma arquitetura bem definida,
+  documentada no `docs/MASTERPLAN.md`, que serve como a fonte da verdade para
+  metas, backlog e decisões técnicas.
 
-> 📌 **Escopo atual:** o pipeline cobre o endpoint de **contratos**. A inclusão
-> de demais recursos do PNCP está detalhada na
-> [`docs/endpoint_extraction_strategy.md`](docs/endpoint_extraction_strategy.md).
+> 📌 **Escopo atual:** O pipeline está focado no endpoint de **contratos**. A
+> estratégia para incluir outros recursos do PNCP está definida no MASTERPLAN.
 
 ## Instalação
 
-### Opção 1: Execução direta com uvx (Recomendado)
+### Opção 1: Execução direta com `uvx` (Recomendado)
 
 Execute o Baliza sem precisar clonar o repositório:
 
@@ -52,10 +49,10 @@ uvx --from "git+https://github.com/franklinbaldo/baliza" baliza export --table c
 ```
 
 **Vantagens:**
-- ✅ Não precisa clonar o repositório
-- ✅ Sempre usa a versão mais recente do `main`
-- ✅ Ambiente isolado automaticamente
-- ✅ Ideal para uso em produção e CI/CD
+- ✅ Não precisa clonar o repositório.
+- ✅ Sempre usa a versão mais recente do `main`.
+- ✅ Ambiente isolado automaticamente.
+- ✅ Ideal para uso em produção e CI/CD.
 
 ### Opção 2: Instalação local para desenvolvimento
 
@@ -66,8 +63,8 @@ Clone o repositório e desenvolva localmente:
 git clone https://github.com/franklinbaldo/baliza.git
 cd baliza
 
-# Instalar dependências
-uv sync
+# Instalar dependências (incluindo as de desenvolvimento)
+uv sync --all-extras
 
 # Executar
 uv run baliza extract
@@ -86,13 +83,13 @@ docker pull ghcr.io/franklinbaldo/baliza:latest
 docker run --rm ghcr.io/franklinbaldo/baliza:latest --version
 
 # Extrair dados (com volume montado)
-docker run --rm -v $(pwd)/data:/data ghcr.io/franklinbaldo/baliza:latest extract
+docker run --rm -v $(pwd)/baliza.duckdb:/app/baliza.duckdb ghcr.io/franklinbaldo/baliza:latest extract
 
 # Exportar para Parquet
-docker run --rm -v $(pwd)/data:/data ghcr.io/franklinbaldo/baliza:latest export --table contratos --out /data/contratos
+docker run --rm -v $(pwd)/baliza.duckdb:/app/baliza.duckdb -v $(pwd)/data:/data ghcr.io/franklinbaldo/baliza:latest export --table contratos --out /data/contratos
 
 # Backfill
-docker run --rm -v $(pwd)/data:/data ghcr.io/franklinbaldo/baliza:latest backfill 2024-01 2024-03
+docker run --rm -v $(pwd)/baliza.duckdb:/app/baliza.duckdb ghcr.io/franklinbaldo/baliza:latest backfill 2024-01 2024-03
 ```
 
 **Vantagens:**
@@ -118,22 +115,22 @@ docker run --rm -v $(pwd)/data:/data ghcr.io/franklinbaldo/baliza:latest backfil
 
 ## Início rápido
 
-### Usando uvx (sem clonar)
+### Usando `uvx` (sem clonar)
 
 ```bash
 # Alias para simplificar (adicione ao seu .bashrc ou .zshrc)
 alias baliza='uvx --from "git+https://github.com/franklinbaldo/baliza" baliza'
 
-# Extrair dados dos últimos 3 dias
+# Extrair dados dos últimos 3 dias (lookback padrão)
 baliza extract
 
 # Exportar para Parquet
 baliza export --table contratos --out data/contratos
 
-# Backfill mensal
+# Preencher um período histórico específico
 baliza backfill 2024-01 2024-03
 
-# Verificar cobertura
+# Verificar a integridade dos dados
 baliza verify
 ```
 
@@ -147,11 +144,10 @@ uv run baliza backfill 2024-01 2024-03
 ```
 
 O comando `baliza extract` cria (ou atualiza) o arquivo `baliza.duckdb` no
-diretório atual. Por padrão, a execução retrocede alguns dias (lookback) e abre
-janelas diárias `dataInicial`/`dataFinal`, enviando requisições paginadas com
-`tamanhoPagina=500` até que `totalPaginas` seja percorrido. Em seguida,
-`baliza export` lê a tabela do DuckDB e escreve os dados como Parquet
-particionado (ano/mês) no diretório informado (`data/contratos`, no exemplo).
+diretório atual. Ele analisa o estado existente, identifica janelas de tempo
+faltantes ou incompletas e busca os dados necessários na API do PNCP. Em
+seguida, `baliza export` lê a tabela do DuckDB e escreve os dados como Parquet
+particionado por ano e mês no diretório de destino.
 
 ## Inspecionando os dados
 
@@ -180,26 +176,17 @@ print(contratos.head())
 
 ## Configuração
 
-A configuração declarativa do pipeline fica em `src/baliza/config/pncp.yml`.
-Nela é possível ajustar:
+A configuração do Baliza é feita principalmente através de parâmetros de linha de
+comando. Não há mais arquivos de configuração YAML.
 
-- Parâmetros padrão de paginação (`tamanhoPagina=500`, `pagina=1`).
-- Datas inicial/final utilizadas pelo incremental (`initial_value`,
-  `lookback_days` via CLI) sempre convertidas para `AAAAMMDD`.
-- Mapeamento da resposta padronizada (`data`, `totalPaginas`, etc.),
-  preservando `numeroControlePNCP` como chave primária textual.
+-   **`--duckdb`**: Especifica o caminho para o arquivo DuckDB (ex:
+    `--duckdb /path/to/baliza.duckdb`).
+-   **`--lookback-days`**: Define por quantos dias o extrator deve retroceder a
+    partir da última data extraída com sucesso.
 
-A API pública do PNCP fica em `https://pncp.gov.br/api/consulta` e retorna um
-envelope com `data`, `totalRegistros`, `totalPaginas`, `numeroPagina`,
-`paginasRestantes` e `empty`. A configuração do Baliza consome esses campos,
-tratando respostas `204 No Content` como janelas vazias (sem erro) e sempre
-respeitando `tamanhoPagina ≤ 500`.
-
-Para usar uma configuração customizada, forneça o caminho via `--config`:
-
-```bash
-uv run baliza extract --config configs/pncp-custom.yml
-```
+A URL base da API do PNCP (`https://pncp.gov.br/api/consulta/v1`) e outros
+parâmetros como o tamanho da página (`tamanhoPagina=500`) são definidos
+diretamente no `PNCPExtractor`.
 
 ## Comandos disponíveis
 
@@ -311,16 +298,20 @@ Processing 2 window(s):
 
 ## Detecção de Gaps
 
-O plano descrito em [`docs/extraction_resumability_plan.md`](docs/extraction_resumability_plan.md)
-foi implementado a partir da criação de um manifesto de cobertura em
-`baliza_state.cobertura` e `baliza_state.janelas`. Cada página registrada guarda
-`pagina`, `total_paginas_observado`, hash dos `numeroControlePNCP` e momento da
-captura. O comando `baliza verify` chama apenas a página 1 de cada janela para
-comparar `totalPaginas` informado pela API com o manifesto, marcando janelas
-`ok`, `incompleto`, `nao_processado` ou `suspeito` (quando o hash diverge). O
-relatório em JSON lista lacunas abertas, páginas pendentes e quaisquer
-sequências suspeitas (`--sequencia` ativa a auditoria de
-`sequencialCompra`/`sequencialContrato`).
+A detecção de lacunas é um recurso central do Baliza, gerenciado pela tabela
+`baliza_state.coverage` no DuckDB. Esta tabela registra o status de cada janela
+temporal (`complete`, `failed`).
+
+Quando `baliza extract` é executado, ele:
+1.  Consulta a tabela `coverage` para encontrar a data mais recente processada.
+2.  Retrocede um número configurável de dias (`--lookback-days`) para re-verificar
+    dados recentes que possam ter sido atualizados.
+3.  Identifica todas as janelas que falharam em execuções anteriores.
+4.  Constrói uma lista de janelas a serem processadas, priorizando as falhas e
+    preenchendo o período até a data atual.
+
+O comando `baliza verify` complementa este processo, auditando a cobertura e
+identificando períodos que ainda não foram processados.
 
 ## Arquitetura do Ecossistema
 
@@ -337,17 +328,14 @@ Veja [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) para detalhes completos.
 
 ```
 ├── src/baliza/
-│   ├── cli.py              # Interface de linha de comando
-│   ├── pipelines/pncp.py   # Execução do pipeline dlt
-│   ├── config/pncp.yml     # Configuração declarativa do endpoint
-│   ├── state/              # Rastreamento de cobertura
-│   └── utils/              # Funções auxiliares (datas, hashing, export)
-├── docs/                   # Guias de arquitetura e planos de evolução
-│   ├── ARCHITECTURE.md     # Separação entre CLI e site
-│   └── ROADMAP.md          # Roadmap do CLI
+│   ├── __init__.py
+│   ├── cli_simple.py       # Interface de linha de comando (Typer)
+│   ├── extractor.py        # Lógica principal de extração (PNCPExtractor)
+│   └── utils.py            # Funções auxiliares
+├── docs/                   # Documentação de arquitetura e decisões
+│   └── MASTERPLAN.md       # Metas, backlog e arquitetura do projeto
 ├── tests/                  # Testes automatizados
-│   ├── unit/               # Testes unitários
-│   └── e2e/                # Testes end-to-end
+│   └── test_extractor.py   # Testes para o PNCPExtractor
 └── pyproject.toml          # Metadados e dependências do projeto
 ```
 
