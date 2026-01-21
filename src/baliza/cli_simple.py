@@ -11,6 +11,7 @@ from rich.console import Console
 from rich.panel import Panel
 
 from .extractor import PNCPExtractor
+from .utils import validate_identifier
 
 app = typer.Typer(help="Baliza - Simple PNCP extraction tool")
 console = Console()
@@ -162,6 +163,10 @@ def export(
 ) -> None:
     """Export DuckDB table to Parquet files."""
     try:
+        # Validate inputs used in SQL construction
+        validate_identifier(table)
+        validate_identifier(dataset)
+
         output.mkdir(parents=True, exist_ok=True)
 
         with duckdb.connect(str(db_path)) as con:

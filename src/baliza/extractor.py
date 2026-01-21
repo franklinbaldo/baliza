@@ -14,6 +14,8 @@ import httpx
 from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 
+from .utils import validate_identifier
+
 console = Console()
 
 
@@ -27,7 +29,8 @@ class PNCPExtractor:
         base_url: str = "https://pncp.gov.br/api/consulta/v1",
     ):
         self.db_path = db_path
-        self.dataset = dataset
+        # Validate dataset name to prevent SQL injection
+        self.dataset = validate_identifier(dataset)
         self.base_url = base_url
         self.client = httpx.Client(timeout=30.0)
 
