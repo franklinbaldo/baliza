@@ -174,17 +174,20 @@ class PNCPExtractor:
             if all_rows:
                 # Prepare data for insertion
                 values = []
+                EMPTY_DICT: dict[str, Any] = {}
                 for row in all_rows:
+                    orgao = row.get("orgaoEntidade") or EMPTY_DICT
+                    unidade = row.get("unidadeOrgao") or EMPTY_DICT
                     values.append(
                         (
                             row.get("numeroControlePNCP"),
                             row.get("anoCompra"),
                             row.get("sequencialCompra"),
-                            row.get("orgaoEntidade", {}).get("cnpj"),
-                            row.get("orgaoEntidade", {}).get("razaoSocial"),
-                            row.get("orgaoEntidade", {}).get("poderId"),
-                            row.get("unidadeOrgao", {}).get("codigoUnidade"),
-                            row.get("unidadeOrgao", {}).get("nomeUnidade"),
+                            orgao.get("cnpj"),
+                            orgao.get("razaoSocial"),
+                            orgao.get("poderId"),
+                            unidade.get("codigoUnidade"),
+                            unidade.get("nomeUnidade"),
                             row.get("modalidadeId"),
                             row.get("modalidadeNome"),
                             row.get("valorInicial"),
