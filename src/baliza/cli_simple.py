@@ -45,7 +45,7 @@ def extract(
         "contratos",
         "--resource",
         "-r",
-        help="Resource to extract (contratos, etc.)",
+        help="Resource to extract (e.g., contratos, contratacoes)",
     ),
 ) -> None:
     """Extract data from PNCP API to DuckDB.
