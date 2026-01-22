@@ -14,12 +14,13 @@ def _build_command(args: argparse.Namespace) -> list[str]:
     command = [
         "baliza",
         "export",
+        "--table",
         args.table,
         "--duckdb",
         str(args.duckdb),
         "--dataset",
         args.dataset,
-        "--out",
+        "--output",
         str(args.output_dir),
     ]
 
