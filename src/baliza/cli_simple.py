@@ -172,9 +172,12 @@ def export(
         with duckdb.connect(str(db_path)) as con:
             # Simple export - dump everything to parquet
             parquet_file = output / f"{table}.parquet"
-            con.execute(f"""
-                COPY {dataset}.{table} TO '{parquet_file}' (FORMAT PARQUET)
-            """)
+            with console.status(
+                f"Exporting {dataset}.{table} to {parquet_file}...", spinner="dots"
+            ):
+                con.execute(f"""
+                    COPY {dataset}.{table} TO '{parquet_file}' (FORMAT PARQUET)
+                """)
 
         console.print(f"[green]✓ Exported {dataset}.{table} to {parquet_file}")
 

@@ -12,6 +12,7 @@ To re-record cassettes (e.g., after API changes):
 
 import tempfile
 from datetime import datetime
+from decimal import Decimal
 from pathlib import Path
 
 import duckdb
@@ -46,7 +47,7 @@ def test_pncp_extract_real_api_single_day():
                 "SELECT numeroControlePNCP, valorInicial FROM test_data.contratos LIMIT 1"
             ).fetchone()
             assert isinstance(sample[0], str)
-            assert isinstance(sample[1], (int, float))
+            assert isinstance(sample[1], (int, float, Decimal))
 
 
 @pytest.mark.vcr()
