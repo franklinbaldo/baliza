@@ -103,14 +103,20 @@ class HttpxMock:
         payload = json if json is not None else {}
         if url is None:
 
-            def matcher(target: str) -> bool:
+            def matcher(target: str) -> bool | re.Match[str] | None:
                 return True
         elif isinstance(url, re.Pattern):
-            matcher = url.match
-        else:
+            # Capture pattern in closure to avoid overloaded function assignment issues
+            pattern = url
 
-            def matcher(target: str, *, expected: str = url) -> bool:
-                return target == expected
+            def matcher(target: str) -> bool | re.Match[str] | None:
+                return pattern.match(target)
+        else:
+            # Capture expected URL in closure to avoid incompatible signature
+            expected_url = url
+
+            def matcher(target: str) -> bool | re.Match[str] | None:
+                return target == expected_url
 
         self._entries.append((matcher, _MockResponse(status_code=status_code, _json_data=payload)))
 
