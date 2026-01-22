@@ -26,13 +26,16 @@ def _build_command(args: argparse.Namespace) -> list[str]:
 
     if args.date_col:
         command.extend(["--date-col", args.date_col])
-    if args.fallback_date_col:
-        command.extend(["--fallback-date-col", args.fallback_date_col])
 
-    if args.current_month:
-        command.append("--current-month")
-    if args.target_month:
-        command.extend(["--target-month", args.target_month])
+    # The following arguments are supported by the script interface but
+    # currently ignored because the simple CLI does not support them.
+    # if args.fallback_date_col:
+    #     command.extend(["--fallback-date-col", args.fallback_date_col])
+
+    # if args.current_month:
+    #     command.append("--current-month")
+    # if args.target_month:
+    #     command.extend(["--target-month", args.target_month])
 
     return command
 
