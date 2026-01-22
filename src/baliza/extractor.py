@@ -22,6 +22,195 @@ console = Console()
 class PNCPExtractor:
     """Simple extractor for PNCP API data."""
 
+    RESOURCE_CONFIG = {
+        "contratos": {
+            "primary_key": "numeroControlePNCP",
+            "columns": {
+                "numeroControlePNCP": "VARCHAR",
+                "anoCompra": "INTEGER",
+                "sequencialCompra": "INTEGER",
+                "orgaoEntidade_cnpj": "VARCHAR",
+                "orgaoEntidade_razaoSocial": "VARCHAR",
+                "orgaoEntidade_poderId": "VARCHAR",
+                "unidadeOrgao_codigoUnidade": "VARCHAR",
+                "unidadeOrgao_nomeUnidade": "VARCHAR",
+                "modalidadeId": "INTEGER",
+                "modalidadeNome": "VARCHAR",
+                "valorInicial": "DECIMAL(18,2)",
+                "dataPublicacao": "TIMESTAMP",
+                "dataVigenciaInicio": "TIMESTAMP",
+                "dataVigenciaFim": "TIMESTAMP",
+                "objetoContrato": "VARCHAR",
+                "informacaoComplementar": "VARCHAR",
+                "numeroProcesso": "VARCHAR",
+                "linkSistemaOrigem": "VARCHAR",
+                "dataInclusao": "TIMESTAMP",
+                "dataAtualizacao": "TIMESTAMP",
+                "usuarioNome": "VARCHAR",
+            },
+            "mappers": {
+                "numeroControlePNCP": lambda row: row.get("numeroControlePNCP"),
+                "anoCompra": lambda row: row.get("anoCompra"),
+                "sequencialCompra": lambda row: row.get("sequencialCompra"),
+                "orgaoEntidade_cnpj": lambda row: row.get("orgaoEntidade", {}).get(
+                    "cnpj"
+                ),
+                "orgaoEntidade_razaoSocial": lambda row: row.get(
+                    "orgaoEntidade", {}
+                ).get("razaoSocial"),
+                "orgaoEntidade_poderId": lambda row: row.get("orgaoEntidade", {}).get(
+                    "poderId"
+                ),
+                "unidadeOrgao_codigoUnidade": lambda row: row.get(
+                    "unidadeOrgao", {}
+                ).get("codigoUnidade"),
+                "unidadeOrgao_nomeUnidade": lambda row: row.get(
+                    "unidadeOrgao", {}
+                ).get("nomeUnidade"),
+                "modalidadeId": lambda row: row.get("modalidadeId"),
+                "modalidadeNome": lambda row: row.get("modalidadeNome"),
+                "valorInicial": lambda row: row.get("valorInicial"),
+                "dataPublicacao": lambda row: row.get("dataPublicacao"),
+                "dataVigenciaInicio": lambda row: row.get("dataVigenciaInicio"),
+                "dataVigenciaFim": lambda row: row.get("dataVigenciaFim"),
+                "objetoContrato": lambda row: row.get("objetoContrato"),
+                "informacaoComplementar": lambda row: row.get(
+                    "informacaoComplementar"
+                ),
+                "numeroProcesso": lambda row: row.get("numeroProcesso"),
+                "linkSistemaOrigem": lambda row: row.get("linkSistemaOrigem"),
+                "dataInclusao": lambda row: row.get("dataInclusao"),
+                "dataAtualizacao": lambda row: row.get("dataAtualizacao"),
+                "usuarioNome": lambda row: row.get("usuarioNome"),
+            },
+        },
+        "contratacoes_publicacao": {
+            "primary_key": "numeroControlePNCP",
+            "columns": {
+                "numeroControlePNCP": "VARCHAR",
+                "anoCompra": "INTEGER",
+                "sequencialCompra": "INTEGER",
+                "dataAtualizacao": "TIMESTAMP",
+                "orgaoEntidade_cnpj": "VARCHAR",
+                "orgaoEntidade_razaoSocial": "VARCHAR",
+                "orgaoEntidade_poderId": "VARCHAR",
+                "orgaoEntidade_esferaId": "VARCHAR",
+                "unidadeOrgao_ufNome": "VARCHAR",
+                "unidadeOrgao_codigoUnidade": "VARCHAR",
+                "unidadeOrgao_ufSigla": "VARCHAR",
+                "unidadeOrgao_municipioNome": "VARCHAR",
+                "unidadeOrgao_nomeUnidade": "VARCHAR",
+                "unidadeOrgao_codigoIbge": "VARCHAR",
+                "numeroCompra": "VARCHAR",
+                "processo": "VARCHAR",
+                "objetoCompra": "VARCHAR",
+                "valorTotalHomologado": "DECIMAL(18,2)",
+                "srp": "BOOLEAN",
+                "dataInclusao": "TIMESTAMP",
+                "amparoLegal_codigo": "INTEGER",
+                "amparoLegal_nome": "VARCHAR",
+                "amparoLegal_descricao": "VARCHAR",
+                "dataAberturaProposta": "TIMESTAMP",
+                "dataEncerramentoProposta": "TIMESTAMP",
+                "informacaoComplementar": "VARCHAR",
+                "linkSistemaOrigem": "VARCHAR",
+                "justificativaPresencial": "VARCHAR",
+                "dataPublicacaoPncp": "TIMESTAMP",
+                "modalidadeId": "INTEGER",
+                "dataAtualizacaoGlobal": "TIMESTAMP",
+                "linkProcessoEletronico": "VARCHAR",
+                "modoDisputaId": "INTEGER",
+                "tipoInstrumentoConvocatorioNome": "VARCHAR",
+                "tipoInstrumentoConvocatorioCodigo": "INTEGER",
+                "modalidadeNome": "VARCHAR",
+                "valorTotalEstimado": "DECIMAL(18,2)",
+                "modoDisputaNome": "VARCHAR",
+                "situacaoCompraId": "INTEGER",
+                "situacaoCompraNome": "VARCHAR",
+                "usuarioNome": "VARCHAR",
+            },
+            "mappers": {
+                "numeroControlePNCP": lambda row: row.get("numeroControlePNCP"),
+                "anoCompra": lambda row: row.get("anoCompra"),
+                "sequencialCompra": lambda row: row.get("sequencialCompra"),
+                "dataAtualizacao": lambda row: row.get("dataAtualizacao"),
+                "orgaoEntidade_cnpj": lambda row: row.get("orgaoEntidade", {}).get(
+                    "cnpj"
+                ),
+                "orgaoEntidade_razaoSocial": lambda row: row.get(
+                    "orgaoEntidade", {}
+                ).get("razaoSocial"),
+                "orgaoEntidade_poderId": lambda row: row.get("orgaoEntidade", {}).get(
+                    "poderId"
+                ),
+                "orgaoEntidade_esferaId": lambda row: row.get("orgaoEntidade", {}).get(
+                    "esferaId"
+                ),
+                "unidadeOrgao_ufNome": lambda row: row.get("unidadeOrgao", {}).get(
+                    "ufNome"
+                ),
+                "unidadeOrgao_codigoUnidade": lambda row: row.get(
+                    "unidadeOrgao", {}
+                ).get("codigoUnidade"),
+                "unidadeOrgao_ufSigla": lambda row: row.get("unidadeOrgao", {}).get(
+                    "ufSigla"
+                ),
+                "unidadeOrgao_municipioNome": lambda row: row.get(
+                    "unidadeOrgao", {}
+                ).get("municipioNome"),
+                "unidadeOrgao_nomeUnidade": lambda row: row.get(
+                    "unidadeOrgao", {}
+                ).get("nomeUnidade"),
+                "unidadeOrgao_codigoIbge": lambda row: row.get(
+                    "unidadeOrgao", {}
+                ).get("codigoIbge"),
+                "numeroCompra": lambda row: row.get("numeroCompra"),
+                "processo": lambda row: row.get("processo"),
+                "objetoCompra": lambda row: row.get("objetoCompra"),
+                "valorTotalHomologado": lambda row: row.get("valorTotalHomologado"),
+                "srp": lambda row: row.get("srp"),
+                "dataInclusao": lambda row: row.get("dataInclusao"),
+                "amparoLegal_codigo": lambda row: row.get("amparoLegal", {}).get(
+                    "codigo"
+                ),
+                "amparoLegal_nome": lambda row: row.get("amparoLegal", {}).get("nome"),
+                "amparoLegal_descricao": lambda row: row.get("amparoLegal", {}).get(
+                    "descricao"
+                ),
+                "dataAberturaProposta": lambda row: row.get("dataAberturaProposta"),
+                "dataEncerramentoProposta": lambda row: row.get(
+                    "dataEncerramentoProposta"
+                ),
+                "informacaoComplementar": lambda row: row.get(
+                    "informacaoComplementar"
+                ),
+                "linkSistemaOrigem": lambda row: row.get("linkSistemaOrigem"),
+                "justificativaPresencial": lambda row: row.get(
+                    "justificativaPresencial"
+                ),
+                "dataPublicacaoPncp": lambda row: row.get("dataPublicacaoPncp"),
+                "modalidadeId": lambda row: row.get("modalidadeId"),
+                "dataAtualizacaoGlobal": lambda row: row.get("dataAtualizacaoGlobal"),
+                "linkProcessoEletronico": lambda row: row.get(
+                    "linkProcessoEletronico"
+                ),
+                "modoDisputaId": lambda row: row.get("modoDisputaId"),
+                "tipoInstrumentoConvocatorioNome": lambda row: row.get(
+                    "tipoInstrumentoConvocatorioNome"
+                ),
+                "tipoInstrumentoConvocatorioCodigo": lambda row: row.get(
+                    "tipoInstrumentoConvocatorioCodigo"
+                ),
+                "modalidadeNome": lambda row: row.get("modalidadeNome"),
+                "valorTotalEstimado": lambda row: row.get("valorTotalEstimado"),
+                "modoDisputaNome": lambda row: row.get("modoDisputaNome"),
+                "situacaoCompraId": lambda row: row.get("situacaoCompraId"),
+                "situacaoCompraNome": lambda row: row.get("situacaoCompraNome"),
+                "usuarioNome": lambda row: row.get("usuarioNome"),
+            },
+        },
+    }
+
     def __init__(
         self,
         db_path: Path,
@@ -34,35 +223,31 @@ class PNCPExtractor:
         self.base_url = base_url
         self.client = httpx.Client(timeout=30.0)
 
-    def _ensure_schema(self, con: duckdb.DuckDBPyConnection) -> None:
+    def _ensure_schema(self, con: duckdb.DuckDBPyConnection, resource: str) -> None:
         """Create schema and tables if they don't exist."""
+        if resource not in self.RESOURCE_CONFIG:
+            raise ValueError(f"Unknown resource: {resource}")
+
+        config = self.RESOURCE_CONFIG[resource]
+        columns = config["columns"]
+        primary_key = config["primary_key"]
+
         # Data schema
         con.execute(f"CREATE SCHEMA IF NOT EXISTS {self.dataset}")
-        con.execute(f"""
-            CREATE TABLE IF NOT EXISTS {self.dataset}.contratos (
-                numeroControlePNCP VARCHAR PRIMARY KEY,
-                anoCompra INTEGER,
-                sequencialCompra INTEGER,
-                orgaoEntidade_cnpj VARCHAR,
-                orgaoEntidade_razaoSocial VARCHAR,
-                orgaoEntidade_poderId VARCHAR,
-                unidadeOrgao_codigoUnidade VARCHAR,
-                unidadeOrgao_nomeUnidade VARCHAR,
-                modalidadeId INTEGER,
-                modalidadeNome VARCHAR,
-                valorInicial DECIMAL(18,2),
-                dataPublicacao TIMESTAMP,
-                dataVigenciaInicio TIMESTAMP,
-                dataVigenciaFim TIMESTAMP,
-                objetoContrato VARCHAR,
-                informacaoComplementar VARCHAR,
-                numeroProcesso VARCHAR,
-                linkSistemaOrigem VARCHAR,
-                dataInclusao TIMESTAMP,
-                dataAtualizacao TIMESTAMP,
-                usuarioNome VARCHAR
+
+        columns_sql = ",\n".join(
+            f'                "{col_name}" {col_type}'
+            for col_name, col_type in columns.items()
+        )
+        # Add primary key constraint
+        columns_sql += f',\n                PRIMARY KEY ("{primary_key}")'
+
+        create_table_sql = f"""
+            CREATE TABLE IF NOT EXISTS {self.dataset}.{resource} (
+{columns_sql}
             )
-        """)
+        """
+        con.execute(create_table_sql)
 
         # State schema
         con.execute("CREATE SCHEMA IF NOT EXISTS baliza_state")
@@ -169,49 +354,29 @@ class PNCPExtractor:
 
         # Insert into DuckDB
         with duckdb.connect(str(self.db_path)) as con:
-            self._ensure_schema(con)
+            self._ensure_schema(con, resource)
 
             if all_rows:
+                config = self.RESOURCE_CONFIG[resource]
+                mappers = config["mappers"]
+                columns = list(mappers.keys())
+
                 # Prepare data for insertion
                 values = []
                 for row in all_rows:
-                    values.append(
-                        (
-                            row.get("numeroControlePNCP"),
-                            row.get("anoCompra"),
-                            row.get("sequencialCompra"),
-                            row.get("orgaoEntidade", {}).get("cnpj"),
-                            row.get("orgaoEntidade", {}).get("razaoSocial"),
-                            row.get("orgaoEntidade", {}).get("poderId"),
-                            row.get("unidadeOrgao", {}).get("codigoUnidade"),
-                            row.get("unidadeOrgao", {}).get("nomeUnidade"),
-                            row.get("modalidadeId"),
-                            row.get("modalidadeNome"),
-                            row.get("valorInicial"),
-                            row.get("dataPublicacao"),
-                            row.get("dataVigenciaInicio"),
-                            row.get("dataVigenciaFim"),
-                            row.get("objetoContrato"),
-                            row.get("informacaoComplementar"),
-                            row.get("numeroProcesso"),
-                            row.get("linkSistemaOrigem"),
-                            row.get("dataInclusao"),
-                            row.get("dataAtualizacao"),
-                            row.get("usuarioNome"),
-                        )
-                    )
+                    values.append(tuple(mappers[col](row) for col in columns))
 
                 # Insert or ignore (append-only, deduplication by primary key)
-                con.executemany(
-                    f"""
-                    INSERT OR IGNORE INTO {self.dataset}.contratos
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                    values,
-                )
+                placeholders = ", ".join(["?"] * len(columns))
+                insert_sql = f"""
+                    INSERT OR IGNORE INTO {self.dataset}.{resource}
+                    ({', '.join(f'"{c}"' for c in columns)})
+                    VALUES ({placeholders})
+                """
+                con.executemany(insert_sql, values)
 
                 console.print(
-                    f"[green]✓ Inserted {len(all_rows)} rows into {self.dataset}.contratos (duplicates ignored)"
+                    f"[green]✓ Inserted {len(all_rows)} rows into {self.dataset}.{resource} (duplicates ignored)"
                 )
 
             # Record coverage

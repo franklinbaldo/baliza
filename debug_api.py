@@ -48,6 +48,9 @@ def test_pncp_endpoint(endpoint_path, params):
             if isinstance(data, dict):
                 if "data" in data:
                     print(f"📈 Data array length: {len(data['data'])}")
+                    if data["data"]:
+                        print("📝 First record:")
+                        print(json.dumps(data["data"][0], indent=2))
                     if "totalPaginas" in data:
                         print(f"📄 Total pages: {data['totalPaginas']}")
                 else:
@@ -131,14 +134,14 @@ def main():
     )
 
     # Test 5: Check if the API has data for recent dates
-    print("\n🧪 Test 5: contratacoes_publicacao with modalidade 6 (Jan 2025)")
+    print("\n🧪 Test 5: contratacoes_publicacao endpoint (Jan 2024)")
     result5 = test_pncp_endpoint(
         "/v1/contratacoes/publicacao",
         {
             "tamanhoPagina": 50,
             "pagina": 1,
-            "dataInicial": "20250101",
-            "dataFinal": "20250131",
+            "dataInicial": "20240101",
+            "dataFinal": "20240131",
             "codigoModalidadeContratacao": 6,
         },
     )
@@ -152,7 +155,7 @@ def main():
         ("contratacoes_publicacao modalidade=1 (Dec 2024)", result2),
         ("contratacoes_publicacao modalidade=6 (Dec 2024)", result3),
         ("contratos (no modalidade - Dec 2024)", result4),
-        ("contratacoes_publicacao modalidade=6 (Jan 2025)", result5),
+        ("contratacoes_publicacao (Jan 2024)", result5),
     ]
 
     for name, result in tests:
