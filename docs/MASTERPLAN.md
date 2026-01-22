@@ -1,86 +1,88 @@
-# MASTERPLAN: Baliza CLI
+# MASTERPLAN
 
-**This is the living strategic plan for the `baliza` CLI project.** It defines the project's goals, scope, and prioritized backlog. This document is maintained by the PM/Goal-Alignment Agent and serves as the authoritative source for development priorities.
+This document outlines the strategic vision, goals, and technical direction for the
+Baliza project. It is a living document, intended to be updated as the project
+evolves.
 
-## 1. North Star & Goals
+## North Star
 
-### North Star
+To be the most reliable and simple tool for extracting public procurement data
+from Brazil's Portal Nacional de Contratações Públicas (PNCP), enabling
+transparency and accountability.
 
-To be the most reliable, transparent, and accessible tool for extracting and preserving Brazilian public procurement data from the National Public Procurement Portal (PNCP), enabling accountability and research for journalists, civil society, and government agencies.
+## Goals
 
-### Concrete Goals
+1.  **Reliable Data Extraction:** Provide a simple, robust, and correct CLI for
+    extracting data from the PNCP API. The tool should be easy to run and its
+    behavior easy to understand.
+2.  **Data Preservation:** Store extracted data in a raw, immutable format suitable
+    for long-term analysis. We prioritize preserving the original data structure
+    as closely as possible.
+3.  **Data Accessibility:** Enable users to easily query the extracted data
+    locally and export it to common analytical formats like Parquet.
+4.  **Excellent Developer/Operator Experience:** Maintain clear documentation, a
+    healthy and meaningful test suite, and a straightforward contribution process.
 
-1.  **Achieve Full Extraction Resumability:** Implement a robust state management system that makes the extraction process fully resumable and idempotent, recovering gracefully from network failures or API instability.
-2.  **Comprehensive Endpoint Coverage:** Expand beyond the initial `contratos` endpoint to support all relevant PNCP data sources, providing a complete picture of the procurement lifecycle.
-3.  **Automated Data Publishing:** Establish a fully automated CI/CD pipeline to extract data, export it to Parquet, and publish versioned, immutable datasets via GitHub Releases.
-4.  **Actionable Data Quality Monitoring:** Develop tools to verify data coverage, detect gaps, and provide clear reports on the completeness and integrity of the extracted data.
-5.  **Excellent Developer/Operator Experience:** Provide clear documentation, straightforward configuration, and a simple, predictable command-line interface.
+## Non-Goals
 
-## 2. Non-Goals / Anti-Scope
+-   **Data Visualization:** This project is a data extraction tool. A web
+    interface, dashboards, or other visualizations are the responsibility of the
+    separate `baliza-site` project.
+-   **Complex Data Transformations:** The CLI is not an ETL tool. It should
+    perform minimal transformations, focusing on getting data from the API into
+    storage.
+-   **Real-time Data Streaming:** The project is designed for batch extraction,
+    not real-time data feeds.
 
--   **No Frontend/UI:** This repository is exclusively for the backend CLI data pipeline. All visualization, web interfaces, and user-facing dashboards belong in the separate `baliza-site` repository.
--   **No Ad-hoc Analysis Features:** The CLI's purpose is data extraction and preservation, not complex data analysis or ad-hoc querying. Users should consume the exported Parquet/DuckDB files with their own tools (pandas, Polars, BI tools, etc.).
--   **No Real-time Data Streaming:** The pipeline is designed for batch processing (daily/monthly runs), not real-time data streaming from the PNCP.
--   **No Non-PNCP Data Sources:** The scope is strictly limited to data provided by the official PNCP API.
+## Architecture Constraints
 
-## 3. Architecture Constraints
+-   **CLI First:** The primary interface is and will remain a command-line tool.
+-   **DuckDB for Local Storage:** DuckDB is the primary storage engine for its
+    simplicity, performance, and ease of use.
+-   **Parquet for Export:** Parquet is the designated format for analytical exports due
+    to its efficiency and wide adoption.
+-   **Simple Tech Stack:** The core stack is Python, Typer (for the CLI), and
+    `httpx` (for API communication). We avoid adding heavy frameworks unless
+    absolutely necessary.
+-   **Behavior-Driven Development (BDD):** The primary testing strategy for the
+    CLI's behavior is BDD using `pytest-bdd`. This ensures our tests are aligned
+    with user-facing features.
 
--   **Python & dlt:** The core pipeline is built on Python, using the `dlt` (data load tool) library for declarative data extraction.
--   **DuckDB for Staging:** DuckDB serves as the local, "bronze" layer for raw data and state management.
--   **Parquet for Publishing:** Apache Parquet is the official "gold" data format for archival and public consumption, partitioned by year and month.
--   **GitHub Releases as Data Warehouse:** The canonical public data artifacts will be published as assets attached to versioned GitHub Releases, ensuring immutability and public access.
--   **Stateless by Default, Stateful via explicit State File:** The CLI should be able to run in a stateless mode, but gain its resumability and gap-detection capabilities from an explicit state file (`baliza.duckdb`).
+## Backlog
 
-## 4. Prioritized Backlog
+### Epic: Foundational Stability & Alignment
 
-### Epic 1: Resumable Extraction Pipeline
+This epic focuses on ensuring the project has a solid, reliable foundation.
 
-*   **Feature:** Implement `StateManager` for persistent run tracking.
-*   **Feature:** Implement `GapDetector` to identify missing or incomplete data windows.
-*   **Feature:** Integrate StateManager and GapDetector into the `extract` command.
-*   **Feature:** Add `state` CLI commands (`show`, `gaps`, `history`) for observability.
+-   **Feature: Accurate Documentation**
+    -   [x] Update `README.md` to match the current simplified implementation.
+    -   [x] Create `MASTERPLAN.md` to document project goals and direction.
 
-### Epic 2: Automated Data Publishing *(MOVED TO baliza-site REPOSITORY)*
+-   **Feature: Robust BDD Test Suite**
+    -   **User Story:** As a developer, I want a comprehensive BDD test suite so
+        that I can make changes with confidence.
+    -   **Scenarios:**
+        -   Add BDD tests for the `extract` command (happy path, error handling).
+        -   Add BDD tests for the `verify` command (detecting gaps, no gaps).
+        -   Add BDD tests for the `export` command.
 
-**⚠️ SCOPE CLARIFICATION:** This epic belongs in the `franklinbaldo/baliza-site` repository, NOT here.
+### Epic: Endpoint Expansion
 
-This repository (`franklinbaldo/baliza`) provides the **CLI engine** that extracts data. The `baliza-site` repository will:
-*   Create a GitHub Actions workflow for daily incremental extraction (using the `baliza` CLI).
-*   Enhance the workflow to export new data to Parquet (using `baliza export`).
-*   Create a versioned GitHub Release and upload Parquet files as assets.
-*   Implement a manifest file that lists all Parquet files in the release.
-*   Host web interface, dashboards, and public data coverage reports.
+This epic focuses on increasing the breadth of data the tool can extract.
 
-**What THIS repository needs to support Epic 2:**
-*   ✅ Stable `baliza extract` command
-*   ✅ Stable `baliza export` command
-*   ✅ Clear exit codes for CI/CD integration
-*   ✅ JSON output mode for machine consumption
-*   ⏳ Documentation for orchestration/automation
-*   ⏳ Container/Docker image for easy CI/CD usage
+-   **Feature: Extract `contratacoes` (Procurements)**
+    -   **User Story:** As a user, I want to extract procurement data
+        (`contratacoes`) in addition to contracts so that I can analyze the
+        entire procurement lifecycle.
+    -   **Scenarios:**
+        -   Implement extraction for the `contratacoes` endpoint.
+        -   Add a corresponding schema in the `extractor.py`.
+        -   Add BDD tests for `contratacoes` extraction.
 
-### Epic 3: Expanded Endpoint Coverage
+## Known Gaps / Technical Debt
 
-*   **Feature:** Add support for the `compras` (procurements) endpoint.
-*   **Feature:** Add support for the `licitacoes` (tenders) endpoint.
-*   **Feature:** Refactor the configuration to easily support multiple endpoints.
-
-### Epic 4: Data Quality & Verification
-
-*   **Feature:** Enhance the `verify` command to use the new state management system.
-*   **Feature:** Add anomaly detection for suspicious page counts or record numbers.
-*   **Feature:** Generate and publish a public data coverage report.
-
-## 5. Test Strategy
-
--   **Unit Tests:** Focus on pure functions in `utils`, `state` management logic, and CLI argument parsing. Mock external dependencies like the PNCP API.
--   **Integration Tests:** Test the interaction between the `dlt` pipeline, the `StateManager`, and the DuckDB database. Use VCR cassettes (or similar) to record and replay real API responses.
--   **End-to-End (E2E) Tests:** Full CLI runs (`extract`, `backfill`, `export`, `verify`) against a small, controlled set of recorded API responses. These tests should validate the final Parquet output and state file.
--   **CI:** All tests (unit, integration, E2E) must pass in a GitHub Actions workflow on every push and pull request to `main`.
-
-## 6. Known Gaps / Technical Debt
-
--   **Stateless Pipeline:** The current pipeline is stateless and relies on a simple lookback window, making it brittle. (This is addressed in Epic 1).
--   **Limited Test Coverage:** The current test suite primarily covers happy paths and needs to be expanded with more unit tests and failure-case scenarios.
--   **Lack of Observability:** The CLI provides minimal structured output (logs, metrics). This will be improved as part of the state management implementation.
--   **Manual Publishing:** Data releases are currently a manual process. (This is addressed in Epic 2).
+-   **Test Suite:** The current test suite is minimal and lacks coverage for the
+    simplified `httpx`-based architecture. A major priority is to build out BDD
+    tests.
+-   **CI/CD:** The project currently lacks automated testing and release workflows.
+    Setting up a CI/CD pipeline (e.g., with GitHub Actions) is a future priority.
