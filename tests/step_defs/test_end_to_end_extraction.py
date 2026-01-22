@@ -5,7 +5,6 @@ from urllib.parse import parse_qs, urlparse
 
 import duckdb
 import httpx
-import pytest
 from pytest_bdd import given, scenario, then, when
 from typer.testing import CliRunner
 
@@ -61,15 +60,11 @@ def external_data_source(httpx_mock):
 
         # First extraction: only day 1
         if start_date == "20240101" and end_date == "20240101":
-            return httpx.Response(
-                200, json={"data": [record_1], "totalPaginas": 1}
-            )
+            return httpx.Response(200, json={"data": [record_1], "totalPaginas": 1})
 
         # Second extraction: day 1 and day 2
         if start_date == "20240101" and end_date == "20240102":
-            return httpx.Response(
-                200, json={"data": [record_1, record_2], "totalPaginas": 1}
-            )
+            return httpx.Response(200, json={"data": [record_1, record_2], "totalPaginas": 1})
 
         # Fallback for any other request
         return httpx.Response(200, json={"data": [], "totalPaginas": 0})
@@ -122,9 +117,7 @@ def extract_full_range(db_path, external_data_source):
 def check_all_records(db_path):
     """Verify that the final dataset contains all records."""
     with duckdb.connect(str(db_path), read_only=True) as con:
-        count = con.execute(
-            "SELECT COUNT(*) FROM test_dataset.contratos"
-        ).fetchone()[0]
+        count = con.execute("SELECT COUNT(*) FROM test_dataset.contratos").fetchone()[0]
         assert count == 2, f"Expected 2 records, but found {count}"
 
 
