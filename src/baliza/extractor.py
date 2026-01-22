@@ -18,6 +18,9 @@ from .utils import validate_identifier
 
 console = Console()
 
+# Pre-allocated empty dictionary for fallback to avoid repeated allocation
+EMPTY_DICT = {}
+
 
 class PNCPExtractor:
     """Simple extractor for PNCP API data."""
@@ -180,11 +183,11 @@ class PNCPExtractor:
                             row.get("numeroControlePNCP"),
                             row.get("anoCompra"),
                             row.get("sequencialCompra"),
-                            row.get("orgaoEntidade", {}).get("cnpj"),
-                            row.get("orgaoEntidade", {}).get("razaoSocial"),
-                            row.get("orgaoEntidade", {}).get("poderId"),
-                            row.get("unidadeOrgao", {}).get("codigoUnidade"),
-                            row.get("unidadeOrgao", {}).get("nomeUnidade"),
+                            row.get("orgaoEntidade", EMPTY_DICT).get("cnpj"),
+                            row.get("orgaoEntidade", EMPTY_DICT).get("razaoSocial"),
+                            row.get("orgaoEntidade", EMPTY_DICT).get("poderId"),
+                            row.get("unidadeOrgao", EMPTY_DICT).get("codigoUnidade"),
+                            row.get("unidadeOrgao", EMPTY_DICT).get("nomeUnidade"),
                             row.get("modalidadeId"),
                             row.get("modalidadeNome"),
                             row.get("valorInicial"),
