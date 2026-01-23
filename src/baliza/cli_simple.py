@@ -285,5 +285,83 @@ def buffer_stats(
         raise typer.Exit(1) from None
 
 
+@app.command("status")
+def status(
+    db_path: Path = typer.Option(
+        Path("baliza.duckdb"),
+        "--duckdb",
+        "-d",
+        help="DuckDB file",
+    ),
+    dataset: str = typer.Option(
+        "baliza_raw",
+        "--dataset",
+        "-s",
+        help="Dataset name",
+    ),
+) -> None:
+    """Show overall extraction status."""
+    try:
+        if not db_path.exists():
+            console.print("[yellow]No database found. Run extraction first.[/yellow]")
+            raise typer.Exit(0)
+
+        with duckdb.connect(str(db_path), read_only=True) as con:
+            # Total contracts
+            total = con.execute(f"SELECT COUNT(*) FROM {dataset}.contratos").fetchone()[0]
+
+            # Date range
+            date_range = con.execute(f"""
+                SELECT MIN(CAST(dataPublicacao AS DATE)), MAX(CAST(dataPublicacao AS DATE))
+                FROM {dataset}.contratos
+            """).fetchone()
+
+            # Days with data
+            days_count = con.execute(f"""
+                SELECT COUNT(DISTINCT CAST(dataPublicacao AS DATE))
+                FROM {dataset}.contratos
+            """).fetchone()[0]
+
+            # Uploaded to IA
+            try:
+                uploaded = con.execute(
+                    "SELECT COUNT(*) FROM baliza_state.uploaded_to_ia"
+                ).fetchone()[0]
+            except Exception:
+                uploaded = 0
+
+            # Pending checkpoints
+            try:
+                checkpoints = con.execute(
+                    "SELECT COUNT(*) FROM baliza_state.extraction_checkpoint"
+                ).fetchone()[0]
+            except Exception:
+                checkpoints = 0
+
+        # Display
+        console.print(Panel("[bold]Baliza PNCP Status[/bold]", style="blue"))
+        console.print()
+
+        table = Table(show_header=False, box=None)
+        table.add_column("Metric", style="dim")
+        table.add_column("Value", style="cyan")
+
+        table.add_row("Total contracts", f"{total:,}")
+        table.add_row("Date range", f"{date_range[0]} to {date_range[1]}" if date_range[0] else "-")
+        table.add_row("Days with data", str(days_count))
+        table.add_row("Days on Internet Archive", str(uploaded))
+        table.add_row("Pending extractions", str(checkpoints))
+
+        console.print(table)
+
+        # Warnings
+        if checkpoints > 0:
+            console.print(f"\n[yellow]⚠ {checkpoints} extraction(s) incomplete - will resume on next run[/yellow]")
+
+    except Exception as e:
+        console.print(f"[red]✗ Failed to get status: {e}")
+        raise typer.Exit(1) from None
+
+
 if __name__ == "__main__":
     app()

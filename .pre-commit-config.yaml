@@ -27,4 +27,9 @@ repos:
       - id: mypy
         args: [--ignore-missing-imports]
         files: ^src/
-        additional_dependencies: [types-PyYAML]
+        additional_dependencies:
+          - types-PyYAML
+          - httpx
+          - tenacity
+          - duckdb
+          - pyarrow
