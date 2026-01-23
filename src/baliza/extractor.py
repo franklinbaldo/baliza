@@ -22,6 +22,99 @@ console = Console()
 class PNCPExtractor:
     """Simple extractor for PNCP API data."""
 
+    RESOURCE_CONFIG = {
+        "contratos": {
+            "table_name": "contratos",
+            "pk": "numeroControlePNCP",
+            "schema": {
+                "numeroControlePNCP": "VARCHAR PRIMARY KEY",
+                "anoCompra": "INTEGER",
+                "sequencialCompra": "INTEGER",
+                "orgaoEntidade_cnpj": "VARCHAR",
+                "orgaoEntidade_razaoSocial": "VARCHAR",
+                "orgaoEntidade_poderId": "VARCHAR",
+                "unidadeOrgao_codigoUnidade": "VARCHAR",
+                "unidadeOrgao_nomeUnidade": "VARCHAR",
+                "modalidadeId": "INTEGER",
+                "modalidadeNome": "VARCHAR",
+                "valorInicial": "DECIMAL(18,2)",
+                "dataPublicacao": "TIMESTAMP",
+                "dataVigenciaInicio": "TIMESTAMP",
+                "dataVigenciaFim": "TIMESTAMP",
+                "objetoContrato": "VARCHAR",
+                "informacaoComplementar": "VARCHAR",
+                "numeroProcesso": "VARCHAR",
+                "linkSistemaOrigem": "VARCHAR",
+                "dataInclusao": "TIMESTAMP",
+                "dataAtualizacao": "TIMESTAMP",
+                "usuarioNome": "VARCHAR",
+            },
+            "columns": [
+                "numeroControlePNCP",
+                "anoCompra",
+                "sequencialCompra",
+                "orgaoEntidade_cnpj",
+                "orgaoEntidade_razaoSocial",
+                "orgaoEntidade_poderId",
+                "unidadeOrgao_codigoUnidade",
+                "unidadeOrgao_nomeUnidade",
+                "modalidadeId",
+                "modalidadeNome",
+                "valorInicial",
+                "dataPublicacao",
+                "dataVigenciaInicio",
+                "dataVigenciaFim",
+                "objetoContrato",
+                "informacaoComplementar",
+                "numeroProcesso",
+                "linkSistemaOrigem",
+                "dataInclusao",
+                "dataAtualizacao",
+                "usuarioNome",
+            ],
+            "data_mapper": lambda row: (
+                row.get("numeroControlePNCP"),
+                row.get("anoCompra"),
+                row.get("sequencialCompra"),
+                row.get("orgaoEntidade", {}).get("cnpj"),
+                row.get("orgaoEntidade", {}).get("razaoSocial"),
+                row.get("orgaoEntidade", {}).get("poderId"),
+                row.get("unidadeOrgao", {}).get("codigoUnidade"),
+                row.get("unidadeOrgao", {}).get("nomeUnidade"),
+                row.get("modalidadeId"),
+                row.get("modalidadeNome"),
+                row.get("valorInicial"),
+                row.get("dataPublicacao"),
+                row.get("dataVigenciaInicio"),
+                row.get("dataVigenciaFim"),
+                row.get("objetoContrato"),
+                row.get("informacaoComplementar"),
+                row.get("numeroProcesso"),
+                row.get("linkSistemaOrigem"),
+                row.get("dataInclusao"),
+                row.get("dataAtualizacao"),
+                row.get("usuarioNome"),
+            ),
+        },
+        "contratacoes": {
+            "table_name": "contratacoes",
+            "pk": "numeroControlePNCP",
+            "schema": {
+                "numeroControlePNCP": "VARCHAR PRIMARY KEY",
+                "idContratacao": "VARCHAR",
+                "objeto": "VARCHAR",
+                "dataPublicacao": "TIMESTAMP",
+            },
+            "columns": ["numeroControlePNCP", "idContratacao", "objeto", "dataPublicacao"],
+            "data_mapper": lambda row: (
+                row.get("numeroControlePNCP"),
+                row.get("idContratacao"),
+                row.get("objeto"),
+                row.get("dataPublicacao"),
+            ),
+        },
+    }
+
     def __init__(
         self,
         db_path: Path,
@@ -34,35 +127,24 @@ class PNCPExtractor:
         self.base_url = base_url
         self.client = httpx.Client(timeout=30.0)
 
-    def _ensure_schema(self, con: duckdb.DuckDBPyConnection) -> None:
+    def _ensure_schema(self, con: duckdb.DuckDBPyConnection, resource: str) -> None:
         """Create schema and tables if they don't exist."""
         # Data schema
         con.execute(f"CREATE SCHEMA IF NOT EXISTS {self.dataset}")
-        con.execute(f"""
-            CREATE TABLE IF NOT EXISTS {self.dataset}.contratos (
-                numeroControlePNCP VARCHAR PRIMARY KEY,
-                anoCompra INTEGER,
-                sequencialCompra INTEGER,
-                orgaoEntidade_cnpj VARCHAR,
-                orgaoEntidade_razaoSocial VARCHAR,
-                orgaoEntidade_poderId VARCHAR,
-                unidadeOrgao_codigoUnidade VARCHAR,
-                unidadeOrgao_nomeUnidade VARCHAR,
-                modalidadeId INTEGER,
-                modalidadeNome VARCHAR,
-                valorInicial DECIMAL(18,2),
-                dataPublicacao TIMESTAMP,
-                dataVigenciaInicio TIMESTAMP,
-                dataVigenciaFim TIMESTAMP,
-                objetoContrato VARCHAR,
-                informacaoComplementar VARCHAR,
-                numeroProcesso VARCHAR,
-                linkSistemaOrigem VARCHAR,
-                dataInclusao TIMESTAMP,
-                dataAtualizacao TIMESTAMP,
-                usuarioNome VARCHAR
-            )
-        """)
+
+        # Resource table
+        config = self.RESOURCE_CONFIG.get(resource)
+        if not config:
+            raise ValueError(f"Unsupported resource: {resource}")
+
+        table_name = config["table_name"]
+        schema_def = ", ".join(
+            [f"{col_name} {col_type}" for col_name, col_type in config["schema"].items()]
+        )
+        create_table_sql = (
+            f"CREATE TABLE IF NOT EXISTS {self.dataset}.{table_name} ({schema_def})"
+        )
+        con.execute(create_table_sql)
 
         # State schema
         con.execute("CREATE SCHEMA IF NOT EXISTS baliza_state")
@@ -109,6 +191,10 @@ class PNCPExtractor:
         Returns:
             Dict with extraction results (rows_extracted, pages, etc.)
         """
+        config = self.RESOURCE_CONFIG.get(resource)
+        if not config:
+            raise ValueError(f"Unsupported resource: {resource}")
+
         # Format dates for PNCP API (YYYYMMDD)
         data_inicial = start_date.strftime("%Y%m%d")
         data_final = end_date.strftime("%Y%m%d")
@@ -169,49 +255,28 @@ class PNCPExtractor:
 
         # Insert into DuckDB
         with duckdb.connect(str(self.db_path)) as con:
-            self._ensure_schema(con)
+            self._ensure_schema(con, resource)
 
             if all_rows:
                 # Prepare data for insertion
-                values = []
-                for row in all_rows:
-                    values.append(
-                        (
-                            row.get("numeroControlePNCP"),
-                            row.get("anoCompra"),
-                            row.get("sequencialCompra"),
-                            row.get("orgaoEntidade", {}).get("cnpj"),
-                            row.get("orgaoEntidade", {}).get("razaoSocial"),
-                            row.get("orgaoEntidade", {}).get("poderId"),
-                            row.get("unidadeOrgao", {}).get("codigoUnidade"),
-                            row.get("unidadeOrgao", {}).get("nomeUnidade"),
-                            row.get("modalidadeId"),
-                            row.get("modalidadeNome"),
-                            row.get("valorInicial"),
-                            row.get("dataPublicacao"),
-                            row.get("dataVigenciaInicio"),
-                            row.get("dataVigenciaFim"),
-                            row.get("objetoContrato"),
-                            row.get("informacaoComplementar"),
-                            row.get("numeroProcesso"),
-                            row.get("linkSistemaOrigem"),
-                            row.get("dataInclusao"),
-                            row.get("dataAtualizacao"),
-                            row.get("usuarioNome"),
-                        )
-                    )
+                mapper = config["data_mapper"]
+                values = [mapper(row) for row in all_rows]
+
+                table_name = config["table_name"]
+                columns = ", ".join(config["columns"])
+                placeholders = ", ".join(["?"] * len(config["columns"]))
 
                 # Insert or ignore (append-only, deduplication by primary key)
                 con.executemany(
                     f"""
-                    INSERT OR IGNORE INTO {self.dataset}.contratos
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
+                    INSERT OR IGNORE INTO {self.dataset}.{table_name} ({columns})
+                    VALUES ({placeholders})
+                    """,
                     values,
                 )
 
                 console.print(
-                    f"[green]✓ Inserted {len(all_rows)} rows into {self.dataset}.contratos (duplicates ignored)"
+                    f"[green]✓ Inserted {len(all_rows)} rows into {self.dataset}.{table_name} (duplicates ignored)"
                 )
 
             # Record coverage
