@@ -467,3 +467,95 @@ jobs:
           echo ""
           echo "Progress: $PROGRESS / $TOTAL ($PCT%)"
           echo "Days on Internet Archive: $UPLOADED"
+
+      - name: Generate dashboard status
+        if: always()
+        run: |
+          mkdir -p docs/dashboard
+
+          uv run python - << 'PY'
+          import json
+          from pathlib import Path
+          from datetime import datetime
+
+          # Load state files
+          completed = []
+          pending = []
+          empty = []
+
+          completed_file = Path('state/completed.txt')
+          if completed_file.exists():
+              completed = [l for l in completed_file.read_text().strip().split('\n') if l]
+
+          unavailable_file = Path('state/unavailable.txt')
+          if unavailable_file.exists():
+              empty = [l for l in unavailable_file.read_text().strip().split('\n') if l]
+
+          uploaded_file = Path('state/uploaded_to_ia.txt')
+          uploaded = []
+          if uploaded_file.exists():
+              uploaded = [l for l in uploaded_file.read_text().strip().split('\n') if l]
+
+          # Get buffer stats from DuckDB
+          buffer_stats = {"total_rows": 0, "dates_in_buffer": 0, "pending_checkpoints": 0}
+          recent_dates = []
+
+          try:
+              import duckdb
+              if Path('baliza.duckdb').exists():
+                  con = duckdb.connect('baliza.duckdb', read_only=True)
+                  try:
+                      result = con.execute('SELECT COUNT(*) FROM baliza_raw.contratos').fetchone()
+                      buffer_stats["total_rows"] = result[0] if result else 0
+
+                      result = con.execute('''
+                          SELECT CAST(dataPublicacao AS DATE) as dt, COUNT(*) as cnt
+                          FROM baliza_raw.contratos
+                          GROUP BY dt ORDER BY dt DESC LIMIT 20
+                      ''').fetchall()
+                      buffer_stats["dates_in_buffer"] = len(result)
+
+                      for row in result[:10]:
+                          date_str = str(row[0])
+                          status = 'uploaded' if any(date_str in u for u in uploaded) else 'complete'
+                          recent_dates.append({"date": date_str, "contracts": row[1], "status": status})
+
+                      result = con.execute('SELECT COUNT(*) FROM baliza_state.extraction_checkpoint').fetchone()
+                      buffer_stats["pending_checkpoints"] = result[0] if result else 0
+                  except Exception as e:
+                      print(f"DB query error: {e}")
+          except ImportError:
+              pass
+
+          # Build status
+          status = {
+              "generated_at": datetime.utcnow().isoformat() + "Z",
+              "mode": "backfill",
+              "stats": {
+                  "total_contracts": buffer_stats["total_rows"],
+                  "contracts_today": 0,
+                  "days_on_ia": len(uploaded),
+              },
+              "backfill": {
+                  "completed": len(completed),
+                  "pending": 0,  # Will be calculated by workflow
+                  "empty": len(empty),
+                  "oldest_target": min(completed) if completed else None,
+              },
+              "buffer": buffer_stats,
+              "recent_dates": recent_dates,
+          }
+
+          # Write status.json
+          Path('docs/dashboard/status.json').write_text(json.dumps(status, indent=2))
+          print(f"Generated status.json: {len(completed)} completed, {len(uploaded)} uploaded")
+          PY
+
+      - name: Upload dashboard
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard
+          path: docs/dashboard/
+          retention-days: 30
+          overwrite: true
