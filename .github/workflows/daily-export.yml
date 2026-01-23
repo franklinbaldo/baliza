@@ -6,36 +6,55 @@ on:
     - cron: '0 5 * * *'
   workflow_dispatch:
 
+# Prevent overlapping runs - skip if one is already running
+concurrency:
+  group: pncp-daily-export
+  cancel-in-progress: false
+
 permissions:
   contents: read
-  actions: read
+  actions: write
   issues: write
 
 jobs:
   export:
     name: Run daily extraction and export
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
       - name: Set up Python
-        uses: actions/setup-python@v4
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Download previous database state
+        uses: dawidd6/action-download-artifact@v6
+        continue-on-error: true
         with:
-          python-version: '3.11'
+          name: baliza-db-state
+          path: ./
+          if_no_artifact_found: ignore
+          workflow_conclusion: success
 
-      - name: Install project
+      - name: Run incremental extract (D-1 priority)
         run: |
-          python -m pip install --upgrade pip
-          pip install .
-
-      - name: Run incremental extract
-        run: baliza extract --lookback-days=3 --duckdb baliza.duckdb --dataset baliza_raw
+          # Always extract yesterday first (D-1 priority)
+          YESTERDAY=$(date -d "-1 day" +%Y-%m-%d)
+          uv run baliza extract --start $YESTERDAY --end $YESTERDAY --duckdb baliza.duckdb --dataset baliza_raw
+          # Then backfill recent days
+          uv run baliza extract --lookback-days=3 --duckdb baliza.duckdb --dataset baliza_raw
 
       - name: Export current month parquet snapshot
         run: |
-          python scripts/export_parquet.py \
+          uv run python scripts/export_parquet.py \
             contratos \
             --duckdb baliza.duckdb \
             --dataset baliza_raw \
@@ -44,10 +63,19 @@ jobs:
             --fallback-date-col dataAtualizacao \
             --current-month
 
+      - name: Save database state
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: baliza-db-state
+          path: baliza.duckdb
+          retention-days: 30
+          overwrite: true
+
       - name: Detect exported partition
         id: partition
         run: |
-          python - <<'PY'
+          uv run python - <<'PY'
           from pathlib import Path
 
           base = Path('data/contratos')

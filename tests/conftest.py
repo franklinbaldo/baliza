@@ -9,6 +9,45 @@ from urllib.parse import urlencode
 
 import pytest
 
+
+# =============================================================================
+# Test Tier Configuration
+# =============================================================================
+# Tiers are defined in pyproject.toml:
+#   tier0: Critical Path - Without these, tool is useless
+#   tier1: Core Features - Essential for production use
+#   tier2: Operator Experience - Quality-of-life improvements
+#   tier3: Future Enhancements - Aspirational features
+
+
+def pytest_collection_modifyitems(config, items):
+    """Auto-apply tier markers based on feature file tags or location."""
+    for item in items:
+        # Check if test has @tier0, @tier1, etc. in the scenario tags
+        if hasattr(item, "callspec") and "scenario" in item.callspec.params:
+            scenario = item.callspec.params["scenario"]
+            if hasattr(scenario, "tags"):
+                for tag in scenario.tags:
+                    if tag.startswith("tier"):
+                        item.add_marker(getattr(pytest.mark, tag))
+
+        # Auto-mark based on file path
+        test_path = str(item.fspath)
+        if "/tier0/" in test_path:
+            item.add_marker(pytest.mark.tier0)
+        elif "/tier1/" in test_path:
+            item.add_marker(pytest.mark.tier1)
+        elif "/tier2/" in test_path:
+            item.add_marker(pytest.mark.tier2)
+        elif "/tier3/" in test_path:
+            item.add_marker(pytest.mark.tier3)
+
+        # Default: tests without tier marker get tier1
+        tier_markers = [m for m in item.iter_markers() if m.name.startswith("tier")]
+        if not tier_markers:
+            item.add_marker(pytest.mark.tier1)
+
+
 # =============================================================================
 # VCR Configuration for Integration Tests
 # =============================================================================

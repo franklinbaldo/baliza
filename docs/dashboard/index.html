@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Baliza Status</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; padding: 2rem; }
+    .container { max-width: 800px; margin: 0 auto; }
+    h1 { margin-bottom: 0.5rem; }
+    .subtitle { color: #64748b; margin-bottom: 2rem; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+    .card { background: #1e293b; border-radius: 8px; padding: 1.5rem; }
+    .card-label { font-size: 0.875rem; color: #94a3b8; margin-bottom: 0.25rem; }
+    .card-value { font-size: 2rem; font-weight: bold; }
+    .green { color: #34d399; }
+    .blue { color: #60a5fa; }
+    .yellow { color: #fbbf24; }
+    .progress-bar { background: #334155; border-radius: 4px; height: 8px; margin-top: 0.5rem; }
+    .progress-fill { background: linear-gradient(90deg, #3b82f6, #10b981); height: 100%; border-radius: 4px; transition: width 0.3s; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 0.75rem; border-bottom: 1px solid #334155; }
+    th { color: #94a3b8; font-weight: normal; }
+    .badge { display: inline-block; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; }
+    .badge-green { background: #064e3b; color: #34d399; }
+    .badge-yellow { background: #78350f; color: #fbbf24; }
+    .badge-blue { background: #1e3a8a; color: #60a5fa; }
+    footer { text-align: center; color: #64748b; margin-top: 2rem; font-size: 0.875rem; }
+    a { color: #60a5fa; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Baliza PNCP</h1>
+    <p class="subtitle" id="lastUpdate">Carregando status...</p>
+
+    <div class="grid">
+      <div class="card">
+        <div class="card-label">Contratos</div>
+        <div class="card-value green" id="totalContracts">-</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Dias Extraídos</div>
+        <div class="card-value blue" id="completedDays">-</div>
+      </div>
+      <div class="card">
+        <div class="card-label">No Internet Archive</div>
+        <div class="card-value" id="iaUploaded">-</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Buffer</div>
+        <div class="card-value yellow" id="bufferRows">-</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom: 2rem;">
+      <div class="card-label">Progresso Backfill</div>
+      <div style="display: flex; align-items: center; gap: 1rem; margin-top: 0.5rem;">
+        <div class="progress-bar" style="flex: 1;">
+          <div class="progress-fill" id="progressBar" style="width: 0%;"></div>
+        </div>
+        <span id="progressPct">0%</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label" style="margin-bottom: 1rem;">Últimas Extrações</div>
+      <table>
+        <thead>
+          <tr><th>Data</th><th style="text-align: right;">Contratos</th><th style="text-align: right;">Status</th></tr>
+        </thead>
+        <tbody id="recentTable">
+          <tr><td colspan="3" style="text-align: center; color: #64748b;">Carregando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <footer>
+      <a href="https://github.com/franklinbaldo/baliza">GitHub</a> ·
+      <a href="https://archive.org/search?query=creator%3A%22Baliza+Project%22">Internet Archive</a>
+    </footer>
+  </div>
+
+  <script>
+    async function load() {
+      try {
+        const res = await fetch('./status.json?t=' + Date.now());
+        if (!res.ok) throw new Error('No status');
+        const d = await res.json();
+
+        document.getElementById('lastUpdate').textContent = 'Atualizado: ' + new Date(d.generated_at).toLocaleString('pt-BR');
+        document.getElementById('totalContracts').textContent = (d.stats?.total_contracts || 0).toLocaleString('pt-BR');
+        document.getElementById('completedDays').textContent = d.backfill?.completed || 0;
+        document.getElementById('iaUploaded').textContent = d.stats?.days_on_ia || 0;
+        document.getElementById('bufferRows').textContent = (d.buffer?.total_rows || 0).toLocaleString('pt-BR');
+
+        const total = (d.backfill?.completed || 0) + (d.backfill?.pending || 0) + (d.backfill?.empty || 0);
+        const pct = total > 0 ? Math.round((d.backfill?.completed || 0) / total * 100) : 0;
+        document.getElementById('progressBar').style.width = pct + '%';
+        document.getElementById('progressPct').textContent = pct + '%';
+
+        if (d.recent_dates?.length) {
+          document.getElementById('recentTable').innerHTML = d.recent_dates.slice(0, 7).map(r => `
+            <tr>
+              <td>${r.date}</td>
+              <td style="text-align: right;">${r.contracts.toLocaleString('pt-BR')}</td>
+              <td style="text-align: right;"><span class="badge badge-${r.status === 'uploaded' ? 'green' : r.status === 'complete' ? 'blue' : 'yellow'}">${r.status}</span></td>
+            </tr>
+          `).join('');
+        }
+      } catch (e) {
+        document.getElementById('lastUpdate').textContent = 'Execute o workflow para gerar status.json';
+      }
+    }
+    load();
+    setInterval(load, 60000);
+  </script>
+</body>
+</html>
