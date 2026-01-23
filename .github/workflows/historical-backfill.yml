@@ -1,0 +1,413 @@
+name: Historical Backfill
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'  # Every 30 minutes
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: 'Backfill start date (YYYY-MM-DD)'
+        required: false
+        default: '2023-01-01'
+      max_days_per_run:
+        description: 'Max days to process per run'
+        required: false
+        default: '5'
+      direction:
+        description: 'Backfill direction: forward (oldest first) or backward (newest first)'
+        required: false
+        default: 'forward'
+
+concurrency:
+  group: pncp-backfill
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: write
+
+env:
+  # PNCP launched around Jan 2023
+  BACKFILL_START: '2023-01-01'
+  MAX_DAYS_PER_RUN: 5
+  IA_ITEM_PREFIX: 'baliza-pncp'
+
+jobs:
+  backfill:
+    name: Historical backfill extraction
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Install Internet Archive CLI
+        run: pip install internetarchive
+
+      - name: Configure Internet Archive
+        if: env.IA_ACCESS_KEY != ''
+        run: |
+          mkdir -p ~/.config
+          cat > ~/.config/ia.ini << EOF
+          [s3]
+          access = ${{ secrets.IA_ACCESS_KEY }}
+          secret = ${{ secrets.IA_SECRET_KEY }}
+          EOF
+        env:
+          IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
+
+      - name: Download backfill state
+        uses: dawidd6/action-download-artifact@v6
+        continue-on-error: true
+        with:
+          name: backfill-state
+          path: state/
+          if_no_artifact_found: ignore
+          workflow_conclusion: success
+
+      - name: Download database state
+        uses: dawidd6/action-download-artifact@v6
+        continue-on-error: true
+        with:
+          name: baliza-db-state
+          path: ./
+          if_no_artifact_found: ignore
+          workflow_conclusion: success
+
+      - name: Initialize state files
+        run: |
+          mkdir -p state
+          touch state/completed.txt
+          touch state/unavailable.txt
+          touch state/uploaded_to_ia.txt
+
+          echo "State files:"
+          echo "  Completed dates: $(wc -l < state/completed.txt | tr -d ' ')"
+          echo "  Unavailable dates: $(wc -l < state/unavailable.txt | tr -d ' ')"
+          echo "  Uploaded to IA: $(wc -l < state/uploaded_to_ia.txt | tr -d ' ')"
+
+      - name: Find dates to backfill
+        id: find
+        run: |
+          START_DATE="${{ inputs.start_date || env.BACKFILL_START }}"
+          MAX_DAYS="${{ inputs.max_days_per_run || env.MAX_DAYS_PER_RUN }}"
+          DIRECTION="${{ inputs.direction || 'forward' }}"
+          TODAY=$(date +%Y-%m-%d)
+
+          echo "Backfill range: $START_DATE to $TODAY"
+          echo "Direction: $DIRECTION"
+          echo "Max days per run: $MAX_DAYS"
+
+          # Generate all dates in range
+          > all_dates.txt
+          current="$START_DATE"
+          while [[ "$current" < "$TODAY" ]]; do
+            echo "$current" >> all_dates.txt
+            current=$(date -d "$current + 1 day" +%Y-%m-%d)
+          done
+
+          TOTAL_DATES=$(wc -l < all_dates.txt | tr -d ' ')
+          echo "Total dates in range: $TOTAL_DATES"
+
+          # Filter out completed and unavailable
+          > pending_dates.txt
+          while read -r date; do
+            if grep -q "^${date}$" state/completed.txt; then
+              continue
+            fi
+            if grep -q "^${date}$" state/unavailable.txt; then
+              continue
+            fi
+            echo "$date" >> pending_dates.txt
+          done < all_dates.txt
+
+          PENDING=$(wc -l < pending_dates.txt | tr -d ' ')
+          echo "Pending dates: $PENDING"
+
+          # Sort by direction
+          if [ "$DIRECTION" = "forward" ]; then
+            sort pending_dates.txt > sorted_dates.txt
+          else
+            sort -r pending_dates.txt > sorted_dates.txt
+          fi
+
+          # Take batch
+          head -n "$MAX_DAYS" sorted_dates.txt > batch_dates.txt
+          BATCH_SIZE=$(wc -l < batch_dates.txt | tr -d ' ')
+
+          echo "Batch size: $BATCH_SIZE"
+          echo "batch_size=$BATCH_SIZE" >> $GITHUB_OUTPUT
+          echo "pending=$PENDING" >> $GITHUB_OUTPUT
+          echo "total=$TOTAL_DATES" >> $GITHUB_OUTPUT
+
+          if [ "$BATCH_SIZE" -gt 0 ]; then
+            echo "Dates to process:"
+            cat batch_dates.txt
+          fi
+
+      - name: Extract batch
+        if: steps.find.outputs.batch_size != '0'
+        run: |
+          SUCCESS=0
+          FAILED=0
+          EMPTY=0
+
+          while read -r DATE; do
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "📅 Extracting: $DATE"
+
+            # Run extraction for this date
+            if uv run baliza extract \
+                --start "$DATE" \
+                --end "$DATE" \
+                --duckdb baliza.duckdb \
+                --dataset baliza_raw 2>&1 | tee extract.log; then
+
+              # Check if any records were extracted
+              RECORDS=$(uv run python -c "
+          import duckdb
+          con = duckdb.connect('baliza.duckdb')
+          try:
+              result = con.execute('''
+                  SELECT COUNT(*) FROM baliza_raw.contratos
+                  WHERE CAST(dataPublicacaoPncp AS DATE) = ?
+              ''', ['$DATE']).fetchone()
+              print(result[0] if result else 0)
+          except Exception as e:
+              print(0)
+          " 2>/dev/null || echo "0")
+
+              if [ "$RECORDS" -gt 0 ]; then
+                echo "✅ Extracted $RECORDS contracts"
+                echo "$DATE" >> state/completed.txt
+                SUCCESS=$((SUCCESS + 1))
+              else
+                echo "⚠️ No data for this date (marking unavailable)"
+                echo "$DATE" >> state/unavailable.txt
+                EMPTY=$((EMPTY + 1))
+              fi
+            else
+              echo "❌ Extraction failed"
+              FAILED=$((FAILED + 1))
+            fi
+
+            # Rate limiting
+            sleep 2
+
+          done < batch_dates.txt
+
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Batch complete: $SUCCESS success, $EMPTY empty, $FAILED failed"
+
+      - name: Export completed months to Parquet
+        if: steps.find.outputs.batch_size != '0'
+        run: |
+          # Find months that are fully extracted
+          uv run python - << 'PY'
+          import duckdb
+          from pathlib import Path
+          from datetime import datetime, timedelta
+          import calendar
+
+          con = duckdb.connect('baliza.duckdb')
+
+          # Load completed dates
+          completed = set()
+          completed_file = Path('state/completed.txt')
+          if completed_file.exists():
+              completed = set(completed_file.read_text().strip().split('\n'))
+
+          # Load unavailable dates
+          unavailable = set()
+          unavailable_file = Path('state/unavailable.txt')
+          if unavailable_file.exists():
+              unavailable = set(unavailable_file.read_text().strip().split('\n'))
+
+          # Find months where all days are completed or unavailable
+          all_known = completed | unavailable
+
+          # Get date range from data
+          try:
+              result = con.execute('''
+                  SELECT
+                      MIN(CAST(dataPublicacaoPncp AS DATE)) as min_date,
+                      MAX(CAST(dataPublicacaoPncp AS DATE)) as max_date
+                  FROM baliza_raw.contratos
+              ''').fetchone()
+
+              if result and result[0]:
+                  min_date = result[0]
+                  max_date = result[1]
+                  print(f"Data range: {min_date} to {max_date}")
+              else:
+                  print("No data yet")
+                  exit(0)
+          except:
+              print("Could not query date range")
+              exit(0)
+
+          # Check each month
+          current = datetime(min_date.year, min_date.month, 1)
+          end = datetime(max_date.year, max_date.month, 1)
+
+          complete_months = []
+          while current <= end:
+              year = current.year
+              month = current.month
+              days_in_month = calendar.monthrange(year, month)[1]
+
+              # Check if all days in month are known
+              month_dates = set()
+              for day in range(1, days_in_month + 1):
+                  month_dates.add(f"{year}-{month:02d}-{day:02d}")
+
+              if month_dates <= all_known:
+                  complete_months.append((year, month))
+                  print(f"✅ {year}-{month:02d} is complete")
+              else:
+                  missing = month_dates - all_known
+                  print(f"⏳ {year}-{month:02d} missing {len(missing)} days")
+
+              # Next month
+              if month == 12:
+                  current = datetime(year + 1, 1, 1)
+              else:
+                  current = datetime(year, month + 1, 1)
+
+          # Write complete months for export
+          with open('complete_months.txt', 'w') as f:
+              for year, month in complete_months:
+                  f.write(f"{year},{month}\n")
+
+          print(f"\nTotal complete months: {len(complete_months)}")
+          PY
+
+      - name: Export Parquet files
+        if: steps.find.outputs.batch_size != '0'
+        run: |
+          if [ ! -f complete_months.txt ] || [ ! -s complete_months.txt ]; then
+            echo "No complete months to export yet"
+            exit 0
+          fi
+
+          mkdir -p data/contratos
+
+          while IFS=',' read -r YEAR MONTH; do
+            echo "Exporting $YEAR-$MONTH..."
+
+            uv run python scripts/export_parquet.py \
+              contratos \
+              --duckdb baliza.duckdb \
+              --dataset baliza_raw \
+              --output-dir data/contratos \
+              --date-col dataPublicacaoPncp \
+              --fallback-date-col dataAtualizacao \
+              --year "$YEAR" \
+              --month "$MONTH" || echo "Export failed for $YEAR-$MONTH"
+
+          done < complete_months.txt
+
+      - name: Upload to Internet Archive
+        if: steps.find.outputs.batch_size != '0' && env.IA_ACCESS_KEY != ''
+        env:
+          IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
+        run: |
+          if [ ! -d data/contratos ]; then
+            echo "No parquet files to upload"
+            exit 0
+          fi
+
+          # Find parquet files not yet uploaded
+          find data/contratos -name "*.parquet" | while read -r FILE; do
+            # Generate item ID from path
+            # data/contratos/ano=2024/mes=01/contratos.parquet -> baliza-pncp-2024-01
+            YEAR=$(echo "$FILE" | grep -oP 'ano=\K[0-9]+')
+            MONTH=$(echo "$FILE" | grep -oP 'mes=\K[0-9]+')
+            ITEM_ID="${IA_ITEM_PREFIX}-${YEAR}-${MONTH}"
+
+            # Check if already uploaded
+            if grep -q "^${ITEM_ID}$" state/uploaded_to_ia.txt 2>/dev/null; then
+              echo "⏭️ $ITEM_ID already uploaded"
+              continue
+            fi
+
+            echo "📤 Uploading $FILE to $ITEM_ID..."
+
+            if ia upload "$ITEM_ID" "$FILE" \
+                --metadata="collection:opensource" \
+                --metadata="mediatype:data" \
+                --metadata="title:Baliza PNCP Contracts ${YEAR}-${MONTH}" \
+                --metadata="description:Brazilian public procurement contracts from PNCP (Portal Nacional de Contratações Públicas) for ${YEAR}-${MONTH}" \
+                --metadata="subject:brazil;procurement;pncp;open-data;government" \
+                --metadata="creator:Baliza Project" \
+                --no-derive; then
+              echo "$ITEM_ID" >> state/uploaded_to_ia.txt
+              echo "✅ Uploaded $ITEM_ID"
+            else
+              echo "❌ Failed to upload $ITEM_ID"
+            fi
+
+            # Rate limiting for IA
+            sleep 5
+          done
+
+      - name: Save database state
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: baliza-db-state
+          path: baliza.duckdb
+          retention-days: 30
+          overwrite: true
+
+      - name: Save backfill state
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backfill-state
+          path: state/
+          retention-days: 90
+          overwrite: true
+
+      - name: Summary
+        run: |
+          COMPLETED=$(wc -l < state/completed.txt | tr -d ' ')
+          UNAVAILABLE=$(wc -l < state/unavailable.txt | tr -d ' ')
+          UPLOADED=$(wc -l < state/uploaded_to_ia.txt | tr -d ' ')
+          PENDING="${{ steps.find.outputs.pending }}"
+          TOTAL="${{ steps.find.outputs.total }}"
+
+          PROGRESS=$((COMPLETED + UNAVAILABLE))
+          if [ "$TOTAL" -gt 0 ]; then
+            PCT=$((PROGRESS * 100 / TOTAL))
+          else
+            PCT=0
+          fi
+
+          echo "## Backfill Progress" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Total dates in range | $TOTAL |" >> $GITHUB_STEP_SUMMARY
+          echo "| Completed | $COMPLETED |" >> $GITHUB_STEP_SUMMARY
+          echo "| Unavailable (no data) | $UNAVAILABLE |" >> $GITHUB_STEP_SUMMARY
+          echo "| Pending | $PENDING |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Progress** | **${PCT}%** |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Internet Archive | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|------------------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Months uploaded | $UPLOADED |" >> $GITHUB_STEP_SUMMARY
+
+          echo ""
+          echo "Progress: $PROGRESS / $TOTAL ($PCT%)"
+          echo "Months on Internet Archive: $UPLOADED"
