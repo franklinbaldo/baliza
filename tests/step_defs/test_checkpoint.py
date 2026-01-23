@@ -185,7 +185,7 @@ def db_with_checkpoint(tmp_path: Path, page: int, total: int) -> dict:
     return {"db_path": db_file, "dataset": "test_dataset", "checkpoint_page": page, "total_pages": total}
 
 
-@given(parsers.parse("{count:d} rows already extracted"))
+@given(parsers.parse("{count:d} rows already extracted"), target_fixture="rows_already_extracted")
 def rows_already_extracted(db_with_checkpoint, count):
     """Pre-populate database with existing rows."""
     db_path = db_with_checkpoint["db_path"]
@@ -395,7 +395,7 @@ def extraction_started(tmp_path: Path) -> dict:
     return {"db_path": db_file, "dataset": "test_dataset"}
 
 
-@given(parsers.parse("{pages:d} pages are successfully extracted"))
+@given(parsers.parse("{pages:d} pages are successfully extracted"), target_fixture="pages_extracted")
 def pages_extracted(extraction_started, pages):
     """Extract N pages of data."""
     db_path = extraction_started["db_path"]

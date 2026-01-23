@@ -360,9 +360,10 @@ def check_contratos_count(exported_orgs):
     table = pq.read_table(parquet_file)
     assert "contratos_no_dia" in table.schema.names, "Missing contratos_no_dia column"
 
-    # Verify all counts are positive
-    df = table.to_pandas()
-    assert (df["contratos_no_dia"] > 0).all(), "All orgs should have at least 1 contract"
+    # Verify all counts are positive (using PyArrow directly)
+    contratos_col = table.column("contratos_no_dia")
+    for val in contratos_col:
+        assert val.as_py() > 0, "All orgs should have at least 1 contract"
 
 
 # =============================================================================
@@ -518,20 +519,23 @@ def read_metadata(export_with_metadata):
 @then(parsers.parse('schema_version should be "{version}"'))
 def check_schema_version(metadata, version):
     """Verify schema version."""
-    assert metadata["metadata"]["schema_version"] == version, (
-        f"Expected schema_version '{version}', got '{metadata['metadata']['schema_version']}'"
+    meta = metadata["metadata"]
+    assert meta["schema_version"] == version, (
+        f"Expected schema_version '{version}', got '{meta['schema_version']}'"
     )
 
 
 @then(parsers.parse("tables.contratos.row_count should be {count:d}"))
 def check_row_count(metadata, count):
     """Verify row count in metadata."""
-    actual_count = metadata["metadata"]["stats"]["tables"]["contratos"]["row_count"]
+    meta = metadata["metadata"]
+    actual_count = meta["tables"]["contratos"]["row_count"]
     assert actual_count == count, f"Expected row_count {count}, got {actual_count}"
 
 
 @then(parsers.parse('data_particao should be "{date_str}"'))
 def check_data_particao(metadata, date_str):
     """Verify data_particao."""
-    actual_date = metadata["metadata"]["data_particao"]
+    meta = metadata["metadata"]
+    actual_date = meta["data_particao"]
     assert actual_date == date_str, f"Expected data_particao '{date_str}', got '{actual_date}'"
