@@ -1,0 +1,182 @@
+name: Run Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'pyproject.toml'
+      - '.github/workflows/test.yml'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.12']
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test]"
+
+      - name: Run linting
+        run: |
+          pip install ruff
+          ruff check src/ tests/
+
+      - name: Run type checking
+        run: |
+          pip install mypy
+          mypy src/ --ignore-missing-imports || true
+
+      - name: Run Tier 0 tests (Critical Path)
+        run: |
+          pytest tests/step_defs/ -v -m tier0 --tb=short
+
+      - name: Run Tier 1 tests (Core Features)
+        run: |
+          pytest tests/step_defs/ -v -m tier1 --tb=short
+
+      - name: Run Tier 2 tests (Operator Experience)
+        run: |
+          pytest tests/step_defs/ -v -m tier2 --tb=short
+
+      - name: Run all BDD tests with coverage
+        run: |
+          pip install pytest-cov
+          pytest tests/step_defs/ -v --cov=baliza --cov-report=xml --cov-report=term
+
+      - name: Run integration tests
+        run: |
+          pytest tests/integration/ -v --tb=short || true
+
+      - name: Validate parquet exports
+        run: |
+          python -c "
+          import tempfile
+          from pathlib import Path
+          from datetime import date
+          import duckdb
+          from baliza.daily_exporter import DailyExporter
+          import pyarrow.parquet as pq
+
+          # Create test database
+          with tempfile.TemporaryDirectory() as tmpdir:
+              db_path = Path(tmpdir) / 'test.duckdb'
+              output_dir = Path(tmpdir) / 'output'
+
+              with duckdb.connect(str(db_path)) as con:
+                  con.execute('CREATE SCHEMA baliza_raw')
+                  con.execute('''
+                      CREATE TABLE baliza_raw.contratos (
+                          numeroControlePNCP VARCHAR,
+                          anoCompra INTEGER,
+                          sequencialCompra INTEGER,
+                          orgaoEntidade_cnpj VARCHAR,
+                          orgaoEntidade_razaoSocial VARCHAR,
+                          orgaoEntidade_poderId VARCHAR,
+                          unidadeOrgao_codigoUnidade VARCHAR,
+                          unidadeOrgao_nomeUnidade VARCHAR,
+                          modalidadeId INTEGER,
+                          modalidadeNome VARCHAR,
+                          valorInicial DECIMAL(18,2),
+                          dataPublicacao TIMESTAMP,
+                          dataVigenciaInicio TIMESTAMP,
+                          dataVigenciaFim TIMESTAMP,
+                          objetoContrato VARCHAR,
+                          informacaoComplementar VARCHAR,
+                          numeroProcesso VARCHAR,
+                          linkSistemaOrigem VARCHAR,
+                          dataInclusao TIMESTAMP,
+                          dataAtualizacao TIMESTAMP,
+                          usuarioNome VARCHAR
+                      )
+                  ''')
+
+                  # Insert test data
+                  for i in range(100):
+                      con.execute(f'''
+                          INSERT INTO baliza_raw.contratos VALUES (
+                              'CTRL-{i:05d}', 2024, {i}, '12345678000190', 'Test Org',
+                              'EXECUTIVO', '001', 'Unit 1', 1, 'Pregão', 1000.00,
+                              '2024-01-15T10:00:00', NULL, NULL, 'Test contract', NULL,
+                              'PROC-001', 'http://example.com', '2024-01-15T10:00:00',
+                              '2024-01-15T10:00:00', 'Test User'
+                          )
+                      ''')
+
+              # Export to parquet
+              exporter = DailyExporter(db_path, 'baliza_raw')
+              stats = exporter.export(date(2024, 1, 15), output_dir)
+
+              # Validate files exist
+              day_dir = output_dir / '2024-01-15'
+              assert (day_dir / 'contratos.parquet').exists(), 'contratos.parquet missing'
+              assert (day_dir / 'orgaos.parquet').exists(), 'orgaos.parquet missing'
+              assert (day_dir / 'unidades.parquet').exists(), 'unidades.parquet missing'
+              assert (day_dir / '_metadata.json').exists(), '_metadata.json missing'
+
+              # Validate schema
+              contratos_table = pq.read_table(day_dir / 'contratos.parquet')
+              required_columns = ['numero_controle_pncp', 'orgao_cnpj', 'valor_inicial',
+                                 'data_publicacao', 'data_particao']
+              for col in required_columns:
+                  assert col in contratos_table.schema.names, f'Missing column: {col}'
+
+              # Validate row count
+              assert contratos_table.num_rows == 100, f'Expected 100 rows, got {contratos_table.num_rows}'
+
+              # Validate foreign keys
+              orgaos_table = pq.read_table(day_dir / 'orgaos.parquet')
+              assert orgaos_table.num_rows > 0, 'orgaos.parquet should have rows'
+
+              print('✓ Parquet validation successful!')
+              print(f'  Contratos: {contratos_table.num_rows} rows')
+              print(f'  Orgaos: {orgaos_table.num_rows} rows')
+              print(f'  Schema version: {stats[\"schema_version\"]}')"
+
+      - name: Create test summary
+        if: always()
+        run: |
+          echo "## Test Results 🧪" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Python Version:** ${{ matrix.python-version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Count test files
+          echo "### Test Coverage" >> $GITHUB_STEP_SUMMARY
+          echo "- Step definitions: $(ls -1 tests/step_defs/test_*.py 2>/dev/null | wc -l)" >> $GITHUB_STEP_SUMMARY
+          echo "- Feature files: $(ls -1 tests/features/*.feature 2>/dev/null | wc -l)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Test Tiers" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tier 0 (Critical Path)**: Without these, tool is useless" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tier 1 (Core Features)**: Essential for production use" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tier 2 (Operator Experience)**: Quality-of-life improvements" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload coverage reports
+        if: matrix.python-version == '3.11'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+          retention-days: 30
