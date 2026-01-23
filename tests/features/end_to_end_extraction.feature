@@ -3,6 +3,7 @@ Feature: End-to-end data extraction pipeline
   I want to run the extraction pipeline,
   So that I have a complete and unique local dataset.
 
+  @tier0
   Scenario: The data pipeline is resumable and idempotent
     Given a clean local data store
     And an external data source for a specific date range

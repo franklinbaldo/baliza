@@ -209,15 +209,20 @@ jobs:
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "Batch complete: $SUCCESS success, $EMPTY empty, $FAILED failed"
 
-      - name: Export completed months to Parquet
+      - name: Find dates ready for export
         if: steps.find.outputs.batch_size != '0'
+        id: export-dates
         run: |
-          # Find months that are fully extracted
+          # Find completed dates older than stability window (D-7)
+          STABILITY_DAYS=7
+
           uv run python - << 'PY'
           import duckdb
           from pathlib import Path
           from datetime import datetime, timedelta
-          import calendar
+
+          STABILITY_DAYS = 7
+          cutoff = datetime.now() - timedelta(days=STABILITY_DAYS)
 
           con = duckdb.connect('baliza.duckdb')
 
@@ -225,115 +230,87 @@ jobs:
           completed = set()
           completed_file = Path('state/completed.txt')
           if completed_file.exists():
-              completed = set(completed_file.read_text().strip().split('\n'))
+              for line in completed_file.read_text().strip().split('\n'):
+                  if line:
+                      completed.add(line)
 
-          # Load unavailable dates
-          unavailable = set()
-          unavailable_file = Path('state/unavailable.txt')
-          if unavailable_file.exists():
-              unavailable = set(unavailable_file.read_text().strip().split('\n'))
+          # Load already uploaded to IA
+          uploaded = set()
+          uploaded_file = Path('state/uploaded_to_ia.txt')
+          if uploaded_file.exists():
+              for line in uploaded_file.read_text().strip().split('\n'):
+                  if line:
+                      # Format: baliza-pncp-YYYY-MM-DD
+                      parts = line.split('-')
+                      if len(parts) >= 5:
+                          uploaded.add(f"{parts[2]}-{parts[3]}-{parts[4]}")
 
-          # Find months where all days are completed or unavailable
-          all_known = completed | unavailable
+          # Find dates that are:
+          # 1. Completed
+          # 2. Older than stability window
+          # 3. Not yet uploaded to IA
+          ready_dates = []
+          for date_str in completed:
+              try:
+                  dt = datetime.strptime(date_str, '%Y-%m-%d')
+                  if dt < cutoff and date_str not in uploaded:
+                      ready_dates.append(date_str)
+              except ValueError:
+                  continue
 
-          # Get date range from data
-          try:
-              result = con.execute('''
-                  SELECT
-                      MIN(CAST(dataPublicacaoPncp AS DATE)) as min_date,
-                      MAX(CAST(dataPublicacaoPncp AS DATE)) as max_date
-                  FROM baliza_raw.contratos
-              ''').fetchone()
+          ready_dates.sort()
 
-              if result and result[0]:
-                  min_date = result[0]
-                  max_date = result[1]
-                  print(f"Data range: {min_date} to {max_date}")
-              else:
-                  print("No data yet")
-                  exit(0)
-          except:
-              print("Could not query date range")
-              exit(0)
+          # Write ready dates for export
+          with open('ready_dates.txt', 'w') as f:
+              for d in ready_dates:
+                  f.write(f"{d}\n")
 
-          # Check each month
-          current = datetime(min_date.year, min_date.month, 1)
-          end = datetime(max_date.year, max_date.month, 1)
-
-          complete_months = []
-          while current <= end:
-              year = current.year
-              month = current.month
-              days_in_month = calendar.monthrange(year, month)[1]
-
-              # Check if all days in month are known
-              month_dates = set()
-              for day in range(1, days_in_month + 1):
-                  month_dates.add(f"{year}-{month:02d}-{day:02d}")
-
-              if month_dates <= all_known:
-                  complete_months.append((year, month))
-                  print(f"✅ {year}-{month:02d} is complete")
-              else:
-                  missing = month_dates - all_known
-                  print(f"⏳ {year}-{month:02d} missing {len(missing)} days")
-
-              # Next month
-              if month == 12:
-                  current = datetime(year + 1, 1, 1)
-              else:
-                  current = datetime(year, month + 1, 1)
-
-          # Write complete months for export
-          with open('complete_months.txt', 'w') as f:
-              for year, month in complete_months:
-                  f.write(f"{year},{month}\n")
-
-          print(f"\nTotal complete months: {len(complete_months)}")
+          print(f"Dates ready for export (D-{STABILITY_DAYS}): {len(ready_dates)}")
+          if ready_dates:
+              print(f"  Range: {ready_dates[0]} to {ready_dates[-1]}")
           PY
 
-      - name: Export Parquet files
-        if: steps.find.outputs.batch_size != '0'
+          READY_COUNT=$(wc -l < ready_dates.txt 2>/dev/null | tr -d ' ' || echo "0")
+          echo "ready_count=$READY_COUNT" >> $GITHUB_OUTPUT
+
+      - name: Export daily Parquet files
+        if: steps.find.outputs.batch_size != '0' && steps.export-dates.outputs.ready_count != '0'
         run: |
-          if [ ! -f complete_months.txt ] || [ ! -s complete_months.txt ]; then
-            echo "No complete months to export yet"
-            exit 0
-          fi
+          mkdir -p data/daily
 
-          mkdir -p data/contratos
+          # Export up to 10 days per run to avoid timeout
+          head -n 10 ready_dates.txt > export_batch.txt
 
-          while IFS=',' read -r YEAR MONTH; do
-            echo "Exporting $YEAR-$MONTH..."
+          while read -r DATE; do
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "📦 Exporting: $DATE"
 
-            uv run python scripts/export_parquet.py \
-              contratos \
-              --duckdb baliza.duckdb \
-              --dataset baliza_raw \
-              --output-dir data/contratos \
-              --date-col dataPublicacaoPncp \
-              --fallback-date-col dataAtualizacao \
-              --year "$YEAR" \
-              --month "$MONTH" || echo "Export failed for $YEAR-$MONTH"
+            if uv run baliza export-daily \
+                --date "$DATE" \
+                --output data/daily \
+                --duckdb baliza.duckdb \
+                --dataset baliza_raw; then
+              echo "✅ Exported $DATE"
+            else
+              echo "❌ Export failed for $DATE"
+            fi
 
-          done < complete_months.txt
+          done < export_batch.txt
 
       - name: Upload to Internet Archive
-        if: steps.find.outputs.batch_size != '0' && env.IA_ACCESS_KEY != ''
+        if: steps.find.outputs.batch_size != '0' && steps.export-dates.outputs.ready_count != '0' && env.IA_ACCESS_KEY != ''
         env:
           IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
         run: |
-          if [ ! -d data/contratos ]; then
+          if [ ! -d data/daily ]; then
             echo "No parquet files to upload"
             exit 0
           fi
 
-          # Find parquet files not yet uploaded
-          find data/contratos -name "*.parquet" | while read -r FILE; do
-            # Generate item ID from path
-            # data/contratos/ano=2024/mes=01/contratos.parquet -> baliza-pncp-2024-01
-            YEAR=$(echo "$FILE" | grep -oP 'ano=\K[0-9]+')
-            MONTH=$(echo "$FILE" | grep -oP 'mes=\K[0-9]+')
-            ITEM_ID="${IA_ITEM_PREFIX}-${YEAR}-${MONTH}"
+          # Find daily directories not yet uploaded
+          for DATE_DIR in data/daily/*/; do
+            DATE=$(basename "$DATE_DIR")
+            ITEM_ID="${IA_ITEM_PREFIX}-${DATE}"
 
             # Check if already uploaded
             if grep -q "^${ITEM_ID}$" state/uploaded_to_ia.txt 2>/dev/null; then
@@ -341,14 +318,15 @@ jobs:
               continue
             fi
 
-            echo "📤 Uploading $FILE to $ITEM_ID..."
+            echo "📤 Uploading $DATE to $ITEM_ID..."
 
-            if ia upload "$ITEM_ID" "$FILE" \
+            # Upload all files in the daily directory
+            if ia upload "$ITEM_ID" "${DATE_DIR}"* \
                 --metadata="collection:opensource" \
                 --metadata="mediatype:data" \
-                --metadata="title:Baliza PNCP Contracts ${YEAR}-${MONTH}" \
-                --metadata="description:Brazilian public procurement contracts from PNCP (Portal Nacional de Contratações Públicas) for ${YEAR}-${MONTH}" \
-                --metadata="subject:brazil;procurement;pncp;open-data;government" \
+                --metadata="title:Baliza PNCP Contracts ${DATE}" \
+                --metadata="description:Brazilian public procurement contracts from PNCP (Portal Nacional de Contratações Públicas) for ${DATE}. Contains contratos, orgaos, and unidades tables in Parquet format." \
+                --metadata="subject:brazil;procurement;pncp;open-data;government;contracts" \
                 --metadata="creator:Baliza Project" \
                 --no-derive; then
               echo "$ITEM_ID" >> state/uploaded_to_ia.txt
@@ -362,7 +340,7 @@ jobs:
           done
 
       - name: Cleanup buffer after successful uploads
-        if: steps.find.outputs.batch_size != '0' && env.IA_ACCESS_KEY != ''
+        if: steps.find.outputs.batch_size != '0' && steps.export-dates.outputs.ready_count != '0' && env.IA_ACCESS_KEY != ''
         env:
           IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
         run: |
@@ -378,66 +356,59 @@ jobs:
           import duckdb
           from pathlib import Path
           from datetime import datetime
-          import calendar
 
           uploaded_file = Path('state/uploaded_to_ia.txt')
           if not uploaded_file.exists():
               print("No uploaded items file")
               exit(0)
 
-          # Parse uploaded items (format: baliza-pncp-YYYY-MM)
-          uploaded_months = []
+          # Parse uploaded items (format: baliza-pncp-YYYY-MM-DD)
+          uploaded_dates = []
           for line in uploaded_file.read_text().strip().split('\n'):
               if not line:
                   continue
-              # Extract year and month from item ID
+              # Extract date from item ID
               parts = line.split('-')
-              if len(parts) >= 4:
+              if len(parts) >= 5:
                   try:
-                      year = int(parts[2])
-                      month = int(parts[3])
-                      uploaded_months.append((year, month))
-                  except ValueError:
+                      date_str = f"{parts[2]}-{parts[3]}-{parts[4]}"
+                      uploaded_dates.append(date_str)
+                  except (ValueError, IndexError):
                       continue
 
-          if not uploaded_months:
-              print("No valid uploaded months found")
+          if not uploaded_dates:
+              print("No valid uploaded dates found")
               exit(0)
 
-          print(f"Found {len(uploaded_months)} uploaded months to clean up")
+          print(f"Found {len(uploaded_dates)} uploaded dates to clean up")
 
           con = duckdb.connect('baliza.duckdb')
 
           total_deleted = 0
-          for year, month in uploaded_months:
-              # Get all dates in this month
-              days_in_month = calendar.monthrange(year, month)[1]
-              start_date = f"{year}-{month:02d}-01"
-              end_date = f"{year}-{month:02d}-{days_in_month:02d}"
-
+          for date_str in uploaded_dates:
               # Count rows before deletion
               result = con.execute('''
                   SELECT COUNT(*) FROM baliza_raw.contratos
-                  WHERE CAST(dataPublicacao AS DATE) BETWEEN ? AND ?
-              ''', [start_date, end_date]).fetchone()
+                  WHERE CAST(dataPublicacao AS DATE) = ?
+              ''', [date_str]).fetchone()
               count = result[0] if result else 0
 
               if count > 0:
-                  # Delete data for this month
+                  # Delete data for this date
                   con.execute('''
                       DELETE FROM baliza_raw.contratos
-                      WHERE CAST(dataPublicacao AS DATE) BETWEEN ? AND ?
-                  ''', [start_date, end_date])
-                  print(f"✅ Cleaned up {count} rows for {year}-{month:02d}")
+                      WHERE CAST(dataPublicacao AS DATE) = ?
+                  ''', [date_str])
+                  print(f"✅ Cleaned up {count} rows for {date_str}")
                   total_deleted += count
 
                   # Record in uploaded_to_ia table
                   con.execute('''
                       INSERT OR REPLACE INTO baliza_state.uploaded_to_ia
-                      VALUES (?, ?, NOW(), 1, ?)
-                  ''', [f"baliza-pncp-{year}-{month:02d}", f"{year}-{month:02d}-01", count])
+                      VALUES (?, ?, NOW(), 3, ?)
+                  ''', [f"baliza-pncp-{date_str}", date_str, count])
               else:
-                  print(f"⏭️ No data to clean for {year}-{month:02d}")
+                  print(f"⏭️ No data to clean for {date_str}")
 
           print(f"\nTotal rows cleaned from buffer: {total_deleted}")
 
@@ -491,8 +462,8 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Internet Archive | Count |" >> $GITHUB_STEP_SUMMARY
           echo "|------------------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Months uploaded | $UPLOADED |" >> $GITHUB_STEP_SUMMARY
+          echo "| Days uploaded | $UPLOADED |" >> $GITHUB_STEP_SUMMARY
 
           echo ""
           echo "Progress: $PROGRESS / $TOTAL ($PCT%)"
-          echo "Months on Internet Archive: $UPLOADED"
+          echo "Days on Internet Archive: $UPLOADED"

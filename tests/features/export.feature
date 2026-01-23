@@ -3,6 +3,7 @@ Feature: Data Export
   I want to export data from DuckDB to Parquet
   So that baliza-site can consume it
 
+  @tier0
   Scenario: Export creates valid parquet
     Given a DuckDB database with 100 contracts
     When I run "baliza export --table contratos --output ./exports"

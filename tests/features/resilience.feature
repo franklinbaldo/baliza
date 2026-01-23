@@ -3,6 +3,7 @@ Feature: Error Handling
   I want baliza to handle API errors gracefully
   So that temporary issues don't crash the pipeline
 
+  @tier1
   Scenario: Handles PNCP API errors gracefully
     Given the PNCP API returns a 500 error
     When I run "baliza extract --start 2024-01-01 --end 2024-01-01"

@@ -9,7 +9,9 @@ import duckdb
 import typer
 from rich.console import Console
 from rich.panel import Panel
+from rich.table import Table
 
+from .daily_exporter import DailyExporter
 from .extractor import PNCPExtractor
 from .utils import validate_identifier
 
@@ -180,6 +182,106 @@ def export(
 
     except Exception as e:
         console.print(f"[red]✗ Export failed: {e}")
+        raise typer.Exit(1) from None
+
+
+@app.command("export-daily")
+def export_daily(
+    date_str: str = typer.Option(
+        ...,
+        "--date",
+        "-d",
+        help="Date to export (YYYY-MM-DD)",
+    ),
+    output: Path = typer.Option(
+        Path("data/daily"),
+        "--output",
+        "-o",
+        help="Output directory (date subdirectory will be created)",
+    ),
+    db_path: Path = typer.Option(
+        Path("baliza.duckdb"),
+        "--duckdb",
+        help="DuckDB file",
+    ),
+    dataset: str = typer.Option(
+        "baliza_raw",
+        "--dataset",
+        "-s",
+        help="Dataset name",
+    ),
+) -> None:
+    """Export daily self-contained parquet package.
+
+    Creates a date-specific directory with:
+    - contratos.parquet (main contracts table)
+    - orgaos.parquet (deduplicated organizations)
+    - unidades.parquet (organizational units)
+    - _metadata.json (schema version and stats)
+    """
+    try:
+        target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+
+        exporter = DailyExporter(db_path, dataset)
+        stats = exporter.export(target_date, output)
+
+        # Show summary table
+        table = Table(title=f"Daily Export: {date_str}")
+        table.add_column("Table", style="cyan")
+        table.add_column("Rows", justify="right")
+        table.add_column("Size", justify="right")
+
+        for name, info in stats["tables"].items():
+            size_kb = info["file_size_bytes"] / 1024
+            table.add_row(name, str(info["row_count"]), f"{size_kb:.1f} KB")
+
+        console.print(table)
+        console.print(f"\n[green]✓ Output: {output / date_str}/")
+
+    except Exception as e:
+        console.print(f"[red]✗ Export failed: {e}")
+        raise typer.Exit(1) from None
+
+
+@app.command("buffer-stats")
+def buffer_stats(
+    db_path: Path = typer.Option(
+        Path("baliza.duckdb"),
+        "--duckdb",
+        "-d",
+        help="DuckDB file",
+    ),
+    dataset: str = typer.Option(
+        "baliza_raw",
+        "--dataset",
+        "-s",
+        help="Dataset name",
+    ),
+) -> None:
+    """Show buffer statistics for monitoring."""
+    try:
+        with PNCPExtractor(db_path, dataset) as extractor:
+            stats = extractor.get_buffer_stats()
+
+        console.print(Panel(f"[bold]Buffer Statistics[/bold]"))
+        console.print(f"  Total rows in buffer: [cyan]{stats['total_rows']:,}[/cyan]")
+        console.print(f"  Dates in buffer: [cyan]{stats['dates_in_buffer']}[/cyan]")
+        console.print(f"  Dates uploaded to IA: [cyan]{stats['dates_uploaded_to_ia']}[/cyan]")
+        console.print(f"  Pending checkpoints: [yellow]{stats['pending_checkpoints']}[/yellow]")
+
+        if stats["rows_by_date"]:
+            console.print("\n[bold]Rows by Date:[/bold]")
+            table = Table()
+            table.add_column("Date", style="cyan")
+            table.add_column("Rows", justify="right")
+
+            for dt, count in sorted(stats["rows_by_date"].items()):
+                table.add_row(dt, f"{count:,}")
+
+            console.print(table)
+
+    except Exception as e:
+        console.print(f"[red]✗ Failed to get stats: {e}")
         raise typer.Exit(1) from None
 
 
