@@ -1,31 +1,27 @@
-# Baliza Project Goals
+# Project Goals
 
-This document outlines the primary goals, non-goals, and target users for the Baliza project, based on evidence from the repository.
+This document outlines the primary goals, non-goals, and success metrics for the Baliza project, based on an analysis of the codebase and existing documentation.
 
 ## Primary Goals
 
-- **Reliable Data Extraction:** The core goal of Baliza is to reliably and efficiently extract public procurement data from the PNCP (Portal Nacional de Contratações Públicas).
-- **Data Preservation:** The project aims to create a preserved, long-term archive of Brazilian public procurement data, storing it in a format suitable for analysis (DuckDB and Parquet).
-- **Accessibility for Analysis:** Baliza is designed to make this data easily accessible for journalists, researchers, and public oversight bodies.
+1.  **Reliable Data Extraction**: Continuously and reliably extract public procurement data from the PNCP (Portal Nacional de Contratações Públicas) API. The core function is to capture specific data resources (like `contratos`) for a given time range.
+2.  **Data Preservation**: Store the extracted raw data in a durable, queryable format (DuckDB) to create a long-term, verifiable archive of public contracts.
+3.  **Data Accessibility**: Provide simple, command-line tools to export the preserved data into a common analytical format (Parquet) for use by journalists, researchers, and oversight bodies.
 
 ## Non-Goals
 
-- **Web Interface/Visualization:** The Baliza CLI project explicitly does not include a web interface, dashboards, or data visualization tools. These are planned for a separate project, `baliza-site`.
-- **Real-time Data Processing:** The project is designed for batch extraction and backfilling, not real-time data streaming.
-- **Data Modification:** Baliza is focused on extracting and storing the data as-is from the PNCP. It does not aim to clean, modify, or enrich the data beyond what is necessary for storage and partitioning.
+-   **Data Visualization**: The project is not responsible for building dashboards, charts, or a web interface. This is handled by a separate `baliza-site` project.
+-   **Real-time Data Streaming**: The extraction process is batch-oriented, focused on daily or historical data, not real-time event streams.
+-   **Complex Data Transformation**: The tool focuses on capturing raw data as-is ("bronze" layer). Complex cleaning, normalization, or joining (silver/gold layers) are out of scope for this tool.
 
 ## Primary Users
 
-- **Journalists:** A primary audience for this data is journalists investigating public spending and government contracts.
-- **Researchers:** Academics and researchers in fields like public policy, economics, and law can use this data for their studies.
-- **Oversight Bodies:** Government and non-governmental organizations focused on transparency and accountability can use this data to monitor public procurement.
+-   **Data Journalists & Researchers**: Need a reliable, local copy of PNCP data to conduct investigations without depending on the availability or rate limits of the official API.
+-   **Developers & Data Engineers**: Need a simple, scriptable tool to integrate into larger data pipelines or analytical workflows.
 
 ## Success Signals
 
-- **Completeness and Accuracy:** The data in the Baliza database accurately and completely reflects the data available in the PNCP for the covered time periods.
-- **Ease of Use:** Users can easily install and run the Baliza CLI to extract the data they need.
-- **Resilience:** The extraction process is resilient to common issues like network failures and API interruptions.
-
-## Confidence
-
-High. The `README.md`, `docs/ROADMAP.md`, and the CLI's design all strongly support these inferred goals. The project is well-documented and has a clear focus.
+-   The CLI can successfully extract data for a given date range and store it in a DuckDB file.
+-   The CLI can export a specified table from DuckDB to Parquet files.
+-   The BDD test suite accurately reflects the tool's capabilities and runs successfully.
+-   The `README.md` is an accurate and reliable guide for new users.

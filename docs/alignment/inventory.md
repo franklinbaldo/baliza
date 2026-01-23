@@ -1,31 +1,29 @@
-# Baliza Test & BDD Inventory
+# BDD & Test Framework Inventory
 
-This document outlines the testing frameworks, configuration, and execution commands for the Baliza project.
+This document inventories the tools and conventions used for testing in the Baliza project.
 
-## Testing Frameworks
+## Frameworks
 
-- **Primary Framework:** `pytest` is the core test runner.
-- **HTTP Mocking:** `pytest-httpx` and `vcrpy` are used for mocking HTTP requests in tests, ensuring that tests are repeatable and don't rely on the live PNCP API.
-- **BDD Framework:** `pytest-bdd` is used for Behavior-Driven Development.
-
-## Test Locations
-
-- **BDD Features:** `tests/features/`
-- **Step Definitions:** `tests/step_defs/`
-- **Unit Tests:** `tests/unit/`
-- **End-to-End Tests:** `tests/e2e/`
-- **Integration Tests:** `tests/integration/`
+- **BDD Framework**: [`pytest-bdd`](https://pytest-bdd.readthedocs.io/)
+- **Test Runner**: [`pytest`](https://docs.pytest.org/)
+- **HTTP Mocking**: [`pytest-httpx`](https://colin-b.github.io/pytest-httpx/)
+- **CLI Testing**: [`typer.testing.CliRunner`](https://typer.tiangolo.com/tutorial/testing/)
 
 ## How to Run Tests
 
-Tests are executed using `pytest`. The recommended way to run the tests is through the `uv` command, which ensures the tests run in the correct environment with the project's dependencies.
+The test suite can be executed using the `pytest` command. First, ensure all test dependencies are installed.
 
-To run all tests:
 ```bash
+# Install dependencies, including test extras
+uv sync --all-extras
+
+# Run the full test suite
 uv run pytest
 ```
 
-To run a specific test file:
-```bash
-uv run pytest tests/unit/test_dates.py
-```
+## File & Folder Locations
+
+- **BDD Features**: All Gherkin `.feature` files are located in `tests/features/`.
+- **Step Definitions**: The Python implementation for the BDD steps are in `tests/step_defs/`. Each `.feature` file has a corresponding `test_*.py` file.
+- **Test Configuration**: Pytest is configured in `pyproject.toml` under the `[tool.pytest.ini_options]` section.
+- **Fixtures & Helpers**: Shared test fixtures and support code are located in `tests/conftest.py`.
