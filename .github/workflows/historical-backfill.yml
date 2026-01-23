@@ -361,6 +361,91 @@ jobs:
             sleep 5
           done
 
+      - name: Cleanup buffer after successful uploads
+        if: steps.find.outputs.batch_size != '0' && env.IA_ACCESS_KEY != ''
+        env:
+          IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
+        run: |
+          if [ ! -f state/uploaded_to_ia.txt ]; then
+            echo "No uploads to clean up"
+            exit 0
+          fi
+
+          echo "Cleaning up buffer for uploaded dates..."
+
+          # For each uploaded item, clean up the corresponding data from DuckDB
+          uv run python - << 'PY'
+          import duckdb
+          from pathlib import Path
+          from datetime import datetime
+          import calendar
+
+          uploaded_file = Path('state/uploaded_to_ia.txt')
+          if not uploaded_file.exists():
+              print("No uploaded items file")
+              exit(0)
+
+          # Parse uploaded items (format: baliza-pncp-YYYY-MM)
+          uploaded_months = []
+          for line in uploaded_file.read_text().strip().split('\n'):
+              if not line:
+                  continue
+              # Extract year and month from item ID
+              parts = line.split('-')
+              if len(parts) >= 4:
+                  try:
+                      year = int(parts[2])
+                      month = int(parts[3])
+                      uploaded_months.append((year, month))
+                  except ValueError:
+                      continue
+
+          if not uploaded_months:
+              print("No valid uploaded months found")
+              exit(0)
+
+          print(f"Found {len(uploaded_months)} uploaded months to clean up")
+
+          con = duckdb.connect('baliza.duckdb')
+
+          total_deleted = 0
+          for year, month in uploaded_months:
+              # Get all dates in this month
+              days_in_month = calendar.monthrange(year, month)[1]
+              start_date = f"{year}-{month:02d}-01"
+              end_date = f"{year}-{month:02d}-{days_in_month:02d}"
+
+              # Count rows before deletion
+              result = con.execute('''
+                  SELECT COUNT(*) FROM baliza_raw.contratos
+                  WHERE CAST(dataPublicacao AS DATE) BETWEEN ? AND ?
+              ''', [start_date, end_date]).fetchone()
+              count = result[0] if result else 0
+
+              if count > 0:
+                  # Delete data for this month
+                  con.execute('''
+                      DELETE FROM baliza_raw.contratos
+                      WHERE CAST(dataPublicacao AS DATE) BETWEEN ? AND ?
+                  ''', [start_date, end_date])
+                  print(f"✅ Cleaned up {count} rows for {year}-{month:02d}")
+                  total_deleted += count
+
+                  # Record in uploaded_to_ia table
+                  con.execute('''
+                      INSERT OR REPLACE INTO baliza_state.uploaded_to_ia
+                      VALUES (?, ?, NOW(), 1, ?)
+                  ''', [f"baliza-pncp-{year}-{month:02d}", f"{year}-{month:02d}-01", count])
+              else:
+                  print(f"⏭️ No data to clean for {year}-{month:02d}")
+
+          print(f"\nTotal rows cleaned from buffer: {total_deleted}")
+
+          # Show buffer stats
+          result = con.execute('SELECT COUNT(*) FROM baliza_raw.contratos').fetchone()
+          print(f"Rows remaining in buffer: {result[0]}")
+          PY
+
       - name: Save database state
         if: always()
         uses: actions/upload-artifact@v4

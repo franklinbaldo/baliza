@@ -1,6 +1,7 @@
 """Simple PNCP data extraction without dlt.
 
 Replaces the dlt pipeline with straightforward httpx + DuckDB code.
+Supports per-page checkpointing for resume on timeout.
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ console = Console()
 
 
 class PNCPExtractor:
-    """Simple extractor for PNCP API data."""
+    """Simple extractor for PNCP API data with checkpoint support."""
 
     def __init__(
         self,
@@ -92,6 +93,138 @@ class PNCPExtractor:
                 error_message VARCHAR
             )
         """)
+        # Checkpoint table for resumable extraction
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS baliza_state.extraction_checkpoint (
+                resource VARCHAR,
+                extraction_date DATE,
+                current_page INTEGER,
+                total_pages INTEGER,
+                rows_extracted INTEGER,
+                started_at TIMESTAMP,
+                updated_at TIMESTAMP,
+                PRIMARY KEY (resource, extraction_date)
+            )
+        """)
+        # Track what's been uploaded to Internet Archive
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS baliza_state.uploaded_to_ia (
+                item_id VARCHAR PRIMARY KEY,
+                extraction_date DATE,
+                uploaded_at TIMESTAMP,
+                file_count INTEGER,
+                total_rows INTEGER
+            )
+        """)
+
+    def _get_checkpoint(
+        self, con: duckdb.DuckDBPyConnection, resource: str, extraction_date: datetime
+    ) -> dict[str, Any] | None:
+        """Get existing checkpoint for a date."""
+        result = con.execute(
+            """
+            SELECT current_page, total_pages, rows_extracted
+            FROM baliza_state.extraction_checkpoint
+            WHERE resource = ? AND extraction_date = ?
+        """,
+            [resource, extraction_date.date()],
+        ).fetchone()
+
+        if result:
+            return {
+                "current_page": result[0],
+                "total_pages": result[1],
+                "rows_extracted": result[2],
+            }
+        return None
+
+    def _save_checkpoint(
+        self,
+        con: duckdb.DuckDBPyConnection,
+        resource: str,
+        extraction_date: datetime,
+        current_page: int,
+        total_pages: int,
+        rows_extracted: int,
+    ) -> None:
+        """Save extraction checkpoint."""
+        con.execute(
+            """
+            INSERT OR REPLACE INTO baliza_state.extraction_checkpoint
+            VALUES (?, ?, ?, ?, ?, COALESCE(
+                (SELECT started_at FROM baliza_state.extraction_checkpoint
+                 WHERE resource = ? AND extraction_date = ?),
+                NOW()
+            ), NOW())
+        """,
+            [
+                resource,
+                extraction_date.date(),
+                current_page,
+                total_pages,
+                rows_extracted,
+                resource,
+                extraction_date.date(),
+            ],
+        )
+
+    def _clear_checkpoint(
+        self, con: duckdb.DuckDBPyConnection, resource: str, extraction_date: datetime
+    ) -> None:
+        """Clear checkpoint after successful completion."""
+        con.execute(
+            """
+            DELETE FROM baliza_state.extraction_checkpoint
+            WHERE resource = ? AND extraction_date = ?
+        """,
+            [resource, extraction_date.date()],
+        )
+
+    def _insert_page(
+        self, con: duckdb.DuckDBPyConnection, rows: list[dict[str, Any]]
+    ) -> int:
+        """Insert a single page of results immediately."""
+        if not rows:
+            return 0
+
+        values = []
+        for row in rows:
+            values.append(
+                (
+                    row.get("numeroControlePNCP"),
+                    row.get("anoCompra"),
+                    row.get("sequencialCompra"),
+                    row.get("orgaoEntidade", {}).get("cnpj"),
+                    row.get("orgaoEntidade", {}).get("razaoSocial"),
+                    row.get("orgaoEntidade", {}).get("poderId"),
+                    row.get("unidadeOrgao", {}).get("codigoUnidade"),
+                    row.get("unidadeOrgao", {}).get("nomeUnidade"),
+                    row.get("modalidadeId"),
+                    row.get("modalidadeNome"),
+                    row.get("valorInicial"),
+                    row.get("dataPublicacao"),
+                    row.get("dataVigenciaInicio"),
+                    row.get("dataVigenciaFim"),
+                    row.get("objetoContrato"),
+                    row.get("informacaoComplementar"),
+                    row.get("numeroProcesso"),
+                    row.get("linkSistemaOrigem"),
+                    row.get("dataInclusao"),
+                    row.get("dataAtualizacao"),
+                    row.get("usuarioNome"),
+                )
+            )
+
+        # Insert or ignore (deduplication by primary key)
+        con.executemany(
+            f"""
+            INSERT OR IGNORE INTO {self.dataset}.contratos
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+            values,
+        )
+
+        return len(values)
 
     def extract(
         self,
@@ -100,6 +233,8 @@ class PNCPExtractor:
         resource: str = "contratos",
     ) -> dict[str, Any]:
         """Extract data from PNCP API for a date range.
+
+        Supports resuming from checkpoint if interrupted.
 
         Args:
             start_date: Start of date range
@@ -113,106 +248,91 @@ class PNCPExtractor:
         data_inicial = start_date.strftime("%Y%m%d")
         data_final = end_date.strftime("%Y%m%d")
 
-        all_rows = []
+        total_rows = 0
         page = 1
         total_pages = None
 
-        console.print(
-            f"[cyan]Extracting {resource} from {start_date.date()} to {end_date.date()}..."
-        )
-
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TaskProgressColumn(),
-            console=console,
-        ) as progress:
-            task = progress.add_task("Fetching pages...", total=None)
-
-            while True:
-                # Call PNCP API
-                url = f"{self.base_url}/{resource}"
-                params = {
-                    "dataInicial": data_inicial,
-                    "dataFinal": data_final,
-                    "pagina": page,
-                    "tamanhoPagina": 500,
-                }
-
-                response = self.client.get(url, params=params)
-                response.raise_for_status()
-
-                data = response.json()
-                rows = data.get("data", [])
-
-                if not rows:
-                    break
-
-                all_rows.extend(rows)
-
-                # Update progress
-                if total_pages is None:
-                    total_pages = data.get("totalPaginas", 1)
-                    progress.update(task, total=total_pages)
-
-                progress.update(
-                    task, completed=page, description=f"Fetching page {page}/{total_pages}"
-                )
-
-                if page >= total_pages:
-                    break
-
-                page += 1
-
-        console.print(f"[green]✓ Fetched {len(all_rows)} rows across {page} pages")
-
-        # Insert into DuckDB
         with duckdb.connect(str(self.db_path)) as con:
             self._ensure_schema(con)
 
-            if all_rows:
-                # Prepare data for insertion
-                values = []
-                for row in all_rows:
-                    values.append(
-                        (
-                            row.get("numeroControlePNCP"),
-                            row.get("anoCompra"),
-                            row.get("sequencialCompra"),
-                            row.get("orgaoEntidade", {}).get("cnpj"),
-                            row.get("orgaoEntidade", {}).get("razaoSocial"),
-                            row.get("orgaoEntidade", {}).get("poderId"),
-                            row.get("unidadeOrgao", {}).get("codigoUnidade"),
-                            row.get("unidadeOrgao", {}).get("nomeUnidade"),
-                            row.get("modalidadeId"),
-                            row.get("modalidadeNome"),
-                            row.get("valorInicial"),
-                            row.get("dataPublicacao"),
-                            row.get("dataVigenciaInicio"),
-                            row.get("dataVigenciaFim"),
-                            row.get("objetoContrato"),
-                            row.get("informacaoComplementar"),
-                            row.get("numeroProcesso"),
-                            row.get("linkSistemaOrigem"),
-                            row.get("dataInclusao"),
-                            row.get("dataAtualizacao"),
-                            row.get("usuarioNome"),
-                        )
+            # Check for existing checkpoint
+            checkpoint = self._get_checkpoint(con, resource, start_date)
+            if checkpoint:
+                page = checkpoint["current_page"] + 1
+                total_rows = checkpoint["rows_extracted"]
+                total_pages = checkpoint["total_pages"]
+                console.print(
+                    f"[yellow]Resuming from page {page}/{total_pages} "
+                    f"({total_rows} rows already extracted)"
+                )
+
+            console.print(
+                f"[cyan]Extracting {resource} from {start_date.date()} to {end_date.date()}..."
+            )
+
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                TaskProgressColumn(),
+                console=console,
+            ) as progress:
+                task = progress.add_task(
+                    "Fetching pages...",
+                    total=total_pages,
+                    completed=page - 1 if checkpoint else 0,
+                )
+
+                while True:
+                    # Call PNCP API
+                    url = f"{self.base_url}/{resource}"
+                    params = {
+                        "dataInicial": data_inicial,
+                        "dataFinal": data_final,
+                        "pagina": page,
+                        "tamanhoPagina": 500,
+                    }
+
+                    response = self.client.get(url, params=params)
+                    response.raise_for_status()
+
+                    data = response.json()
+                    rows = data.get("data", [])
+
+                    if not rows:
+                        break
+
+                    # Insert THIS page immediately
+                    inserted = self._insert_page(con, rows)
+                    total_rows += inserted
+
+                    # Update total_pages on first response
+                    if total_pages is None:
+                        total_pages = data.get("totalPaginas", 1)
+                        progress.update(task, total=total_pages)
+
+                    # Checkpoint after each page
+                    self._save_checkpoint(
+                        con, resource, start_date, page, total_pages, total_rows
                     )
 
-                # Insert or ignore (append-only, deduplication by primary key)
-                con.executemany(
-                    f"""
-                    INSERT OR IGNORE INTO {self.dataset}.contratos
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                    values,
-                )
+                    progress.update(
+                        task,
+                        completed=page,
+                        description=f"Fetching page {page}/{total_pages}",
+                    )
 
-                console.print(
-                    f"[green]✓ Inserted {len(all_rows)} rows into {self.dataset}.contratos (duplicates ignored)"
-                )
+                    if page >= total_pages:
+                        break
+
+                    page += 1
+
+            console.print(
+                f"[green]✓ Extracted {total_rows} rows across {page} pages"
+            )
+
+            # Clear checkpoint on successful completion
+            self._clear_checkpoint(con, resource, start_date)
 
             # Record coverage
             con.execute(
@@ -220,15 +340,146 @@ class PNCPExtractor:
                 INSERT OR REPLACE INTO baliza_state.coverage
                 VALUES (?, ?, ?, 'complete', ?, ?, NOW())
             """,
-                [resource, start_date, end_date, page, len(all_rows)],
+                [resource, start_date, end_date, page, total_rows],
             )
 
         return {
-            "rows_extracted": len(all_rows),
+            "rows_extracted": total_rows,
             "pages": page,
             "start_date": start_date,
             "end_date": end_date,
         }
+
+    def cleanup_uploaded(self, extraction_date: datetime) -> int:
+        """Remove data from buffer after successful IA upload.
+
+        Keeps state tables intact, only removes raw contract data.
+
+        Args:
+            extraction_date: Date to clean up
+
+        Returns:
+            Number of rows deleted
+        """
+        with duckdb.connect(str(self.db_path)) as con:
+            self._ensure_schema(con)
+
+            # Count rows before deletion
+            result = con.execute(
+                f"""
+                SELECT COUNT(*) FROM {self.dataset}.contratos
+                WHERE CAST(dataPublicacao AS DATE) = ?
+            """,
+                [extraction_date.date()],
+            ).fetchone()
+            row_count = result[0] if result else 0
+
+            if row_count > 0:
+                # Delete only the data for this date
+                con.execute(
+                    f"""
+                    DELETE FROM {self.dataset}.contratos
+                    WHERE CAST(dataPublicacao AS DATE) = ?
+                """,
+                    [extraction_date.date()],
+                )
+
+                console.print(
+                    f"[green]✓ Cleaned up {row_count} rows for {extraction_date.date()}"
+                )
+
+            return row_count
+
+    def record_ia_upload(
+        self,
+        item_id: str,
+        extraction_date: datetime,
+        file_count: int,
+        total_rows: int,
+    ) -> None:
+        """Record successful Internet Archive upload."""
+        with duckdb.connect(str(self.db_path)) as con:
+            self._ensure_schema(con)
+            con.execute(
+                """
+                INSERT OR REPLACE INTO baliza_state.uploaded_to_ia
+                VALUES (?, ?, NOW(), ?, ?)
+            """,
+                [item_id, extraction_date.date(), file_count, total_rows],
+            )
+
+    def get_dates_ready_for_export(self, stability_days: int = 7) -> list[datetime]:
+        """Get dates that are complete and old enough for export.
+
+        Args:
+            stability_days: Days to wait before considering data stable
+
+        Returns:
+            List of dates ready for export
+        """
+        from datetime import timedelta
+
+        cutoff = datetime.now() - timedelta(days=stability_days)
+
+        with duckdb.connect(str(self.db_path)) as con:
+            self._ensure_schema(con)
+
+            # Find dates that:
+            # 1. Have data in contratos
+            # 2. Are older than stability window
+            # 3. Haven't been uploaded to IA yet
+            result = con.execute(
+                f"""
+                SELECT DISTINCT CAST(dataPublicacao AS DATE) as dt
+                FROM {self.dataset}.contratos
+                WHERE CAST(dataPublicacao AS DATE) < ?
+                  AND CAST(dataPublicacao AS DATE) NOT IN (
+                      SELECT extraction_date FROM baliza_state.uploaded_to_ia
+                  )
+                ORDER BY dt
+            """,
+                [cutoff.date()],
+            ).fetchall()
+
+            return [datetime.combine(row[0], datetime.min.time()) for row in result]
+
+    def get_buffer_stats(self) -> dict[str, Any]:
+        """Get statistics about the current buffer."""
+        with duckdb.connect(str(self.db_path)) as con:
+            self._ensure_schema(con)
+
+            # Total rows in buffer
+            total_rows = con.execute(
+                f"SELECT COUNT(*) FROM {self.dataset}.contratos"
+            ).fetchone()[0]
+
+            # Rows by date
+            by_date = con.execute(
+                f"""
+                SELECT CAST(dataPublicacao AS DATE) as dt, COUNT(*) as cnt
+                FROM {self.dataset}.contratos
+                GROUP BY dt
+                ORDER BY dt
+            """
+            ).fetchall()
+
+            # Uploaded dates
+            uploaded = con.execute(
+                "SELECT COUNT(*) FROM baliza_state.uploaded_to_ia"
+            ).fetchone()[0]
+
+            # Pending checkpoints
+            checkpoints = con.execute(
+                "SELECT COUNT(*) FROM baliza_state.extraction_checkpoint"
+            ).fetchone()[0]
+
+            return {
+                "total_rows": total_rows,
+                "dates_in_buffer": len(by_date),
+                "rows_by_date": {str(row[0]): row[1] for row in by_date},
+                "dates_uploaded_to_ia": uploaded,
+                "pending_checkpoints": checkpoints,
+            }
 
     def close(self) -> None:
         """Close HTTP client."""
