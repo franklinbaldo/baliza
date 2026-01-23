@@ -1,5 +1,11 @@
 # Baliza CLI
 
+[![Extraction](https://github.com/franklinbaldo/baliza/actions/workflows/continuous-extract.yml/badge.svg)](https://github.com/franklinbaldo/baliza/actions/workflows/continuous-extract.yml)
+[![Backfill](https://github.com/franklinbaldo/baliza/actions/workflows/historical-backfill.yml/badge.svg)](https://github.com/franklinbaldo/baliza/actions/workflows/historical-backfill.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Dashboard](https://img.shields.io/badge/Dashboard-Live-green)](https://franklinbaldo.github.io/baliza/)
+
 **Baliza** (Backup Aberto de Licitações Zelando pelo Acesso) é uma **ferramenta
 de linha de comando** de código aberto que captura dados de contratos do Portal
 Nacional de Contratações Públicas (PNCP) e os armazena em um banco **DuckDB**

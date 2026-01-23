@@ -14,10 +14,24 @@ import duckdb
 import httpx
 from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from .utils import validate_identifier
 
 console = Console()
+
+
+@retry(
+    stop=stop_after_attempt(4),
+    wait=wait_exponential(multiplier=2, min=2, max=16),
+    retry=retry_if_exception_type((httpx.HTTPStatusError, httpx.ConnectError, httpx.TimeoutException)),
+    reraise=True,
+)
+def _fetch_page(client: httpx.Client, url: str, params: dict) -> dict:
+    """Fetch a single page from PNCP API with retry logic."""
+    response = client.get(url, params=params)
+    response.raise_for_status()
+    return response.json()
 
 
 class PNCPExtractor:
@@ -284,7 +298,7 @@ class PNCPExtractor:
                 )
 
                 while True:
-                    # Call PNCP API
+                    # Call PNCP API with retry
                     url = f"{self.base_url}/{resource}"
                     params = {
                         "dataInicial": data_inicial,
@@ -293,10 +307,7 @@ class PNCPExtractor:
                         "tamanhoPagina": 500,
                     }
 
-                    response = self.client.get(url, params=params)
-                    response.raise_for_status()
-
-                    data = response.json()
+                    data = _fetch_page(self.client, url, params)
                     rows = data.get("data", [])
 
                     if not rows:
