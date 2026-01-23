@@ -173,34 +173,100 @@ UNIDADES_SCHEMA = pa.schema([
 
 ---
 
-## Relationships (ERD)
+## Entity Relationship Diagram
 
+```mermaid
+erDiagram
+    ORGAOS ||--o{ UNIDADES : "has"
+    ORGAOS ||--o{ CONTRATOS : "publishes"
+    UNIDADES ||--o{ CONTRATOS : "manages"
+
+    ORGAOS {
+        string cnpj PK "CNPJ do orgao"
+        string razao_social "Nome oficial"
+        string poder_id "Executivo/Legislativo/Judiciario"
+        string esfera "Federal/Estadual/Municipal"
+        string uf "Sigla do estado"
+        int contratos_no_dia "Total contratos no dia"
+        float valor_total_no_dia "Soma valores no dia"
+    }
+
+    UNIDADES {
+        string codigo PK "Codigo da unidade"
+        string orgao_cnpj FK "CNPJ do orgao pai"
+        string nome "Nome da unidade"
+        int contratos_no_dia "Total contratos no dia"
+    }
+
+    CONTRATOS {
+        string numero_controle_pncp PK "ID unico PNCP"
+        string orgao_cnpj FK "CNPJ do orgao"
+        string unidade_codigo FK "Codigo da unidade"
+        int ano_compra "Ano da compra"
+        int sequencial_compra "Sequencial"
+        string numero_processo "Numero do processo"
+        int modalidade_id "ID da modalidade"
+        string modalidade_nome "Nome da modalidade"
+        float valor_inicial "Valor do contrato"
+        string objeto_contrato "Descricao do objeto"
+        string informacao_complementar "Info adicional"
+        string link_sistema_origem "Link externo"
+        date data_publicacao "Data de publicacao"
+        date data_vigencia_inicio "Inicio vigencia"
+        date data_vigencia_fim "Fim vigencia"
+        timestamp data_inclusao "Quando inserido"
+        timestamp data_atualizacao "Ultima atualizacao"
+        string usuario_nome "Usuario responsavel"
+        date data_particao "Particao (dia)"
+    }
 ```
-┌─────────────────┐       ┌─────────────────┐
-│     orgaos      │       │    unidades     │
-├─────────────────┤       ├─────────────────┤
-│ cnpj (PK)       │◄──────│ orgao_cnpj (FK) │
-│ razao_social    │       │ codigo (PK)     │
-│ poder_id        │       │ nome            │
-│ esfera          │       └────────┬────────┘
-│ uf              │                │
-└────────┬────────┘                │
-         │                         │
-         │    ┌────────────────────┘
-         │    │
-         ▼    ▼
-┌─────────────────────────────────────────┐
-│              contratos                   │
-├─────────────────────────────────────────┤
-│ numero_controle_pncp (PK)               │
-│ orgao_cnpj (FK) ─────────────────────►  │
-│ unidade_codigo (FK) ─────────────────►  │
-│ ano_compra                               │
-│ modalidade_id, modalidade_nome           │
-│ valor_inicial                            │
-│ objeto_contrato                          │
-│ data_publicacao, data_vigencia_*         │
-└─────────────────────────────────────────┘
+
+## Data Flow Diagram
+
+```mermaid
+flowchart LR
+    subgraph PNCP["PNCP API"]
+        API[("/api/consulta/v1/contratos")]
+    end
+
+    subgraph Baliza["Baliza Pipeline"]
+        EXT["Extractor"]
+        DB[(DuckDB)]
+        EXP["Daily Exporter"]
+    end
+
+    subgraph Daily["Daily Package"]
+        C["contratos.parquet"]
+        O["orgaos.parquet"]
+        U["unidades.parquet"]
+        M["_metadata.json"]
+    end
+
+    subgraph IA["Internet Archive"]
+        ITEM["baliza-pncp-YYYY-MM-DD"]
+    end
+
+    API --> EXT
+    EXT --> DB
+    DB --> EXP
+    EXP --> C & O & U & M
+    C & O & U & M --> ITEM
+```
+
+## Package Structure
+
+```mermaid
+graph TD
+    subgraph "baliza-pncp-2023-01-15"
+        C["contratos.parquet<br/>~5,000 rows<br/>~3 MB"]
+        O["orgaos.parquet<br/>~300 rows<br/>~50 KB"]
+        U["unidades.parquet<br/>~500 rows<br/>~50 KB"]
+        M["_metadata.json<br/>schema + stats"]
+    end
+
+    C -->|"orgao_cnpj"| O
+    C -->|"unidade_codigo"| U
+    U -->|"orgao_cnpj"| O
 ```
 
 ---
