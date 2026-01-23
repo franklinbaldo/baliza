@@ -256,6 +256,14 @@ Consider autonomous AI personas for development:
 
 ## Implementation Roadmap
 
+### Phase 0: GitHub Actions Patterns (COMPLETED)
+
+- [x] **Concurrency control** - Prevent overlapping workflow runs
+- [x] **D-1 priority extraction** - Always extract yesterday first
+- [x] **State persistence via artifacts** - Resume from previous database state
+- [x] **High-frequency extraction workflow** - Every 30 minutes continuous extraction
+- [x] **Timeout protection** - Prevent runaway workflows
+
 ### Phase 1: Quick Wins (Week 1)
 
 - [ ] Add structlog for logging
