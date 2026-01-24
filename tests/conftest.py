@@ -157,9 +157,10 @@ class HttpxMock:
         return _MockClient(self._entries)
 
 
-# Old httpx_mock fixture for dlt CLI - no longer needed
-# New simple tests mock httpx.Client.get directly with unittest.mock
-#
-# @pytest.fixture()
-# def httpx_mock() -> HttpxMock:
-#     ...
+@pytest.fixture
+def db_path(tmp_path: Path) -> Path:
+    """Create a clean DuckDB database in a temporary directory for a test."""
+    db = tmp_path / "test.duckdb"
+    if db.exists():
+        db.unlink()
+    return db

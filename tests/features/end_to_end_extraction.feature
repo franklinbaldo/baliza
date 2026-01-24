@@ -1,13 +1,10 @@
-Feature: End-to-end data extraction pipeline
+Feature: Core data extraction
   As a data engineer,
-  I want to run the extraction pipeline,
-  So that I have a complete and unique local dataset.
+  I want to extract data for a specific date range,
+  So that I can create a local dataset for analysis.
 
   @tier0
-  Scenario: The data pipeline is resumable and idempotent
-    Given a clean local data store
-    And an external data source for a specific date range
-    When I extract data for the first half of the date range
-    And then I extract data for the full date range
-    Then the final dataset should contain all records for the full date range
-    And the final dataset should not contain duplicate records
+  Scenario: Simple extraction for a date range
+    Given the PNCP API has 2 contracts for "2024-10-01"
+    When I run the extract command for "2024-10-01" to "2024-10-01"
+    Then the database should contain 2 contracts

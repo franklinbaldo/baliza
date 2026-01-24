@@ -1,31 +1,26 @@
 # Baliza Test & BDD Inventory
 
-This document outlines the testing frameworks, configuration, and execution commands for the Baliza project.
+## Frameworks
 
-## Testing Frameworks
-
-- **Primary Framework:** `pytest` is the core test runner.
-- **HTTP Mocking:** `pytest-httpx` and `vcrpy` are used for mocking HTTP requests in tests, ensuring that tests are repeatable and don't rely on the live PNCP API.
-- **BDD Framework:** `pytest-bdd` is used for Behavior-Driven Development.
-
-## Test Locations
-
-- **BDD Features:** `tests/features/`
-- **Step Definitions:** `tests/step_defs/`
-- **Unit Tests:** `tests/unit/`
-- **End-to-End Tests:** `tests/e2e/`
-- **Integration Tests:** `tests/integration/`
+- **Testing Framework:** `pytest`
+- **BDD Framework:** `pytest-bdd`
+- **HTTP Mocking:** `pytest-httpx`
 
 ## How to Run Tests
 
-Tests are executed using `pytest`. The recommended way to run the tests is through the `uv` command, which ensures the tests run in the correct environment with the project's dependencies.
+The project uses `uv` for environment management.
 
-To run all tests:
 ```bash
+# Install all dependencies, including test dependencies
+uv sync --all-extras
+
+# Run the full test suite
 uv run pytest
 ```
 
-To run a specific test file:
-```bash
-uv run pytest tests/unit/test_dates.py
-```
+## Locations
+
+- **BDD Features:** `tests/features/`
+- **Step Definitions:** `tests/step_defs/`
+- **Test Fixtures:** `tests/fixtures/` and `tests/conftest.py`
+- **Integration Tests:** `tests/integration/`

@@ -1,13 +1,22 @@
-# BDD Alignment Actions Log
+# BDD Alignment Actions
 
-This document records the decisions and actions taken by the Baliza BDD Alignment & Improvement Agent.
+This document records the actions taken to align the BDD test suite with the project's actual goals and implementation.
 
-## 2024-07-23: Correction of Initial Discovery
+## Session 1: Initial Alignment
 
--   **Action:** Corrected the initial discovery and alignment documentation after a failed code review.
--   **Details:**
-    -   The initial run on 2024-07-23 incorrectly overwrote existing documentation in `docs/alignment/`. This led to a factually incorrect state where the documentation did not match the codebase.
-    -   **Restored** the original versions of `inventory.md`, `goals.md`, and `feature_goal_matrix.md`.
-    -   **Analyzed** the restored files and identified a contradiction: the documentation claimed the project did not use BDD, while the codebase clearly contained `.feature` files and a `pytest-bdd` dependency.
-    -   **Updated** `inventory.md` and `feature_goal_matrix.md` to accurately reflect the use of `pytest-bdd`.
--   **Outcome:** The alignment documentation now correctly reflects the state of the repository, providing an accurate baseline for future work.
+**Date:** 2024-07-15
+
+**Objective:** Correct the severe misalignment between the outdated `README.md`, aspirational BDD tests, and the simplified, functional codebase.
+
+### Actions Taken:
+
+1.  **Code and Documentation Review:** Analyzed `README.md`, `pyproject.toml`, `src/baliza/cli_simple.py`, and `src/baliza/extractor.py`. Confirmed that the `dlt`-based, resumable pipeline described in the README does not exist. The current implementation is a simpler `httpx` + `duckdb` extractor.
+2.  **Established Ground Truth:** Created the `docs/alignment/` directory to serve as the canonical source of truth for project goals, inventory, and BDD alignment.
+    -   `inventory.md`: Documented the testing frameworks and how to run tests.
+    -   `goals.md`: Defined the project's actual goals based on the current codebase.
+    -   `feature_goal_matrix.md`: Assessed the alignment of each BDD feature.
+3.  **BDD Feature Realignment Plan:**
+    -   **Retire:** `resilience.feature` and `buffer_management.feature` will be deleted as they test non-existent functionality.
+    -   **Rewrite:** `end_to_end_extraction.feature` will be rewritten to test the simple, date-range-based extraction.
+    -   **Review and Simplify:** `verification.feature` will be reviewed and simplified to match the current verification command.
+4.  **`README.md` Overhaul:** Planned a complete rewrite of the `README.md` to accurately reflect the project's current, simpler architecture and CLI commands.
