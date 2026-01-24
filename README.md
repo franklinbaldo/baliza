@@ -351,6 +351,69 @@ Veja [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) para detalhes completos.
 └── pyproject.toml          # Metadados e dependências do projeto
 ```
 
+## Automação Diária
+
+O Baliza pode ser configurado para executar automaticamente todos os dias:
+
+### GitHub Actions (Recomendado)
+
+A maneira mais fácil de configurar automação diária é usar GitHub Actions (sem servidor necessário).
+
+**Setup rápido:**
+
+1. Adicione secrets do GitHub (Settings → Secrets and variables → Actions):
+   - `IA_ACCESS_KEY_ID` - Obtenha em https://archive.org/account/s3.php
+   - `IA_SECRET_ACCESS_KEY` - Obtenha em https://archive.org/account/s3.php
+   - `IA_BUCKET` (opcional) - Nome do seu bucket no Internet Archive
+   - `SLACK_WEBHOOK_URL` (opcional) - Para notificações no Slack
+
+2. O workflow está automaticamente configurado em `.github/workflows/daily-extract.yml`
+
+3. Padrão de execução: **Diariamente às 03:00 UTC**
+
+**Customizar horário:**
+
+Edite `.github/workflows/daily-extract.yml` e modifique o `cron`:
+```yaml
+on:
+  schedule:
+    - cron: '0 3 * * *'  # Altere HH MM conforme necessário
+```
+
+**Executar manualmente:**
+
+1. Vá para **Actions → Daily Baliza Extract and Upload**
+2. Clique em **Run workflow**
+3. (Opcional) Escolha "Dry run" para testar sem upload
+
+**Ver resultados:**
+
+- Logs: GitHub Actions tab
+- Dados enviados: https://archive.org/details/SEU_BUCKET
+- Notificações: Slack (se configurado)
+
+### Pipeline Diário
+
+O script `scripts/daily_pipeline.py` automatiza:
+
+```
+1. Extrai dados de ontem do PNCP
+   ↓
+2. Exporta para Parquet (contratos, orgãos, unidades)
+   ↓
+3. Upload para Internet Archive S3
+   ↓
+4. Registra metadados no banco de dados
+```
+
+**Para detalhes completos de configuração, veja:** [`deployment/SCHEDULING.md`](deployment/SCHEDULING.md)
+
+### Alternativas
+
+Se você não quiser usar GitHub Actions, existem scripts alternativos em `deployment/`:
+- `systemd/baliza-daily.{timer,service}` - Para servidores Linux com systemd
+- `cron/baliza-daily.cron` - Para configuração via cron
+
 ## Contribuindo
 
 1. Abra uma issue descrevendo o problema ou melhoria desejada.

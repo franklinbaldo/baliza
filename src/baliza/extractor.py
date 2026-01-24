@@ -202,14 +202,14 @@ class PNCPExtractor:
                     row.get("modalidadeId"),
                     row.get("modalidadeNome"),
                     row.get("valorInicial"),
-                    row.get("dataPublicacao"),
+                    row.get("dataPublicacaoPncp"),  # API field name is dataPublicacaoPncp, not dataPublicacao
                     row.get("dataVigenciaInicio"),
                     row.get("dataVigenciaFim"),
                     row.get("objetoContrato"),
                     row.get("informacaoComplementar"),
                     row.get("numeroProcesso"),
                     row.get("linkSistemaOrigem"),
-                    row.get("dataInclusao"),
+                    row.get("dataAssinatura"),  # Use dataAssinatura for "inclusion" date (when contract was signed)
                     row.get("dataAtualizacao"),
                     row.get("usuarioNome"),
                 )

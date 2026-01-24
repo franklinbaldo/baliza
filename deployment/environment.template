@@ -1,0 +1,26 @@
+# Baliza Daily Pipeline Environment Variables
+# Copy to /etc/baliza/environment and customize for your setup
+
+# Database location
+BALIZA_DB_PATH=/opt/baliza/baliza.duckdb
+
+# Export directory for daily exports
+BALIZA_EXPORT_DIR=/opt/baliza/data/daily
+
+# Internet Archive S3 credentials
+# Get these from: https://archive.org/account/s3.php
+AWS_ACCESS_KEY_ID=your_access_key_id_here
+AWS_SECRET_ACCESS_KEY=your_secret_access_key_here
+AWS_S3_ENDPOINT_URL=https://s3.us.archive.org
+
+# Internet Archive bucket name
+IA_BUCKET=your-bucket-name
+
+# Enable/disable upload to Internet Archive
+BALIZA_UPLOAD_TO_IA=true
+
+# Enable/disable cleanup after upload
+BALIZA_CLEANUP_AFTER_UPLOAD=true
+
+# Dry run mode (test without uploading)
+BALIZA_DRY_RUN=false

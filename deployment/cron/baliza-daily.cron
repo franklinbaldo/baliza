@@ -1,0 +1,10 @@
+# Baliza Daily Extraction and Upload
+# Runs daily at 03:00 UTC (after CausaGanha at 02:00 UTC)
+#
+# Installation:
+#   crontab -e
+#   # Paste the line below (adjust paths as needed):
+#   0 3 * * * cd /opt/baliza && /opt/baliza/scripts/daily_pipeline.py >> /var/log/baliza/daily.log 2>&1
+
+# The actual cron job line (uncommented when installed):
+# 0 3 * * * cd /opt/baliza && source /etc/baliza/environment && /opt/baliza/scripts/daily_pipeline.py >> /var/log/baliza/daily.log 2>&1

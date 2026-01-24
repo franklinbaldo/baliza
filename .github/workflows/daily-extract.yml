@@ -1,0 +1,105 @@
+name: Daily Baliza Extract and Upload
+
+on:
+  schedule:
+    # Run daily at 03:00 UTC (adjust to your needs)
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (no upload)'
+        required: false
+        default: 'false'
+
+jobs:
+  daily-pipeline:
+    name: Extract, Export, and Upload
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v2
+        with:
+          version: latest
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: /home/runner/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run daily pipeline
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.IA_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.IA_SECRET_ACCESS_KEY }}
+          AWS_S3_ENDPOINT_URL: https://s3.us.archive.org
+          IA_BUCKET: ${{ secrets.IA_BUCKET || 'jules-mail-frank-2026' }}
+          BALIZA_UPLOAD_TO_IA: 'true'
+          BALIZA_DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        run: |
+          python scripts/daily_pipeline.py
+
+      - name: Upload logs as artifact
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: daily-pipeline-logs
+          path: |
+            data/daily/
+          retention-days: 7
+
+      - name: Send Slack notification on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "❌ Baliza Daily Pipeline Failed",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Baliza daily extraction pipeline failed\n*Repo:* ${{ github.repository }}\n*Workflow:* ${{ github.workflow }}\n*Run:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Details>"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+
+      - name: Send Slack notification on success
+        if: success()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "✅ Baliza Daily Pipeline Success",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Baliza daily extraction completed successfully\n*Repo:* ${{ github.repository }}\n*Workflow:* ${{ github.workflow }}\n*Run:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Details>"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK

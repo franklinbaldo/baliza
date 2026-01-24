@@ -136,7 +136,7 @@ class DailyExporter:
     ) -> dict[str, Any]:
         """Export contratos table for a specific date."""
         # Query with column renaming to snake_case
-        df = con.execute(
+        result = con.execute(
             f"""
             SELECT
                 numeroControlePNCP as numero_controle_pncp,
@@ -164,6 +164,7 @@ class DailyExporter:
         """,
             [target_date, target_date],
         ).arrow()
+        df = result.read_all() if hasattr(result, 'read_all') else result
 
         output_path = output_dir / "contratos.parquet"
         file_size = self._write_parquet(df, output_path, CONTRATOS_SCHEMA)
@@ -180,7 +181,7 @@ class DailyExporter:
         output_dir: Path,
     ) -> dict[str, Any]:
         """Export deduplicated orgaos for a specific date."""
-        df = con.execute(
+        result = con.execute(
             f"""
             SELECT
                 orgaoEntidade_cnpj as cnpj,
@@ -197,6 +198,7 @@ class DailyExporter:
         """,
             [target_date],
         ).arrow()
+        df = result.read_all() if hasattr(result, 'read_all') else result
 
         output_path = output_dir / "orgaos.parquet"
         file_size = self._write_parquet(df, output_path, ORGAOS_SCHEMA)
@@ -213,7 +215,7 @@ class DailyExporter:
         output_dir: Path,
     ) -> dict[str, Any]:
         """Export deduplicated unidades for a specific date."""
-        df = con.execute(
+        result = con.execute(
             f"""
             SELECT
                 unidadeOrgao_codigoUnidade as codigo,
@@ -228,6 +230,7 @@ class DailyExporter:
         """,
             [target_date],
         ).arrow()
+        df = result.read_all() if hasattr(result, 'read_all') else result
 
         output_path = output_dir / "unidades.parquet"
         file_size = self._write_parquet(df, output_path, UNIDADES_SCHEMA)
