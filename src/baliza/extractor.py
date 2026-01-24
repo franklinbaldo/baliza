@@ -16,7 +16,7 @@ from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
-from .utils import validate_identifier
+from .utils import validate_identifier, validate_resource_path
 
 console = Console()
 
@@ -258,6 +258,8 @@ class PNCPExtractor:
         Returns:
             Dict with extraction results (rows_extracted, pages, etc.)
         """
+        # Validate resource to prevent path traversal
+        validate_resource_path(resource)
         # Format dates for PNCP API (YYYYMMDD)
         data_inicial = start_date.strftime("%Y%m%d")
         data_final = end_date.strftime("%Y%m%d")
