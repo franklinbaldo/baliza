@@ -10,77 +10,52 @@ To be the most reliable, transparent, and accessible tool for extracting and pre
 
 ### Concrete Goals
 
-1.  **Achieve Full Extraction Resumability:** Implement a robust state management system that makes the extraction process fully resumable and idempotent, recovering gracefully from network failures or API instability.
-2.  **Comprehensive Endpoint Coverage:** Expand beyond the initial `contratos` endpoint to support all relevant PNCP data sources, providing a complete picture of the procurement lifecycle.
-3.  **Automated Data Publishing:** Establish a fully automated CI/CD pipeline to extract data, export it to Parquet, and publish versioned, immutable datasets via GitHub Releases.
-4.  **Actionable Data Quality Monitoring:** Develop tools to verify data coverage, detect gaps, and provide clear reports on the completeness and integrity of the extracted data.
-5.  **Excellent Developer/Operator Experience:** Provide clear documentation, straightforward configuration, and a simple, predictable command-line interface.
+1.  **Achieve Reliable, Resumable Extraction:** The core `PNCPExtractor` must gracefully handle network failures and API instability through its page-level checkpointing system, ensuring that long-running extractions can always be resumed without data loss.
+2.  **Establish a Long-Term Public Archive:** Formalize the workflow of exporting daily data snapshots to Parquet and publishing them to a stable, long-term repository like the Internet Archive, ensuring permanent public access to the data.
+3.  **Provide Simple, Verifiable Data Coverage:** Allow operators to easily verify the completeness of the extracted data and identify any gaps in coverage with simple, clear CLI commands.
+4.  **Excellent Developer/Operator Experience:** Provide clear documentation, a straightforward command-line interface, and predictable behavior to make `baliza` easy to use, automate, and maintain.
 
 ## 2. Non-Goals / Anti-Scope
 
--   **No Frontend/UI:** This repository is exclusively for the backend CLI data pipeline. All visualization, web interfaces, and user-facing dashboards belong in the separate `baliza-site` repository.
--   **No Ad-hoc Analysis Features:** The CLI's purpose is data extraction and preservation, not complex data analysis or ad-hoc querying. Users should consume the exported Parquet/DuckDB files with their own tools (pandas, Polars, BI tools, etc.).
--   **No Real-time Data Streaming:** The pipeline is designed for batch processing (daily/monthly runs), not real-time data streaming from the PNCP.
+-   **No Frontend/UI:** This repository is exclusively for the backend CLI data pipeline. All visualization and web interfaces belong in the separate `baliza-site` repository.
+-   **No Ad-hoc Analysis Features:** The CLI's purpose is data extraction and preservation. Users should consume the exported Parquet/DuckDB files with their own tools (e.g., pandas, Polars).
+-   **No Real-time Data Streaming:** The pipeline is designed for robust, daily batch processing.
 -   **No Non-PNCP Data Sources:** The scope is strictly limited to data provided by the official PNCP API.
 
-## 3. Architecture Constraints
+## 3. Architecture
 
--   **Python & dlt:** The core pipeline is built on Python, using the `dlt` (data load tool) library for declarative data extraction.
--   **DuckDB for Staging:** DuckDB serves as the local, "bronze" layer for raw data and state management.
--   **Parquet for Publishing:** Apache Parquet is the official "gold" data format for archival and public consumption, partitioned by year and month.
--   **GitHub Releases as Data Warehouse:** The canonical public data artifacts will be published as assets attached to versioned GitHub Releases, ensuring immutability and public access.
--   **Stateless by Default, Stateful via explicit State File:** The CLI should be able to run in a stateless mode, but gain its resumability and gap-detection capabilities from an explicit state file (`baliza.duckdb`).
+-   **Core Logic:** A custom Python extractor (`PNCPExtractor`) uses `httpx` to make direct calls to the PNCP API. It is designed to be simple, robust, and maintainable.
+-   **State Management & Local Buffer:** A local DuckDB file (`baliza.duckdb`) serves two purposes: it acts as a temporary buffer for raw JSON data, and it holds all state-management tables (`baliza_state` schema) for checkpointing, coverage tracking, and archival status.
+-   **Archival Format:** Apache Parquet is the official "gold" data format for long-term archival, created by the `export-daily` command.
+-   **Archival Target:** The primary destination for the exported Parquet artifacts is the Internet Archive, ensuring a permanent, public, and immutable record of the data.
 
 ## 4. Prioritized Backlog
 
-### Epic 1: Resumable Extraction Pipeline
+### Epic 1: Stabilize the Core Pipeline & Archive Workflow
 
-*   **Feature:** Implement `StateManager` for persistent run tracking.
-*   **Feature:** Implement `GapDetector` to identify missing or incomplete data windows.
-*   **Feature:** Integrate StateManager and GapDetector into the `extract` command.
-*   **Feature:** Add `state` CLI commands (`show`, `gaps`, `history`) for observability.
+*   **Feature:** Add comprehensive integration tests for `PNCPExtractor`, covering success, failure, and resume scenarios.
+*   **Feature:** Formalize the Internet Archive upload process, potentially with a new CLI command or a well-documented helper script.
+*   **Feature:** Improve the `verify` command to provide more detailed and user-friendly gap analysis reports.
 
-### Epic 2: Automated Data Publishing *(MOVED TO baliza-site REPOSITORY)*
+### Epic 2: Expand Endpoint Coverage
 
-**⚠️ SCOPE CLARIFICATION:** This epic belongs in the `franklinbaldo/baliza-site` repository, NOT here.
+*   **Feature:** Add support for the `compras` (procurements) endpoint using the existing `PNCPExtractor` pattern.
+*   **Feature:** Refactor `PNCPExtractor` to gracefully handle different data schemas and primary keys from new endpoints.
 
-This repository (`franklinbaldo/baliza`) provides the **CLI engine** that extracts data. The `baliza-site` repository will:
-*   Create a GitHub Actions workflow for daily incremental extraction (using the `baliza` CLI).
-*   Enhance the workflow to export new data to Parquet (using `baliza export`).
-*   Create a versioned GitHub Release and upload Parquet files as assets.
-*   Implement a manifest file that lists all Parquet files in the release.
-*   Host web interface, dashboards, and public data coverage reports.
+### Epic 3: Improve Observability and Operations
 
-**What THIS repository needs to support Epic 2:**
-*   ✅ Stable `baliza extract` command
-*   ✅ Stable `baliza export` command
-*   ✅ Clear exit codes for CI/CD integration
-*   ✅ JSON output mode for machine consumption
-*   ⏳ Documentation for orchestration/automation
-*   ⏳ Container/Docker image for easy CI/CD usage
-
-### Epic 3: Expanded Endpoint Coverage
-
-*   **Feature:** Add support for the `compras` (procurements) endpoint.
-*   **Feature:** Add support for the `licitacoes` (tenders) endpoint.
-*   **Feature:** Refactor the configuration to easily support multiple endpoints.
-
-### Epic 4: Data Quality & Verification
-
-*   **Feature:** Enhance the `verify` command to use the new state management system.
-*   **Feature:** Add anomaly detection for suspicious page counts or record numbers.
-*   **Feature:** Generate and publish a public data coverage report.
+*   **Feature:** Implement structured logging (e.g., JSON format) to make the CLI's output more easily machine-readable for automation.
+*   **Feature:** Enhance the `status` command to provide a more detailed overview of the local buffer, archival status, and data coverage.
 
 ## 5. Test Strategy
 
--   **Unit Tests:** Focus on pure functions in `utils`, `state` management logic, and CLI argument parsing. Mock external dependencies like the PNCP API.
--   **Integration Tests:** Test the interaction between the `dlt` pipeline, the `StateManager`, and the DuckDB database. Use VCR cassettes (or similar) to record and replay real API responses.
--   **End-to-End (E2E) Tests:** Full CLI runs (`extract`, `backfill`, `export`, `verify`) against a small, controlled set of recorded API responses. These tests should validate the final Parquet output and state file.
--   **CI:** All tests (unit, integration, E2E) must pass in a GitHub Actions workflow on every push and pull request to `main`.
+-   **Unit Tests:** Focus on pure functions in `utils.py`, such as date formatting and identifier validation.
+-   **Integration Tests:** Test the `PNCPExtractor`'s interaction with a mocked `httpx` client and its state management logic against a temporary DuckDB database.
+-   **End-to-End (E2E) Tests:** Full CLI runs (`extract`, `export-daily`, `verify`, `status`) using pre-recorded API responses and a fixture-based DuckDB file to validate the entire workflow, from data extraction to Parquet output.
 
 ## 6. Known Gaps / Technical Debt
 
--   **Stateless Pipeline:** The current pipeline is stateless and relies on a simple lookback window, making it brittle. (This is addressed in Epic 1).
--   **Limited Test Coverage:** The current test suite primarily covers happy paths and needs to be expanded with more unit tests and failure-case scenarios.
--   **Lack of Observability:** The CLI provides minimal structured output (logs, metrics). This will be improved as part of the state management implementation.
--   **Manual Publishing:** Data releases are currently a manual process. (This is addressed in Epic 2).
+-   **Undocumented Internet Archive Workflow:** The process for uploading the daily Parquet exports to the Internet Archive is neither documented nor automated within the tool itself. This is a critical gap in the primary archival goal.
+-   **Limited Endpoint Support:** The tool currently only supports the `contratos` endpoint.
+-   **Basic `verify` Command:** The current gap detection logic is simplistic and could be made more robust.
+-   **Outdated README:** The main `README.md` is severely out of sync with the application's actual functionality (this is being addressed).
