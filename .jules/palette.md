@@ -18,3 +18,7 @@
 ## 2025-02-18 - Visualizing Distribution in Tables
 **Learning:** Percentage columns in CLI tables are informative but hard to scan for "at-a-glance" status.
 **Action:** Embed `rich.progress_bar.ProgressBar` directly into table cells to create visual distribution bars. Use distinct colors (green/yellow/red) to reinforce the status meaning visually.
+
+## 2025-02-25 - Blocking Operations Feedback
+**Learning:** Blocking operations like database exports or large file writes can make the CLI appear frozen if they lack feedback, causing user anxiety.
+**Action:** Wrap blocking IO operations (like `COPY ... TO ...`) with `console.status(...)` spinners. This provides a "heartbeat" that the system is working, even if exact progress percentage is unknown.
