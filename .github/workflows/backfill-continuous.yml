@@ -1,0 +1,133 @@
+name: Continuous PNCP Backfill
+
+on:
+  schedule:
+    # Run every 15 minutes to process historical data in batches
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: 'Override backfill start date (YYYY-MM-DD)'
+        required: false
+        default: '2024-01-01'
+      end_date:
+        description: 'Override backfill end date (YYYY-MM-DD)'
+        required: false
+      batch_size:
+        description: 'Number of dates per batch'
+        required: false
+        default: '5'
+      dry_run:
+        description: 'Test without uploading to Internet Archive'
+        required: false
+        default: 'false'
+
+# Prevent duplicate backfill runs
+concurrency:
+  group: pncp-backfill
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python via uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Download state artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: backfill-state
+          path: .backfill-state
+        continue-on-error: true
+
+      - name: Restore state from artifacts
+        run: |
+          if [ -f ".backfill-state/backfill_state.json" ]; then
+            mkdir -p .backfill-state
+            cp .backfill-state/backfill_state.json ./ || true
+          fi
+        continue-on-error: true
+
+      - name: Run continuous backfill
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.IA_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.IA_SECRET_ACCESS_KEY }}
+          IA_BUCKET: ${{ secrets.IA_BUCKET || 'jules-mail-frank-2026' }}
+          BALIZA_BACKFILL_START: ${{ github.event.inputs.start_date || '2024-01-01' }}
+          BALIZA_BACKFILL_END: ${{ github.event.inputs.end_date || '' }}
+          BALIZA_BATCH_SIZE: ${{ github.event.inputs.batch_size || '5' }}
+          BALIZA_DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        run: |
+          python scripts/backfill_pipeline.py
+          exit_code=$?
+          echo "BACKFILL_EXIT_CODE=$exit_code" >> $GITHUB_ENV
+          exit $exit_code
+
+      - name: Upload state artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backfill-state
+          path: backfill_state.json
+          retention-days: 7
+        continue-on-error: true
+
+      - name: Upload logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backfill-logs-${{ github.run_id }}
+          path: |
+            data/daily/backfill/
+            baliza.duckdb
+          retention-days: 7
+        continue-on-error: true
+
+      - name: Notify Slack on success
+        if: success() && secrets.SLACK_WEBHOOK_URL
+        run: |
+          curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
+            -H 'Content-Type: application/json' \
+            -d '{
+              "text": "✅ Baliza backfill completed successfully",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*✅ Baliza Continuous Backfill*\n\nBatch processing completed successfully.\n\n<'"$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"'|View Run>"
+                  }
+                }
+              ]
+            }'
+        continue-on-error: true
+
+      - name: Notify Slack on failure
+        if: failure() && secrets.SLACK_WEBHOOK_URL
+        run: |
+          curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
+            -H 'Content-Type: application/json' \
+            -d '{
+              "text": "❌ Baliza backfill failed",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*❌ Baliza Continuous Backfill Failed*\n\nBackfill batch processing encountered an error.\n\n<'"$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"'|View Run>"
+                  }
+                }
+              ]
+            }'
+        continue-on-error: true
