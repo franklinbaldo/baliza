@@ -263,7 +263,7 @@ def buffer_stats(
         with PNCPExtractor(db_path, dataset) as extractor:
             stats = extractor.get_buffer_stats()
 
-        console.print(Panel(f"[bold]Buffer Statistics[/bold]"))
+        console.print(Panel("[bold]Buffer Statistics[/bold]"))
         console.print(f"  Total rows in buffer: [cyan]{stats['total_rows']:,}[/cyan]")
         console.print(f"  Dates in buffer: [cyan]{stats['dates_in_buffer']}[/cyan]")
         console.print(f"  Dates uploaded to IA: [cyan]{stats['dates_uploaded_to_ia']}[/cyan]")

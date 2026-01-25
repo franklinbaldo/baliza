@@ -7,3 +7,8 @@
 **Vulnerability:** SQL Injection in `CoverageTracker.derive_window_candidates`. The `date_field` parameter was interpolated directly into a SQL query string without quoting or validation, allowing arbitrary SQL execution if exposed to user input.
 **Learning:** Always use identifier quoting (or parameterized queries where applicable) for dynamic column/table names in SQL construction, even if the input currently comes from a trusted source (config defaults), as future changes might expose it.
 **Prevention:** Applied `_quote_identifier` to `date_field` before interpolation in `src/baliza/state/coverage.py`.
+
+## 2024-05-25 - Prevent Path Traversal in Resource URLs
+**Vulnerability:** Path Traversal and SSRF risk in `PNCPExtractor.extract`. The `resource` parameter was used to construct URLs (`base_url + "/" + resource`) without validation, allowing traversal (`../`) or absolute paths (`http://evil.com`).
+**Learning:** CLI arguments that are part of URL construction must be strictly validated, even if they look like simple identifiers.
+**Prevention:** Implemented `validate_resource_path` in `src/baliza/utils.py` allowing only alphanumeric, `_`, `-`, `/`, and blocking traversal/absolute paths.
