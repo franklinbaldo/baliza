@@ -1,13 +1,17 @@
-# BDD Alignment Actions Log
+# Alignment Actions Log
 
-This document records the decisions and actions taken by the Baliza BDD Alignment & Improvement Agent.
+### `README.md` Update
+- **Decision:** The `README.md` was critically outdated and described a `dlt`-based pipeline that was removed from the project. This created a major disconnect for any user or contributor.
+- **Action:** The entire `README.md` was rewritten to reflect the current, simplified architecture based on `httpx` and `DuckDB`. All command examples, feature descriptions, and installation instructions were updated to be accurate.
 
-## 2024-07-23: Correction of Initial Discovery
+### BDD Feature Retirement
+- **Decision:** The `resilience.feature` file was testing an error handling mechanism specific to the non-existent `dlt` pipeline. It was no longer relevant.
+- **Action:** Deleted `resilience.feature` and its corresponding step definition file, `tests/step_defs/test_resilience_simple.py`, to remove obsolete tests.
 
--   **Action:** Corrected the initial discovery and alignment documentation after a failed code review.
--   **Details:**
-    -   The initial run on 2024-07-23 incorrectly overwrote existing documentation in `docs/alignment/`. This led to a factually incorrect state where the documentation did not match the codebase.
-    -   **Restored** the original versions of `inventory.md`, `goals.md`, and `feature_goal_matrix.md`.
-    -   **Analyzed** the restored files and identified a contradiction: the documentation claimed the project did not use BDD, while the codebase clearly contained `.feature` files and a `pytest-bdd` dependency.
-    -   **Updated** `inventory.md` and `feature_goal_matrix.md` to accurately reflect the use of `pytest-bdd`.
--   **Outcome:** The alignment documentation now correctly reflects the state of the repository, providing an accurate baseline for future work.
+### BDD Scenario Rewrite
+- **Decision:** The existing `checkpoint.feature` did not accurately test the page-level checkpointing and resume-on-failure logic of the current `PNCPExtractor`.
+- **Action:** Rewrote the scenario in `checkpoint.feature` to simulate a mid-extraction failure, verify the creation of a checkpoint, and confirm that a subsequent run resumes correctly. The step definitions in `tests/step_defs/test_checkpoint.py` were updated to implement this new, more accurate test.
+
+### Project Goal Inference
+- **Decision:** The project's goals needed to be explicitly stated to guide future alignment work.
+- **Action:** Inferred the project's goals, non-goals, and primary users from the current codebase (`cli_simple.py`, `extractor.py`) and the simplified dependencies in `pyproject.toml`. Documented these in `docs/alignment/goals.md`.

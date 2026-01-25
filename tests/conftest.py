@@ -157,9 +157,30 @@ class HttpxMock:
         return _MockClient(self._entries)
 
 
-# Old httpx_mock fixture for dlt CLI - no longer needed
-# New simple tests mock httpx.Client.get directly with unittest.mock
-#
-# @pytest.fixture()
-# def httpx_mock() -> HttpxMock:
-#     ...
+from typer.testing import CliRunner
+
+
+# =============================================================================
+# CLI Runner Fixture for Typer
+# =============================================================================
+
+
+@pytest.fixture
+def runner() -> CliRunner:
+    """Fixture for invoking command-line interfaces."""
+    return CliRunner()
+
+
+# =============================================================================
+# Temporary Database for Tests
+# =============================================================================
+
+
+@pytest.fixture
+def test_db_path(tmp_path: Path) -> Path:
+    """Provides a temporary DuckDB path for isolated test runs."""
+    db_path = tmp_path / "test.duckdb"
+    # Ensure the db does not exist from a previous run
+    if db_path.exists():
+        db_path.unlink()
+    return db_path
