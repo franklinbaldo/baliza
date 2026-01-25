@@ -12,6 +12,7 @@ from typing import Any
 
 import duckdb
 import httpx
+import pyarrow as pa
 from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
@@ -19,6 +20,37 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_excep
 from .utils import validate_identifier
 
 console = Console()
+
+
+PNCP_SCHEMA = pa.schema(
+    [
+        ("numeroControlePNCP", pa.string()),
+        ("anoCompra", pa.int32()),
+        ("sequencialCompra", pa.int32()),
+        ("orgaoEntidade", pa.struct([
+            ("cnpj", pa.string()),
+            ("razaoSocial", pa.string()),
+            ("poderId", pa.string()),
+        ])),
+        ("unidadeOrgao", pa.struct([
+            ("codigoUnidade", pa.string()),
+            ("nomeUnidade", pa.string()),
+        ])),
+        ("modalidadeId", pa.int32()),
+        ("modalidadeNome", pa.string()),
+        ("valorInicial", pa.float64()),
+        ("dataPublicacao", pa.string()),
+        ("dataVigenciaInicio", pa.string()),
+        ("dataVigenciaFim", pa.string()),
+        ("objetoContrato", pa.string()),
+        ("informacaoComplementar", pa.string()),
+        ("numeroProcesso", pa.string()),
+        ("linkSistemaOrigem", pa.string()),
+        ("dataInclusao", pa.string()),
+        ("dataAtualizacao", pa.string()),
+        ("usuarioNome", pa.string()),
+    ]
+)
 
 
 @retry(
@@ -201,44 +233,43 @@ class PNCPExtractor:
         if not rows:
             return 0
 
-        values = []
-        for row in rows:
-            values.append(
-                (
-                    row.get("numeroControlePNCP"),
-                    row.get("anoCompra"),
-                    row.get("sequencialCompra"),
-                    row.get("orgaoEntidade", {}).get("cnpj"),
-                    row.get("orgaoEntidade", {}).get("razaoSocial"),
-                    row.get("orgaoEntidade", {}).get("poderId"),
-                    row.get("unidadeOrgao", {}).get("codigoUnidade"),
-                    row.get("unidadeOrgao", {}).get("nomeUnidade"),
-                    row.get("modalidadeId"),
-                    row.get("modalidadeNome"),
-                    row.get("valorInicial"),
-                    row.get("dataPublicacao"),
-                    row.get("dataVigenciaInicio"),
-                    row.get("dataVigenciaFim"),
-                    row.get("objetoContrato"),
-                    row.get("informacaoComplementar"),
-                    row.get("numeroProcesso"),
-                    row.get("linkSistemaOrigem"),
-                    row.get("dataInclusao"),
-                    row.get("dataAtualizacao"),
-                    row.get("usuarioNome"),
-                )
-            )
+        # Create Arrow table with explicit schema to handle missing/partial structs
+        arrow_table = pa.Table.from_pylist(rows, schema=PNCP_SCHEMA)
 
-        # Insert or ignore (deduplication by primary key)
-        con.executemany(
+        # Register table for DuckDB query
+        con.register("arrow_table", arrow_table)
+
+        # Insert from Arrow table (much faster than Python loop + executemany)
+        con.execute(
             f"""
             INSERT OR IGNORE INTO {self.dataset}.contratos
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-            values,
+            SELECT
+                numeroControlePNCP,
+                anoCompra,
+                sequencialCompra,
+                orgaoEntidade.cnpj,
+                orgaoEntidade.razaoSocial,
+                orgaoEntidade.poderId,
+                unidadeOrgao.codigoUnidade,
+                unidadeOrgao.nomeUnidade,
+                modalidadeId,
+                modalidadeNome,
+                valorInicial,
+                dataPublicacao,
+                dataVigenciaInicio,
+                dataVigenciaFim,
+                objetoContrato,
+                informacaoComplementar,
+                numeroProcesso,
+                linkSistemaOrigem,
+                dataInclusao,
+                dataAtualizacao,
+                usuarioNome
+            FROM arrow_table
+        """
         )
 
-        return len(values)
+        return len(rows)
 
     def extract(
         self,
