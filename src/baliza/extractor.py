@@ -12,6 +12,7 @@ from typing import Any
 
 import duckdb
 import httpx
+import pyarrow as pa
 from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
@@ -19,6 +20,34 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_excep
 from .utils import validate_identifier
 
 console = Console()
+
+# PyArrow schema for efficient batch insertion
+# We use string for timestamps to let DuckDB handle casting/parsing from ISO strings
+PNCP_ARROW_SCHEMA = pa.schema(
+    [
+        ("numeroControlePNCP", pa.string()),
+        ("anoCompra", pa.int32()),
+        ("sequencialCompra", pa.int32()),
+        ("orgaoEntidade_cnpj", pa.string()),
+        ("orgaoEntidade_razaoSocial", pa.string()),
+        ("orgaoEntidade_poderId", pa.string()),
+        ("unidadeOrgao_codigoUnidade", pa.string()),
+        ("unidadeOrgao_nomeUnidade", pa.string()),
+        ("modalidadeId", pa.int32()),
+        ("modalidadeNome", pa.string()),
+        ("valorInicial", pa.float64()),
+        ("dataPublicacao", pa.string()),
+        ("dataVigenciaInicio", pa.string()),
+        ("dataVigenciaFim", pa.string()),
+        ("objetoContrato", pa.string()),
+        ("informacaoComplementar", pa.string()),
+        ("numeroProcesso", pa.string()),
+        ("linkSistemaOrigem", pa.string()),
+        ("dataInclusao", pa.string()),
+        ("dataAtualizacao", pa.string()),
+        ("usuarioNome", pa.string()),
+    ]
+)
 
 
 @retry(
@@ -201,44 +230,49 @@ class PNCPExtractor:
         if not rows:
             return 0
 
-        values = []
-        for row in rows:
-            values.append(
-                (
-                    row.get("numeroControlePNCP"),
-                    row.get("anoCompra"),
-                    row.get("sequencialCompra"),
-                    row.get("orgaoEntidade", {}).get("cnpj"),
-                    row.get("orgaoEntidade", {}).get("razaoSocial"),
-                    row.get("orgaoEntidade", {}).get("poderId"),
-                    row.get("unidadeOrgao", {}).get("codigoUnidade"),
-                    row.get("unidadeOrgao", {}).get("nomeUnidade"),
-                    row.get("modalidadeId"),
-                    row.get("modalidadeNome"),
-                    row.get("valorInicial"),
-                    row.get("dataPublicacao"),
-                    row.get("dataVigenciaInicio"),
-                    row.get("dataVigenciaFim"),
-                    row.get("objetoContrato"),
-                    row.get("informacaoComplementar"),
-                    row.get("numeroProcesso"),
-                    row.get("linkSistemaOrigem"),
-                    row.get("dataInclusao"),
-                    row.get("dataAtualizacao"),
-                    row.get("usuarioNome"),
-                )
-            )
+        # Create flat structure for PyArrow
+        flat_rows = [
+            {
+                "numeroControlePNCP": row.get("numeroControlePNCP"),
+                "anoCompra": row.get("anoCompra"),
+                "sequencialCompra": row.get("sequencialCompra"),
+                "orgaoEntidade_cnpj": row.get("orgaoEntidade", {}).get("cnpj"),
+                "orgaoEntidade_razaoSocial": row.get("orgaoEntidade", {}).get("razaoSocial"),
+                "orgaoEntidade_poderId": row.get("orgaoEntidade", {}).get("poderId"),
+                "unidadeOrgao_codigoUnidade": row.get("unidadeOrgao", {}).get("codigoUnidade"),
+                "unidadeOrgao_nomeUnidade": row.get("unidadeOrgao", {}).get("nomeUnidade"),
+                "modalidadeId": row.get("modalidadeId"),
+                "modalidadeNome": row.get("modalidadeNome"),
+                "valorInicial": row.get("valorInicial"),
+                "dataPublicacao": row.get("dataPublicacao"),
+                "dataVigenciaInicio": row.get("dataVigenciaInicio"),
+                "dataVigenciaFim": row.get("dataVigenciaFim"),
+                "objetoContrato": row.get("objetoContrato"),
+                "informacaoComplementar": row.get("informacaoComplementar"),
+                "numeroProcesso": row.get("numeroProcesso"),
+                "linkSistemaOrigem": row.get("linkSistemaOrigem"),
+                "dataInclusao": row.get("dataInclusao"),
+                "dataAtualizacao": row.get("dataAtualizacao"),
+                "usuarioNome": row.get("usuarioNome"),
+            }
+            for row in rows
+        ]
 
-        # Insert or ignore (deduplication by primary key)
-        con.executemany(
+        # Convert to Arrow Table
+        arrow_table = pa.Table.from_pylist(flat_rows, schema=PNCP_ARROW_SCHEMA)
+
+        # Bulk insert via DuckDB Arrow integration
+        # Note: We register the table to make it available in SQL
+        con.register("arrow_batch", arrow_table)
+        con.execute(
             f"""
             INSERT OR IGNORE INTO {self.dataset}.contratos
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-            values,
+            SELECT * FROM arrow_batch
+            """
         )
+        con.unregister("arrow_batch")
 
-        return len(values)
+        return len(flat_rows)
 
     def extract(
         self,
