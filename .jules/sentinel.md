@@ -7,3 +7,8 @@
 **Vulnerability:** SQL Injection in `CoverageTracker.derive_window_candidates`. The `date_field` parameter was interpolated directly into a SQL query string without quoting or validation, allowing arbitrary SQL execution if exposed to user input.
 **Learning:** Always use identifier quoting (or parameterized queries where applicable) for dynamic column/table names in SQL construction, even if the input currently comes from a trusted source (config defaults), as future changes might expose it.
 **Prevention:** Applied `_quote_identifier` to `date_field` before interpolation in `src/baliza/state/coverage.py`.
+
+## 2026-01-26 - Prevent SQL Injection in Export Command
+**Vulnerability:** SQL Injection in `baliza export` command. The `--output` argument was interpolated directly into a `COPY ... TO '...'` statement. A malicious path like `data'; DROP TABLE ...` could execute arbitrary SQL.
+**Learning:** DuckDB's `COPY ... TO` statement supports parameterized queries for the file path, which should always be used instead of string interpolation for user-provided paths.
+**Prevention:** Replaced f-string interpolation with `con.execute("COPY ... TO ?", [path])` in `src/baliza/cli_simple.py`.

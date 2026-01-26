@@ -175,8 +175,8 @@ def export(
             # Simple export - dump everything to parquet
             parquet_file = output / f"{table}.parquet"
             con.execute(f"""
-                COPY {dataset}.{table} TO '{parquet_file}' (FORMAT PARQUET)
-            """)
+                COPY {dataset}.{table} TO ? (FORMAT PARQUET)
+            """, [str(parquet_file)])
 
         console.print(f"[green]✓ Exported {dataset}.{table} to {parquet_file}")
 
