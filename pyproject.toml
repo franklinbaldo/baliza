@@ -44,11 +44,15 @@ package-dir = {"" = "src"}
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+bdd_features_base_dir = "tests/features"
 markers = [
     "tier0: Tier 0 (Critical Path) - Without these, tool is useless",
     "tier1: Tier 1 (Core Features) - Essential for production use",
     "tier2: Tier 2 (Operator Experience) - Quality-of-life improvements",
     "tier3: Tier 3 (Future Enhancements) - Aspirational features",
+    "smoke: Smoke tests for critical functionality",
+    "resilience: Tests for error handling and recovery",
+    "edge-case: Tests for edge cases and boundary conditions",
 ]
 
 # Ruff configuration
