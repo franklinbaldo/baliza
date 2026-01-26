@@ -16,7 +16,105 @@ from .extractor import PNCPExtractor
 from .utils import validate_identifier
 
 app = typer.Typer(help="Baliza - Simple PNCP extraction tool")
+state_app = typer.Typer(help="Commands to inspect the extraction state.")
+app.add_typer(state_app, name="state")
 console = Console()
+
+
+@state_app.command("show")
+def state_show(
+    resource: str = typer.Option("contratos", "--resource", "-r", help="Resource to inspect"),
+    db_path: Path = typer.Option(Path("baliza.duckdb"), "--duckdb", "-d", help="DuckDB file"),
+):
+    """Show a summary of the extraction state for a resource."""
+    try:
+        with duckdb.connect(str(db_path), read_only=True) as con:
+            windows = con.execute(
+                "SELECT status, COUNT(*) FROM baliza_state.windows WHERE resource_name = ? GROUP BY status",
+                [resource],
+            ).fetchall()
+            table = Table(title=f"State for {resource}")
+            table.add_column("Status", style="cyan")
+            table.add_column("Count", justify="right")
+            for status, count in windows:
+                table.add_row(status, str(count))
+            console.print(table)
+    except duckdb.CatalogException:
+        console.print(f"[yellow]No state found for resource '{resource}'.[/yellow]")
+    except Exception as e:
+        console.print(f"[red]✗ Failed to show state: {e}")
+        raise typer.Exit(1) from None
+
+
+@state_app.command("gaps")
+def state_gaps(
+    resource: str = typer.Option("contratos", "--resource", "-r", help="Resource to inspect"),
+    db_path: Path = typer.Option(Path("baliza.duckdb"), "--duckdb", "-d", help="DuckDB file"),
+):
+    """List coverage gaps for a resource."""
+    try:
+        with duckdb.connect(str(db_path), read_only=True) as con:
+            windows = con.execute(
+                "SELECT start_date, end_date FROM baliza_state.windows WHERE resource_name = ? AND status = 'completed' ORDER BY start_date",
+                [resource],
+            ).fetchall()
+            if not windows:
+                console.print(f"[yellow]No completed windows found for resource '{resource}'.[/yellow]")
+                return
+
+            gaps = []
+            last_end = None
+            for start, end in windows:
+                if last_end and start > last_end + timedelta(days=1):
+                    gaps.append((last_end, start))
+                last_end = end
+
+            if gaps:
+                table = Table(title=f"Coverage Gaps for {resource}")
+                table.add_column("Start Gap", style="yellow")
+                table.add_column("End Gap", style="yellow")
+                table.add_column("Duration", justify="right")
+                for start_gap, end_gap in gaps:
+                    duration = end_gap - start_gap
+                    table.add_row(str(start_gap), str(end_gap), f"{duration.days} days")
+                console.print(table)
+            else:
+                console.print("[green]✓ No coverage gaps found.[/green]")
+    except duckdb.CatalogException:
+        console.print(f"[yellow]No state found for resource '{resource}'.[/yellow]")
+    except Exception as e:
+        console.print(f"[red]✗ Failed to list gaps: {e}")
+        raise typer.Exit(1) from None
+
+
+@state_app.command("history")
+def state_history(
+    resource: str = typer.Option("contratos", "--resource", "-r", help="Resource to inspect"),
+    db_path: Path = typer.Option(Path("baliza.duckdb"), "--duckdb", "-d", help="DuckDB file"),
+):
+    """Show the history of extraction runs for a resource."""
+    try:
+        with duckdb.connect(str(db_path), read_only=True) as con:
+            runs = con.execute(
+                "SELECT run_id, started_at, ended_at, status, num_windows, num_successful_windows, num_failed_windows FROM baliza_state.extraction_runs WHERE resource_name = ? ORDER BY started_at DESC",
+                [resource],
+            ).fetchall()
+            table = Table(title=f"Extraction History for {resource}")
+            table.add_column("Run ID", style="cyan")
+            table.add_column("Started At", style="cyan")
+            table.add_column("Ended At", style="cyan")
+            table.add_column("Status", style="cyan")
+            table.add_column("Windows", justify="right")
+            table.add_column("Successful", justify="right")
+            table.add_column("Failed", justify="right")
+            for run_id, started_at, ended_at, status, num_windows, num_successful, num_failed in runs:
+                table.add_row(run_id, str(started_at), str(ended_at), status, str(num_windows), str(num_successful), str(num_failed))
+            console.print(table)
+    except duckdb.CatalogException:
+        console.print(f"[yellow]No history found for resource '{resource}'.[/yellow]")
+    except Exception as e:
+        console.print(f"[red]✗ Failed to show history: {e}")
+        raise typer.Exit(1) from None
 
 
 @app.command("extract")
