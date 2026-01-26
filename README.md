@@ -19,22 +19,13 @@ pesquisadores e órgãos de controle.
 
 ## Visão geral
 
-- **Pipeline declarativo com [dlt](https://dlthub.com/):** a configuração YAML
-  em `src/baliza/config/pncp.yml` descreve como chamar o endpoint público
-  `GET /v1/contratos` do PNCP, paginando com `tamanhoPagina=500` e janelas de
-  `dataInicial`/`dataFinal` no formato `AAAAMMDD`.
+- **Extração direta com `httpx`:** O Baliza utiliza `httpx` para fazer chamadas diretas à API do PNCP, com resiliência e tratamento de paginação.
+- **Armazenamento local com `duckdb`:** Os dados brutos são armazenados em um banco de dados DuckDB local (`baliza.duckdb`), permitindo consultas analíticas imediatas.
 - **CLI enxuta:** o comando `baliza extract` executa o pipeline incremental e
   `baliza backfill` permite processar janelas mensais de forma determinística.
-- **Fluxo bronze → parquet:** `baliza extract` mantém o histórico bruto no
-  DuckDB (`baliza.duckdb`) enquanto `baliza export` gera arquivos Parquet
-  particionados por ano/mês em `data/<recurso>/ano=YYYY/mes=MM/*.parquet`.
-- **Entrega analítica imediata:** os dados são gravados no arquivo
-  `baliza.duckdb` (dataset `baliza_raw`) com *merge* incremental baseado na
-  chave oficial `numeroControlePNCP` (string completa `CNPJ-2-sequencial/ano`).
-- **Manifesto de cobertura:** cada página coletada gera metadados com
-  `totalPaginas` reportado, hashes de `numeroControlePNCP` e status das janelas.
-  O comando `baliza verify` audita o manifesto chamando apenas a primeira página
-  de cada janela e marcando lacunas ou crescimento tardio informado pela API.
+- **Fluxo bronze → parquet:** `baliza extract` mantém o histórico bruto no DuckDB enquanto `baliza export` gera arquivos Parquet particionados por ano/mês.
+- **Entrega analítica imediata:** os dados são gravados no arquivo `baliza.duckdb` com *merge* incremental baseado na chave oficial `numeroControlePNCP`.
+- **Manifesto de cobertura:** cada página coletada gera metadados para auditoria de cobertura. O comando `baliza verify` audita o manifesto para identificar lacunas nos dados.
 - **Documentação de arquitetura:** os arquivos em `docs/` registram decisões e
   próximos passos para evolução do pipeline.
 
