@@ -25,7 +25,7 @@ To be the most reliable, transparent, and accessible tool for extracting and pre
 
 ## 3. Architecture Constraints
 
--   **Python & dlt:** The core pipeline is built on Python, using the `dlt` (data load tool) library for declarative data extraction.
+-   **Python & HTTPX:** The core pipeline is built on Python, using the `httpx` library for direct, resilient HTTP requests to the PNCP API.
 -   **DuckDB for Staging:** DuckDB serves as the local, "bronze" layer for raw data and state management.
 -   **Parquet for Publishing:** Apache Parquet is the official "gold" data format for archival and public consumption, partitioned by year and month.
 -   **GitHub Releases as Data Warehouse:** The canonical public data artifacts will be published as assets attached to versioned GitHub Releases, ensuring immutability and public access.
@@ -74,7 +74,7 @@ This repository (`franklinbaldo/baliza`) provides the **CLI engine** that extrac
 ## 5. Test Strategy
 
 -   **Unit Tests:** Focus on pure functions in `utils`, `state` management logic, and CLI argument parsing. Mock external dependencies like the PNCP API.
--   **Integration Tests:** Test the interaction between the `dlt` pipeline, the `StateManager`, and the DuckDB database. Use VCR cassettes (or similar) to record and replay real API responses.
+-   **Integration Tests:** Test the interaction between the `httpx`-based extraction logic, the `StateManager`, and the DuckDB database. Use VCR cassettes (or similar) to record and replay real API responses.
 -   **End-to-End (E2E) Tests:** Full CLI runs (`extract`, `backfill`, `export`, `verify`) against a small, controlled set of recorded API responses. These tests should validate the final Parquet output and state file.
 -   **CI:** All tests (unit, integration, E2E) must pass in a GitHub Actions workflow on every push and pull request to `main`.
 
