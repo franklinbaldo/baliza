@@ -171,12 +171,16 @@ def export(
 
         output.mkdir(parents=True, exist_ok=True)
 
-        with duckdb.connect(str(db_path)) as con:
-            # Simple export - dump everything to parquet
-            parquet_file = output / f"{table}.parquet"
-            con.execute(f"""
-                COPY {dataset}.{table} TO '{parquet_file}' (FORMAT PARQUET)
-            """)
+        with console.status(
+            f"[bold green]Exporting {dataset}.{table} to parquet...[/bold green]",
+            spinner="dots",
+        ):
+            with duckdb.connect(str(db_path)) as con:
+                # Simple export - dump everything to parquet
+                parquet_file = output / f"{table}.parquet"
+                con.execute(f"""
+                    COPY {dataset}.{table} TO '{parquet_file}' (FORMAT PARQUET)
+                """)
 
         console.print(f"[green]✓ Exported {dataset}.{table} to {parquet_file}")
 
@@ -223,7 +227,12 @@ def export_daily(
         target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
 
         exporter = DailyExporter(db_path, dataset)
-        stats = exporter.export(target_date, output)
+
+        with console.status(
+            f"[bold green]Exporting daily package for {date_str}...[/bold green]",
+            spinner="dots",
+        ):
+            stats = exporter.export(target_date, output)
 
         # Show summary table
         table = Table(title=f"Daily Export: {date_str}")
