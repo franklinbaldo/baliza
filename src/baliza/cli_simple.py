@@ -19,6 +19,33 @@ from .utils import validate_identifier, validate_resource_path
 app = typer.Typer(help="Baliza - Simple PNCP extraction tool")
 console = Console()
 
+agent_app = typer.Typer(help="Agent communication and workflow")
+app.add_typer(agent_app, name="agent")
+
+
+@agent_app.command("sync")
+def agent_sync():
+    """Synchronize messages from the PM agent."""
+    console.print("[yellow]SYNC command is not implemented yet.[/yellow]")
+
+
+@agent_app.command("ack")
+def agent_ack():
+    """Acknowledge messages that require an ACK."""
+    console.print("[yellow]ACK command is not implemented yet.[/yellow]")
+
+
+@agent_app.command("status")
+def agent_status():
+    """Generate and send a STATUS message."""
+    console.print("[yellow]STATUS command is not implemented yet.[/yellow]")
+
+
+@agent_app.command("run")
+def agent_run():
+    """Run the agent's daily workflow."""
+    console.print("[yellow]RUN command is not implemented yet.[/yellow]")
+
 
 @app.command("extract")
 def extract(
