@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -61,12 +62,29 @@ def extract(
         end_date = datetime.strptime(end, "%Y-%m-%d")
 
         # Extract data
+        start_time = time.time()
         with PNCPExtractor(db_path, dataset) as extractor:
             result = extractor.extract(start_date, end_date, resource)
+        duration = time.time() - start_time
 
-        console.print("\n[green]✓ Extraction complete!")
-        console.print(f"  Rows: {result['rows_extracted']}")
-        console.print(f"  Pages: {result['pages']}")
+        # Create summary
+        grid = Table.grid(padding=(0, 2))
+        grid.add_column(style="bold")
+        grid.add_column(justify="right")
+
+        grid.add_row("Rows Extracted:", f"{result['rows_extracted']:,}")
+        grid.add_row("Pages:", f"{result['pages']:,}")
+        grid.add_row("Date Range:", f"{start} to {end}")
+        grid.add_row("Duration:", f"{duration:.1f}s")
+
+        console.print(
+            Panel(
+                grid,
+                title="[green]✓ Extraction Complete[/green]",
+                border_style="green",
+                expand=False,
+            )
+        )
 
     except Exception as e:
         console.print(f"[red]✗ Extraction failed: {e}")
