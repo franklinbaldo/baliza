@@ -318,6 +318,73 @@ def buffer_stats(
         raise typer.Exit(1) from None
 
 
+state_app = typer.Typer(help="Manage and inspect extraction state.")
+app.add_typer(state_app, name="state")
+
+
+@state_app.command("show")
+def state_show(
+    db_path: Path = typer.Option(
+        Path("baliza.duckdb"),
+        "--duckdb",
+        "-d",
+        help="Path to DuckDB database file",
+    ),
+) -> None:
+    """Show a summary of the current extraction state."""
+    try:
+        if not db_path.exists():
+            console.print("[yellow]No database found. Run extraction first.[/yellow]")
+            raise typer.Exit(0)
+
+        with duckdb.connect(str(db_path), read_only=True) as con:
+            # Get extraction history
+            try:
+                runs = con.execute(
+                    "SELECT status, COUNT(*) as count FROM baliza_state.extraction_runs GROUP BY status"
+                ).fetchall()
+            except duckdb.CatalogException:
+                runs = []
+
+            # Get coverage summary
+            try:
+                coverage = con.execute(
+                    "SELECT status, COUNT(*) as count FROM baliza_state.cobertura GROUP BY status"
+                ).fetchall()
+            except duckdb.CatalogException:
+                coverage = []
+
+        # Display Extraction History
+        console.print(Panel("[bold]Extraction History[/bold]", style="blue"))
+        if runs:
+            history_table = Table(show_header=True, header_style="bold magenta")
+            history_table.add_column("Status")
+            history_table.add_column("Count", justify="right")
+            for status, count in runs:
+                history_table.add_row(status, str(count))
+            console.print(history_table)
+        else:
+            console.print("No extraction history found.")
+
+        console.print()
+
+        # Display Coverage Summary
+        console.print(Panel("[bold]Coverage Summary[/bold]", style="blue"))
+        if coverage:
+            coverage_table = Table(show_header=True, header_style="bold magenta")
+            coverage_table.add_column("Status")
+            coverage_table.add_column("Window Count", justify="right")
+            for status, count in coverage:
+                coverage_table.add_row(status, str(count))
+            console.print(coverage_table)
+        else:
+            console.print("No coverage data found.")
+
+    except Exception as e:
+        console.print(f"[red]✗ Failed to get state: {e}")
+        raise typer.Exit(1) from None
+
+
 @app.command("status")
 def status(
     db_path: Path = typer.Option(
