@@ -14,7 +14,7 @@ from rich.table import Table
 
 from .daily_exporter import DailyExporter
 from .extractor import PNCPExtractor
-from .utils import validate_identifier
+from .utils import validate_identifier, validate_resource_path
 
 app = typer.Typer(help="Baliza - Simple PNCP extraction tool")
 console = Console()
@@ -57,6 +57,9 @@ def extract(
     Just fetches data from start to end date and saves to DuckDB.
     """
     try:
+        # Validate resource
+        validate_resource_path(resource)
+
         # Parse dates
         start_date = datetime.strptime(start, "%Y-%m-%d")
         end_date = datetime.strptime(end, "%Y-%m-%d")
@@ -100,6 +103,9 @@ def verify(
 ) -> None:
     """Verify data coverage and detect gaps."""
     try:
+        # Validate resource
+        validate_resource_path(resource)
+
         start_date = datetime.strptime(start, "%Y-%m-%d")
         end_date = datetime.strptime(end, "%Y-%m-%d")
 
@@ -290,7 +296,7 @@ def buffer_stats(
         with PNCPExtractor(db_path, dataset) as extractor:
             stats = extractor.get_buffer_stats()
 
-        console.print(Panel(f"[bold]Buffer Statistics[/bold]"))
+        console.print(Panel("[bold]Buffer Statistics[/bold]"))
         console.print(f"  Total rows in buffer: [cyan]{stats['total_rows']:,}[/cyan]")
         console.print(f"  Dates in buffer: [cyan]{stats['dates_in_buffer']}[/cyan]")
         console.print(f"  Dates uploaded to IA: [cyan]{stats['dates_uploaded_to_ia']}[/cyan]")
