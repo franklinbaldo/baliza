@@ -19,15 +19,14 @@ pesquisadores e órgãos de controle.
 
 ## Visão geral
 
-- **Pipeline declarativo com [dlt](https://dlthub.com/):** a configuração YAML
-  em `src/baliza/config/pncp.yml` descreve como chamar o endpoint público
-  `GET /v1/contratos` do PNCP, paginando com `tamanhoPagina=500` e janelas de
-  `dataInicial`/`dataFinal` no formato `AAAAMMDD`.
-- **CLI enxuta:** o comando `baliza extract` executa o pipeline incremental e
+- **Extração direta com HTTPX:** O Baliza utiliza `httpx` para fazer chamadas
+  diretas e resilientes ao endpoint `GET /v1/contratos` do PNCP, com paginação
+  customizável e janelas de data (`dataInicial`/`dataFinal`).
+- **CLI enxuta:** O comando `baliza extract` executa a extração incremental e
   `baliza backfill` permite processar janelas mensais de forma determinística.
-- **Fluxo bronze → parquet:** `baliza extract` mantém o histórico bruto no
-  DuckDB (`baliza.duckdb`) enquanto `baliza export` gera arquivos Parquet
-  particionados por ano/mês em `data/<recurso>/ano=YYYY/mes=MM/*.parquet`.
+- **Armazenamento em DuckDB:** Os dados brutos são armazenados em um banco de
+  dados local `baliza.duckdb` para fácil acesso e análise. `baliza export`
+  gera arquivos Parquet particionados por ano/mês a partir do DuckDB.
 - **Entrega analítica imediata:** os dados são gravados no arquivo
   `baliza.duckdb` (dataset `baliza_raw`) com *merge* incremental baseado na
   chave oficial `numeroControlePNCP` (string completa `CNPJ-2-sequencial/ano`).
@@ -343,17 +342,14 @@ Veja [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) para detalhes completos.
 
 ```
 ├── src/baliza/
-│   ├── cli.py              # Interface de linha de comando
-│   ├── pipelines/pncp.py   # Execução do pipeline dlt
-│   ├── config/pncp.yml     # Configuração declarativa do endpoint
-│   ├── state/              # Rastreamento de cobertura
-│   └── utils/              # Funções auxiliares (datas, hashing, export)
+│   ├── cli_simple.py       # Interface de linha de comando (Typer)
+│   ├── extractor.py        # Lógica de extração com httpx e DuckDB
+│   ├── daily_exporter.py   # Lógica para exportação diária de dados
+│   └── utils.py            # Funções auxiliares
 ├── docs/                   # Guias de arquitetura e planos de evolução
-│   ├── ARCHITECTURE.md     # Separação entre CLI e site
-│   └── ROADMAP.md          # Roadmap do CLI
 ├── tests/                  # Testes automatizados
-│   ├── unit/               # Testes unitários
-│   └── e2e/                # Testes end-to-end
+│   ├── features/           # Cenários BDD (Gherkin)
+│   └── step_defs/          # Implementação dos cenários BDD
 └── pyproject.toml          # Metadados e dependências do projeto
 ```
 
