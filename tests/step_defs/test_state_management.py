@@ -1,14 +1,12 @@
 """Step definitions for the state management feature."""
 
-import re
 from pathlib import Path
 from textwrap import dedent
 
 import duckdb
 import pytest
-from pytest_bdd import given, scenario, then, when
+from pytest_bdd import given, parsers, scenario, then, when
 from typer.testing import CliRunner
-from pytest_bdd import parsers
 
 from baliza.cli_simple import app
 
