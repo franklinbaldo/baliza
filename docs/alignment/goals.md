@@ -1,31 +1,31 @@
 # Baliza Project Goals
 
-This document outlines the primary goals, non-goals, and target users for the Baliza project, based on evidence from the repository.
+This document outlines the primary goals, non-goals, and success signals for the Baliza project, based on evidence from the repository.
 
-## Primary Goals
+## Goals
 
-- **Reliable Data Extraction:** The core goal of Baliza is to reliably and efficiently extract public procurement data from the PNCP (Portal Nacional de Contratações Públicas).
-- **Data Preservation:** The project aims to create a preserved, long-term archive of Brazilian public procurement data, storing it in a format suitable for analysis (DuckDB and Parquet).
-- **Accessibility for Analysis:** Baliza is designed to make this data easily accessible for journalists, researchers, and public oversight bodies.
+1.  **Preserve Public Data:** Capture and preserve the history of Brazilian public procurement data from the PNCP.
+2.  **Provide Reliable Access:** Offer a consistent and reliable local database (DuckDB) for journalists, researchers, and auditors.
+3.  **Ensure Data Integrity:** Implement a resilient and resumable extraction pipeline that can detect and fill gaps in the data.
 
 ## Non-Goals
 
-- **Web Interface/Visualization:** The Baliza CLI project explicitly does not include a web interface, dashboards, or data visualization tools. These are planned for a separate project, `baliza-site`.
-- **Real-time Data Processing:** The project is designed for batch extraction and backfilling, not real-time data streaming.
-- **Data Modification:** Baliza is focused on extracting and storing the data as-is from the PNCP. It does not aim to clean, modify, or enrich the data beyond what is necessary for storage and partitioning.
+-   **Real-time Data:** The project is focused on creating a historical archive, not a real-time data feed.
+-   **Web-based UI:** This repository is for the CLI tool only. A separate project (`baliza-site`) will handle the web interface.
+-   **Advanced Analytics:** The project provides the data in a queryable format but does not include advanced analytical tools.
 
 ## Primary Users
 
-- **Journalists:** A primary audience for this data is journalists investigating public spending and government contracts.
-- **Researchers:** Academics and researchers in fields like public policy, economics, and law can use this data for their studies.
-- **Oversight Bodies:** Government and non-governmental organizations focused on transparency and accountability can use this data to monitor public procurement.
+-   Journalists
+-   Researchers
+-   Auditors and public oversight bodies
 
 ## Success Signals
 
-- **Completeness and Accuracy:** The data in the Baliza database accurately and completely reflects the data available in the PNCP for the covered time periods.
-- **Ease of Use:** Users can easily install and run the Baliza CLI to extract the data they need.
-- **Resilience:** The extraction process is resilient to common issues like network failures and API interruptions.
+-   A complete and verifiable local copy of the PNCP "contratos" endpoint.
+-   A CLI that is easy to install and run in a variety of environments (local, CI, Docker).
+-   A resilient pipeline that can recover from transient errors and be safely rerun.
 
 ## Confidence
 
-High. The `README.md`, `docs/ROADMAP.md`, and the CLI's design all strongly support these inferred goals. The project is well-documented and has a clear focus.
+High. The project's goals are clearly articulated in the `README.md` and supported by the features implemented in the codebase.

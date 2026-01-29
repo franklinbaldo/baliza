@@ -1,10 +1,10 @@
-Feature: End-to-end data extraction pipeline
+Feature: Idempotent Data Extraction
   As a data engineer,
-  I want to run the extraction pipeline,
-  So that I have a complete and unique local dataset.
+  I want to ensure that re-running extractions for overlapping date ranges
+  does not introduce duplicate data.
 
   @tier0
-  Scenario: The data pipeline is resumable and idempotent
+  Scenario: Extracting overlapping date ranges results in a clean dataset
     Given a clean local data store
     And an external data source for a specific date range
     When I extract data for the first half of the date range
