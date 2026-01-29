@@ -216,7 +216,7 @@ def resume_extraction(rows_already_extracted):
     """Resume extraction from checkpoint."""
     db_path = rows_already_extracted["db_path"]
     dataset = rows_already_extracted["dataset"]
-    checkpoint_page = rows_already_extracted["checkpoint_page"]
+    _checkpoint_page = rows_already_extracted["checkpoint_page"]
 
     def mock_get(url, params=None, **kwargs):
         page = params.get("pagina", 1)
