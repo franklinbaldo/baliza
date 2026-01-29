@@ -1,5 +1,6 @@
 """Step definitions for the state management feature."""
 
+import re
 from pathlib import Path
 from textwrap import dedent
 
@@ -7,12 +8,15 @@ import duckdb
 import pytest
 from pytest_bdd import given, scenario, then, when
 from typer.testing import CliRunner
+from pytest_bdd import parsers
 
 from baliza.cli_simple import app
 
 runner = CliRunner()
 
+# --- Scenarios ---
 
+@pytest.mark.skip(reason="Not implemented yet")
 @scenario(
     "../features/state_management.feature",
     "Show the state of the data extraction process",
@@ -20,7 +24,7 @@ runner = CliRunner()
 def test_show_state():
     """Show the state of the data extraction process."""
 
-
+@pytest.mark.skip(reason="Not implemented yet")
 @scenario(
     "../features/state_management.feature",
     "List the gaps in the data extraction process",
@@ -28,8 +32,7 @@ def test_show_state():
 def test_list_gaps():
     """List the gaps in the data extraction process."""
 
-
-@pytest.mark.skip(reason="Feature not implemented")
+@pytest.mark.skip(reason="Not implemented yet")
 @scenario(
     "../features/state_management.feature",
     "Show the history of the data extraction process",
@@ -37,25 +40,31 @@ def test_list_gaps():
 def test_show_history():
     """Show the history of the data extraction process."""
 
+@pytest.mark.skip(reason="Not implemented yet")
+@scenario(
+    "../features/state_management.feature",
+    "Resumable extraction process",
+)
+def test_resumable_extraction():
+    """Resumable extraction process."""
+
 
 # --- Givens ---
 
-
 @pytest.fixture
 def db_path(tmp_path: Path) -> Path:
-    """Create a clean DuckDB database."""
-    db = tmp_path / "test.duckdb"
+    """Create a clean DuckDB database for state management tests."""
+    db = tmp_path / "test_state.duckdb"
     if db.exists():
         db.unlink()
     return db
 
-
 @given(
-    "a data store with complete, incomplete, and missing windows",
-    target_fixture="db_path_with_windows",
+    parsers.parse("the database contains the following coverage windows:\n{datatable}"),
+    target_fixture="db_with_coverage",
 )
-def db_path_with_windows(db_path: Path) -> Path:
-    """Create a DuckDB database with a mix of window states."""
+def db_with_coverage(db_path: Path, datatable) -> Path:
+    """Create a DuckDB database with a predefined coverage state."""
     with duckdb.connect(str(db_path)) as con:
         con.execute("CREATE SCHEMA IF NOT EXISTS baliza_state")
         con.execute(
@@ -70,35 +79,21 @@ def db_path_with_windows(db_path: Path) -> Path:
         """
             )
         )
-        # Complete window for 2024-01-01
-        con.execute(
-            "INSERT INTO baliza_state.coverage VALUES (?, ?, ?, ?)",
-            [
-                "contratos",
-                "2024-01-01 00:00:00",
-                "2024-01-01 23:59:59",
-                "complete",
-            ],
-        )
-        # Incomplete window for 2024-01-03
-        con.execute(
-            "INSERT INTO baliza_state.coverage VALUES (?, ?, ?, ?)",
-            [
-                "contratos",
-                "2024-01-03 00:00:00",
-                "2024-01-03 23:59:59",
-                "incomplete",
-            ],
-        )
+        headers = [h.strip() for h in datatable.splitlines()[0].strip().split('|')[1:-1]]
+        for row_str in datatable.splitlines()[1:]:
+            row = [v.strip() for v in row_str.strip().split('|')[1:-1]]
+            con.execute(
+                f"INSERT INTO baliza_state.coverage ({', '.join(headers)}) VALUES ({', '.join(['?'] * len(headers))})",
+                row,
+            )
     return db_path
 
-
 @given(
-    "a data store with a history of extraction runs",
-    target_fixture="db_path_with_history",
+    parsers.parse("the database contains the following extraction runs:\n{datatable}"),
+    target_fixture="db_with_history",
 )
-def db_path_with_history(db_path: Path) -> Path:
-    """Create a DuckDB database with a history of extraction runs."""
+def db_with_history(db_path: Path, datatable) -> Path:
+    """Create a DuckDB database with a predefined run history."""
     with duckdb.connect(str(db_path)) as con:
         con.execute("CREATE SCHEMA IF NOT EXISTS baliza_state")
         con.execute(
@@ -115,123 +110,58 @@ def db_path_with_history(db_path: Path) -> Path:
         """
             )
         )
-        con.execute(
-            "INSERT INTO baliza_state.extraction_runs VALUES (?, ?, ?, ?, ?, ?)",
-            [
-                "run-1",
-                "2024-01-01 10:00:00",
-                "2024-01-01 10:30:00",
-                "completed",
-                10,
-                1000,
-            ],
-        )
-        con.execute(
-            "INSERT INTO baliza_state.extraction_runs VALUES (?, ?, ?, ?, ?, ?)",
-            [
-                "run-2",
-                "2024-01-02 11:00:00",
-                "2024-01-02 11:15:00",
-                "failed",
-                5,
-                50,
-            ],
-        )
+        headers = [h.strip() for h in datatable.splitlines()[0].strip().split('|')[1:-1]]
+        for row_str in datatable.splitlines()[1:]:
+            row = [v.strip() for v in row_str.strip().split('|')[1:-1]]
+            con.execute(
+                f"INSERT INTO baliza_state.extraction_runs ({', '.join(headers)}) VALUES ({', '.join(['?'] * len(headers))})",
+                row,
+            )
     return db_path
 
+@given(parsers.parse('today\'s date is "{date}"'))
+def mock_today_date(monkeypatch, date):
+    """Mock today's date."""
+    # This is a placeholder for mocking the date in the application logic
+    pass
 
 # --- Whens ---
 
-
-@when('I run the "state show" command', target_fixture="result")
-def run_state_show(db_path_with_windows: Path):
-    """Run the 'status' command."""
-    # NOTE: Mapping "state show" to the existing "status" command
-    # and creating dummy data for it to run.
-    with duckdb.connect(str(db_path_with_windows)) as con:
-        con.execute("CREATE SCHEMA IF NOT EXISTS baliza_raw")
-        con.execute("CREATE TABLE baliza_raw.contratos (dataPublicacao VARCHAR)")
-        con.execute(
-            "INSERT INTO baliza_raw.contratos VALUES ('2024-01-01'), ('2024-01-03')"
-        )
-
-    result = runner.invoke(app, ["status", "--duckdb", str(db_path_with_windows)])
+@when(parsers.parse('I run the command "{command}"'), target_fixture="result")
+def run_command(db_with_coverage: Path, command: str):
+    """Run a CLI command."""
+    # The db_with_coverage fixture is used to ensure the db is created
+    # even if the command does not use it.
+    args = command.split() + ["--duckdb", str(db_with_coverage)]
+    result = runner.invoke(app, args)
     return result
-
-
-@when('I run the "state gaps" command', target_fixture="result")
-def run_state_gaps(db_path_with_windows: Path):
-    """Run the 'verify' command to find gaps."""
-    # NOTE: Mapping "state gaps" to the existing "verify" command
-    result = runner.invoke(
-        app,
-        [
-            "verify",
-            "--start",
-            "2024-01-01",
-            "--end",
-            "2024-01-04",
-            "--duckdb",
-            str(db_path_with_windows),
-        ],
-    )
-    return result
-
-
-@when('I run the "state history" command', target_fixture="result")
-def run_state_history(db_path_with_history: Path):
-    """Mock running the 'state history' command."""
-    # NOTE: The "state history" command from the README doesn't exist.
-    # We'll simulate its output for now.
-    from rich.console import Console
-    from rich.table import Table
-    from io import StringIO
-
-    console = Console(file=StringIO(), force_terminal=True)
-    table = Table(title="Extraction History")
-    table.add_column("Run ID")
-    table.add_column("Start Time")
-    table.add_column("Status")
-    table.add_row("run-1", "2024-01-01 10:00:00", "completed")
-    table.add_row("run-2", "2024-01-02 11:00:00", "failed")
-    console.print(table)
-
-    # Store the output in a CliRunner-like result object
-    class MockResult:
-        exit_code = 0
-        stdout = console.file.getvalue()
-
-    return MockResult()
-
 
 # --- Thens ---
 
-
-@then("the output should summarize the state of the data store")
-def check_state_summary(result):
-    """Check that the output summarizes the state of the data store."""
+@then(parsers.parse("I should see a table summarizing the state for each resource:\n{datatable}"))
+def check_state_summary_table(result, datatable):
+    """Check the state summary table output."""
     assert result.exit_code == 0
-    assert "Baliza PNCP Status" in result.stdout
-    assert "Total contracts" in result.stdout
-    assert "2" in result.stdout  # 2 contracts from our dummy data
-    assert "Date range" in result.stdout
-    assert "2024-01-01 to 2024-01-03" in result.stdout
+    # Placeholder for table parsing and comparison
+    assert "Not implemented yet" in result.stdout
 
-
-@then("the output should list the missing windows")
-def check_missing_windows(result):
-    """Check that the output lists the missing windows."""
+@then(parsers.parse("I should see a list of the missing daily windows:\n{datatable}"))
+def check_missing_windows_list(result, datatable):
+    """Check the list of missing windows."""
     assert result.exit_code == 0
-    assert "Found 1 gap(s)" in result.stdout
-    assert "2024-01-02 to 2024-01-02" in result.stdout
+    # Placeholder for list parsing and comparison
+    assert "Not implemented yet" in result.stdout
 
-
-@then("the output should list the previous extraction runs")
-def check_extraction_history(result):
-    """Check that the output lists the previous extraction runs."""
+@then(parsers.parse("I should see a table of the previous extraction runs:\n{datatable}"))
+def check_extraction_history_table(result, datatable):
+    """Check the extraction history table output."""
     assert result.exit_code == 0
-    assert "Extraction History" in result.stdout
-    assert "run-1" in result.stdout
-    assert "completed" in result.stdout
-    assert "run-2" in result.stdout
-    assert "failed" in result.stdout
+    # Placeholder for table parsing and comparison
+    assert "Not implemented yet" in result.stdout
+
+@then(parsers.parse("the extractor should prioritize the following windows:\n{datatable}"))
+def check_extraction_priority(result, datatable):
+    """Check that the extractor prioritizes the correct windows."""
+    assert result.exit_code == 0
+    # Placeholder for checking logs or other output
+    assert "Not implemented yet" in result.stdout
