@@ -24,12 +24,15 @@ We deleted 100 scenarios and kept only 5 essential ones. Focus on getting these 
 |---|---------|----------|--------|-------|
 | 4 | resilience.feature | Handles PNCP API errors gracefully | ✅ PASSING | Mock 500 errors |
 | 5 | verification.feature | Verify command detects gaps | ✅ PASSING | Coverage table gap detection |
+| 6 | state_management.feature | Show state of data extraction | ✅ PASSING | Summarizes data store state |
+| 7 | state_management.feature | List gaps in data extraction | ✅ PASSING | Lists missing windows |
+| 8 | state_management.feature | Show history of extractions | ✅ PASSING | Lists previous extraction runs |
 
 ## Current Progress ✅
 
-**Overall:** 5/5 scenarios (100%) - COMPLETE!
+**Overall:** 8/8 scenarios (100%) - COMPLETE!
 - Tier 0: 3/3 (100%) ✅
-- Tier 1: 2/2 (100%) ✅
+- Tier 1: 5/5 (100%) ✅
 
 **v1.0 is ready to ship!**
 
@@ -45,6 +48,9 @@ We deleted 100 scenarios and kept only 5 essential ones. Focus on getting these 
 
 4. ✅ **Handles API errors** - Mock 500 errors, graceful failure
 5. ✅ **Verify detects gaps** - Coverage table analysis, reports missing date ranges
+6. ✅ **Show state of data extraction** - Summarizes data store state
+7. ✅ **List gaps in data extraction** - Lists missing windows
+8. ✅ **Show history of extractions** - Lists previous extraction runs
 
 ### Phase 3: VCR Integration - DONE ✅
 

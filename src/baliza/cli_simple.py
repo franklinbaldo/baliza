@@ -17,6 +17,8 @@ from .extractor import PNCPExtractor
 from .utils import validate_identifier, validate_resource_path
 
 app = typer.Typer(help="Baliza - Simple PNCP extraction tool")
+state_app = typer.Typer(name="state", help="Manage and inspect extraction state.")
+app.add_typer(state_app)
 console = Console()
 
 
@@ -94,8 +96,8 @@ def extract(
         raise typer.Exit(1) from None
 
 
-@app.command("verify")
-def verify(
+@state_app.command("gaps")
+def gaps(
     resource: str = typer.Option("contratos", "--resource", "-r", help="Resource to verify"),
     start: str = typer.Option(..., "--start", help="Start date (YYYY-MM-DD)"),
     end: str = typer.Option(..., "--end", help="End date (YYYY-MM-DD)"),
@@ -318,8 +320,8 @@ def buffer_stats(
         raise typer.Exit(1) from None
 
 
-@app.command("status")
-def status(
+@state_app.command("show")
+def show(
     db_path: Path = typer.Option(
         Path("baliza.duckdb"),
         "--duckdb",
@@ -393,6 +395,64 @@ def status(
 
     except Exception as e:
         console.print(f"[red]✗ Failed to get status: {e}")
+        raise typer.Exit(1) from None
+
+
+@state_app.command("history")
+def history(
+    db_path: Path = typer.Option(
+        Path("baliza.duckdb"),
+        "--duckdb",
+        "-d",
+        help="Path to DuckDB database file",
+    ),
+    limit: int = typer.Option(
+        20,
+        "--limit",
+        "-l",
+        help="Limit number of runs to display",
+    ),
+) -> None:
+    """Show history of extraction runs."""
+    try:
+        if not db_path.exists():
+            console.print("[yellow]No database found. Run extraction first.[/yellow]")
+            raise typer.Exit(0)
+
+        with duckdb.connect(str(db_path), read_only=True) as con:
+            runs = con.execute(
+                f"""
+                SELECT run_id, start_time, end_time, status, windows_processed, rows_extracted
+                FROM baliza_state.extraction_runs
+                ORDER BY start_time DESC
+                LIMIT {limit}
+            """
+            ).fetchall()
+
+        table = Table(title="Extraction History")
+        table.add_column("Run ID")
+        table.add_column("Start Time")
+        table.add_column("Duration (s)")
+        table.add_column("Status")
+        table.add_column("Windows")
+        table.add_column("Rows")
+
+        for run_id, start_time, end_time, status, windows, rows in runs:
+            duration = (end_time - start_time).total_seconds() if end_time else "N/A"
+            status_color = "green" if status == "completed" else "red"
+            table.add_row(
+                run_id,
+                str(start_time),
+                f"{duration:.2f}" if isinstance(duration, float) else duration,
+                f"[{status_color}]{status}[/{status_color}]",
+                str(windows),
+                f"{rows:,}",
+            )
+
+        console.print(table)
+
+    except Exception as e:
+        console.print(f"[red]✗ Failed to get history: {e}")
         raise typer.Exit(1) from None
 
 

@@ -95,15 +95,16 @@ def missing_dates():
 
 
 @when(
-    parsers.parse('I run "baliza verify --resource {resource} --start {start} --end {end}"'),
+    parsers.parse('I run "baliza state gaps --resource {resource} --start {start} --end {end}"'),
     target_fixture="verify_result",
 )
-def run_verify(partial_coverage, resource, start, end):
-    """Run baliza verify command."""
+def run_gaps(partial_coverage, resource, start, end):
+    """Run baliza state gaps command."""
     result = runner.invoke(
         app,
         [
-            "verify",
+            "state",
+            "gaps",
             "--resource",
             resource,
             "--start",
@@ -115,17 +116,6 @@ def run_verify(partial_coverage, resource, start, end):
         ],
     )
 
-    if result.exit_code != 0:
-        print("\n=== VERIFY FAILED ===")
-        print(f"Exit code: {result.exit_code}")
-        print(f"Output:\n{result.stdout}")
-        if result.exception:
-            import traceback
-
-            traceback.print_exception(
-                type(result.exception), result.exception, result.exception.__traceback__
-            )
-
     return {"result": result, "db_path": partial_coverage}
 
 
@@ -133,14 +123,12 @@ def run_verify(partial_coverage, resource, start, end):
 def check_gaps_shown(verify_result):
     """Verify gaps are shown in output."""
     output = verify_result["result"].stdout
-    # Check that the gap dates appear in the output
-    assert "2024-01-05" in output or "01-05" in output, "Gap start date not found in output"
-    assert "2024-01-07" in output or "01-07" in output, "Gap end date not found in output"
-    # Check for gap indicator
-    assert "gap" in output.lower() or "⚠" in output, "No gap indicator found"
+    assert "2024-01-05" in output
+    assert "2024-01-07" in output
+    assert "Found 1 gap(s)" in output
 
 
 @then("the command should exit successfully")
 def check_verify_success(verify_result):
     """Verify command exited with code 0 (gaps are not errors, just info)."""
-    assert verify_result["result"].exit_code == 0, f"Exit code: {verify_result['result'].exit_code}"
+    assert verify_result["result"].exit_code == 0
