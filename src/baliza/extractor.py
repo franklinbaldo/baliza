@@ -17,7 +17,7 @@ from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-from .utils import validate_identifier, validate_resource_path
+from .utils import validate_identifier, validate_resource_path, validate_url
 
 console = Console()
 
@@ -76,7 +76,7 @@ class PNCPExtractor:
         self.db_path = db_path
         # Validate dataset name to prevent SQL injection
         self.dataset = validate_identifier(dataset)
-        self.base_url = base_url
+        self.base_url = validate_url(base_url)
         self.client = httpx.Client(timeout=30.0)
 
     def _ensure_schema(self, con: duckdb.DuckDBPyConnection) -> None:

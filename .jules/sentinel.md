@@ -12,3 +12,8 @@
 **Vulnerability:** Path Traversal and Command Injection via `resource` parameter. The application used the `resource` string directly in URL construction (`base_url + "/" + resource`) and CLI suggestion strings. This could allow attackers to traverse paths (e.g., `../etc/passwd`) or inject shell commands if the suggestion was executed.
 **Learning:** Even when consuming external APIs, input used to construct URLs or CLI commands must be strictly validated against an allowlist to prevent traversal and injection.
 **Prevention:** Implemented `validate_resource_path` in `src/baliza/utils.py` enforcing `^[a-zA-Z0-9_\-/]+$` and rejecting `..`, and applied it in `PNCPExtractor` and CLI commands.
+
+## 2026-01-29 - Prevent SSRF in Extractor Base URL
+**Vulnerability:** Server-Side Request Forgery (SSRF) risk in `PNCPExtractor`. The class accepted an arbitrary `base_url` without validation, which could allow attackers to force the application to make requests to internal services (e.g., cloud metadata, localhost) if they could control this parameter.
+**Learning:** Library classes should validate all network-related inputs (like base URLs) at initialization time, even if the current CLI implementation only passes hardcoded values, to prevent future vulnerabilities when the code is reused or extended.
+**Prevention:** Implemented `validate_url` in `src/baliza/utils.py` to enforce `http/https` schemes and reject private IP addresses (resolving DNS), with a `BALIZA_ALLOW_PRIVATE_NETWORKS` escape hatch.
