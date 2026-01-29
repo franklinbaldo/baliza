@@ -16,7 +16,9 @@ def validate_identifier(name: str) -> str:
         ValueError: If the identifier is invalid.
     """
     if not re.match(r"^[a-zA-Z0-9_]+$", name):
-        raise ValueError(f"Invalid identifier: '{name}'. Must be alphanumeric with underscores only.")
+        raise ValueError(
+            f"Invalid identifier: '{name}'. Must be alphanumeric with underscores only."
+        )
     return name
 
 
@@ -33,7 +35,9 @@ def validate_resource_path(path: str) -> str:
         ValueError: If the path contains invalid characters or traversal attempts.
     """
     if not re.match(r"^[a-zA-Z0-9_\-/]+$", path):
-        raise ValueError(f"Invalid resource path: '{path}'. Must be alphanumeric with '-', '_', or '/'.")
+        raise ValueError(
+            f"Invalid resource path: '{path}'. Must be alphanumeric with '-', '_', or '/'."
+        )
 
     if ".." in path:
         raise ValueError(f"Invalid resource path: '{path}'. Path traversal ('..') is not allowed.")

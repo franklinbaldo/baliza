@@ -151,9 +151,7 @@ def run_state_show(db_path_with_windows: Path):
     with duckdb.connect(str(db_path_with_windows)) as con:
         con.execute("CREATE SCHEMA IF NOT EXISTS baliza_raw")
         con.execute("CREATE TABLE baliza_raw.contratos (dataPublicacao VARCHAR)")
-        con.execute(
-            "INSERT INTO baliza_raw.contratos VALUES ('2024-01-01'), ('2024-01-03')"
-        )
+        con.execute("INSERT INTO baliza_raw.contratos VALUES ('2024-01-01'), ('2024-01-03')")
 
     result = runner.invoke(app, ["status", "--duckdb", str(db_path_with_windows)])
     return result
@@ -183,9 +181,10 @@ def run_state_history(db_path_with_history: Path):
     """Mock running the 'state history' command."""
     # NOTE: The "state history" command from the README doesn't exist.
     # We'll simulate its output for now.
+    from io import StringIO
+
     from rich.console import Console
     from rich.table import Table
-    from io import StringIO
 
     console = Console(file=StringIO(), force_terminal=True)
     table = Table(title="Extraction History")
