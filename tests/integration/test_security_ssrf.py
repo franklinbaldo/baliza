@@ -1,9 +1,11 @@
 import os
-import socket
 from pathlib import Path
 from unittest.mock import patch
+
 import pytest
+
 from src.baliza.extractor import PNCPExtractor
+
 
 def test_extractor_allows_public_url():
     """Test that PNCPExtractor allows public URLs."""

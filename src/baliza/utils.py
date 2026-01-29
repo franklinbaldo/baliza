@@ -1,9 +1,9 @@
 """Validation utilities."""
 
+import ipaddress
+import os
 import re
 import socket
-import os
-import ipaddress
 from urllib.parse import urlparse
 
 
@@ -87,13 +87,13 @@ def validate_url(url: str) -> str:
         if ip.is_private or ip.is_loopback or ip.is_link_local:
             raise ValueError(f"URL resolves to private IP: {ip_str}. Access denied.")
 
-    except socket.gaierror:
+    except socket.gaierror as e:
         # Fail open or closed?
         # If we can't resolve, we can't check IP.
         # But if we can't resolve, httpx will likely fail too.
         # Let's fail safe (closed) for security.
         # But wait, transient DNS failures could block valid traffic.
         # However, for a CLI tool, immediate feedback is better.
-        raise ValueError(f"Could not resolve hostname: {parsed.hostname}")
+        raise ValueError(f"Could not resolve hostname: {parsed.hostname}") from e
 
     return url
