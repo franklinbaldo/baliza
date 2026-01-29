@@ -10,7 +10,7 @@ Exports self-contained daily packages with relational structure:
 from __future__ import annotations
 
 import json
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -135,6 +135,9 @@ class DailyExporter:
         output_dir: Path,
     ) -> dict[str, Any]:
         """Export contratos table for a specific date."""
+        start_ts = datetime.combine(target_date, datetime.min.time())
+        end_ts = start_ts + timedelta(days=1)
+
         # Query with column renaming to snake_case
         result = con.execute(
             f"""
@@ -159,10 +162,10 @@ class DailyExporter:
                 usuarioNome as usuario_nome,
                 CAST(? AS DATE) as data_particao
             FROM {self.dataset}.contratos
-            WHERE CAST(dataPublicacao AS DATE) = ?
+            WHERE dataPublicacao >= ? AND dataPublicacao < ?
             ORDER BY numero_controle_pncp
         """,
-            [target_date, target_date],
+            [target_date, start_ts, end_ts],
         ).arrow()
 
         # Handle both RecordBatchReader and Table
@@ -186,6 +189,9 @@ class DailyExporter:
         output_dir: Path,
     ) -> dict[str, Any]:
         """Export deduplicated orgaos for a specific date."""
+        start_ts = datetime.combine(target_date, datetime.min.time())
+        end_ts = start_ts + timedelta(days=1)
+
         result = con.execute(
             f"""
             SELECT
@@ -197,11 +203,11 @@ class DailyExporter:
                 COUNT(*) as contratos_no_dia,
                 SUM(valorInicial) as valor_total_no_dia
             FROM {self.dataset}.contratos
-            WHERE CAST(dataPublicacao AS DATE) = ?
+            WHERE dataPublicacao >= ? AND dataPublicacao < ?
             GROUP BY orgaoEntidade_cnpj
             ORDER BY cnpj
         """,
-            [target_date],
+            [start_ts, end_ts],
         ).arrow()
 
         # Handle both RecordBatchReader and Table
@@ -225,6 +231,9 @@ class DailyExporter:
         output_dir: Path,
     ) -> dict[str, Any]:
         """Export deduplicated unidades for a specific date."""
+        start_ts = datetime.combine(target_date, datetime.min.time())
+        end_ts = start_ts + timedelta(days=1)
+
         result = con.execute(
             f"""
             SELECT
@@ -233,12 +242,12 @@ class DailyExporter:
                 MAX(unidadeOrgao_nomeUnidade) as nome,
                 COUNT(*) as contratos_no_dia
             FROM {self.dataset}.contratos
-            WHERE CAST(dataPublicacao AS DATE) = ?
+            WHERE dataPublicacao >= ? AND dataPublicacao < ?
               AND unidadeOrgao_codigoUnidade IS NOT NULL
             GROUP BY unidadeOrgao_codigoUnidade, orgaoEntidade_cnpj
             ORDER BY codigo
         """,
-            [target_date],
+            [start_ts, end_ts],
         ).arrow()
 
         # Handle both RecordBatchReader and Table
