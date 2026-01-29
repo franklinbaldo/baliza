@@ -107,7 +107,10 @@ def verify(
         validate_resource_path(resource)
 
         start_date = datetime.strptime(start, "%Y-%m-%d")
-        end_date = datetime.strptime(end, "%Y-%m-%d")
+        end_date_input = datetime.strptime(end, "%Y-%m-%d")
+
+        # End date is inclusive, so we look up to the start of the next day
+        end_date = end_date_input + timedelta(days=1)
 
         with duckdb.connect(str(db_path), read_only=True) as con:
             # Get coverage records
@@ -117,7 +120,7 @@ def verify(
                 FROM baliza_state.coverage
                 WHERE resource = ?
                 AND window_start >= ?
-                AND window_end <= ?
+                AND window_end < ?
                 ORDER BY window_start
             """,
                 [resource, start_date, end_date],
@@ -160,6 +163,31 @@ def verify(
             gap_duration = (end_date - current).total_seconds()
             if gap_duration > one_day.total_seconds():
                 gaps.append((current, end_date))
+
+            # Display Health Bar
+            total_seconds = (end_date - start_date).total_seconds()
+            covered_seconds = sum((row[1] - row[0]).total_seconds() for row in coverage)
+
+            coverage_pct = 0.0
+            if total_seconds > 0:
+                coverage_pct = (covered_seconds / total_seconds) * 100
+
+            # Clamp percentage
+            coverage_pct = min(max(coverage_pct, 0.0), 100.0)
+
+            bar_width = 30
+            filled = int(bar_width * (coverage_pct / 100))
+            bar = "█" * filled + "░" * (bar_width - filled)
+
+            color = "green" if coverage_pct > 99 else "yellow" if coverage_pct > 80 else "red"
+
+            console.print(
+                Panel(
+                    f"Coverage: [{color}]{bar}[/] {coverage_pct:.1f}%",
+                    title="[bold]Health Check[/bold]",
+                    expand=False,
+                )
+            )
 
             # Display results
             if gaps:
@@ -389,7 +417,9 @@ def status(
 
         # Warnings
         if checkpoints > 0:
-            console.print(f"\n[yellow]⚠ {checkpoints} extraction(s) incomplete - will resume on next run[/yellow]")
+            console.print(
+                f"\n[yellow]⚠ {checkpoints} extraction(s) incomplete - will resume on next run[/yellow]"
+            )
 
     except Exception as e:
         console.print(f"[red]✗ Failed to get status: {e}")
