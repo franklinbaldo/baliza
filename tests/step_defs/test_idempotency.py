@@ -1,11 +1,9 @@
 """Step definitions for the end-to-end extraction feature."""
 
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
 
 import duckdb
 import httpx
-import pytest
 from pytest_bdd import given, scenario, then, when
 from typer.testing import CliRunner
 

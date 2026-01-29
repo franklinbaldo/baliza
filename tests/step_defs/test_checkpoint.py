@@ -10,7 +10,6 @@ from pytest_bdd import given, parsers, scenario, then, when
 
 from baliza.extractor import PNCPExtractor
 
-
 # =============================================================================
 # Scenario: Extraction saves checkpoint after each page (Tier 0)
 # =============================================================================
