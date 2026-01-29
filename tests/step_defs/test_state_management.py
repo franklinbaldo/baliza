@@ -221,8 +221,10 @@ def check_state_summary(result):
 def check_missing_windows(result):
     """Check that the output lists the missing windows."""
     assert result.exit_code == 0
-    assert "Found 1 gap(s)" in result.stdout
+    # Updated to reflect 2 gaps: 2024-01-02 (between 01 and 03) and 2024-01-04 (requested end)
+    assert "Found 2 gap(s)" in result.stdout
     assert "2024-01-02 to 2024-01-02" in result.stdout
+    assert "2024-01-04 to 2024-01-04" in result.stdout
 
 
 @then("the output should list the previous extraction runs")
