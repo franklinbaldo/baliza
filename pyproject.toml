@@ -53,6 +53,7 @@ markers = [
     "smoke: Smoke tests for critical functionality",
     "resilience: Tests for error handling and recovery",
     "edge-case: Tests for edge cases and boundary conditions",
+    "state: Tests for state management commands",
 ]
 
 # Ruff configuration
