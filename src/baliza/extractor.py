@@ -6,7 +6,7 @@ Supports per-page checkpointing for resume on timeout.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -187,9 +187,7 @@ class PNCPExtractor:
         con: duckdb.DuckDBPyConnection,
         resource: str,
         extraction_date: datetime,
-        current_page: int,
-        total_pages: int,
-        rows_extracted: int,
+        checkpoint: dict[str, Any],
     ) -> None:
         """Save extraction checkpoint."""
         con.execute(
@@ -204,9 +202,9 @@ class PNCPExtractor:
             [
                 resource,
                 extraction_date.date(),
-                current_page,
-                total_pages,
-                rows_extracted,
+                checkpoint["current_page"],
+                checkpoint["total_pages"],
+                checkpoint["rows_extracted"],
                 resource,
                 extraction_date.date(),
             ],
@@ -429,7 +427,14 @@ class PNCPExtractor:
 
                     # Checkpoint after each page
                     self._save_checkpoint(
-                        con, resource, start_date, page, total_pages, total_rows
+                        con,
+                        resource,
+                        start_date,
+                        {
+                            "current_page": page,
+                            "total_pages": total_pages,
+                            "rows_extracted": total_rows,
+                        },
                     )
 
                     progress.update(
@@ -533,8 +538,6 @@ class PNCPExtractor:
         Returns:
             List of dates ready for export
         """
-        from datetime import timedelta
-
         cutoff = datetime.now() - timedelta(days=stability_days)
 
         with duckdb.connect(str(self.db_path)) as con:
