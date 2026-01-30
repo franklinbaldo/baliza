@@ -10,7 +10,6 @@ from pytest_bdd import given, parsers, scenario, then, when
 
 from baliza.extractor import PNCPExtractor
 
-
 # =============================================================================
 # Scenario: Extraction saves checkpoint after each page (Tier 0)
 # =============================================================================
@@ -78,11 +77,10 @@ def extract_first_page(mock_api):
     with patch("httpx.Client.get", side_effect=mock_get):
         with PNCPExtractor(db_path, dataset) as extractor:
             # Mock to stop after first page
-            original_extract = extractor.extract
 
             def extract_one_page(*args, **kwargs):
                 # Patch the extract method to stop after first page
-                with patch.object(extractor, "extract") as mock_extract:
+                with patch.object(extractor, "extract"):
                     # Call original but intercept after first page
                     result = {
                         "rows_extracted": 10,
@@ -92,7 +90,6 @@ def extract_first_page(mock_api):
                     }
                     # Manually call internal methods
                     start_date = datetime(2023, 1, 15)
-                    end_date = datetime(2023, 1, 15)
 
                     with duckdb.connect(str(db_path)) as con:
                         extractor._ensure_schema(con)
@@ -164,7 +161,10 @@ def test_extraction_resumes_from_checkpoint():
     pass
 
 
-@given(parsers.parse("an existing checkpoint at page {page:d} of {total:d}"), target_fixture="db_with_checkpoint")
+@given(
+    parsers.parse("an existing checkpoint at page {page:d} of {total:d}"),
+    target_fixture="db_with_checkpoint",
+)
 def db_with_checkpoint(tmp_path: Path, page: int, total: int) -> dict:
     """Create database with existing checkpoint."""
     db_file = tmp_path / "test.duckdb"
@@ -182,7 +182,12 @@ def db_with_checkpoint(tmp_path: Path, page: int, total: int) -> dict:
                 1000,  # rows_extracted
             )
 
-    return {"db_path": db_file, "dataset": "test_dataset", "checkpoint_page": page, "total_pages": total}
+    return {
+        "db_path": db_file,
+        "dataset": "test_dataset",
+        "checkpoint_page": page,
+        "total_pages": total,
+    }
 
 
 @given(parsers.parse("{count:d} rows already extracted"), target_fixture="rows_already_extracted")
@@ -211,7 +216,6 @@ def resume_extraction(rows_already_extracted):
     """Resume extraction from checkpoint."""
     db_path = rows_already_extracted["db_path"]
     dataset = rows_already_extracted["dataset"]
-    checkpoint_page = rows_already_extracted["checkpoint_page"]
 
     def mock_get(url, params=None, **kwargs):
         page = params.get("pagina", 1)
@@ -286,7 +290,9 @@ def test_checkpoint_cleared_after_completion():
     pass
 
 
-@given("an extraction in progress with checkpoint at page 3", target_fixture="in_progress_extraction")
+@given(
+    "an extraction in progress with checkpoint at page 3", target_fixture="in_progress_extraction"
+)
 def in_progress_extraction(tmp_path: Path) -> dict:
     """Create database with checkpoint at page 3."""
     db_file = tmp_path / "test.duckdb"
@@ -395,7 +401,9 @@ def extraction_started(tmp_path: Path) -> dict:
     return {"db_path": db_file, "dataset": "test_dataset"}
 
 
-@given(parsers.parse("{pages:d} pages are successfully extracted"), target_fixture="pages_extracted")
+@given(
+    parsers.parse("{pages:d} pages are successfully extracted"), target_fixture="pages_extracted"
+)
 def pages_extracted(extraction_started, pages):
     """Extract N pages of data."""
     db_path = extraction_started["db_path"]

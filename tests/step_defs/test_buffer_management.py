@@ -9,7 +9,6 @@ from pytest_bdd import given, parsers, scenario, then, when
 
 from baliza.extractor import PNCPExtractor
 
-
 # =============================================================================
 # Scenario: Buffer contains only recent unstable data (Tier 1)
 # =============================================================================
@@ -50,7 +49,10 @@ def db_with_extractions(tmp_path: Path, days: int) -> dict:
     return {"db_path": db_file, "dataset": "baliza_raw", "total_days": days}
 
 
-@given(parsers.parse("days {start:d}-{end:d} have been uploaded to Internet Archive"), target_fixture="db_with_uploads")
+@given(
+    parsers.parse("days {start:d}-{end:d} have been uploaded to Internet Archive"),
+    target_fixture="db_with_uploads",
+)
 def mark_days_uploaded(db_with_extractions, start, end):
     """Mark days as uploaded to IA."""
     db_path = db_with_extractions["db_path"]
@@ -60,7 +62,10 @@ def mark_days_uploaded(db_with_extractions, start, end):
         for day in range(start - 1, end):  # 0-indexed, inclusive
             current_date = base_date + timedelta(days=day)
             extractor.record_ia_upload(
-                item_id=f"baliza-{current_date.date()}", extraction_date=current_date, file_count=3, total_rows=100
+                item_id=f"baliza-{current_date.date()}",
+                extraction_date=current_date,
+                file_count=3,
+                total_rows=100,
             )
 
     return db_with_extractions
@@ -144,7 +149,10 @@ def buffer_with_data(tmp_path: Path, rows: int, date_str: str) -> dict:
     return {"db_path": db_file, "dataset": "baliza_raw", "date_str": date_str, "initial_rows": rows}
 
 
-@given(parsers.parse("{date_str} was successfully uploaded to Internet Archive"), target_fixture="data_uploaded")
+@given(
+    parsers.parse("{date_str} was successfully uploaded to Internet Archive"),
+    target_fixture="data_uploaded",
+)
 def mark_date_uploaded(buffer_with_data, date_str):
     """Mark date as uploaded to IA."""
     db_path = buffer_with_data["db_path"]
@@ -198,7 +206,9 @@ def check_state_tables_exist(cleanup_result):
 
     with duckdb.connect(str(db_path), read_only=True) as con:
         # Check uploaded_to_ia table exists and has data
-        uploaded_count = con.execute("SELECT COUNT(*) FROM baliza_state.uploaded_to_ia").fetchone()[0]
+        uploaded_count = con.execute("SELECT COUNT(*) FROM baliza_state.uploaded_to_ia").fetchone()[
+            0
+        ]
 
         assert uploaded_count > 0, "uploaded_to_ia table should still contain records"
 
@@ -289,7 +299,10 @@ def check_uploaded_excluded(ready_dates):
 
     with PNCPExtractor(db_path, "baliza_raw") as extractor:
         extractor.record_ia_upload(
-            item_id=f"baliza-{old_date.date()}", extraction_date=old_date, file_count=3, total_rows=50
+            item_id=f"baliza-{old_date.date()}",
+            extraction_date=old_date,
+            file_count=3,
+            total_rows=50,
         )
 
         # Re-query
@@ -300,7 +313,9 @@ def check_uploaded_excluded(ready_dates):
     ready_date_strs = [d.date() for d in dates]
 
     for uploaded_date in uploaded_dates:
-        assert uploaded_date not in ready_date_strs, f"Uploaded date {uploaded_date} should be excluded"
+        assert uploaded_date not in ready_date_strs, (
+            f"Uploaded date {uploaded_date} should be excluded"
+        )
 
 
 # =============================================================================
@@ -351,7 +366,10 @@ def buffer_stats_setup(tmp_path: Path, total_rows: int, dates: int) -> dict:
     }
 
 
-@given(parsers.parse("{uploaded_count:d} dates have been uploaded to IA"), target_fixture="with_uploads_marked")
+@given(
+    parsers.parse("{uploaded_count:d} dates have been uploaded to IA"),
+    target_fixture="with_uploads_marked",
+)
 def mark_dates_uploaded_ia(buffer_stats_setup, uploaded_count):
     """Mark N dates as uploaded to IA."""
     db_path = buffer_stats_setup["db_path"]
@@ -361,7 +379,10 @@ def mark_dates_uploaded_ia(buffer_stats_setup, uploaded_count):
         for i in range(uploaded_count):
             current_date = base_date + timedelta(days=i)
             extractor.record_ia_upload(
-                item_id=f"baliza-{current_date.date()}", extraction_date=current_date, file_count=3, total_rows=2000
+                item_id=f"baliza-{current_date.date()}",
+                extraction_date=current_date,
+                file_count=3,
+                total_rows=2000,
             )
 
     return {**buffer_stats_setup, "expected_uploaded": uploaded_count}

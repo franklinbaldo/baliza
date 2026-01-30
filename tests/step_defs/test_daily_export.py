@@ -27,7 +27,10 @@ def test_daily_export_creates_files():
     pass
 
 
-@given(parsers.parse("a DuckDB database with contracts for {date_str}"), target_fixture="db_with_contracts")
+@given(
+    parsers.parse("a DuckDB database with contracts for {date_str}"),
+    target_fixture="db_with_contracts",
+)
 def db_with_contracts(tmp_path: Path, date_str: str) -> dict:
     """Create database with contracts for a specific date."""
     db_file = tmp_path / "test.duckdb"
@@ -108,13 +111,15 @@ def run_export_daily(db_with_contracts, date_str, output_path):
     )
 
     if result.exit_code != 0:
-        print(f"\n=== EXPORT FAILED ===")
+        print("\n=== EXPORT FAILED ===")
         print(f"Exit code: {result.exit_code}")
         print(f"Output:\n{result.stdout}")
         if result.exception:
             import traceback
 
-            traceback.print_exception(type(result.exception), result.exception, result.exception.__traceback__)
+            traceback.print_exception(
+                type(result.exception), result.exception, result.exception.__traceback__
+            )
 
     return {**db_with_contracts, "result": result}
 
@@ -269,7 +274,9 @@ def test_orgaos_deduplicated():
 
 
 @given(
-    parsers.parse("a DuckDB database with {contract_count:d} contracts from {org_count:d} unique orgs"),
+    parsers.parse(
+        "a DuckDB database with {contract_count:d} contracts from {org_count:d} unique orgs"
+    ),
     target_fixture="db_with_orgs",
 )
 def db_with_multiple_orgs(tmp_path: Path, contract_count: int, org_count: int) -> dict:
@@ -445,7 +452,9 @@ def test_metadata_contains_stats():
     pass
 
 
-@given(parsers.parse("a daily export with {count:d} contracts"), target_fixture="export_with_metadata")
+@given(
+    parsers.parse("a daily export with {count:d} contracts"), target_fixture="export_with_metadata"
+)
 def export_with_metadata(tmp_path: Path, count: int) -> dict:
     """Create daily export with N contracts."""
     db_file = tmp_path / "test.duckdb"

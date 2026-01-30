@@ -389,7 +389,9 @@ def status(
 
         # Warnings
         if checkpoints > 0:
-            console.print(f"\n[yellow]⚠ {checkpoints} extraction(s) incomplete - will resume on next run[/yellow]")
+            console.print(
+                f"\n[yellow]⚠ {checkpoints} extraction(s) incomplete - will resume on next run[/yellow]"
+            )
 
     except Exception as e:
         console.print(f"[red]✗ Failed to get status: {e}")
