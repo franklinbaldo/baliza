@@ -1,8 +1,11 @@
 import os
-import pytest
 from pathlib import Path
-from src.baliza.utils import validate_url
+
+import pytest
+
 from src.baliza.extractor import PNCPExtractor
+from src.baliza.utils import validate_url
+
 
 def test_validate_url_valid():
     """Test valid URLs are accepted."""
