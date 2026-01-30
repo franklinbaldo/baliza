@@ -217,14 +217,6 @@ uv run baliza extract --config configs/pncp-custom.yml
 | `baliza export --table <tabela>` | Exporta a tabela DuckDB para Parquet particionado por ano/mês. |
 | `baliza verify --resource <recurso>` | Audita a cobertura e detecta janelas incompletas ou suspeitas. |
 
-### Comandos de Estado (novo)
-
-| Comando | Descrição |
-|---------|-----------|
-| `baliza state show --resource contratos` | Exibe resumo do estado: janelas completas, incompletas, suspeitas. |
-| `baliza state gaps --resource contratos --start 2024-01-01` | Lista todas as lacunas de cobertura no período. |
-| `baliza state history --resource contratos` | Exibe histórico das últimas execuções (sucessos e falhas). |
-
 Opções úteis:
 
 - `--duckdb /caminho/arquivo.duckdb` — define o arquivo DuckDB de destino.
@@ -235,60 +227,6 @@ Opções úteis:
   intervalo exportado e cria `data/<recurso>/ano=YYYY/mes=MM/*.parquet`.
 
 Use `uv run baliza --help` para ver todos os parâmetros suportados.
-
-### Extração Resumível (Resumable Extraction) ✨
-
-O Baliza agora possui **extração completamente resumível**, tornando o pipeline
-robusto e pronto para produção:
-
-**Como funciona:**
-1. **Detecção inteligente de lacunas:** antes de cada extração, o Baliza analisa
-   o estado atual e identifica quais janelas temporais precisam ser processadas:
-   - Janelas **incompletas** de execuções anteriores que falharam (prioridade máxima)
-   - Janelas **suspeitas** com anomalias de dados
-   - Janelas **ausentes** que nunca foram extraídas
-   - Janelas **recentes** dentro do período de *lookback* (re-extração de atualizações)
-
-2. **Rastreamento de execuções:** cada run é registrado em `baliza_state.extraction_runs`
-   com ID único, status (running/completed/failed), janelas processadas e métricas.
-
-3. **Retomada automática:** se uma extração falhar (erro de rede, timeout, crash),
-   basta executar `baliza extract` novamente e o processo continua de onde parou,
-   priorizando janelas incompletas.
-
-**Exemplo de uso:**
-
-```bash
-# Primeira execução - processa últimos 30 dias
-$ baliza extract
-Analyzing coverage from 2024-10-05 to 2024-11-04 (lookback: 3 days)...
-Processing 30 window(s):
-  • 30 missing
-[1/30] Processing 2024-10-05 to 2024-10-06 (missing)...
-  ✓ Completed
-...
-[15/30] Processing 2024-10-20 to 2024-10-21 (missing)...
-✗ Extraction failed: Connection timeout
-
-# Retoma automaticamente da janela 15
-$ baliza extract
-Found 1 incomplete window(s) from previous run. Resuming...
-Merged 16 windows into 2 to reduce API calls.
-Processing 2 window(s):
-  • 1 incomplete
-  • 15 missing
-[1/2] Processing 2024-10-20 to 2024-10-21 (incomplete)...
-  ✓ Completed
-[2/2] Processing 2024-10-21 to 2024-11-05 (missing)...
-  ✓ Completed
-✓ Extraction completed successfully!
-```
-
-**Benefícios:**
-- ✅ **Sem desperdício:** não refaz trabalho já concluído
-- ✅ **Resiliência:** recupera automaticamente de falhas
-- ✅ **Observabilidade:** histórico completo de execuções com `baliza state history`
-- ✅ **Otimização:** mescla janelas adjacentes para reduzir chamadas à API
 
 ### Política incremental
 
