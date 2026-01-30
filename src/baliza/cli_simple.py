@@ -17,6 +17,9 @@ from .extractor import PNCPExtractor
 from .utils import validate_identifier, validate_resource_path
 
 app = typer.Typer(help="Baliza - Simple PNCP extraction tool")
+state_app = typer.Typer(help="Manage and inspect extraction state")
+app.add_typer(state_app, name="state")
+
 console = Console()
 
 
@@ -94,6 +97,7 @@ def extract(
         raise typer.Exit(1) from None
 
 
+@state_app.command("gaps")
 @app.command("verify")
 def verify(
     resource: str = typer.Option("contratos", "--resource", "-r", help="Resource to verify"),
@@ -318,6 +322,84 @@ def buffer_stats(
         raise typer.Exit(1) from None
 
 
+@state_app.command("history")
+def history(
+    db_path: Path = typer.Option(
+        Path("baliza.duckdb"),
+        "--duckdb",
+        "-d",
+        help="DuckDB file",
+    ),
+    resource: str = typer.Option(
+        "contratos",
+        "--resource",
+        "-r",
+        help="Resource to show history for",
+    ),
+    limit: int = typer.Option(
+        10,
+        "--limit",
+        "-l",
+        help="Number of runs to show",
+    ),
+) -> None:
+    """Show extraction history."""
+    try:
+        if not db_path.exists():
+            console.print("[yellow]No database found.[/yellow]")
+            return
+
+        with duckdb.connect(str(db_path), read_only=True) as con:
+            runs = con.execute(
+                """
+                SELECT run_id, started_at, finished_at, status, rows_extracted, error_message
+                FROM baliza_state.runs
+                WHERE resource = ?
+                ORDER BY started_at DESC
+                LIMIT ?
+            """,
+                [resource, limit],
+            ).fetchall()
+
+        if not runs:
+            console.print(f"[yellow]No history found for {resource}.[/yellow]")
+            return
+
+        table = Table(title=f"Extraction History: {resource}")
+        table.add_column("Run ID", style="dim")
+        table.add_column("Started At")
+        table.add_column("Duration", justify="right")
+        table.add_column("Status")
+        table.add_column("Rows", justify="right")
+
+        for run_id, started, finished, status, rows, error in runs:
+            duration = "-"
+            if started and finished:
+                dur = finished - started
+                duration = f"{dur.total_seconds():.1f}s"
+
+            status_style = "green" if status == "completed" else "red"
+            if status == "running":
+                status_style = "yellow"
+
+            table.add_row(
+                run_id,
+                started.strftime("%Y-%m-%d %H:%M"),
+                duration,
+                f"[{status_style}]{status}[/{status_style}]",
+                f"{rows or 0:,}",
+            )
+            if error:
+                table.add_row("", "", "", f"[red]Error: {error}[/red]", "", end_section=True)
+
+        console.print(table)
+
+    except Exception as e:
+        console.print(f"[red]✗ Failed to get history: {e}")
+        raise typer.Exit(1) from None
+
+
+@state_app.command("show")
 @app.command("status")
 def status(
     db_path: Path = typer.Option(

@@ -37,6 +37,19 @@ pesquisadores e órgãos de controle.
 - **Documentação de arquitetura:** os arquivos em `docs/` registram decisões e
   próximos passos para evolução do pipeline.
 
+## 🚦 Status Atual
+
+O Baliza está em desenvolvimento ativo. Abaixo o status das funcionalidades principais:
+
+| Funcionalidade | Status | Descrição |
+|---|---|---|
+| **Extração Básica** | ✅ Estável | Extração manual via `--start` e `--end`. |
+| **Resumibilidade** | ✅ Estável | Checkpoints por página para retomar após falhas. |
+| **Exportação Parquet** | ✅ Estável | Exportação e particionamento básico. |
+| **Comandos de Estado** | ⚠️ Em progresso | Os comandos `state show/gaps/history` estão sendo implementados. |
+| **Extração Autônoma** | 📅 Planejado | Detecção automática de lacunas sem parâmetros de data. |
+| **Novos Endpoints** | 📅 Planejado | Suporte para licitações e compras. |
+
 > 📌 **Escopo atual:** o pipeline cobre o endpoint de **contratos**. A inclusão
 > de demais recursos do PNCP está detalhada na
 > [`docs/endpoint_extraction_strategy.md`](docs/endpoint_extraction_strategy.md).
