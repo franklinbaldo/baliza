@@ -1,8 +1,10 @@
 """Shared BDD steps and fixtures."""
 
-import pytest
 from pathlib import Path
+
+import pytest
 from pytest_bdd import given
+
 
 @pytest.fixture
 def db_path(tmp_path: Path) -> Path:

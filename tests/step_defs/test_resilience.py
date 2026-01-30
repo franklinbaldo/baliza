@@ -1,12 +1,12 @@
 """BDD step definitions for resilience.feature."""
 
+
+import duckdb
 import httpx
-import pytest
 from pytest_bdd import given, scenario, then, when
 from typer.testing import CliRunner
+
 from baliza.cli_simple import app
-import duckdb
-from pathlib import Path
 
 runner = CliRunner()
 

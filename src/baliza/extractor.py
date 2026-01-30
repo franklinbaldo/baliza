@@ -6,11 +6,11 @@ Supports per-page checkpointing for resume on timeout.
 
 from __future__ import annotations
 
-from datetime import datetime
+import uuid
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-import uuid
 import duckdb
 import httpx
 import pyarrow as pa
@@ -183,7 +183,7 @@ class PNCPExtractor:
             }
         return None
 
-    def _save_checkpoint(
+    def _save_checkpoint(  # noqa: PLR0913
         self,
         con: duckdb.DuckDBPyConnection,
         resource: str,
@@ -566,8 +566,6 @@ class PNCPExtractor:
         Returns:
             List of dates ready for export
         """
-        from datetime import timedelta
-
         cutoff = datetime.now() - timedelta(days=stability_days)
 
         with duckdb.connect(str(self.db_path)) as con:
