@@ -8,8 +8,7 @@ import duckdb
 import pytest
 from pytest_bdd import given, parsers, scenario, then, when
 
-from baliza.extractor import PNCPExtractor
-
+from baliza.extractor import CheckpointData, PNCPExtractor
 
 # =============================================================================
 # Scenario: Extraction saves checkpoint after each page (Tier 0)
@@ -78,11 +77,9 @@ def extract_first_page(mock_api):
     with patch("httpx.Client.get", side_effect=mock_get):
         with PNCPExtractor(db_path, dataset) as extractor:
             # Mock to stop after first page
-            original_extract = extractor.extract
-
             def extract_one_page(*args, **kwargs):
                 # Patch the extract method to stop after first page
-                with patch.object(extractor, "extract") as mock_extract:
+                with patch.object(extractor, "extract"):
                     # Call original but intercept after first page
                     result = {
                         "rows_extracted": 10,
@@ -92,7 +89,6 @@ def extract_first_page(mock_api):
                     }
                     # Manually call internal methods
                     start_date = datetime(2023, 1, 15)
-                    end_date = datetime(2023, 1, 15)
 
                     with duckdb.connect(str(db_path)) as con:
                         extractor._ensure_schema(con)
@@ -113,9 +109,14 @@ def extract_first_page(mock_api):
                         extractor._insert_page(con, rows)
 
                         # Save checkpoint
-                        extractor._save_checkpoint(
-                            con, "contratos", start_date, 1, data.get("totalPaginas", 3), len(rows)
+                        checkpoint_data = CheckpointData(
+                            resource="contratos",
+                            extraction_date=start_date,
+                            current_page=1,
+                            total_pages=data.get("totalPaginas", 3),
+                            rows_extracted=len(rows),
                         )
+                        extractor._save_checkpoint(con, checkpoint_data)
 
                     return result
 
@@ -173,14 +174,14 @@ def db_with_checkpoint(tmp_path: Path, page: int, total: int) -> dict:
         with duckdb.connect(str(db_file)) as con:
             extractor._ensure_schema(con)
             # Save checkpoint
-            extractor._save_checkpoint(
-                con,
-                "contratos",
-                datetime(2023, 1, 15),
-                page,
-                total,
-                1000,  # rows_extracted
+            checkpoint_data = CheckpointData(
+                resource="contratos",
+                extraction_date=datetime(2023, 1, 15),
+                current_page=page,
+                total_pages=total,
+                rows_extracted=1000,
             )
+            extractor._save_checkpoint(con, checkpoint_data)
 
     return {"db_path": db_file, "dataset": "test_dataset", "checkpoint_page": page, "total_pages": total}
 
@@ -211,7 +212,6 @@ def resume_extraction(rows_already_extracted):
     """Resume extraction from checkpoint."""
     db_path = rows_already_extracted["db_path"]
     dataset = rows_already_extracted["dataset"]
-    checkpoint_page = rows_already_extracted["checkpoint_page"]
 
     def mock_get(url, params=None, **kwargs):
         page = params.get("pagina", 1)
@@ -294,14 +294,14 @@ def in_progress_extraction(tmp_path: Path) -> dict:
     with PNCPExtractor(db_file, "test_dataset") as extractor:
         with duckdb.connect(str(db_file)) as con:
             extractor._ensure_schema(con)
-            extractor._save_checkpoint(
-                con,
-                "contratos",
-                datetime(2023, 1, 15),
-                3,  # current page
-                5,  # total pages
-                300,  # rows extracted
+            checkpoint_data = CheckpointData(
+                resource="contratos",
+                extraction_date=datetime(2023, 1, 15),
+                current_page=3,
+                total_pages=5,
+                rows_extracted=300,
             )
+            extractor._save_checkpoint(con, checkpoint_data)
 
     return {"db_path": db_file, "dataset": "test_dataset"}
 
@@ -432,14 +432,14 @@ def extraction_timeout(pages_extracted):
     with PNCPExtractor(db_path, dataset) as extractor:
         with duckdb.connect(str(db_path)) as con:
             extractor._ensure_schema(con)
-            extractor._save_checkpoint(
-                con,
-                "contratos",
-                datetime(2023, 1, 15),
-                pages,  # current page
-                10,  # total pages (more than extracted)
-                pages * 10,  # rows extracted
+            checkpoint_data = CheckpointData(
+                resource="contratos",
+                extraction_date=datetime(2023, 1, 15),
+                current_page=pages,
+                total_pages=10,
+                rows_extracted=pages * 10,
             )
+            extractor._save_checkpoint(con, checkpoint_data)
 
     return pages_extracted
 

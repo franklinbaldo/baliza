@@ -6,7 +6,8 @@ Supports per-page checkpointing for resume on timeout.
 
 from __future__ import annotations
 
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -49,6 +50,16 @@ PNCP_ARROW_SCHEMA = pa.schema([
     ("dataAtualizacao", pa.string()),
     ("usuarioNome", pa.string())
 ])
+
+
+@dataclass
+class CheckpointData:
+    """Encapsulates data for a checkpoint."""
+    resource: str
+    extraction_date: datetime
+    current_page: int
+    total_pages: int
+    rows_extracted: int
 
 
 @retry(
@@ -182,15 +193,7 @@ class PNCPExtractor:
             }
         return None
 
-    def _save_checkpoint(
-        self,
-        con: duckdb.DuckDBPyConnection,
-        resource: str,
-        extraction_date: datetime,
-        current_page: int,
-        total_pages: int,
-        rows_extracted: int,
-    ) -> None:
+    def _save_checkpoint(self, con: duckdb.DuckDBPyConnection, data: CheckpointData) -> None:
         """Save extraction checkpoint."""
         con.execute(
             """
@@ -202,13 +205,13 @@ class PNCPExtractor:
             ), NOW())
         """,
             [
-                resource,
-                extraction_date.date(),
-                current_page,
-                total_pages,
-                rows_extracted,
-                resource,
-                extraction_date.date(),
+                data.resource,
+                data.extraction_date.date(),
+                data.current_page,
+                data.total_pages,
+                data.rows_extracted,
+                data.resource,
+                data.extraction_date.date(),
             ],
         )
 
@@ -428,9 +431,14 @@ class PNCPExtractor:
                         progress.update(task, total=total_pages)
 
                     # Checkpoint after each page
-                    self._save_checkpoint(
-                        con, resource, start_date, page, total_pages, total_rows
+                    checkpoint_data = CheckpointData(
+                        resource=resource,
+                        extraction_date=start_date,
+                        current_page=page,
+                        total_pages=total_pages,
+                        rows_extracted=total_rows,
                     )
+                    self._save_checkpoint(con, checkpoint_data)
 
                     progress.update(
                         task,
@@ -533,8 +541,6 @@ class PNCPExtractor:
         Returns:
             List of dates ready for export
         """
-        from datetime import timedelta
-
         cutoff = datetime.now() - timedelta(days=stability_days)
 
         with duckdb.connect(str(self.db_path)) as con:
