@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import uuid
 import duckdb
 import httpx
 import pyarrow as pa
@@ -370,101 +371,133 @@ class PNCPExtractor:
         total_rows = 0
         page = 1
         total_pages = None
+        run_id = str(uuid.uuid4())
 
-        with duckdb.connect(str(self.db_path)) as con:
-            self._ensure_schema(con)
+        try:
+            with duckdb.connect(str(self.db_path)) as con:
+                self._ensure_schema(con)
 
-            # Check for existing checkpoint
-            checkpoint = self._get_checkpoint(con, resource, start_date)
-            if checkpoint:
-                page = checkpoint["current_page"] + 1
-                total_rows = checkpoint["rows_extracted"]
-                total_pages = checkpoint["total_pages"]
+                # Record start of run
+                con.execute(
+                    """
+                    INSERT INTO baliza_state.runs (run_id, resource, status, started_at)
+                    VALUES (?, ?, 'running', NOW())
+                """,
+                    [run_id, resource],
+                )
+
+                # Check for existing checkpoint
+                checkpoint = self._get_checkpoint(con, resource, start_date)
+                if checkpoint:
+                    page = checkpoint["current_page"] + 1
+                    total_rows = checkpoint["rows_extracted"]
+                    total_pages = checkpoint["total_pages"]
+                    console.print(
+                        f"[yellow]Resuming from page {page}/{total_pages} "
+                        f"({total_rows} rows already extracted)"
+                    )
+
                 console.print(
-                    f"[yellow]Resuming from page {page}/{total_pages} "
-                    f"({total_rows} rows already extracted)"
+                    f"[cyan]Extracting {resource} from {start_date.date()} to {end_date.date()}..."
                 )
 
-            console.print(
-                f"[cyan]Extracting {resource} from {start_date.date()} to {end_date.date()}..."
-            )
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[progress.description]{task.description}"),
+                    BarColumn(),
+                    TaskProgressColumn(),
+                    console=console,
+                ) as progress:
+                    task = progress.add_task(
+                        "Fetching pages...",
+                        total=total_pages,
+                        completed=page - 1 if checkpoint else 0,
+                    )
 
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                BarColumn(),
-                TaskProgressColumn(),
-                console=console,
-            ) as progress:
-                task = progress.add_task(
-                    "Fetching pages...",
-                    total=total_pages,
-                    completed=page - 1 if checkpoint else 0,
+                    while True:
+                        # Call PNCP API with retry
+                        url = f"{self.base_url}/{resource}"
+                        params = {
+                            "dataInicial": data_inicial,
+                            "dataFinal": data_final,
+                            "pagina": page,
+                            "tamanhoPagina": 500,
+                        }
+
+                        data = _fetch_page(self.client, url, params)
+                        rows = data.get("data", [])
+
+                        if not rows:
+                            break
+
+                        # Insert THIS page immediately
+                        inserted = self._insert_page(con, rows)
+                        total_rows += inserted
+
+                        # Update total_pages on first response
+                        if total_pages is None:
+                            total_pages = data.get("totalPaginas", 1)
+                            progress.update(task, total=total_pages)
+
+                        # Checkpoint after each page
+                        self._save_checkpoint(
+                            con, resource, start_date, page, total_pages, total_rows
+                        )
+
+                        progress.update(
+                            task,
+                            completed=page,
+                            description=f"Fetching page {page}/{total_pages}",
+                        )
+
+                        if page >= total_pages:
+                            break
+
+                        page += 1
+
+                console.print(
+                    f"[green]✓ Extracted {total_rows} rows across {page} pages"
                 )
 
-                while True:
-                    # Call PNCP API with retry
-                    url = f"{self.base_url}/{resource}"
-                    params = {
-                        "dataInicial": data_inicial,
-                        "dataFinal": data_final,
-                        "pagina": page,
-                        "tamanhoPagina": 500,
-                    }
+                # Clear checkpoint on successful completion
+                self._clear_checkpoint(con, resource, start_date)
 
-                    data = _fetch_page(self.client, url, params)
-                    rows = data.get("data", [])
+                # Record coverage
+                con.execute(
+                    """
+                    INSERT OR REPLACE INTO baliza_state.coverage
+                    VALUES (?, ?, ?, 'complete', ?, ?, NOW())
+                """,
+                    [resource, start_date, end_date, page, total_rows],
+                )
 
-                    if not rows:
-                        break
+                # Record run success
+                con.execute(
+                    """
+                    UPDATE baliza_state.runs
+                    SET status = 'completed', finished_at = NOW(), rows_extracted = ?
+                    WHERE run_id = ?
+                """,
+                    [total_rows, run_id],
+                )
 
-                    # Insert THIS page immediately
-                    inserted = self._insert_page(con, rows)
-                    total_rows += inserted
-
-                    # Update total_pages on first response
-                    if total_pages is None:
-                        total_pages = data.get("totalPaginas", 1)
-                        progress.update(task, total=total_pages)
-
-                    # Checkpoint after each page
-                    self._save_checkpoint(
-                        con, resource, start_date, page, total_pages, total_rows
-                    )
-
-                    progress.update(
-                        task,
-                        completed=page,
-                        description=f"Fetching page {page}/{total_pages}",
-                    )
-
-                    if page >= total_pages:
-                        break
-
-                    page += 1
-
-            console.print(
-                f"[green]✓ Extracted {total_rows} rows across {page} pages"
-            )
-
-            # Clear checkpoint on successful completion
-            self._clear_checkpoint(con, resource, start_date)
-
-            # Record coverage
-            con.execute(
-                """
-                INSERT OR REPLACE INTO baliza_state.coverage
-                VALUES (?, ?, ?, 'complete', ?, ?, NOW())
-            """,
-                [resource, start_date, end_date, page, total_rows],
-            )
-
-        return {
-            "rows_extracted": total_rows,
-            "pages": page,
-            "start_date": start_date,
-            "end_date": end_date,
-        }
+            return {
+                "rows_extracted": total_rows,
+                "pages": page,
+                "start_date": start_date,
+                "end_date": end_date,
+            }
+        except Exception as e:
+            with duckdb.connect(str(self.db_path)) as con:
+                con.execute(
+                    """
+                    UPDATE baliza_state.runs
+                    SET status = 'failed', finished_at = NOW(), error_message = ?
+                    WHERE run_id = ?
+                """,
+                    [str(e), run_id],
+                )
+            raise
 
     def cleanup_uploaded(self, extraction_date: datetime) -> int:
         """Remove data from buffer after successful IA upload.
