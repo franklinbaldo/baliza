@@ -22,15 +22,15 @@ console = Console()
 
 @app.command("extract")
 def extract(
-    start: str = typer.Option(
-        ...,
+    start: str | None = typer.Option(
+        None,
         "--start",
-        help="Start date (YYYY-MM-DD)",
+        help="Start date (YYYY-MM-DD). Defaults to 3 days ago.",
     ),
-    end: str = typer.Option(
-        ...,
+    end: str | None = typer.Option(
+        None,
         "--end",
-        help="End date (YYYY-MM-DD)",
+        help="End date (YYYY-MM-DD). Defaults to today.",
     ),
     db_path: Path = typer.Option(
         Path("baliza.duckdb"),
@@ -59,6 +59,20 @@ def extract(
     try:
         # Validate resource
         validate_resource_path(resource)
+
+        # Apply defaults
+        if end is None:
+            end_dt = datetime.now()
+            end = end_dt.strftime("%Y-%m-%d")
+        else:
+            end_dt = datetime.strptime(end, "%Y-%m-%d")
+
+        if start is None:
+            start_dt = end_dt - timedelta(days=3)
+            start = start_dt.strftime("%Y-%m-%d")
+            console.print(
+                f"[dim]No date range specified. Extracting last 3 days ({start} to {end})...[/dim]"
+            )
 
         # Parse dates
         start_date = datetime.strptime(start, "%Y-%m-%d")
@@ -334,11 +348,20 @@ def status(
     ),
 ) -> None:
     """Show overall extraction status."""
-    try:
-        if not db_path.exists():
-            console.print("[yellow]No database found. Run extraction first.[/yellow]")
-            raise typer.Exit(0)
+    if not db_path.exists():
+        console.print(
+            Panel(
+                "[white]No database found.[/white]\n\n"
+                "[dim]Run extraction to get started:[/dim]\n"
+                "[cyan]baliza extract[/cyan]",
+                title="[yellow]⚠ Status Check[/yellow]",
+                border_style="yellow",
+                padding=(1, 2),
+            )
+        )
+        return
 
+    try:
         with duckdb.connect(str(db_path), read_only=True) as con:
             # Total contracts
             total = con.execute(f"SELECT COUNT(*) FROM {dataset}.contratos").fetchone()[0]
