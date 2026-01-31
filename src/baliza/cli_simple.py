@@ -22,15 +22,15 @@ console = Console()
 
 @app.command("extract")
 def extract(
-    start: str = typer.Option(
-        ...,
+    start: str | None = typer.Option(
+        None,
         "--start",
-        help="Start date (YYYY-MM-DD)",
+        help="Start date (YYYY-MM-DD). Defaults to 3 days ago.",
     ),
-    end: str = typer.Option(
-        ...,
+    end: str | None = typer.Option(
+        None,
         "--end",
-        help="End date (YYYY-MM-DD)",
+        help="End date (YYYY-MM-DD). Defaults to today.",
     ),
     db_path: Path = typer.Option(
         Path("baliza.duckdb"),
@@ -59,6 +59,17 @@ def extract(
     try:
         # Validate resource
         validate_resource_path(resource)
+
+        # Handle smart defaults
+        if not start or not end:
+            today = datetime.now()
+            if not end:
+                end = today.strftime("%Y-%m-%d")
+                console.print(f"[dim]No end date provided, using today ({end})[/dim]")
+            if not start:
+                # Default to 3 days lookback as per UX guidelines
+                start = (today - timedelta(days=3)).strftime("%Y-%m-%d")
+                console.print(f"[dim]No start date provided, using 3 days ago ({start})[/dim]")
 
         # Parse dates
         start_date = datetime.strptime(start, "%Y-%m-%d")
@@ -336,8 +347,20 @@ def status(
     """Show overall extraction status."""
     try:
         if not db_path.exists():
-            console.print("[yellow]No database found. Run extraction first.[/yellow]")
-            raise typer.Exit(0)
+            msg = (
+                "No database found yet.\n\n"
+                "[white]To start extracting recent data (last 3 days), run:[/white]\n"
+                "[cyan]baliza extract[/cyan]"
+            )
+            console.print(
+                Panel(
+                    msg,
+                    title="[yellow]⚠ No Database Found[/yellow]",
+                    border_style="yellow",
+                    padding=(1, 2),
+                )
+            )
+            return
 
         with duckdb.connect(str(db_path), read_only=True) as con:
             # Total contracts
