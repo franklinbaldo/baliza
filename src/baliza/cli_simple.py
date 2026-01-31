@@ -14,13 +14,85 @@ from rich.table import Table
 
 from .daily_exporter import DailyExporter
 from .extractor import PNCPExtractor
+from .tiers import get_tier_summary, tier0, tier1, tier2
 from .utils import validate_identifier, validate_resource_path
 
 app = typer.Typer(help="Baliza - Simple PNCP extraction tool")
+state_app = typer.Typer(help="Inspect extraction state and history")
+app.add_typer(state_app, name="state")
 console = Console()
 
 
+@app.command("backfill")
+@tier1
+def backfill(
+    start_month: str = typer.Argument(..., help="Start month (YYYY-MM)"),
+    end_month: str = typer.Argument(..., help="End month (YYYY-MM)"),
+    db_path: Path = typer.Option(
+        Path("baliza.duckdb"),
+        "--duckdb",
+        "-d",
+        help="Path to DuckDB database file",
+    ),
+    dataset: str = typer.Option(
+        "baliza_raw",
+        "--dataset",
+        "-s",
+        help="Dataset name in DuckDB",
+    ),
+    resource: str = typer.Option(
+        "contratos",
+        "--resource",
+        "-r",
+        help="Resource to extract (contratos, etc.)",
+    ),
+) -> None:
+    """Historical backfill month by month."""
+    try:
+        # Validate resource
+        validate_resource_path(resource)
+
+        # Parse months
+        start_dt = datetime.strptime(start_month, "%Y-%m")
+        end_dt = datetime.strptime(end_month, "%Y-%m")
+
+        if end_dt < start_dt:
+            console.print("[red]Error: End month must be after start month")
+            raise typer.Exit(1)
+
+        current_month = start_dt
+        total_rows = 0
+
+        with PNCPExtractor(db_path, dataset) as extractor:
+            while current_month <= end_dt:
+                # Calculate start and end of current month
+                month_start = current_month.replace(day=1)
+                # Next month's first day minus one day
+                if current_month.month == 12:
+                    month_end = current_month.replace(year=current_month.year + 1, month=1, day=1) - timedelta(days=1)
+                else:
+                    month_end = current_month.replace(month=current_month.month + 1, day=1) - timedelta(days=1)
+
+                console.print(f"\n[bold blue]▶ Backfilling {current_month.strftime('%B %Y')}...[/bold blue]")
+
+                result = extractor.extract(month_start, month_end, resource)
+                total_rows += result["rows_extracted"]
+
+                # Advance to next month
+                if current_month.month == 12:
+                    current_month = current_month.replace(year=current_month.year + 1, month=1)
+                else:
+                    current_month = current_month.replace(month=current_month.month + 1)
+
+        console.print(f"\n[green]✓ Backfill complete! Total rows extracted: {total_rows:,}[/green]")
+
+    except Exception as e:
+        console.print(f"[red]✗ Backfill failed: {e}")
+        raise typer.Exit(1) from None
+
+
 @app.command("extract")
+@tier0
 def extract(
     start: str = typer.Option(
         ...,
@@ -94,8 +166,9 @@ def extract(
         raise typer.Exit(1) from None
 
 
-@app.command("verify")
-def verify(
+@state_app.command("gaps")
+@tier1
+def state_gaps(
     resource: str = typer.Option("contratos", "--resource", "-r", help="Resource to verify"),
     start: str = typer.Option(..., "--start", help="Start date (YYYY-MM-DD)"),
     end: str = typer.Option(..., "--end", help="End date (YYYY-MM-DD)"),
@@ -178,6 +251,7 @@ def verify(
 
 
 @app.command("export")
+@tier0
 def export(
     table: str = typer.Option(..., "--table", help="Table name to export"),
     output: Path = typer.Option(..., "--output", "-o", help="Output directory"),
@@ -214,6 +288,7 @@ def export(
 
 
 @app.command("export-daily")
+@tier0
 def export_daily(
     date_str: str = typer.Option(
         ...,
@@ -277,6 +352,7 @@ def export_daily(
 
 
 @app.command("buffer-stats")
+@tier2
 def buffer_stats(
     db_path: Path = typer.Option(
         Path("baliza.duckdb"),
@@ -318,8 +394,9 @@ def buffer_stats(
         raise typer.Exit(1) from None
 
 
-@app.command("status")
-def status(
+@state_app.command("show")
+@tier1
+def state_show(
     db_path: Path = typer.Option(
         Path("baliza.duckdb"),
         "--duckdb",
@@ -394,6 +471,81 @@ def status(
     except Exception as e:
         console.print(f"[red]✗ Failed to get status: {e}")
         raise typer.Exit(1) from None
+
+
+@state_app.command("history")
+@tier1
+def state_history(
+    db_path: Path = typer.Option(
+        Path("baliza.duckdb"),
+        "--duckdb",
+        "-d",
+        help="DuckDB file",
+    ),
+    resource: str = typer.Option("contratos", "--resource", "-r", help="Resource to show"),
+    limit: int = typer.Option(10, "--limit", "-l", help="Number of runs to show"),
+) -> None:
+    """Show history of extraction runs."""
+    try:
+        if not db_path.exists():
+            console.print("[yellow]No database found. Run extraction first.[/yellow]")
+            raise typer.Exit(0)
+
+        with duckdb.connect(str(db_path), read_only=True) as con:
+            runs = con.execute(
+                """
+                SELECT run_id, started_at, finished_at, status, rows_extracted, error_message
+                FROM baliza_state.runs
+                WHERE resource = ?
+                ORDER BY started_at DESC
+                LIMIT ?
+            """,
+                [resource, limit],
+            ).fetchall()
+
+            if not runs:
+                console.print(f"[yellow]No run history found for {resource}.[/yellow]")
+                return
+
+            table = Table(title=f"Extraction History: {resource}")
+            table.add_column("Run ID", style="dim")
+            table.add_column("Started")
+            table.add_column("Duration", justify="right")
+            table.add_column("Status")
+            table.add_column("Rows", justify="right")
+
+            for run_id, started, finished, status, rows, error in runs:
+                duration = "-"
+                if finished and started:
+                    diff = finished - started
+                    duration = f"{diff.total_seconds():.1f}s"
+
+                status_style = "green" if status == "completed" else "red"
+                if status == "running":
+                    status_style = "yellow"
+
+                table.add_row(
+                    run_id,
+                    started.strftime("%Y-%m-%d %H:%M"),
+                    duration,
+                    f"[{status_style}]{status}[/{status_style}]",
+                    f"{rows:,}" if rows is not None else "-",
+                )
+                if error:
+                    table.add_row("", "", "", "", f"[red]{error}[/red]")
+
+            console.print(table)
+
+    except Exception as e:
+        console.print(f"[red]✗ Failed to get history: {e}")
+        raise typer.Exit(1) from None
+
+
+@app.command("tiers")
+@tier2
+def tiers() -> None:
+    """Display the feature tier hierarchy."""
+    console.print(get_tier_summary())
 
 
 if __name__ == "__main__":

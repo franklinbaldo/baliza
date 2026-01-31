@@ -95,15 +95,16 @@ def missing_dates():
 
 
 @when(
-    parsers.parse('I run "baliza verify --resource {resource} --start {start} --end {end}"'),
+    parsers.parse('I run "baliza state gaps --resource {resource} --start {start} --end {end}"'),
     target_fixture="verify_result",
 )
 def run_verify(partial_coverage, resource, start, end):
-    """Run baliza verify command."""
+    """Run baliza state gaps command."""
     result = runner.invoke(
         app,
         [
-            "verify",
+            "state",
+            "gaps",
             "--resource",
             resource,
             "--start",
