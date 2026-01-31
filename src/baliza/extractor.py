@@ -6,7 +6,7 @@ Supports per-page checkpointing for resume on timeout.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -480,13 +480,16 @@ class PNCPExtractor:
         with duckdb.connect(str(self.db_path)) as con:
             self._ensure_schema(con)
 
+            start_dt = extraction_date.date()
+            end_dt = start_dt + timedelta(days=1)
+
             # Count rows before deletion
             result = con.execute(
                 f"""
                 SELECT COUNT(*) FROM {self.dataset}.contratos
-                WHERE CAST(dataPublicacao AS DATE) = ?
+                WHERE dataPublicacao >= ? AND dataPublicacao < ?
             """,
-                [extraction_date.date()],
+                [start_dt, end_dt],
             ).fetchone()
             row_count = result[0] if result else 0
 
@@ -495,9 +498,9 @@ class PNCPExtractor:
                 con.execute(
                     f"""
                     DELETE FROM {self.dataset}.contratos
-                    WHERE CAST(dataPublicacao AS DATE) = ?
+                    WHERE dataPublicacao >= ? AND dataPublicacao < ?
                 """,
-                    [extraction_date.date()],
+                    [start_dt, end_dt],
                 )
 
                 console.print(
@@ -533,7 +536,7 @@ class PNCPExtractor:
         Returns:
             List of dates ready for export
         """
-        from datetime import timedelta
+        # Note: timedelta is imported at module level now
 
         cutoff = datetime.now() - timedelta(days=stability_days)
 
@@ -548,7 +551,7 @@ class PNCPExtractor:
                 f"""
                 SELECT DISTINCT CAST(dataPublicacao AS DATE) as dt
                 FROM {self.dataset}.contratos
-                WHERE CAST(dataPublicacao AS DATE) < ?
+                WHERE dataPublicacao < ?
                   AND CAST(dataPublicacao AS DATE) NOT IN (
                       SELECT extraction_date FROM baliza_state.uploaded_to_ia
                   )

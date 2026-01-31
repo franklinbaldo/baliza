@@ -345,7 +345,7 @@ def status(
 
             # Date range
             date_range = con.execute(f"""
-                SELECT MIN(CAST(dataPublicacao AS DATE)), MAX(CAST(dataPublicacao AS DATE))
+                SELECT CAST(MIN(dataPublicacao) AS DATE), CAST(MAX(dataPublicacao) AS DATE)
                 FROM {dataset}.contratos
             """).fetchone()
 
