@@ -7,6 +7,8 @@ This document outlines the primary goals, non-goals, and target users for the Ba
 - **Reliable Data Extraction:** The core goal of Baliza is to reliably and efficiently extract public procurement data from the PNCP (Portal Nacional de Contratações Públicas).
 - **Data Preservation:** The project aims to create a preserved, long-term archive of Brazilian public procurement data, storing it in a format suitable for analysis (DuckDB and Parquet).
 - **Accessibility for Analysis:** Baliza is designed to make this data easily accessible for journalists, researchers, and public oversight bodies.
+- **Daily Export Packages:** Provide self-contained, daily Parquet packages (including relational dimensions like organizations and units) suitable for direct consumption or upload to archival services like Internet Archive.
+- **Buffer Management & Resumability:** Maintain a robust local buffer and checkpoint system to ensure extraction can be resumed from failures and data is tracked until successfully exported/archived.
 
 ## Non-Goals
 

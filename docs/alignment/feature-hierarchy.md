@@ -4,7 +4,7 @@
 
 **Last Updated:** 2026-01-19
 
-**Implementation Status:** ✅ Tier system is now implemented in code. Run `baliza tiers` to view the classification of all commands.
+**Implementation Status:** ⏳ Tier system is planned for implementation. This document serves as the design specification.
 
 ## Overview
 
@@ -49,10 +49,10 @@ Tier 3: Future Enhancements → Aspirational features for later
 |---------|---------|--------|-----|----------|
 | Incremental extraction | `baliza extract --lookback-days` | ✅ Done | ~100 | P1 |
 | Gap detection | `baliza verify` | ✅ Done | ~300 | P1 |
-| Historical backfill | `baliza backfill YYYY-MM YYYY-MM` | ✅ Done | ~100 | P1 |
-| Coverage tracking | `baliza state show` | ✅ Done | ~150 | P1 |
-| Gap listing | `baliza state gaps` | ✅ Done | ~100 | P1 |
-| Run history | `baliza state history` | ✅ Done | ~100 | P1 |
+| Historical backfill | `baliza backfill YYYY-MM YYYY-MM` | ⏳ Planned | ~100 | P1 |
+| Coverage tracking | `baliza state show` | ⏳ Planned | ~150 | P1 |
+| Gap listing | `baliza state gaps` | ⏳ Planned | ~100 | P1 |
+| Run history | `baliza state history` | ⏳ Planned | ~100 | P1 |
 | Suspect detection | (embedded in verify) | ✅ Done | ~100 | P1 |
 | Date filtering | `--start/--end` flags | ✅ Done | ~50 | P1 |
 
@@ -245,11 +245,11 @@ Review feature hierarchy quarterly:
 - Should any Tier 3 be promoted?
 - Should any Tier 1 be demoted?
 
-## Implementation
+## Implementation (Planned)
 
 ### Code Organization
 
-The tier system is now implemented in code at `src/baliza/tiers.py`:
+The tier system should be implemented in code at `src/baliza/tiers.py`:
 
 **Key Components:**
 - `FeatureTier` enum: Defines the 4 tier levels with badges and descriptions
