@@ -62,14 +62,17 @@ def extract(
 
         # Handle smart defaults
         if not start or not end:
-            today = datetime.now()
             if not end:
-                end = today.strftime("%Y-%m-%d")
+                end_dt = datetime.now()
+                end = end_dt.strftime("%Y-%m-%d")
                 console.print(f"[dim]No end date provided, using today ({end})[/dim]")
+            else:
+                end_dt = datetime.strptime(end, "%Y-%m-%d")
+
             if not start:
-                # Default to 3 days lookback as per UX guidelines
-                start = (today - timedelta(days=3)).strftime("%Y-%m-%d")
-                console.print(f"[dim]No start date provided, using 3 days ago ({start})[/dim]")
+                # Default to 3 days lookback relative to end date
+                start = (end_dt - timedelta(days=3)).strftime("%Y-%m-%d")
+                console.print(f"[dim]No start date provided, using 3 days before end ({start})[/dim]")
 
         # Parse dates
         start_date = datetime.strptime(start, "%Y-%m-%d")
