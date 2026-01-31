@@ -72,7 +72,7 @@ def validate_url(url: str) -> str:
     try:
         parsed = urlparse(url)
     except Exception as e:
-        raise ValueError(f"Invalid URL format: {e}")
+        raise ValueError(f"Invalid URL format: {e}") from e
 
     if parsed.scheme not in ("http", "https"):
         raise ValueError(
@@ -92,7 +92,7 @@ def validate_url(url: str) -> str:
         # Use getaddrinfo to handle both IPv4 and IPv6
         addr_info = socket.getaddrinfo(hostname, None)
     except socket.gaierror as e:
-        raise ValueError(f"Could not resolve hostname '{hostname}': {e}")
+        raise ValueError(f"Could not resolve hostname '{hostname}': {e}") from e
 
     for _, _, _, _, sockaddr in addr_info:
         ip_str = sockaddr[0]

@@ -9,7 +9,6 @@ from pytest_bdd import given, parsers, scenario, then, when
 
 from baliza.extractor import PNCPExtractor
 
-
 # =============================================================================
 # Scenario: Buffer contains only recent unstable data (Tier 1)
 # =============================================================================

@@ -1,9 +1,12 @@
 import socket
-import pytest
 from pathlib import Path
 from unittest.mock import patch
+
+import pytest
+
 from src.baliza.extractor import PNCPExtractor
 from src.baliza.utils import validate_url
+
 
 def test_validate_url_rejects_private_ips_literals():
     """Test that validate_url rejects private IP address literals."""
