@@ -1,3 +1,4 @@
+@tier0
 Feature: End-to-end data extraction pipeline
   As a data engineer,
   I want to run the extraction pipeline,
@@ -11,3 +12,4 @@ Feature: End-to-end data extraction pipeline
     And then I extract data for the full date range
     Then the final dataset should contain all records for the full date range
     And the final dataset should not contain duplicate records
+    And the run history should record the extraction runs

@@ -1,3 +1,4 @@
+@tier1
 Feature: State Management
   As a data engineer,
   I want to inspect the state of the data extraction process,

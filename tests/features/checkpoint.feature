@@ -1,3 +1,4 @@
+@tier0
 Feature: Extraction Checkpointing
   As a data engineer
   I want extraction to checkpoint progress per page

@@ -1,3 +1,4 @@
+@tier0
 Feature: Data Export
   As a data engineer
   I want to export data from DuckDB to Parquet

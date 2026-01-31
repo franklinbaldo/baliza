@@ -1,3 +1,4 @@
+@tier1
 Feature: Resilient and Resumable Extraction
 
   Background:

@@ -11,10 +11,13 @@ from typer.testing import CliRunner
 
 from baliza.cli_simple import app
 
+pytestmark = pytest.mark.tier0
+
 runner = CliRunner()
 
+# Mark all extraction scenarios as Tier 0 (Critical Path)
 
-@pytest.mark.skip(reason="Quarantined due to persistent timeout issues with pytest-httpx")
+
 @scenario(
     "../features/end_to_end_extraction.feature",
     "The data pipeline is resumable and idempotent",
@@ -62,15 +65,11 @@ def external_data_source(httpx_mock):
 
         # First extraction: only day 1
         if start_date == "20240101" and end_date == "20240101":
-            return httpx.Response(
-                200, json={"data": [record_1], "totalPaginas": 1}
-            )
+            return httpx.Response(200, json={"data": [record_1], "totalPaginas": 1})
 
         # Second extraction: day 1 and day 2
         if start_date == "20240101" and end_date == "20240102":
-            return httpx.Response(
-                200, json={"data": [record_1, record_2], "totalPaginas": 1}
-            )
+            return httpx.Response(200, json={"data": [record_1, record_2], "totalPaginas": 1})
 
         # Fallback for any other request
         return httpx.Response(200, json={"data": [], "totalPaginas": 0})
@@ -123,9 +122,7 @@ def extract_full_range(db_path, external_data_source):
 def check_all_records(db_path):
     """Verify that the final dataset contains all records."""
     with duckdb.connect(str(db_path), read_only=True) as con:
-        count = con.execute(
-            "SELECT COUNT(*) FROM test_dataset.contratos"
-        ).fetchone()[0]
+        count = con.execute("SELECT COUNT(*) FROM test_dataset.contratos").fetchone()[0]
         assert count == 2, f"Expected 2 records, but found {count}"
 
 
@@ -141,3 +138,15 @@ def check_no_duplicates(db_path):
         """
         duplicates = con.execute(query).fetchall()
         assert not duplicates, f"Found duplicate records: {duplicates}"
+
+
+@then("the run history should record the extraction runs")
+def check_run_history(db_path):
+    """Verify that the runs were recorded in the state schema."""
+    with duckdb.connect(str(db_path), read_only=True) as con:
+        runs = con.execute(
+            "SELECT status, rows_extracted FROM baliza_state.runs ORDER BY started_at"
+        ).fetchall()
+        assert len(runs) == 2
+        assert runs[0] == ("completed", 1)
+        assert runs[1] == ("completed", 2)

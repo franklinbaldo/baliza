@@ -1,3 +1,4 @@
+@tier1
 Feature: Buffer Management
   As a data engineer
   I want the buffer to be cleaned after successful IA upload

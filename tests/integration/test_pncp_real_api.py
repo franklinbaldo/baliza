@@ -16,6 +16,7 @@ from pathlib import Path
 
 import duckdb
 import pytest
+
 from baliza.extractor import PNCPExtractor
 
 
@@ -42,7 +43,9 @@ def test_pncp_extract_real_api_single_day():
             count = con.execute("SELECT COUNT(*) FROM test_data.contratos").fetchone()[0]
             assert count > 0
 
-            sample = con.execute("SELECT numeroControlePNCP, valorInicial FROM test_data.contratos LIMIT 1").fetchone()
+            sample = con.execute(
+                "SELECT numeroControlePNCP, valorInicial FROM test_data.contratos LIMIT 1"
+            ).fetchone()
             assert isinstance(sample[0], str)
             assert isinstance(sample[1], (int, float))
 
@@ -64,7 +67,9 @@ def test_pncp_pagination():
             total = con.execute("SELECT COUNT(*) FROM test_data.contratos").fetchone()[0]
             assert total > 500  # Expect multiple pages for a full month
 
-            unique_count = con.execute("SELECT COUNT(DISTINCT numeroControlePNCP) FROM test_data.contratos").fetchone()[0]
+            unique_count = con.execute(
+                "SELECT COUNT(DISTINCT numeroControlePNCP) FROM test_data.contratos"
+            ).fetchone()[0]
             assert unique_count == total
 
 

@@ -1,3 +1,4 @@
+@tier1
 Feature: Data Verification
   As a data engineer
   I want to verify data coverage

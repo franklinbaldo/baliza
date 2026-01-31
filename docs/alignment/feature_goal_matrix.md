@@ -14,7 +14,7 @@ This document tracks the alignment of the *actual* BDD features in the codebase 
 
 | Feature File | Scenarios | Primary Goal | Status | Notes |
 |---|---|---|---|---|
-| `end_to_end_extraction.feature` | 1 | Reliable Data Extraction | ✅ Implemented | Covers the core pipeline's ability to be resumable and idempotent. Test is currently quarantined due to a timeout issue. |
+| `end_to_end_extraction.feature` | 1 | Reliable Data Extraction | ✅ Implemented | Covers the core pipeline's ability to be resumable and idempotent. |
 | `export.feature` | 1 | Accessibility for Analysis | ✅ Implemented | Covers the export of data to Parquet for consumption by other tools. |
 | `resilience.feature` | 1 | Reliable Data Extraction | ✅ Implemented | Ensures the pipeline handles API errors gracefully, which is crucial for reliability. |
 | `verification.feature` | 1 | Reliable Data Extraction | ✅ Implemented | Covers the `verify` command's ability to detect gaps, ensuring data completeness. |

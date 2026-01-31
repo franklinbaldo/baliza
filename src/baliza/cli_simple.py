@@ -14,13 +14,17 @@ from rich.table import Table
 
 from .daily_exporter import DailyExporter
 from .extractor import PNCPExtractor
+from .tiers import COMMAND_TIERS, FeatureTier, tier0, tier1, tier2
 from .utils import validate_identifier, validate_resource_path
 
 app = typer.Typer(help="Baliza - Simple PNCP extraction tool")
+state_app = typer.Typer(help="Manage and view extraction state")
+app.add_typer(state_app, name="state")
 console = Console()
 
 
 @app.command("extract")
+@tier0
 def extract(
     start: str = typer.Option(
         ...,
@@ -94,14 +98,238 @@ def extract(
         raise typer.Exit(1) from None
 
 
-@app.command("verify")
-def verify(
-    resource: str = typer.Option("contratos", "--resource", "-r", help="Resource to verify"),
-    start: str = typer.Option(..., "--start", help="Start date (YYYY-MM-DD)"),
-    end: str = typer.Option(..., "--end", help="End date (YYYY-MM-DD)"),
+@app.command("export")
+@tier0
+def export(
+    table: str = typer.Option(..., "--table", help="Table name to export"),
+    output: Path = typer.Option(..., "--output", "-o", help="Output directory"),
     db_path: Path = typer.Option(Path("baliza.duckdb"), "--duckdb", "-d", help="DuckDB file"),
+    dataset: str = typer.Option("baliza_raw", "--dataset", "-s", help="Dataset name"),
+    date_col: str = typer.Option(
+        "dataPublicacao", "--date-col", help="Date column for partitioning"
+    ),
 ) -> None:
-    """Verify data coverage and detect gaps."""
+    """Export DuckDB table to Parquet files."""
+    try:
+        # Validate inputs used in SQL construction
+        validate_identifier(table)
+        validate_identifier(dataset)
+
+        output.mkdir(parents=True, exist_ok=True)
+
+        with console.status(
+            f"[bold green]Exporting {dataset}.{table} to parquet...[/bold green]",
+            spinner="dots",
+        ):
+            with duckdb.connect(str(db_path)) as con:
+                # Simple export - dump everything to parquet
+                parquet_file = output / f"{table}.parquet"
+                con.execute(f"""
+                    COPY {dataset}.{table} TO '{parquet_file}' (FORMAT PARQUET)
+                """)
+
+        console.print(f"[green]✓ Exported {dataset}.{table} to {parquet_file}")
+
+    except Exception as e:
+        console.print(f"[red]✗ Export failed: {e}")
+        raise typer.Exit(1) from None
+
+
+@app.command("export-daily")
+@tier1
+def export_daily(
+    date_str: str = typer.Option(
+        ...,
+        "--date",
+        "-d",
+        help="Date to export (YYYY-MM-DD)",
+    ),
+    output: Path = typer.Option(
+        Path("data/daily"),
+        "--output",
+        "-o",
+        help="Output directory (date subdirectory will be created)",
+    ),
+    db_path: Path = typer.Option(
+        Path("baliza.duckdb"),
+        "--duckdb",
+        help="DuckDB file",
+    ),
+    dataset: str = typer.Option(
+        "baliza_raw",
+        "--dataset",
+        "-s",
+        help="Dataset name",
+    ),
+) -> None:
+    """Export daily self-contained parquet package.
+
+    Creates a date-specific directory with:
+    - contratos.parquet (main contracts table)
+    - orgaos.parquet (deduplicated organizations)
+    - unidades.parquet (organizational units)
+    - _metadata.json (schema version and stats)
+    """
+    try:
+        target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+
+        exporter = DailyExporter(db_path, dataset)
+
+        with console.status(
+            f"[bold green]Exporting daily package for {date_str}...[/bold green]",
+            spinner="dots",
+        ):
+            stats = exporter.export(target_date, output)
+
+        # Show summary table
+        table = Table(title=f"Daily Export: {date_str}")
+        table.add_column("Table", style="cyan")
+        table.add_column("Rows", justify="right")
+        table.add_column("Size", justify="right")
+
+        for name, info in stats["tables"].items():
+            size_kb = info["file_size_bytes"] / 1024
+            table.add_row(name, str(info["row_count"]), f"{size_kb:.1f} KB")
+
+        console.print(table)
+        console.print(f"\n[green]✓ Output: {output / date_str}/")
+
+    except Exception as e:
+        console.print(f"[red]✗ Export failed: {e}")
+        raise typer.Exit(1) from None
+
+
+@app.command("buffer-stats")
+@tier2
+def buffer_stats(
+    db_path: Path = typer.Option(
+        Path("baliza.duckdb"),
+        "--duckdb",
+        "-d",
+        help="DuckDB file",
+    ),
+    dataset: str = typer.Option(
+        "baliza_raw",
+        "--dataset",
+        "-s",
+        help="Dataset name",
+    ),
+) -> None:
+    """Show buffer statistics for monitoring."""
+    try:
+        with PNCPExtractor(db_path, dataset) as extractor:
+            stats = extractor.get_buffer_stats()
+
+        console.print(Panel("[bold]Buffer Statistics[/bold]"))
+        console.print(f"  Total rows in buffer: [cyan]{stats['total_rows']:,}[/cyan]")
+        console.print(f"  Dates in buffer: [cyan]{stats['dates_in_buffer']}[/cyan]")
+        console.print(f"  Dates uploaded to IA: [cyan]{stats['dates_uploaded_to_ia']}[/cyan]")
+        console.print(f"  Pending checkpoints: [yellow]{stats['pending_checkpoints']}[/yellow]")
+
+        if stats["rows_by_date"]:
+            console.print("\n[bold]Rows by Date:[/bold]")
+            table = Table()
+            table.add_column("Date", style="cyan")
+            table.add_column("Rows", justify="right")
+
+            for dt, count in sorted(stats["rows_by_date"].items()):
+                table.add_row(dt, f"{count:,}")
+
+            console.print(table)
+
+    except Exception as e:
+        console.print(f"[red]✗ Failed to get stats: {e}")
+        raise typer.Exit(1) from None
+
+
+def _get_status(db_path: Path, dataset: str) -> None:
+    """Helper to show overall extraction status."""
+    try:
+        if not db_path.exists():
+            console.print("[yellow]No database found. Run extraction first.[/yellow]")
+            raise typer.Exit(0)
+
+        with duckdb.connect(str(db_path), read_only=True) as con:
+            # Total contracts
+            total = con.execute(f"SELECT COUNT(*) FROM {dataset}.contratos").fetchone()[0]
+
+            # Date range
+            date_range = con.execute(f"""
+                SELECT MIN(CAST(dataPublicacao AS DATE)), MAX(CAST(dataPublicacao AS DATE))
+                FROM {dataset}.contratos
+            """).fetchone()
+
+            # Days with data
+            days_count = con.execute(f"""
+                SELECT COUNT(DISTINCT CAST(dataPublicacao AS DATE))
+                FROM {dataset}.contratos
+            """).fetchone()[0]
+
+            # Uploaded to IA
+            try:
+                uploaded = con.execute(
+                    "SELECT COUNT(*) FROM baliza_state.uploaded_to_ia"
+                ).fetchone()[0]
+            except Exception:
+                uploaded = 0
+
+            # Pending checkpoints
+            try:
+                checkpoints = con.execute(
+                    "SELECT COUNT(*) FROM baliza_state.extraction_checkpoint"
+                ).fetchone()[0]
+            except Exception:
+                checkpoints = 0
+
+        # Display
+        console.print(Panel("[bold]Baliza PNCP Status[/bold]", style="blue"))
+        console.print()
+
+        table = Table(show_header=False, box=None)
+        table.add_column("Metric", style="dim")
+        table.add_column("Value", style="cyan")
+
+        table.add_row("Total contracts", f"{total:,}")
+        table.add_row("Date range", f"{date_range[0]} to {date_range[1]}" if date_range[0] else "-")
+        table.add_row("Days with data", str(days_count))
+        table.add_row("Days on Internet Archive", str(uploaded))
+        table.add_row("Pending extractions", str(checkpoints))
+
+        console.print(table)
+
+        # Warnings
+        if checkpoints > 0:
+            console.print(
+                f"\n[yellow]⚠ {checkpoints} extraction(s) incomplete - will resume on next run[/yellow]"
+            )
+
+    except Exception as e:
+        console.print(f"[red]✗ Failed to get status: {e}")
+        raise typer.Exit(1) from None
+
+
+@app.command("status")
+@tier1
+def status(
+    db_path: Path = typer.Option(Path("baliza.duckdb"), "--duckdb", "-d", help="DuckDB file"),
+    dataset: str = typer.Option("baliza_raw", "--dataset", "-s", help="Dataset name"),
+) -> None:
+    """Show overall extraction status (alias for 'state show')."""
+    _get_status(db_path, dataset)
+
+
+@state_app.command("show")
+@tier1
+def state_show(
+    db_path: Path = typer.Option(Path("baliza.duckdb"), "--duckdb", "-d", help="DuckDB file"),
+    dataset: str = typer.Option("baliza_raw", "--dataset", "-s", help="Dataset name"),
+) -> None:
+    """Show overall extraction status."""
+    _get_status(db_path, dataset)
+
+
+def _get_gaps(resource: str, start: str, end: str, db_path: Path) -> None:
+    """Helper to detect gaps in data coverage."""
     try:
         # Validate resource
         validate_resource_path(resource)
@@ -177,223 +405,122 @@ def verify(
         raise typer.Exit(1) from None
 
 
-@app.command("export")
-def export(
-    table: str = typer.Option(..., "--table", help="Table name to export"),
-    output: Path = typer.Option(..., "--output", "-o", help="Output directory"),
+@app.command("verify")
+@tier1
+def verify(
+    resource: str = typer.Option("contratos", "--resource", "-r", help="Resource to verify"),
+    start: str = typer.Option(..., "--start", help="Start date (YYYY-MM-DD)"),
+    end: str = typer.Option(..., "--end", help="End date (YYYY-MM-DD)"),
     db_path: Path = typer.Option(Path("baliza.duckdb"), "--duckdb", "-d", help="DuckDB file"),
-    dataset: str = typer.Option("baliza_raw", "--dataset", "-s", help="Dataset name"),
-    date_col: str = typer.Option(
-        "dataPublicacao", "--date-col", help="Date column for partitioning"
-    ),
 ) -> None:
-    """Export DuckDB table to Parquet files."""
-    try:
-        # Validate inputs used in SQL construction
-        validate_identifier(table)
-        validate_identifier(dataset)
-
-        output.mkdir(parents=True, exist_ok=True)
-
-        with console.status(
-            f"[bold green]Exporting {dataset}.{table} to parquet...[/bold green]",
-            spinner="dots",
-        ):
-            with duckdb.connect(str(db_path)) as con:
-                # Simple export - dump everything to parquet
-                parquet_file = output / f"{table}.parquet"
-                con.execute(f"""
-                    COPY {dataset}.{table} TO '{parquet_file}' (FORMAT PARQUET)
-                """)
-
-        console.print(f"[green]✓ Exported {dataset}.{table} to {parquet_file}")
-
-    except Exception as e:
-        console.print(f"[red]✗ Export failed: {e}")
-        raise typer.Exit(1) from None
+    """Verify data coverage and detect gaps (alias for 'state gaps')."""
+    _get_gaps(resource, start, end, db_path)
 
 
-@app.command("export-daily")
-def export_daily(
-    date_str: str = typer.Option(
-        ...,
-        "--date",
-        "-d",
-        help="Date to export (YYYY-MM-DD)",
-    ),
-    output: Path = typer.Option(
-        Path("data/daily"),
-        "--output",
-        "-o",
-        help="Output directory (date subdirectory will be created)",
-    ),
-    db_path: Path = typer.Option(
-        Path("baliza.duckdb"),
-        "--duckdb",
-        help="DuckDB file",
-    ),
-    dataset: str = typer.Option(
-        "baliza_raw",
-        "--dataset",
-        "-s",
-        help="Dataset name",
-    ),
+@state_app.command("gaps")
+@tier1
+def state_gaps(
+    resource: str = typer.Option("contratos", "--resource", "-r", help="Resource to verify"),
+    start: str = typer.Option(..., "--start", help="Start date (YYYY-MM-DD)"),
+    end: str = typer.Option(..., "--end", help="End date (YYYY-MM-DD)"),
+    db_path: Path = typer.Option(Path("baliza.duckdb"), "--duckdb", "-d", help="DuckDB file"),
 ) -> None:
-    """Export daily self-contained parquet package.
-
-    Creates a date-specific directory with:
-    - contratos.parquet (main contracts table)
-    - orgaos.parquet (deduplicated organizations)
-    - unidades.parquet (organizational units)
-    - _metadata.json (schema version and stats)
-    """
-    try:
-        target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-
-        exporter = DailyExporter(db_path, dataset)
-
-        with console.status(
-            f"[bold green]Exporting daily package for {date_str}...[/bold green]",
-            spinner="dots",
-        ):
-            stats = exporter.export(target_date, output)
-
-        # Show summary table
-        table = Table(title=f"Daily Export: {date_str}")
-        table.add_column("Table", style="cyan")
-        table.add_column("Rows", justify="right")
-        table.add_column("Size", justify="right")
-
-        for name, info in stats["tables"].items():
-            size_kb = info["file_size_bytes"] / 1024
-            table.add_row(name, str(info["row_count"]), f"{size_kb:.1f} KB")
-
-        console.print(table)
-        console.print(f"\n[green]✓ Output: {output / date_str}/")
-
-    except Exception as e:
-        console.print(f"[red]✗ Export failed: {e}")
-        raise typer.Exit(1) from None
+    """List gaps in data coverage."""
+    _get_gaps(resource, start, end, db_path)
 
 
-@app.command("buffer-stats")
-def buffer_stats(
-    db_path: Path = typer.Option(
-        Path("baliza.duckdb"),
-        "--duckdb",
-        "-d",
-        help="DuckDB file",
-    ),
-    dataset: str = typer.Option(
-        "baliza_raw",
-        "--dataset",
-        "-s",
-        help="Dataset name",
-    ),
+@state_app.command("history")
+@tier1
+def state_history(
+    db_path: Path = typer.Option(Path("baliza.duckdb"), "--duckdb", "-d", help="DuckDB file"),
+    resource: str = typer.Option("contratos", "--resource", "-r", help="Resource to show"),
 ) -> None:
-    """Show buffer statistics for monitoring."""
+    """Show extraction run history."""
     try:
-        with PNCPExtractor(db_path, dataset) as extractor:
-            stats = extractor.get_buffer_stats()
+        if not db_path.exists():
+            console.print("[yellow]No database found.[/yellow]")
+            return
 
-        console.print(Panel("[bold]Buffer Statistics[/bold]"))
-        console.print(f"  Total rows in buffer: [cyan]{stats['total_rows']:,}[/cyan]")
-        console.print(f"  Dates in buffer: [cyan]{stats['dates_in_buffer']}[/cyan]")
-        console.print(f"  Dates uploaded to IA: [cyan]{stats['dates_uploaded_to_ia']}[/cyan]")
-        console.print(f"  Pending checkpoints: [yellow]{stats['pending_checkpoints']}[/yellow]")
+        with duckdb.connect(str(db_path), read_only=True) as con:
+            runs = con.execute(
+                """
+                SELECT run_id, started_at, finished_at, status, rows_extracted, error_message
+                FROM baliza_state.runs
+                WHERE resource = ?
+                ORDER BY started_at DESC
+                LIMIT 10
+            """,
+                [resource],
+            ).fetchall()
 
-        if stats["rows_by_date"]:
-            console.print("\n[bold]Rows by Date:[/bold]")
-            table = Table()
-            table.add_column("Date", style="cyan")
+            if not runs:
+                console.print(f"No run history found for [bold]{resource}[/bold].")
+                return
+
+            table = Table(title=f"Extraction History: {resource}")
+            table.add_column("Run ID", style="dim")
+            table.add_column("Started At", style="cyan")
+            table.add_column("Duration", justify="right")
+            table.add_column("Status")
             table.add_column("Rows", justify="right")
 
-            for dt, count in sorted(stats["rows_by_date"].items()):
-                table.add_row(dt, f"{count:,}")
+            for rid, start, end, status, rows, _error in runs:
+                duration = "-"
+                if start and end:
+                    dur = end - start
+                    duration = f"{dur.total_seconds():.1f}s"
+
+                status_fmt = (
+                    f"[green]{status}[/green]" if status == "completed" else f"[red]{status}[/red]"
+                )
+                table.add_row(
+                    rid[:8], start.strftime("%Y-%m-%d %H:%M"), duration, status_fmt, f"{rows:,}"
+                )
 
             console.print(table)
 
     except Exception as e:
-        console.print(f"[red]✗ Failed to get stats: {e}")
+        console.print(f"[red]✗ Failed to get history: {e}")
         raise typer.Exit(1) from None
 
 
-@app.command("status")
-def status(
-    db_path: Path = typer.Option(
-        Path("baliza.duckdb"),
-        "--duckdb",
-        "-d",
-        help="DuckDB file",
-    ),
-    dataset: str = typer.Option(
-        "baliza_raw",
-        "--dataset",
-        "-s",
-        help="Dataset name",
-    ),
-) -> None:
-    """Show overall extraction status."""
-    try:
-        if not db_path.exists():
-            console.print("[yellow]No database found. Run extraction first.[/yellow]")
-            raise typer.Exit(0)
+@app.command("tiers")
+@tier2
+def tiers() -> None:
+    """Display the complete feature hierarchy."""
+    console.print(Panel("[bold]Baliza Feature Hierarchy[/bold]", style="blue"))
 
-        with duckdb.connect(str(db_path), read_only=True) as con:
-            # Total contracts
-            total = con.execute(f"SELECT COUNT(*) FROM {dataset}.contratos").fetchone()[0]
+    for tier_level in FeatureTier:
+        table = Table(title=f"{tier_level.badge} {tier_level.title}", box=None)
+        table.add_column("Command", style="cyan")
+        table.add_column("Description", style="dim")
 
-            # Date range
-            date_range = con.execute(f"""
-                SELECT MIN(CAST(dataPublicacao AS DATE)), MAX(CAST(dataPublicacao AS DATE))
-                FROM {dataset}.contratos
-            """).fetchone()
+        # Find commands in this tier
+        found = False
+        # Map command names back to their original names for display
+        display_names = {
+            "extract": "extract",
+            "export": "export",
+            "export_daily": "export-daily",
+            "buffer_stats": "buffer-stats",
+            "status": "status",
+            "verify": "verify",
+            "state_show": "state show",
+            "state_gaps": "state gaps",
+            "state_history": "state history",
+            "tiers": "tiers",
+        }
 
-            # Days with data
-            days_count = con.execute(f"""
-                SELECT COUNT(DISTINCT CAST(dataPublicacao AS DATE))
-                FROM {dataset}.contratos
-            """).fetchone()[0]
+        for cmd_name, t in COMMAND_TIERS.items():
+            if t == tier_level:
+                display_name = display_names.get(cmd_name, cmd_name.replace("_", "-"))
+                table.add_row(display_name, t.description)
+                found = True
 
-            # Uploaded to IA
-            try:
-                uploaded = con.execute(
-                    "SELECT COUNT(*) FROM baliza_state.uploaded_to_ia"
-                ).fetchone()[0]
-            except Exception:
-                uploaded = 0
-
-            # Pending checkpoints
-            try:
-                checkpoints = con.execute(
-                    "SELECT COUNT(*) FROM baliza_state.extraction_checkpoint"
-                ).fetchone()[0]
-            except Exception:
-                checkpoints = 0
-
-        # Display
-        console.print(Panel("[bold]Baliza PNCP Status[/bold]", style="blue"))
-        console.print()
-
-        table = Table(show_header=False, box=None)
-        table.add_column("Metric", style="dim")
-        table.add_column("Value", style="cyan")
-
-        table.add_row("Total contracts", f"{total:,}")
-        table.add_row("Date range", f"{date_range[0]} to {date_range[1]}" if date_range[0] else "-")
-        table.add_row("Days with data", str(days_count))
-        table.add_row("Days on Internet Archive", str(uploaded))
-        table.add_row("Pending extractions", str(checkpoints))
-
-        console.print(table)
-
-        # Warnings
-        if checkpoints > 0:
-            console.print(f"\n[yellow]⚠ {checkpoints} extraction(s) incomplete - will resume on next run[/yellow]")
-
-    except Exception as e:
-        console.print(f"[red]✗ Failed to get status: {e}")
-        raise typer.Exit(1) from None
+        if found:
+            console.print(table)
+        else:
+            console.print("  [dim]No commands currently implemented for this tier.[/dim]\n")
 
 
 if __name__ == "__main__":

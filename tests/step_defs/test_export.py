@@ -9,10 +9,11 @@ from typer.testing import CliRunner
 
 from baliza.cli_simple import app
 
+pytestmark = pytest.mark.tier0
+
 runner = CliRunner()
 
 # Mark all export scenarios as Tier 0 (Critical Path)
-pytestmark = pytest.mark.tier0
 
 
 # =============================================================================

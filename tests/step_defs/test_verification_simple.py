@@ -10,10 +10,11 @@ from typer.testing import CliRunner
 
 from baliza.cli_simple import app
 
+pytestmark = pytest.mark.tier1
+
 runner = CliRunner()
 
 # Mark all verification scenarios as Tier 1 (Core Features)
-pytestmark = pytest.mark.tier1
 
 
 # =============================================================================

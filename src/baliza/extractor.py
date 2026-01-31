@@ -6,7 +6,8 @@ Supports per-page checkpointing for resume on timeout.
 
 from __future__ import annotations
 
-from datetime import datetime
+import uuid
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -22,39 +23,41 @@ from .utils import validate_identifier, validate_resource_path
 console = Console()
 
 # Arrow schema for PNCP API response to handle nested structures
-PNCP_ARROW_SCHEMA = pa.schema([
-    ("numeroControlePNCP", pa.string()),
-    ("anoCompra", pa.int64()),
-    ("sequencialCompra", pa.int64()),
-    ("orgaoEntidade", pa.struct([
-        ("cnpj", pa.string()),
-        ("razaoSocial", pa.string()),
-        ("poderId", pa.string())
-    ])),
-    ("unidadeOrgao", pa.struct([
-        ("codigoUnidade", pa.string()),
-        ("nomeUnidade", pa.string())
-    ])),
-    ("modalidadeId", pa.int64()),
-    ("modalidadeNome", pa.string()),
-    ("valorInicial", pa.float64()),
-    ("dataPublicacao", pa.string()),
-    ("dataVigenciaInicio", pa.string()),
-    ("dataVigenciaFim", pa.string()),
-    ("objetoContrato", pa.string()),
-    ("informacaoComplementar", pa.string()),
-    ("numeroProcesso", pa.string()),
-    ("linkSistemaOrigem", pa.string()),
-    ("dataInclusao", pa.string()),
-    ("dataAtualizacao", pa.string()),
-    ("usuarioNome", pa.string())
-])
+PNCP_ARROW_SCHEMA = pa.schema(
+    [
+        ("numeroControlePNCP", pa.string()),
+        ("anoCompra", pa.int64()),
+        ("sequencialCompra", pa.int64()),
+        (
+            "orgaoEntidade",
+            pa.struct(
+                [("cnpj", pa.string()), ("razaoSocial", pa.string()), ("poderId", pa.string())]
+            ),
+        ),
+        ("unidadeOrgao", pa.struct([("codigoUnidade", pa.string()), ("nomeUnidade", pa.string())])),
+        ("modalidadeId", pa.int64()),
+        ("modalidadeNome", pa.string()),
+        ("valorInicial", pa.float64()),
+        ("dataPublicacao", pa.string()),
+        ("dataVigenciaInicio", pa.string()),
+        ("dataVigenciaFim", pa.string()),
+        ("objetoContrato", pa.string()),
+        ("informacaoComplementar", pa.string()),
+        ("numeroProcesso", pa.string()),
+        ("linkSistemaOrigem", pa.string()),
+        ("dataInclusao", pa.string()),
+        ("dataAtualizacao", pa.string()),
+        ("usuarioNome", pa.string()),
+    ]
+)
 
 
 @retry(
     stop=stop_after_attempt(4),
     wait=wait_exponential(multiplier=2, min=2, max=16),
-    retry=retry_if_exception_type((httpx.HTTPStatusError, httpx.ConnectError, httpx.TimeoutException)),
+    retry=retry_if_exception_type(
+        (httpx.HTTPStatusError, httpx.ConnectError, httpx.TimeoutException)
+    ),
     reraise=True,
 )
 def _fetch_page(client: httpx.Client, url: str, params: dict) -> dict:
@@ -182,7 +185,7 @@ class PNCPExtractor:
             }
         return None
 
-    def _save_checkpoint(
+    def _save_checkpoint(  # noqa: PLR0913
         self,
         con: duckdb.DuckDBPyConnection,
         resource: str,
@@ -224,9 +227,7 @@ class PNCPExtractor:
             [resource, extraction_date.date()],
         )
 
-    def _insert_page(
-        self, con: duckdb.DuckDBPyConnection, rows: list[dict[str, Any]]
-    ) -> int:
+    def _insert_page(self, con: duckdb.DuckDBPyConnection, rows: list[dict[str, Any]]) -> int:
         """Insert a single page of results immediately."""
         if not rows:
             return 0
@@ -237,7 +238,9 @@ class PNCPExtractor:
             table = pa.Table.from_pylist(rows, schema=PNCP_ARROW_SCHEMA)
         except Exception as e:
             # Fallback for unexpected schema mismatches, though unlikely with explicit schema
-            console.print(f"[yellow]Warning: Arrow conversion failed ({e}), falling back to slow path")
+            console.print(
+                f"[yellow]Warning: Arrow conversion failed ({e}), falling back to slow path"
+            )
             return self._insert_page_slow(con, rows)
 
         # Register arrow table as a view
@@ -299,9 +302,7 @@ class PNCPExtractor:
 
         return len(rows)
 
-    def _insert_page_slow(
-        self, con: duckdb.DuckDBPyConnection, rows: list[dict[str, Any]]
-    ) -> int:
+    def _insert_page_slow(self, con: duckdb.DuckDBPyConnection, rows: list[dict[str, Any]]) -> int:
         """Fallback insertion method (legacy slow path)."""
         values = []
         for row in rows:
@@ -370,94 +371,132 @@ class PNCPExtractor:
         total_rows = 0
         page = 1
         total_pages = None
+        run_id = str(uuid.uuid4())
+        started_at = datetime.now()
 
-        with duckdb.connect(str(self.db_path)) as con:
-            self._ensure_schema(con)
+        try:
+            with duckdb.connect(str(self.db_path)) as con:
+                self._ensure_schema(con)
 
-            # Check for existing checkpoint
-            checkpoint = self._get_checkpoint(con, resource, start_date)
-            if checkpoint:
-                page = checkpoint["current_page"] + 1
-                total_rows = checkpoint["rows_extracted"]
-                total_pages = checkpoint["total_pages"]
+                # Record run start
+                con.execute(
+                    """
+                    INSERT INTO baliza_state.runs (
+                        run_id, resource, started_at, status, rows_extracted
+                    ) VALUES (?, ?, ?, ?, ?)
+                """,
+                    [run_id, resource, started_at, "running", 0],
+                )
+
+                # Check for existing checkpoint
+                checkpoint = self._get_checkpoint(con, resource, start_date)
+                if checkpoint:
+                    page = checkpoint["current_page"] + 1
+                    total_rows = checkpoint["rows_extracted"]
+                    total_pages = checkpoint["total_pages"]
+                    console.print(
+                        f"[yellow]Resuming from page {page}/{total_pages} "
+                        f"({total_rows} rows already extracted)"
+                    )
+
                 console.print(
-                    f"[yellow]Resuming from page {page}/{total_pages} "
-                    f"({total_rows} rows already extracted)"
+                    f"[cyan]Extracting {resource} from {start_date.date()} to {end_date.date()}..."
                 )
 
-            console.print(
-                f"[cyan]Extracting {resource} from {start_date.date()} to {end_date.date()}..."
-            )
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[progress.description]{task.description}"),
+                    BarColumn(),
+                    TaskProgressColumn(),
+                    console=console,
+                ) as progress:
+                    task = progress.add_task(
+                        "Fetching pages...",
+                        total=total_pages,
+                        completed=page - 1 if checkpoint else 0,
+                    )
 
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                BarColumn(),
-                TaskProgressColumn(),
-                console=console,
-            ) as progress:
-                task = progress.add_task(
-                    "Fetching pages...",
-                    total=total_pages,
-                    completed=page - 1 if checkpoint else 0,
+                    while True:
+                        # Call PNCP API with retry
+                        url = f"{self.base_url}/{resource}"
+                        params = {
+                            "dataInicial": data_inicial,
+                            "dataFinal": data_final,
+                            "pagina": page,
+                            "tamanhoPagina": 500,
+                        }
+
+                        data = _fetch_page(self.client, url, params)
+                        rows = data.get("data", [])
+
+                        if not rows:
+                            break
+
+                        # Insert THIS page immediately
+                        inserted = self._insert_page(con, rows)
+                        total_rows += inserted
+
+                        # Update total_pages on first response
+                        if total_pages is None:
+                            total_pages = data.get("totalPaginas", 1)
+                            progress.update(task, total=total_pages)
+
+                        # Checkpoint after each page
+                        self._save_checkpoint(
+                            con, resource, start_date, page, total_pages, total_rows
+                        )
+
+                        progress.update(
+                            task,
+                            completed=page,
+                            description=f"Fetching page {page}/{total_pages}",
+                        )
+
+                        if page >= total_pages:
+                            break
+
+                        page += 1
+
+                console.print(f"[green]✓ Extracted {total_rows} rows across {page} pages")
+
+                # Clear checkpoint on successful completion
+                self._clear_checkpoint(con, resource, start_date)
+
+                # Record coverage
+                con.execute(
+                    """
+                    INSERT OR REPLACE INTO baliza_state.coverage
+                    VALUES (?, ?, ?, 'complete', ?, ?, NOW())
+                """,
+                    [resource, start_date, end_date, page, total_rows],
                 )
 
-                while True:
-                    # Call PNCP API with retry
-                    url = f"{self.base_url}/{resource}"
-                    params = {
-                        "dataInicial": data_inicial,
-                        "dataFinal": data_final,
-                        "pagina": page,
-                        "tamanhoPagina": 500,
-                    }
-
-                    data = _fetch_page(self.client, url, params)
-                    rows = data.get("data", [])
-
-                    if not rows:
-                        break
-
-                    # Insert THIS page immediately
-                    inserted = self._insert_page(con, rows)
-                    total_rows += inserted
-
-                    # Update total_pages on first response
-                    if total_pages is None:
-                        total_pages = data.get("totalPaginas", 1)
-                        progress.update(task, total=total_pages)
-
-                    # Checkpoint after each page
-                    self._save_checkpoint(
-                        con, resource, start_date, page, total_pages, total_rows
-                    )
-
-                    progress.update(
-                        task,
-                        completed=page,
-                        description=f"Fetching page {page}/{total_pages}",
-                    )
-
-                    if page >= total_pages:
-                        break
-
-                    page += 1
-
-            console.print(
-                f"[green]✓ Extracted {total_rows} rows across {page} pages"
-            )
-
-            # Clear checkpoint on successful completion
-            self._clear_checkpoint(con, resource, start_date)
-
-            # Record coverage
-            con.execute(
-                """
-                INSERT OR REPLACE INTO baliza_state.coverage
-                VALUES (?, ?, ?, 'complete', ?, ?, NOW())
-            """,
-                [resource, start_date, end_date, page, total_rows],
-            )
+                # Update run as completed
+                con.execute(
+                    """
+                    UPDATE baliza_state.runs
+                    SET finished_at = NOW(),
+                        status = 'completed',
+                        rows_extracted = ?,
+                        windows_completed = 1
+                    WHERE run_id = ?
+                """,
+                    [total_rows, run_id],
+                )
+        except Exception as e:
+            with duckdb.connect(str(self.db_path)) as con:
+                con.execute(
+                    """
+                    UPDATE baliza_state.runs
+                    SET finished_at = NOW(),
+                        status = 'failed',
+                        error_message = ?,
+                        windows_failed = 1
+                    WHERE run_id = ?
+                """,
+                    [str(e), run_id],
+                )
+            raise e
 
         return {
             "rows_extracted": total_rows,
@@ -500,9 +539,7 @@ class PNCPExtractor:
                     [extraction_date.date()],
                 )
 
-                console.print(
-                    f"[green]✓ Cleaned up {row_count} rows for {extraction_date.date()}"
-                )
+                console.print(f"[green]✓ Cleaned up {row_count} rows for {extraction_date.date()}")
 
             return row_count
 
@@ -533,8 +570,6 @@ class PNCPExtractor:
         Returns:
             List of dates ready for export
         """
-        from datetime import timedelta
-
         cutoff = datetime.now() - timedelta(days=stability_days)
 
         with duckdb.connect(str(self.db_path)) as con:
@@ -565,9 +600,7 @@ class PNCPExtractor:
             self._ensure_schema(con)
 
             # Total rows in buffer
-            total_rows = con.execute(
-                f"SELECT COUNT(*) FROM {self.dataset}.contratos"
-            ).fetchone()[0]
+            total_rows = con.execute(f"SELECT COUNT(*) FROM {self.dataset}.contratos").fetchone()[0]
 
             # Rows by date
             by_date = con.execute(
@@ -580,9 +613,7 @@ class PNCPExtractor:
             ).fetchall()
 
             # Uploaded dates
-            uploaded = con.execute(
-                "SELECT COUNT(*) FROM baliza_state.uploaded_to_ia"
-            ).fetchone()[0]
+            uploaded = con.execute("SELECT COUNT(*) FROM baliza_state.uploaded_to_ia").fetchone()[0]
 
             # Pending checkpoints
             checkpoints = con.execute(
