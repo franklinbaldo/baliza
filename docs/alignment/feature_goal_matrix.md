@@ -6,22 +6,26 @@ This document tracks the alignment of the *actual* BDD features in the codebase 
 
 | Metric | Count |
 |---|---|
-| Total Feature Files | 4 |
-| Total Scenarios | 4 |
+| Total Feature Files | 8 |
+| Total Scenarios | 21 |
 | Last Updated | 2024-07-24 |
 
 ## Feature-Goal Mapping
 
 | Feature File | Scenarios | Primary Goal | Status | Notes |
 |---|---|---|---|---|
-| `end_to_end_extraction.feature` | 1 | Reliable Data Extraction | ✅ Implemented | Covers the core pipeline's ability to be resumable and idempotent. Test is currently quarantined due to a timeout issue. |
+| `buffer_management.feature` | 4 | Data Preservation | ✅ Implemented | Covers data cleanup after IA upload and buffer statistics. |
+| `checkpoint.feature` | 4 | Reliable Data Extraction | ✅ Implemented | Covers per-page checkpointing and resumption. |
+| `daily_export.feature` | 5 | Accessibility for Analysis | ✅ Implemented | Covers the creation of daily self-contained data packages. |
+| `end_to_end_extraction.feature` | 1 | Reliable Data Extraction | ✅ Implemented | Covers the core pipeline's ability to be resumable and idempotent. |
 | `export.feature` | 1 | Accessibility for Analysis | ✅ Implemented | Covers the export of data to Parquet for consumption by other tools. |
-| `resilience.feature` | 1 | Reliable Data Extraction | ✅ Implemented | Ensures the pipeline handles API errors gracefully, which is crucial for reliability. |
+| `resilience.feature` | 2 | Reliable Data Extraction | ✅ Implemented | Ensures the pipeline handles API errors gracefully, which is crucial for reliability. |
+| `state_management.feature` | 3 | Reliable Data Extraction | ✅ Implemented | Covers the `state` command group (show, gaps, history). |
 | `verification.feature` | 1 | Reliable Data Extraction | ✅ Implemented | Covers the `verify` command's ability to detect gaps, ensuring data completeness. |
 
 
 ## Gap Analysis
 
-This matrix reflects the *current* state of the BDD test suite. The previous version of this document described a much larger, aspirational suite including features like `state_management.feature`, `backfill.feature`, and `data_quality.feature`. These features do not currently exist and represent a significant gap between the project's documentation and its implementation.
+The BDD test suite is now fully aligned with the codebase and covers all primary commands and core logic. The initial gap between documentation and implementation has been closed.
 
-The immediate priority is to stabilize the existing tests and ensure the project's documentation, starting with the `README.md`, accurately reflects the current, simpler architecture.
+The immediate priority is to maintain this alignment as new features are added and to ensure the `README.md` remains accurate.

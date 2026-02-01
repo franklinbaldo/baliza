@@ -182,7 +182,7 @@ class PNCPExtractor:
             }
         return None
 
-    def _save_checkpoint(
+    def _save_checkpoint(  # noqa: PLR0913
         self,
         con: duckdb.DuckDBPyConnection,
         resource: str,
@@ -533,7 +533,7 @@ class PNCPExtractor:
         Returns:
             List of dates ready for export
         """
-        from datetime import timedelta
+        from datetime import timedelta  # noqa: PLC0415
 
         cutoff = datetime.now() - timedelta(days=stability_days)
 
@@ -603,6 +603,51 @@ class PNCPExtractor:
 
     def __enter__(self) -> PNCPExtractor:
         return self
+
+    def record_run_start(self, run_id: str, resource: str) -> None:
+        """Record the start of an extraction run."""
+        with duckdb.connect(str(self.db_path)) as con:
+            self._ensure_schema(con)
+            con.execute(
+                """
+                INSERT INTO baliza_state.runs (run_id, resource, started_at, status)
+                VALUES (?, ?, NOW(), 'running')
+            """,
+                [run_id, resource],
+            )
+
+    def record_run_finished(  # noqa: PLR0913
+        self,
+        run_id: str,
+        status: str,
+        rows_extracted: int = 0,
+        windows_completed: int = 0,
+        windows_failed: int = 0,
+        error_message: str | None = None,
+    ) -> None:
+        """Record the completion of an extraction run."""
+        with duckdb.connect(str(self.db_path)) as con:
+            self._ensure_schema(con)
+            con.execute(
+                """
+                UPDATE baliza_state.runs
+                SET finished_at = NOW(),
+                    status = ?,
+                    rows_extracted = ?,
+                    windows_completed = ?,
+                    windows_failed = ?,
+                    error_message = ?
+                WHERE run_id = ?
+            """,
+                [
+                    status,
+                    rows_extracted,
+                    windows_completed,
+                    windows_failed,
+                    error_message,
+                    run_id,
+                ],
+            )
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         self.close()
