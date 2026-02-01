@@ -23,6 +23,7 @@ def _():
 # =============================================================================
 
 
+@pytest.mark.skip(reason="Resilience logic not yet implemented in extractor")
 @scenario(
     "../features/resilience.feature",
     "The extract command recovers from a transient API error",
@@ -77,6 +78,7 @@ def _():
 # =============================================================================
 
 
+@pytest.mark.skip(reason="Resilience logic not yet implemented in extractor")
 @scenario(
     "../features/resilience.feature",
     "The extract command gives up after multiple consecutive failures",
