@@ -182,7 +182,7 @@ class PNCPExtractor:
             }
         return None
 
-    def _save_checkpoint(
+    def _save_checkpoint(  # noqa: PLR0913
         self,
         con: duckdb.DuckDBPyConnection,
         resource: str,
