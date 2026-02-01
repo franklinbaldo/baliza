@@ -10,7 +10,6 @@ from pytest_bdd import given, parsers, scenario, then, when
 
 from baliza.extractor import PNCPExtractor
 
-
 # =============================================================================
 # Scenario: Extraction saves checkpoint after each page (Tier 0)
 # =============================================================================
@@ -77,22 +76,12 @@ def extract_first_page(mock_api):
 
     with patch("httpx.Client.get", side_effect=mock_get):
         with PNCPExtractor(db_path, dataset) as extractor:
-            # Mock to stop after first page
-            original_extract = extractor.extract
-
             def extract_one_page(*args, **kwargs):
                 # Patch the extract method to stop after first page
-                with patch.object(extractor, "extract") as mock_extract:
+                with patch.object(extractor, "extract"):
                     # Call original but intercept after first page
-                    result = {
-                        "rows_extracted": 10,
-                        "pages": 1,
-                        "start_date": datetime(2023, 1, 15),
-                        "end_date": datetime(2023, 1, 15),
-                    }
                     # Manually call internal methods
                     start_date = datetime(2023, 1, 15)
-                    end_date = datetime(2023, 1, 15)
 
                     with duckdb.connect(str(db_path)) as con:
                         extractor._ensure_schema(con)
@@ -117,7 +106,12 @@ def extract_first_page(mock_api):
                             con, "contratos", start_date, 1, data.get("totalPaginas", 3), len(rows)
                         )
 
-                    return result
+                        return {
+                            "rows_extracted": len(rows),
+                            "pages": 1,
+                            "start_date": start_date,
+                            "end_date": start_date,
+                        }
 
             result = extract_one_page()
 
@@ -211,7 +205,6 @@ def resume_extraction(rows_already_extracted):
     """Resume extraction from checkpoint."""
     db_path = rows_already_extracted["db_path"]
     dataset = rows_already_extracted["dataset"]
-    checkpoint_page = rows_already_extracted["checkpoint_page"]
 
     def mock_get(url, params=None, **kwargs):
         page = params.get("pagina", 1)

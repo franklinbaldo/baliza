@@ -1,6 +1,5 @@
 """Step definitions for the end-to-end extraction feature."""
 
-from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import duckdb

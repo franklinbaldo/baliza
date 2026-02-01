@@ -1,11 +1,11 @@
 """BDD step definitions for resilience.feature."""
 
+
+import duckdb
 import httpx
 import pytest
 from pytest_bdd import given, scenario, then, when
 from typer.testing import CliRunner
-import duckdb
-from pathlib import Path
 
 from baliza.cli_simple import app
 
@@ -56,17 +56,18 @@ def test_extract_fails_after_multiple_retries():
 def pncp_api_transient_fail(monkeypatch, api_mock_data):
     def mock_get(self, url, **kwargs):
         api_mock_data["calls"] += 1
+        req = httpx.Request(method="GET", url=url)
         if api_mock_data["calls"] <= api_mock_data["fail_until"]:
             raise httpx.HTTPStatusError(
                 message="Transient Error",
-                request=None,
-                response=httpx.Response(status_code=500, request=None)
+                request=req,
+                response=httpx.Response(status_code=500, request=req)
             )
 
         return httpx.Response(
             status_code=200,
             json={"data": api_mock_data["records"], "totalPaginas": 1},
-            request=httpx.Request(method="GET", url=url)
+            request=req
         )
 
     monkeypatch.setattr(httpx.Client, "get", mock_get)
@@ -88,10 +89,11 @@ def step_impl():
 def pncp_api_consistent_fail(monkeypatch, api_mock_data):
     def mock_get(self, url, **kwargs):
         api_mock_data["calls"] += 1
+        req = httpx.Request(method="GET", url=url)
         raise httpx.HTTPStatusError(
             message="Persistent Error",
-            request=None,
-            response=httpx.Response(status_code=500, request=None)
+            request=req,
+            response=httpx.Response(status_code=500, request=req)
         )
 
     monkeypatch.setattr(httpx.Client, "get", mock_get)
@@ -101,7 +103,7 @@ def pncp_api_consistent_fail(monkeypatch, api_mock_data):
 @when('I run the "baliza extract" command for the full date range', target_fixture="result")
 def run_extract_full_range(db_path):
     # First attempt - expected to fail if fail_until >= 4
-    result1 = runner.invoke(app, ["extract", "--start", "2024-01-01", "--end", "2024-01-01", "--duckdb", str(db_path)])
+    runner.invoke(app, ["extract", "--start", "2024-01-01", "--end", "2024-01-01", "--duckdb", str(db_path)])
 
     # Second attempt - expected to succeed
     result2 = runner.invoke(app, ["extract", "--start", "2024-01-01", "--end", "2024-01-01", "--duckdb", str(db_path)])

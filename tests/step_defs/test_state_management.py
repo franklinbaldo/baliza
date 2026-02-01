@@ -4,7 +4,6 @@ from pathlib import Path
 from textwrap import dedent
 
 import duckdb
-import pytest
 from pytest_bdd import given, scenario, then, when
 from typer.testing import CliRunner
 
