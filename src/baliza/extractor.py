@@ -6,6 +6,7 @@ Supports per-page checkpointing for resume on timeout.
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -369,95 +370,131 @@ class PNCPExtractor:
 
         total_rows = 0
         page = 1
-        total_pages = None
+        total_pages = 0
+        run_id = str(uuid.uuid4())
+        started_at = datetime.now()
 
         with duckdb.connect(str(self.db_path)) as con:
             self._ensure_schema(con)
 
-            # Check for existing checkpoint
-            checkpoint = self._get_checkpoint(con, resource, start_date)
-            if checkpoint:
-                page = checkpoint["current_page"] + 1
-                total_rows = checkpoint["rows_extracted"]
-                total_pages = checkpoint["total_pages"]
-                console.print(
-                    f"[yellow]Resuming from page {page}/{total_pages} "
-                    f"({total_rows} rows already extracted)"
-                )
-
-            console.print(
-                f"[cyan]Extracting {resource} from {start_date.date()} to {end_date.date()}..."
-            )
-
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                BarColumn(),
-                TaskProgressColumn(),
-                console=console,
-            ) as progress:
-                task = progress.add_task(
-                    "Fetching pages...",
-                    total=total_pages,
-                    completed=page - 1 if checkpoint else 0,
-                )
-
-                while True:
-                    # Call PNCP API with retry
-                    url = f"{self.base_url}/{resource}"
-                    params = {
-                        "dataInicial": data_inicial,
-                        "dataFinal": data_final,
-                        "pagina": page,
-                        "tamanhoPagina": 500,
-                    }
-
-                    data = _fetch_page(self.client, url, params)
-                    rows = data.get("data", [])
-
-                    if not rows:
-                        break
-
-                    # Insert THIS page immediately
-                    inserted = self._insert_page(con, rows)
-                    total_rows += inserted
-
-                    # Update total_pages on first response
-                    if total_pages is None:
-                        total_pages = data.get("totalPaginas", 1)
-                        progress.update(task, total=total_pages)
-
-                    # Checkpoint after each page
-                    self._save_checkpoint(
-                        con, resource, start_date, page, total_pages, total_rows
-                    )
-
-                    progress.update(
-                        task,
-                        completed=page,
-                        description=f"Fetching page {page}/{total_pages}",
-                    )
-
-                    if page >= total_pages:
-                        break
-
-                    page += 1
-
-            console.print(
-                f"[green]✓ Extracted {total_rows} rows across {page} pages"
-            )
-
-            # Clear checkpoint on successful completion
-            self._clear_checkpoint(con, resource, start_date)
-
-            # Record coverage
+            # Record run start
             con.execute(
                 """
-                INSERT OR REPLACE INTO baliza_state.coverage
-                VALUES (?, ?, ?, 'complete', ?, ?, NOW())
+                INSERT INTO baliza_state.runs (run_id, resource, started_at, status)
+                VALUES (?, ?, ?, ?)
             """,
-                [resource, start_date, end_date, page, total_rows],
+                [run_id, resource, started_at, "running"],
             )
+
+            try:
+                # Check for existing checkpoint
+                checkpoint = self._get_checkpoint(con, resource, start_date)
+                if checkpoint:
+                    page = checkpoint["current_page"] + 1
+                    total_rows = checkpoint["rows_extracted"]
+                    total_pages = checkpoint["total_pages"]
+                    console.print(
+                        f"[yellow]Resuming from page {page}/{total_pages} "
+                        f"({total_rows} rows already extracted)"
+                    )
+
+                console.print(
+                    f"[cyan]Extracting {resource} from {start_date.date()} to {end_date.date()}..."
+                )
+
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[progress.description]{task.description}"),
+                    BarColumn(),
+                    TaskProgressColumn(),
+                    console=console,
+                ) as progress:
+                    task = progress.add_task(
+                        "Fetching pages...",
+                        total=total_pages if total_pages else 1,
+                        completed=page - 1 if checkpoint else 0,
+                    )
+
+                    while True:
+                        # Call PNCP API with retry
+                        url = f"{self.base_url}/{resource}"
+                        params = {
+                            "dataInicial": data_inicial,
+                            "dataFinal": data_final,
+                            "pagina": page,
+                            "tamanhoPagina": 500,
+                        }
+
+                        data = _fetch_page(self.client, url, params)
+                        rows = data.get("data", [])
+
+                        if not rows:
+                            break
+
+                        # Insert THIS page immediately
+                        inserted = self._insert_page(con, rows)
+                        total_rows += inserted
+
+                        # Update total_pages on first response
+                        if not total_pages or total_pages == 0:
+                            total_pages = data.get("totalPaginas", 1)
+                            progress.update(task, total=total_pages)
+
+                        # Checkpoint after each page
+                        self._save_checkpoint(
+                            con, resource, start_date, page, total_pages, total_rows
+                        )
+
+                        progress.update(
+                            task,
+                            completed=page,
+                            description=f"Fetching page {page}/{total_pages}",
+                        )
+
+                        if page >= total_pages:
+                            break
+
+                        page += 1
+
+                console.print(
+                    f"[green]✓ Extracted {total_rows} rows across {page} pages"
+                )
+
+                # Clear checkpoint on successful completion
+                self._clear_checkpoint(con, resource, start_date)
+
+                # Record coverage
+                con.execute(
+                    """
+                    INSERT OR REPLACE INTO baliza_state.coverage
+                    VALUES (?, ?, ?, 'complete', ?, ?, NOW())
+                """,
+                    [resource, start_date, end_date, page, total_rows],
+                )
+
+                # Update run status to completed
+                con.execute(
+                    """
+                    UPDATE baliza_state.runs
+                    SET finished_at = NOW(), status = 'completed',
+                        windows_completed = 1, rows_extracted = ?
+                    WHERE run_id = ?
+                """,
+                    [total_rows, run_id],
+                )
+
+            except Exception as e:
+                # Update run status to failed
+                con.execute(
+                    """
+                    UPDATE baliza_state.runs
+                    SET finished_at = NOW(), status = 'failed',
+                        windows_failed = 1, error_message = ?
+                    WHERE run_id = ?
+                """,
+                    [str(e), run_id],
+                )
+                raise
 
         return {
             "rows_extracted": total_rows,

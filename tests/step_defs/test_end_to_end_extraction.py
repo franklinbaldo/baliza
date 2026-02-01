@@ -23,13 +23,6 @@ def test_pipeline_is_resumable_and_idempotent():
     """The data pipeline is resumable and idempotent."""
 
 
-@given("a clean local data store", target_fixture="db_path")
-def db_path(tmp_path: Path) -> Path:
-    """Create a clean DuckDB database."""
-    db = tmp_path / "test.duckdb"
-    if db.exists():
-        db.unlink()
-    return db
 
 
 @given(
