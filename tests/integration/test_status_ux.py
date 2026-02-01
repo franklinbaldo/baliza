@@ -1,7 +1,9 @@
-from typer.testing import CliRunner
-from baliza.cli_simple import app
-from datetime import datetime, timedelta
 import os
+from datetime import datetime, timedelta
+
+from typer.testing import CliRunner
+
+from baliza.cli_simple import app
 
 runner = CliRunner()
 
