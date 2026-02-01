@@ -6,7 +6,7 @@ Supports per-page checkpointing for resume on timeout.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -480,13 +480,17 @@ class PNCPExtractor:
         with duckdb.connect(str(self.db_path)) as con:
             self._ensure_schema(con)
 
+            # Use range query for performance (avoids full table scan with CAST)
+            target_date = extraction_date.date()
+            next_day = target_date + timedelta(days=1)
+
             # Count rows before deletion
             result = con.execute(
                 f"""
                 SELECT COUNT(*) FROM {self.dataset}.contratos
-                WHERE CAST(dataPublicacao AS DATE) = ?
+                WHERE dataPublicacao >= ? AND dataPublicacao < ?
             """,
-                [extraction_date.date()],
+                [target_date, next_day],
             ).fetchone()
             row_count = result[0] if result else 0
 
@@ -495,13 +499,13 @@ class PNCPExtractor:
                 con.execute(
                     f"""
                     DELETE FROM {self.dataset}.contratos
-                    WHERE CAST(dataPublicacao AS DATE) = ?
+                    WHERE dataPublicacao >= ? AND dataPublicacao < ?
                 """,
-                    [extraction_date.date()],
+                    [target_date, next_day],
                 )
 
                 console.print(
-                    f"[green]✓ Cleaned up {row_count} rows for {extraction_date.date()}"
+                    f"[green]✓ Cleaned up {row_count} rows for {target_date}"
                 )
 
             return row_count
@@ -533,8 +537,6 @@ class PNCPExtractor:
         Returns:
             List of dates ready for export
         """
-        from datetime import timedelta
-
         cutoff = datetime.now() - timedelta(days=stability_days)
 
         with duckdb.connect(str(self.db_path)) as con:
@@ -544,11 +546,12 @@ class PNCPExtractor:
             # 1. Have data in contratos
             # 2. Are older than stability window
             # 3. Haven't been uploaded to IA yet
+            # Note: We use range query for the first filter for performance
             result = con.execute(
                 f"""
                 SELECT DISTINCT CAST(dataPublicacao AS DATE) as dt
                 FROM {self.dataset}.contratos
-                WHERE CAST(dataPublicacao AS DATE) < ?
+                WHERE dataPublicacao < ?
                   AND CAST(dataPublicacao AS DATE) NOT IN (
                       SELECT extraction_date FROM baliza_state.uploaded_to_ia
                   )
