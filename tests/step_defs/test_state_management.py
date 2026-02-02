@@ -12,6 +12,9 @@ from baliza.cli_simple import app
 
 runner = CliRunner()
 
+# All state management scenarios are Tier 2 (Operator Experience)
+pytestmark = pytest.mark.tier2
+
 
 @scenario(
     "../features/state_management.feature",
@@ -29,7 +32,7 @@ def test_list_gaps():
     """List the gaps in the data extraction process."""
 
 
-@pytest.mark.skip(reason="Feature not implemented")
+@pytest.mark.skip(reason="Feature 'state history' not yet implemented")
 @scenario(
     "../features/state_management.feature",
     "Show the history of the data extraction process",
