@@ -4,6 +4,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+import duckdb
 import typer
 from rich.console import Console
 from rich.panel import Panel
@@ -11,8 +12,8 @@ from rich.table import Table
 
 from ..daily_exporter import DailyExporter
 from ..extractor import PNCPExtractor
+from ..tiers import FeatureTier, tier0, tier1, tier2
 from ..utils import validate_identifier, validate_resource_path
-from ..tiers import tier0, tier1, tier2, FeatureTier
 from .commands.state import state_app
 
 app = typer.Typer(help="Baliza - Simple PNCP extraction tool")
@@ -118,7 +119,6 @@ def export(
             f"[bold green]Exporting {dataset}.{table} to parquet...[/bold green]",
             spinner="dots",
         ):
-            import duckdb
             with duckdb.connect(str(db_path)) as con:
                 # Simple export - dump everything to parquet
                 parquet_file = output / f"{table}.parquet"

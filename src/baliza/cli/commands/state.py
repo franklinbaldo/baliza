@@ -9,9 +9,8 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from ...extractor import PNCPExtractor
-from ...utils import validate_resource_path
 from ...tiers import tier2
+from ...utils import validate_resource_path
 
 state_app = typer.Typer(help="Manage and inspect extraction state")
 console = Console()
