@@ -336,8 +336,26 @@ def status(
     """Show overall extraction status."""
     try:
         if not db_path.exists():
-            console.print("[yellow]No database found. Run extraction first.[/yellow]")
-            raise typer.Exit(0)
+            today = datetime.now().date()
+            start_date = today - timedelta(days=3)
+            cmd = f"baliza extract --start {start_date} --end {today}"
+            if str(db_path) != "baliza.duckdb":
+                cmd += f" --duckdb {db_path}"
+
+            msg = (
+                f"Welcome to Baliza! The database is not initialized yet.\n\n"
+                f"[white]To get started with recent data, run:[/white]\n"
+                f"[cyan]{cmd}[/cyan]"
+            )
+            console.print(
+                Panel(
+                    msg,
+                    title="[bold green]Welcome to Baliza[/bold green]",
+                    border_style="green",
+                    padding=(1, 2),
+                )
+            )
+            return
 
         with duckdb.connect(str(db_path), read_only=True) as con:
             # Total contracts
@@ -391,6 +409,8 @@ def status(
         if checkpoints > 0:
             console.print(f"\n[yellow]⚠ {checkpoints} extraction(s) incomplete - will resume on next run[/yellow]")
 
+    except typer.Exit:
+        raise
     except Exception as e:
         console.print(f"[red]✗ Failed to get status: {e}")
         raise typer.Exit(1) from None
