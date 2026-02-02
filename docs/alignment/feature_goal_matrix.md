@@ -1,27 +1,29 @@
-# Feature-Goal Alignment Matrix (Corrected)
+# Feature-Goal Alignment Matrix (Updated)
 
-This document tracks the alignment of the *actual* BDD features in the codebase with the project's primary goals. It replaces a previous, aspirational version that described features not yet implemented.
+This document tracks the alignment of the *actual* BDD features in the codebase with the project's primary goals.
 
 ## Summary
 
 | Metric | Count |
 |---|---|
-| Total Feature Files | 4 |
-| Total Scenarios | 4 |
-| Last Updated | 2024-07-24 |
+| Total Feature Files | 8 |
+| Total Scenarios | 21 |
+| Last Updated | 2026-02-01 |
 
 ## Feature-Goal Mapping
 
 | Feature File | Scenarios | Primary Goal | Status | Notes |
 |---|---|---|---|---|
-| `end_to_end_extraction.feature` | 1 | Reliable Data Extraction | ✅ Implemented | Covers the core pipeline's ability to be resumable and idempotent. Test is currently quarantined due to a timeout issue. |
+| `end_to_end_extraction.feature` | 1 | Reliable Data Extraction | ✅ Implemented | Covers the core pipeline's ability to be resumable and idempotent. |
 | `export.feature` | 1 | Accessibility for Analysis | ✅ Implemented | Covers the export of data to Parquet for consumption by other tools. |
-| `resilience.feature` | 1 | Reliable Data Extraction | ✅ Implemented | Ensures the pipeline handles API errors gracefully, which is crucial for reliability. |
-| `verification.feature` | 1 | Reliable Data Extraction | ✅ Implemented | Covers the `verify` command's ability to detect gaps, ensuring data completeness. |
+| `resilience.feature` | 2 | Reliable Data Extraction | ⚠️ Partial | Ensures the pipeline handles API errors gracefully. Step definitions are currently incomplete. |
+| `verification.feature` | 1 | Reliable Data Extraction | ✅ Implemented | Covers the `verify` command's ability to detect gaps. |
+| `buffer_management.feature` | 4 | Data Preservation | ✅ Implemented | Ensures buffer is cleaned after upload, maintaining manageable artifact size. |
+| `checkpoint.feature` | 4 | Reliable Data Extraction | ✅ Implemented | Ensures progress is saved per page for resumability. |
+| `daily_export.feature` | 5 | Accessibility for Analysis | ✅ Implemented | Covers the creation of daily self-contained Parquet packages. |
+| `state_management.feature` | 3 | Reliable Data Extraction | ⚠️ Partial | Allows inspection of extraction state and history. Some scenarios are currently mocked or skipped. |
 
 
 ## Gap Analysis
 
-This matrix reflects the *current* state of the BDD test suite. The previous version of this document described a much larger, aspirational suite including features like `state_management.feature`, `backfill.feature`, and `data_quality.feature`. These features do not currently exist and represent a significant gap between the project's documentation and its implementation.
-
-The immediate priority is to stabilize the existing tests and ensure the project's documentation, starting with the `README.md`, accurately reflects the current, simpler architecture.
+The BDD suite has been expanded to cover more aspects of the project goals, including buffer management, checkpointing, and daily exports. The immediate priority is to complete the implementation of resilience tests and stabilize state management features.

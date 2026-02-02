@@ -1,11 +1,9 @@
 """Step definitions for the end-to-end extraction feature."""
 
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
 
 import duckdb
 import httpx
-import pytest
 from pytest_bdd import given, scenario, then, when
 from typer.testing import CliRunner
 
@@ -14,7 +12,6 @@ from baliza.cli_simple import app
 runner = CliRunner()
 
 
-@pytest.mark.skip(reason="Quarantined due to persistent timeout issues with pytest-httpx")
 @scenario(
     "../features/end_to_end_extraction.feature",
     "The data pipeline is resumable and idempotent",
@@ -36,16 +33,14 @@ def db_path(tmp_path: Path) -> Path:
     "an external data source for a specific date range",
     target_fixture="external_data_source",
 )
-def external_data_source(httpx_mock):
+def external_data_source(monkeypatch):
     """Mock the external data source for the PNCP API."""
 
-    def mock_pncp_api(request: httpx.Request):
-        """Mock the PNCP API, responding based on date range query params."""
-        parsed_url = urlparse(str(request.url))
-        query_params = parse_qs(parsed_url.query)
-
-        start_date = query_params.get("dataInicial", [None])[0]
-        end_date = query_params.get("dataFinal", [None])[0]
+    def mock_get(self, url, **kwargs):
+        """Mock the httpx.Client.get method."""
+        params = kwargs.get("params", {})
+        start_date = params.get("dataInicial")
+        end_date = params.get("dataFinal")
 
         # Data for day 1
         record_1 = {
@@ -62,21 +57,19 @@ def external_data_source(httpx_mock):
 
         # First extraction: only day 1
         if start_date == "20240101" and end_date == "20240101":
-            return httpx.Response(
-                200, json={"data": [record_1], "totalPaginas": 1}
-            )
-
+            resp = httpx.Response(200, json={"data": [record_1], "totalPaginas": 1})
         # Second extraction: day 1 and day 2
-        if start_date == "20240101" and end_date == "20240102":
-            return httpx.Response(
-                200, json={"data": [record_1, record_2], "totalPaginas": 1}
-            )
-
+        elif start_date == "20240101" and end_date == "20240102":
+            resp = httpx.Response(200, json={"data": [record_1, record_2], "totalPaginas": 1})
         # Fallback for any other request
-        return httpx.Response(200, json={"data": [], "totalPaginas": 0})
+        else:
+            resp = httpx.Response(200, json={"data": [], "totalPaginas": 0})
 
-    # Add the callback and make it reusable for multiple `extract` calls
-    httpx_mock.add_callback(mock_pncp_api, is_reusable=True)
+        # Attach the request to the response as required by some httpx features
+        resp.request = httpx.Request("GET", url, params=params)
+        return resp
+
+    monkeypatch.setattr(httpx.Client, "get", mock_get)
 
 
 @when("I extract data for the first half of the date range")
