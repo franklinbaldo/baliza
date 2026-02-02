@@ -17,6 +17,9 @@ from .extractor import PNCPExtractor
 from .utils import validate_identifier, validate_resource_path
 
 app = typer.Typer(help="Baliza - Simple PNCP extraction tool")
+state_app = typer.Typer(help="Manage and inspect extraction state")
+app.add_typer(state_app, name="state")
+
 console = Console()
 
 
@@ -94,14 +97,14 @@ def extract(
         raise typer.Exit(1) from None
 
 
-@app.command("verify")
-def verify(
+@state_app.command("gaps")
+def state_gaps(
     resource: str = typer.Option("contratos", "--resource", "-r", help="Resource to verify"),
     start: str = typer.Option(..., "--start", help="Start date (YYYY-MM-DD)"),
     end: str = typer.Option(..., "--end", help="End date (YYYY-MM-DD)"),
     db_path: Path = typer.Option(Path("baliza.duckdb"), "--duckdb", "-d", help="DuckDB file"),
 ) -> None:
-    """Verify data coverage and detect gaps."""
+    """List all lacunas de cobertura no período."""
     try:
         # Validate resource
         validate_resource_path(resource)
@@ -173,8 +176,19 @@ def verify(
                 console.print(f"[green]✓ Complete coverage from {start} to {end}")
 
     except Exception as e:
-        console.print(f"[red]✗ Verify failed: {e}")
+        console.print(f"[red]✗ State gaps failed: {e}")
         raise typer.Exit(1) from None
+
+
+@app.command("verify")
+def verify(
+    resource: str = typer.Option("contratos", "--resource", "-r", help="Resource to verify"),
+    start: str = typer.Option(..., "--start", help="Start date (YYYY-MM-DD)"),
+    end: str = typer.Option(..., "--end", help="End date (YYYY-MM-DD)"),
+    db_path: Path = typer.Option(Path("baliza.duckdb"), "--duckdb", "-d", help="DuckDB file"),
+) -> None:
+    """Verify data coverage and detect gaps (alias for state gaps)."""
+    state_gaps(resource=resource, start=start, end=end, db_path=db_path)
 
 
 @app.command("export")
@@ -239,14 +253,7 @@ def export_daily(
         help="Dataset name",
     ),
 ) -> None:
-    """Export daily self-contained parquet package.
-
-    Creates a date-specific directory with:
-    - contratos.parquet (main contracts table)
-    - orgaos.parquet (deduplicated organizations)
-    - unidades.parquet (organizational units)
-    - _metadata.json (schema version and stats)
-    """
+    """Export daily self-contained parquet package."""
     try:
         target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
 
@@ -318,8 +325,11 @@ def buffer_stats(
         raise typer.Exit(1) from None
 
 
-@app.command("status")
-def status(
+@state_app.command("show")
+def state_show(
+    resource: str = typer.Option(
+        "contratos", "--resource", "-r", help="Resource to show status for"
+    ),
     db_path: Path = typer.Option(
         Path("baliza.duckdb"),
         "--duckdb",
@@ -333,11 +343,11 @@ def status(
         help="Dataset name",
     ),
 ) -> None:
-    """Show overall extraction status."""
+    """Exibe resumo do estado: janelas completas, incompletas, suspeitas."""
     try:
         if not db_path.exists():
             console.print("[yellow]No database found. Run extraction first.[/yellow]")
-            raise typer.Exit(0)
+            return
 
         with duckdb.connect(str(db_path), read_only=True) as con:
             # Total contracts
@@ -389,11 +399,111 @@ def status(
 
         # Warnings
         if checkpoints > 0:
-            console.print(f"\n[yellow]⚠ {checkpoints} extraction(s) incomplete - will resume on next run[/yellow]")
+            console.print(
+                f"\n[yellow]⚠ {checkpoints} extraction(s) incomplete - will resume on next run[/yellow]"
+            )
 
     except Exception as e:
-        console.print(f"[red]✗ Failed to get status: {e}")
+        console.print(f"[red]✗ Failed to get state: {e}")
         raise typer.Exit(1) from None
+
+
+@app.command("status")
+def status(
+    resource: str = typer.Option(
+        "contratos", "--resource", "-r", help="Resource to show status for"
+    ),
+    db_path: Path = typer.Option(
+        Path("baliza.duckdb"),
+        "--duckdb",
+        "-d",
+        help="DuckDB file",
+    ),
+    dataset: str = typer.Option(
+        "baliza_raw",
+        "--dataset",
+        "-s",
+        help="Dataset name",
+    ),
+) -> None:
+    """Show overall extraction status (alias for state show)."""
+    state_show(resource=resource, db_path=db_path, dataset=dataset)
+
+
+@state_app.command("history")
+def state_history(
+    resource: str = typer.Option(
+        "contratos", "--resource", "-r", help="Resource to show history for"
+    ),
+    db_path: Path = typer.Option(
+        Path("baliza.duckdb"),
+        "--duckdb",
+        "-d",
+        help="DuckDB file",
+    ),
+) -> None:
+    """Exibe histórico das últimas execuções (sucessos e falhas)."""
+    try:
+        if not db_path.exists():
+            console.print("[yellow]No database found.[/yellow]")
+            return
+
+        with duckdb.connect(str(db_path), read_only=True) as con:
+            try:
+                history = con.execute(
+                    """
+                    SELECT run_id, started_at, finished_at, status, rows_extracted
+                    FROM baliza_state.runs
+                    WHERE resource = ?
+                    ORDER BY started_at DESC
+                    LIMIT 20
+                """,
+                    [resource],
+                ).fetchall()
+            except Exception:
+                console.print("[yellow]No execution history found.[/yellow]")
+                return
+
+            if not history:
+                console.print("[yellow]No execution history found.[/yellow]")
+                return
+
+            table = Table(title="Extraction History")
+            table.add_column("Run ID", style="dim")
+            table.add_column("Started At")
+            table.add_column("Status")
+            table.add_column("Rows", justify="right")
+
+            for run_id, started, _finished, status, rows in history:
+                status_style = "green" if status == "completed" else "red"
+                table.add_row(
+                    run_id,
+                    started.strftime("%Y-%m-%d %H:%M:%S"),
+                    f"[{status_style}]{status}[/{status_style}]",
+                    f"{rows:,}" if rows is not None else "0",
+                )
+
+            console.print(table)
+
+    except Exception as e:
+        console.print(f"[red]✗ Failed to get history: {e}")
+        raise typer.Exit(1) from None
+
+
+@app.command("backfill")
+def backfill(
+    start_month: str = typer.Argument(..., help="Start month (YYYY-MM)"),
+    end_month: str = typer.Argument(..., help="End month (YYYY-MM)"),
+    db_path: Path = typer.Option(
+        Path("baliza.duckdb"),
+        "--duckdb",
+        "-d",
+        help="DuckDB file",
+    ),
+) -> None:
+    """Processa, mês a mês, o intervalo informado sem reaproveitar estado."""
+    console.print(f"[yellow]Backfill from {start_month} to {end_month} is not yet implemented.[/yellow]")
+    console.print("This command is planned for a future release.")
 
 
 if __name__ == "__main__":
