@@ -1,10 +1,9 @@
 
-import pytest
-from typer.testing import CliRunner
-from src.baliza.cli_simple import app
+
 import duckdb
-from pathlib import Path
-import os
+from typer.testing import CliRunner
+
+from src.baliza.cli_simple import app
 
 runner = CliRunner()
 

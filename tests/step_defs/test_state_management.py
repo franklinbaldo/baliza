@@ -183,9 +183,10 @@ def run_state_history(db_path_with_history: Path):
     """Mock running the 'state history' command."""
     # NOTE: The "state history" command from the README doesn't exist.
     # We'll simulate its output for now.
+    from io import StringIO
+
     from rich.console import Console
     from rich.table import Table
-    from io import StringIO
 
     console = Console(file=StringIO(), force_terminal=True)
     table = Table(title="Extraction History")
