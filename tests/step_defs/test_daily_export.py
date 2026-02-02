@@ -10,7 +10,7 @@ import pytest
 from pytest_bdd import given, parsers, scenario, then, when
 from typer.testing import CliRunner
 
-from baliza.cli_simple import app
+from baliza.cli import app
 from baliza.daily_exporter import DailyExporter
 
 runner = CliRunner()

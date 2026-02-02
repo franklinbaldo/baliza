@@ -35,7 +35,7 @@ dev = [
 ]
 
 [project.scripts]
-baliza = "baliza.cli_simple:app"
+baliza = "baliza.cli:app"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -50,6 +50,7 @@ markers = [
     "tier1: Tier 1 (Core Features) - Essential for production use",
     "tier2: Tier 2 (Operator Experience) - Quality-of-life improvements",
     "tier3: Tier 3 (Future Enhancements) - Aspirational features",
+    "state: State management and inspection commands",
     "smoke: Smoke tests for critical functionality",
     "resilience: Tests for error handling and recovery",
     "edge-case: Tests for edge cases and boundary conditions",

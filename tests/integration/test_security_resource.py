@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 from typer.testing import CliRunner
 
-from src.baliza.cli_simple import app
+from baliza.cli import app
 from src.baliza.extractor import PNCPExtractor
 
 runner = CliRunner()
@@ -24,7 +24,8 @@ def test_extractor_prevents_path_traversal():
 def test_cli_verify_prevents_command_injection():
     """Test that CLI verify command validates resource input."""
     result = runner.invoke(app, [
-        "verify",
+        "state",
+        "gaps",
         "--resource", "contratos; rm -rf /",
         "--start", "2024-01-01",
         "--end", "2024-01-02",

@@ -1,26 +1,27 @@
-"""Simplified CLI using direct extraction (no dlt)."""
-
 from __future__ import annotations
 
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
-import duckdb
 import typer
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from .daily_exporter import DailyExporter
-from .extractor import PNCPExtractor
-from .utils import validate_identifier, validate_resource_path
+from ..daily_exporter import DailyExporter
+from ..extractor import PNCPExtractor
+from ..utils import validate_identifier, validate_resource_path
+from ..tiers import tier0, tier1, tier2, FeatureTier
+from .commands.state import state_app
 
 app = typer.Typer(help="Baliza - Simple PNCP extraction tool")
+app.add_typer(state_app, name="state")
 console = Console()
 
 
 @app.command("extract")
+@tier0
 def extract(
     start: str = typer.Option(
         ...,
@@ -94,90 +95,8 @@ def extract(
         raise typer.Exit(1) from None
 
 
-@app.command("verify")
-def verify(
-    resource: str = typer.Option("contratos", "--resource", "-r", help="Resource to verify"),
-    start: str = typer.Option(..., "--start", help="Start date (YYYY-MM-DD)"),
-    end: str = typer.Option(..., "--end", help="End date (YYYY-MM-DD)"),
-    db_path: Path = typer.Option(Path("baliza.duckdb"), "--duckdb", "-d", help="DuckDB file"),
-) -> None:
-    """Verify data coverage and detect gaps."""
-    try:
-        # Validate resource
-        validate_resource_path(resource)
-
-        start_date = datetime.strptime(start, "%Y-%m-%d")
-        end_date = datetime.strptime(end, "%Y-%m-%d")
-
-        with duckdb.connect(str(db_path), read_only=True) as con:
-            # Get coverage records
-            coverage = con.execute(
-                """
-                SELECT window_start, window_end, status
-                FROM baliza_state.coverage
-                WHERE resource = ?
-                AND window_start >= ?
-                AND window_end <= ?
-                ORDER BY window_start
-            """,
-                [resource, start_date, end_date],
-            ).fetchall()
-
-            if not coverage:
-                extract_cmd = f"baliza extract --start {start} --end {end} --resource {resource}"
-                if str(db_path) != "baliza.duckdb":
-                    extract_cmd += f" --duckdb {db_path}"
-
-                msg = (
-                    f"No extraction data found for [bold]{resource}[/bold] "
-                    f"between [bold]{start}[/bold] and [bold]{end}[/bold].\n\n"
-                    f"[white]To fix this, run:[/white]\n"
-                    f"[cyan]{extract_cmd}[/cyan]"
-                )
-                console.print(
-                    Panel(
-                        msg,
-                        title="[yellow]⚠ No Coverage Found[/yellow]",
-                        border_style="yellow",
-                        padding=(1, 2),
-                    )
-                )
-                return
-
-            # Find gaps (with 1-day tolerance for adjacent windows)
-            gaps = []
-            current = start_date
-            one_day = timedelta(days=1)
-
-            for window_start, window_end, _status in coverage:
-                # Check if there's a significant gap (more than 1 day)
-                gap_duration = (window_start - current).total_seconds()
-                if gap_duration > one_day.total_seconds():
-                    gaps.append((current, window_start))
-                current = max(current, window_end)
-
-            # Check final gap
-            gap_duration = (end_date - current).total_seconds()
-            if gap_duration > one_day.total_seconds():
-                gaps.append((current, end_date))
-
-            # Display results
-            if gaps:
-                console.print(f"[yellow]⚠ Found {len(gaps)} gap(s):")
-                for gap_start, gap_end in gaps:
-                    # Show the first missing day to last missing day
-                    first_missing = (gap_start + one_day).date()
-                    last_missing = (gap_end - one_day).date()
-                    console.print(f"  • {first_missing} to {last_missing}")
-            else:
-                console.print(f"[green]✓ Complete coverage from {start} to {end}")
-
-    except Exception as e:
-        console.print(f"[red]✗ Verify failed: {e}")
-        raise typer.Exit(1) from None
-
-
 @app.command("export")
+@tier1
 def export(
     table: str = typer.Option(..., "--table", help="Table name to export"),
     output: Path = typer.Option(..., "--output", "-o", help="Output directory"),
@@ -199,6 +118,7 @@ def export(
             f"[bold green]Exporting {dataset}.{table} to parquet...[/bold green]",
             spinner="dots",
         ):
+            import duckdb
             with duckdb.connect(str(db_path)) as con:
                 # Simple export - dump everything to parquet
                 parquet_file = output / f"{table}.parquet"
@@ -214,6 +134,7 @@ def export(
 
 
 @app.command("export-daily")
+@tier1
 def export_daily(
     date_str: str = typer.Option(
         ...,
@@ -277,6 +198,7 @@ def export_daily(
 
 
 @app.command("buffer-stats")
+@tier2
 def buffer_stats(
     db_path: Path = typer.Option(
         Path("baliza.duckdb"),
@@ -318,82 +240,42 @@ def buffer_stats(
         raise typer.Exit(1) from None
 
 
-@app.command("status")
-def status(
-    db_path: Path = typer.Option(
-        Path("baliza.duckdb"),
-        "--duckdb",
-        "-d",
-        help="DuckDB file",
-    ),
-    dataset: str = typer.Option(
-        "baliza_raw",
-        "--dataset",
-        "-s",
-        help="Dataset name",
-    ),
-) -> None:
-    """Show overall extraction status."""
-    try:
-        if not db_path.exists():
-            console.print("[yellow]No database found. Run extraction first.[/yellow]")
-            raise typer.Exit(0)
+@app.command("tiers")
+@tier2
+def show_tiers() -> None:
+    """Show available commands organized by their Feature Tier."""
+    table = Table(title="Baliza Feature Tiers", box=None)
+    table.add_column("Tier", justify="center")
+    table.add_column("Command", style="cyan")
+    table.add_column("Description")
 
-        with duckdb.connect(str(db_path), read_only=True) as con:
-            # Total contracts
-            total = con.execute(f"SELECT COUNT(*) FROM {dataset}.contratos").fetchone()[0]
+    # Get all commands from app and state_app
+    all_commands = []
 
-            # Date range
-            date_range = con.execute(f"""
-                SELECT MIN(CAST(dataPublicacao AS DATE)), MAX(CAST(dataPublicacao AS DATE))
-                FROM {dataset}.contratos
-            """).fetchone()
+    # Main app commands
+    for command in app.registered_commands:
+        tier = getattr(command.callback, "_tier", FeatureTier.TIER_3)
+        all_commands.append((tier, command.name or command.callback.__name__, command.help or ""))
 
-            # Days with data
-            days_count = con.execute(f"""
-                SELECT COUNT(DISTINCT CAST(dataPublicacao AS DATE))
-                FROM {dataset}.contratos
-            """).fetchone()[0]
+    # State app commands
+    for command in state_app.registered_commands:
+        tier = getattr(command.callback, "_tier", FeatureTier.TIER_3)
+        all_commands.append((tier, f"state {command.name or command.callback.__name__}", command.help or ""))
 
-            # Uploaded to IA
-            try:
-                uploaded = con.execute(
-                    "SELECT COUNT(*) FROM baliza_state.uploaded_to_ia"
-                ).fetchone()[0]
-            except Exception:
-                uploaded = 0
+    # Sort by tier value
+    all_commands.sort(key=lambda x: x[0].name)
 
-            # Pending checkpoints
-            try:
-                checkpoints = con.execute(
-                    "SELECT COUNT(*) FROM baliza_state.extraction_checkpoint"
-                ).fetchone()[0]
-            except Exception:
-                checkpoints = 0
+    current_tier = None
+    for tier, name, help_text in all_commands:
+        if tier != current_tier:
+            if current_tier is not None:
+                table.add_row("", "", "")
+            table.add_row(f"{tier.icon} [bold]{tier.name}[/bold]", "", f"[dim]{tier.description}[/dim]")
+            current_tier = tier
 
-        # Display
-        console.print(Panel("[bold]Baliza PNCP Status[/bold]", style="blue"))
-        console.print()
+        table.add_row("", name, help_text)
 
-        table = Table(show_header=False, box=None)
-        table.add_column("Metric", style="dim")
-        table.add_column("Value", style="cyan")
-
-        table.add_row("Total contracts", f"{total:,}")
-        table.add_row("Date range", f"{date_range[0]} to {date_range[1]}" if date_range[0] else "-")
-        table.add_row("Days with data", str(days_count))
-        table.add_row("Days on Internet Archive", str(uploaded))
-        table.add_row("Pending extractions", str(checkpoints))
-
-        console.print(table)
-
-        # Warnings
-        if checkpoints > 0:
-            console.print(f"\n[yellow]⚠ {checkpoints} extraction(s) incomplete - will resume on next run[/yellow]")
-
-    except Exception as e:
-        console.print(f"[red]✗ Failed to get status: {e}")
-        raise typer.Exit(1) from None
+    console.print(table)
 
 
 if __name__ == "__main__":
