@@ -113,7 +113,14 @@ def extract_first_page(mock_api):
 
                         # Save checkpoint
                         extractor._save_checkpoint(
-                            con, "contratos", start_date, 1, data.get("totalPaginas", 3), len(rows)
+                            con,
+                            "contratos",
+                            start_date,
+                            {
+                                "current_page": 1,
+                                "total_pages": data.get("totalPaginas", 3),
+                                "rows_extracted": len(rows),
+                            },
                         )
 
                     return result
@@ -176,9 +183,11 @@ def db_with_checkpoint(tmp_path: Path, page: int, total: int) -> dict:
                 con,
                 "contratos",
                 datetime(2023, 1, 15),
-                page,
-                total,
-                1000,  # rows_extracted
+                {
+                    "current_page": page,
+                    "total_pages": total,
+                    "rows_extracted": 1000,
+                },
             )
 
     return {"db_path": db_file, "dataset": "test_dataset", "checkpoint_page": page, "total_pages": total}
@@ -297,9 +306,11 @@ def in_progress_extraction(tmp_path: Path) -> dict:
                 con,
                 "contratos",
                 datetime(2023, 1, 15),
-                3,  # current page
-                5,  # total pages
-                300,  # rows extracted
+                {
+                    "current_page": 3,
+                    "total_pages": 5,
+                    "rows_extracted": 300,
+                },
             )
 
     return {"db_path": db_file, "dataset": "test_dataset"}
@@ -435,9 +446,11 @@ def extraction_timeout(pages_extracted):
                 con,
                 "contratos",
                 datetime(2023, 1, 15),
-                pages,  # current page
-                10,  # total pages (more than extracted)
-                pages * 10,  # rows extracted
+                {
+                    "current_page": pages,
+                    "total_pages": 10,
+                    "rows_extracted": pages * 10,
+                },
             )
 
     return pages_extracted
