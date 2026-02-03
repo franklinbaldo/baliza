@@ -2,19 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
 ## [Unreleased]
 
 ### Added
-- **Dashboard:** Enhanced `docs/dashboard/index.html` with React + TailwindCSS, providing a modern interface for monitoring extraction status, backfill progress, and coverage heatmap.
-- **Security:** Implemented SSRF protection in `PNCPExtractor` by validating `base_url` against private IP ranges (`baliza.utils.validate_url`).
-- **Tests:** Added integration tests for SSRF protection (`tests/integration/test_security_ssrf.py`).
+- ROADMAP.md with strategic development plan
+- CROSS_POLLINATION.md analysis (shared patterns with causaganha)
 
 ### Changed
-- **Documentation:** Updated `README.md` to accurately reflect available CLI commands (`extract`, `verify`, `export-daily`, `buffer-stats`, `status`).
-- **Tech Debt:** Fixed multiple linting errors (`ruff` rules I001, F841, F541, PLR0913, PLC0415) to improve code quality and maintainability.
-- **Extractor:** Refactored `src/baliza/extractor.py` to fix import placement and suppress specific lint warnings where appropriate.
+- (To be filled by future releases)
 
 ### Fixed
-- Fixed unused variables in test files.
-- Fixed f-string usage in `test_daily_export.py`.
-- Fixed potential SQL injection risks by ensuring strict validation of identifiers and URLs.
+- Code linting violations (ruff compliance)
+
+## [0.1.0] - 2026-02-03
+
+Initial tracked release.

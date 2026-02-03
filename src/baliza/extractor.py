@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 import duckdb
 import httpx
@@ -20,6 +20,14 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 from .utils import validate_identifier, validate_resource_path, validate_url
 
 console = Console()
+
+class CheckpointData(TypedDict):
+    """Data structure for checkpoint state."""
+
+    current_page: int
+    total_pages: int
+    rows_extracted: int
+
 
 # Arrow schema for PNCP API response to handle nested structures
 PNCP_ARROW_SCHEMA = pa.schema([
@@ -183,15 +191,13 @@ class PNCPExtractor:
             }
         return None
 
-    def _save_checkpoint(  # noqa: PLR0913
+    def _save_checkpoint(
         self,
         con: duckdb.DuckDBPyConnection,
         resource: str,
         extraction_date: datetime,
-        current_page: int,
-        total_pages: int,
-        rows_extracted: int,
-    ) -> None:  # noqa: PLR0913
+        stats: CheckpointData,
+    ) -> None:
         """Save extraction checkpoint."""
         con.execute(
             """
@@ -205,9 +211,9 @@ class PNCPExtractor:
             [
                 resource,
                 extraction_date.date(),
-                current_page,
-                total_pages,
-                rows_extracted,
+                stats["current_page"],
+                stats["total_pages"],
+                stats["rows_extracted"],
                 resource,
                 extraction_date.date(),
             ],
@@ -429,9 +435,12 @@ class PNCPExtractor:
                         progress.update(task, total=total_pages)
 
                     # Checkpoint after each page
-                    self._save_checkpoint(
-                        con, resource, start_date, page, total_pages, total_rows
-                    )
+                    stats: CheckpointData = {
+                        "current_page": page,
+                        "total_pages": total_pages,  # type: ignore[required]
+                        "rows_extracted": total_rows,
+                    }
+                    self._save_checkpoint(con, resource, start_date, stats)
 
                     progress.update(
                         task,
