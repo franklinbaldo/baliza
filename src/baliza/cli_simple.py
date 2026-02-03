@@ -77,7 +77,18 @@ def extract(
             with duckdb.connect(str(db_path)) as con:
                 con.execute(
                     "INSERT INTO baliza_state.runs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    [run_id, resource, "default", start_time_iso, datetime.now(), "completed", 1, 0, result['rows_extracted'], None]
+                    [
+                        run_id,
+                        resource,
+                        "default",
+                        start_time_iso,
+                        datetime.now(),
+                        "completed",
+                        1,
+                        0,
+                        result["rows_extracted"],
+                        None,
+                    ],
                 )
 
         duration = time.time() - start_time
@@ -108,9 +119,9 @@ def extract(
             with duckdb.connect(str(db_path)) as con:
                 con.execute(
                     "INSERT INTO baliza_state.runs (run_id, resource, started_at, finished_at, status, error_message) VALUES (?, ?, ?, ?, ?, ?)",
-                    [run_id, resource, start_time_iso, datetime.now(), "failed", str(e)]
+                    [run_id, resource, start_time_iso, datetime.now(), "failed", str(e)],
                 )
-        except:
+        except Exception:
             pass
         raise typer.Exit(1) from None
 
@@ -151,7 +162,7 @@ def backfill(
         console.print(f"[green]✓ Backfill from {start_month} to {end_month} complete")
     except Exception as e:
         console.print(f"[red]✗ Backfill failed: {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
 @app.command("verify")
@@ -447,7 +458,9 @@ def status_cmd(
 
         # Warnings
         if checkpoints > 0:
-            console.print(f"\n[yellow]⚠ {checkpoints} extraction(s) incomplete - will resume on next run[/yellow]")
+            console.print(
+                f"\n[yellow]⚠ {checkpoints} extraction(s) incomplete - will resume on next run[/yellow]"
+            )
 
     except Exception as e:
         console.print(f"[red]✗ Failed to get status: {e}")
@@ -463,12 +476,15 @@ def state_show(
     """Exibe resumo do estado: janelas completas, incompletas, suspeitas."""
     try:
         with duckdb.connect(str(db_path), read_only=True) as con:
-            stats = con.execute("""
+            stats = con.execute(
+                """
                 SELECT status, COUNT(*), SUM(rows_extracted)
                 FROM baliza_state.coverage
                 WHERE resource = ?
                 GROUP BY status
-            """, [resource]).fetchall()
+            """,
+                [resource],
+            ).fetchall()
 
             table = Table(title=f"State Summary: {resource}")
             table.add_column("Status")
@@ -505,13 +521,16 @@ def state_history(
     """Exibe histórico das últimas execuções (sucessos e falhas)."""
     try:
         with duckdb.connect(str(db_path), read_only=True) as con:
-            runs = con.execute("""
+            runs = con.execute(
+                """
                 SELECT run_id, started_at, finished_at, status, rows_extracted
                 FROM baliza_state.runs
                 WHERE resource = ?
                 ORDER BY started_at DESC
                 LIMIT 10
-            """, [resource]).fetchall()
+            """,
+                [resource],
+            ).fetchall()
 
             table = Table(title=f"Extraction History: {resource}")
             table.add_column("Run ID", style="dim")
@@ -519,9 +538,14 @@ def state_history(
             table.add_column("Status")
             table.add_column("Rows", justify="right")
 
-            for rid, started, finished, status, rows in runs:
+            for rid, started, _finished, status, rows in runs:
                 status_style = "green" if status == "completed" else "red"
-                table.add_row(rid[:8], str(started), f"[{status_style}]{status}[/{status_style}]", f"{rows:,}" if rows else "0")
+                table.add_row(
+                    rid[:8],
+                    str(started),
+                    f"[{status_style}]{status}[/{status_style}]",
+                    f"{rows:,}" if rows else "0",
+                )
 
             console.print(table)
     except Exception as e:

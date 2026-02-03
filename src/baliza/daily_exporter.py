@@ -26,44 +26,50 @@ console = Console()
 SCHEMA_VERSION = "1.0.0"
 
 # PyArrow schemas matching docs/PARQUET_SCHEMA.md
-CONTRATOS_SCHEMA = pa.schema([
-    pa.field("numero_controle_pncp", pa.string(), nullable=False),
-    pa.field("orgao_cnpj", pa.string(), nullable=False),
-    pa.field("unidade_codigo", pa.string(), nullable=True),
-    pa.field("ano_compra", pa.int32(), nullable=True),
-    pa.field("sequencial_compra", pa.int32(), nullable=True),
-    pa.field("numero_processo", pa.string(), nullable=True),
-    pa.field("modalidade_id", pa.int32(), nullable=True),
-    pa.field("modalidade_nome", pa.string(), nullable=True),
-    pa.field("valor_inicial", pa.float64(), nullable=True),
-    pa.field("objeto_contrato", pa.string(), nullable=True),
-    pa.field("informacao_complementar", pa.string(), nullable=True),
-    pa.field("link_sistema_origem", pa.string(), nullable=True),
-    pa.field("data_publicacao", pa.date32(), nullable=True),
-    pa.field("data_vigencia_inicio", pa.date32(), nullable=True),
-    pa.field("data_vigencia_fim", pa.date32(), nullable=True),
-    pa.field("data_inclusao", pa.timestamp("us"), nullable=True),
-    pa.field("data_atualizacao", pa.timestamp("us"), nullable=True),
-    pa.field("usuario_nome", pa.string(), nullable=True),
-    pa.field("data_particao", pa.date32(), nullable=False),
-])
+CONTRATOS_SCHEMA = pa.schema(
+    [
+        pa.field("numero_controle_pncp", pa.string(), nullable=False),
+        pa.field("orgao_cnpj", pa.string(), nullable=False),
+        pa.field("unidade_codigo", pa.string(), nullable=True),
+        pa.field("ano_compra", pa.int32(), nullable=True),
+        pa.field("sequencial_compra", pa.int32(), nullable=True),
+        pa.field("numero_processo", pa.string(), nullable=True),
+        pa.field("modalidade_id", pa.int32(), nullable=True),
+        pa.field("modalidade_nome", pa.string(), nullable=True),
+        pa.field("valor_inicial", pa.float64(), nullable=True),
+        pa.field("objeto_contrato", pa.string(), nullable=True),
+        pa.field("informacao_complementar", pa.string(), nullable=True),
+        pa.field("link_sistema_origem", pa.string(), nullable=True),
+        pa.field("data_publicacao", pa.date32(), nullable=True),
+        pa.field("data_vigencia_inicio", pa.date32(), nullable=True),
+        pa.field("data_vigencia_fim", pa.date32(), nullable=True),
+        pa.field("data_inclusao", pa.timestamp("us"), nullable=True),
+        pa.field("data_atualizacao", pa.timestamp("us"), nullable=True),
+        pa.field("usuario_nome", pa.string(), nullable=True),
+        pa.field("data_particao", pa.date32(), nullable=False),
+    ]
+)
 
-ORGAOS_SCHEMA = pa.schema([
-    pa.field("cnpj", pa.string(), nullable=False),
-    pa.field("razao_social", pa.string(), nullable=True),
-    pa.field("poder_id", pa.string(), nullable=True),
-    pa.field("esfera", pa.string(), nullable=True),
-    pa.field("uf", pa.string(), nullable=True),
-    pa.field("contratos_no_dia", pa.int32(), nullable=True),
-    pa.field("valor_total_no_dia", pa.float64(), nullable=True),
-])
+ORGAOS_SCHEMA = pa.schema(
+    [
+        pa.field("cnpj", pa.string(), nullable=False),
+        pa.field("razao_social", pa.string(), nullable=True),
+        pa.field("poder_id", pa.string(), nullable=True),
+        pa.field("esfera", pa.string(), nullable=True),
+        pa.field("uf", pa.string(), nullable=True),
+        pa.field("contratos_no_dia", pa.int32(), nullable=True),
+        pa.field("valor_total_no_dia", pa.float64(), nullable=True),
+    ]
+)
 
-UNIDADES_SCHEMA = pa.schema([
-    pa.field("codigo", pa.string(), nullable=False),
-    pa.field("orgao_cnpj", pa.string(), nullable=False),
-    pa.field("nome", pa.string(), nullable=True),
-    pa.field("contratos_no_dia", pa.int32(), nullable=True),
-])
+UNIDADES_SCHEMA = pa.schema(
+    [
+        pa.field("codigo", pa.string(), nullable=False),
+        pa.field("orgao_cnpj", pa.string(), nullable=False),
+        pa.field("nome", pa.string(), nullable=True),
+        pa.field("contratos_no_dia", pa.int32(), nullable=True),
+    ]
+)
 
 
 class DailyExporter:

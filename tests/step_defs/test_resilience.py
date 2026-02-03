@@ -1,12 +1,14 @@
 """BDD step definitions for resilience.feature."""
 
+from pathlib import Path
+
+import duckdb
 import httpx
 import pytest
 from pytest_bdd import given, scenario, then, when
-from pathlib import Path
 from typer.testing import CliRunner
+
 from baliza.cli_simple import app
-import duckdb
 
 runner = CliRunner()
 
@@ -52,10 +54,13 @@ def pncp_api_fail_transiently(monkeypatch, api_mock_state):
         # Success path
         data = {
             "data": [
-                {"numeroControlePNCP": f"RES-{params.get('dataInicial')}-{i}", "dataPublicacao": "2024-01-01"}
+                {
+                    "numeroControlePNCP": f"RES-{params.get('dataInicial')}-{i}",
+                    "dataPublicacao": "2024-01-01",
+                }
                 for i in range(5)
             ],
-            "totalPaginas": 1
+            "totalPaginas": 1,
         }
         return httpx.Response(200, json=data, request=httpx.Request("GET", url))
 

@@ -3,11 +3,13 @@
 Categorizes commands into 4 tiers based on criticality.
 """
 
+from collections.abc import Callable
 from enum import Enum
 from functools import wraps
-from typing import Any, Callable, TypeVar
+from typing import Any, TypeVar
 
 F = TypeVar("F", bound=Callable[..., Any])
+
 
 class FeatureTier(Enum):
     TIER0 = (0, "Critical Path", "🔴", "Minimum viable functionality")
@@ -21,15 +23,21 @@ class FeatureTier(Enum):
         self.badge = badge
         self.description = description
 
+
 def tier_decorator(tier: FeatureTier) -> Callable[[F], F]:
     """Decorator to mark a command with its feature tier."""
+
     def decorator(func: F) -> F:
         func._feature_tier = tier
+
         @wraps(func)
         def wrapper(*args, **kwargs):
             return func(*args, **kwargs)
-        return wrapper # type: ignore
+
+        return wrapper  # type: ignore
+
     return decorator
+
 
 tier0 = tier_decorator(FeatureTier.TIER0)
 tier1 = tier_decorator(FeatureTier.TIER1)
