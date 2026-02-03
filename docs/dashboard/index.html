@@ -55,12 +55,21 @@
     </div>
 
     <div class="card" style="margin-bottom: 2rem;">
-      <div class="card-label">Progresso Backfill</div>
+      <div class="card-label" id="progressLabel">Progresso Backfill</div>
       <div style="display: flex; align-items: center; gap: 1rem; margin-top: 0.5rem;">
-        <div class="progress-bar" style="flex: 1;">
+        <div
+          class="progress-bar"
+          id="progressContainer"
+          style="flex: 1;"
+          role="progressbar"
+          aria-labelledby="progressLabel"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="0"
+        >
           <div class="progress-fill" id="progressBar" style="width: 0%;"></div>
         </div>
-        <span id="progressPct">0%</span>
+        <span id="progressPct" aria-hidden="true">0%</span>
       </div>
     </div>
 
@@ -99,6 +108,12 @@
         const pct = total > 0 ? Math.round((d.backfill?.completed || 0) / total * 100) : 0;
         document.getElementById('progressBar').style.width = pct + '%';
         document.getElementById('progressPct').textContent = pct + '%';
+
+        const progressContainer = document.getElementById('progressContainer');
+        if (progressContainer) {
+          progressContainer.setAttribute('aria-valuenow', pct);
+          progressContainer.setAttribute('aria-valuetext', pct + '%');
+        }
 
         if (d.recent_dates?.length) {
           document.getElementById('recentTable').innerHTML = d.recent_dates.slice(0, 7).map(r => `
