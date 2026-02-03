@@ -11,4 +11,19 @@ This document records the decisions and actions taken by the Baliza BDD Feature 
     -   `src/baliza/cli_simple.py`: Shows the current CLI structure.
 -   **Concrete Proposal:** The `README.md` needs a complete rewrite to accurately reflect the current architecture. This is a high-priority task that falls under the PM agent's purview. The BDD Feature Builder has established a correct baseline in the `docs/alignment/` directory, which can be used as a source of truth for the rewrite.
 -   **Owner:** Baliza BDD Feature Builder
--   **Status:** Action required by PM agent.
+- **Status:** ✅ COMPLETED. README.md was updated to reflect the httpx architecture.
+
+## 2026-02-11: PM Discovery - Documentation Drift and Fake Tests
+
+- **Concern:** A significant drift has been discovered between the project's documentation (Masterplan, Feature Hierarchy, Roadmap) and the actual implementation in `cli_simple.py`. Several commands (`state show`, `state gaps`, `state history`, `backfill`, `tiers`) are documented as "Done" but are missing from the code. Furthermore, `test_state_management.py` uses mocks to simulate these commands, hiding the implementation gap.
+- **Evidence:**
+    - `src/baliza/cli_simple.py`: Missing documented commands.
+    - `tests/step_defs/test_state_management.py`: Uses `runner.invoke(app, ["status", ...])` instead of `state show`, and mocks `state history` entirely.
+    - `docs/alignment/feature-hierarchy.md`: Claims `baliza tiers` and other commands are implemented.
+- **Actions Taken:**
+    - Updated `feature_goal_matrix.md`, `feature-hierarchy.md`, and `MASTERPLAN.md` to accurately reflect the "Planned" status of missing features.
+    - Translated `ROADMAP.md` to English and updated it to reflect current priorities.
+    - Created feature briefs (002, 003, 004) to guide the implementation of the missing functionality.
+    - Marked faked BDD tests as `xfail`.
+- **Owner:** Jules (PM Agent)
+- **Status:** Alignment synchronized. Implementation briefs handed over.

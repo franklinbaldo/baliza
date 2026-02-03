@@ -35,10 +35,10 @@ To be the most reliable, transparent, and accessible tool for extracting and pre
 
 ### Epic 1: Resumable Extraction Pipeline
 
-*   **Feature:** Implement `StateManager` for persistent run tracking.
-*   **Feature:** Implement `GapDetector` to identify missing or incomplete data windows.
-*   **Feature:** Integrate StateManager and GapDetector into the `extract` command.
-*   **Feature:** Add `state` CLI commands (`show`, `gaps`, `history`) for observability.
+*   **Feature:** Implement `StateManager` for persistent run tracking. ✅ (Basic implementation in `PNCPExtractor`)
+*   **Feature:** Implement `GapDetector` to identify missing or incomplete data windows. ✅ (Implemented in `verify` command)
+*   **Feature:** Integrate StateManager and GapDetector into the `extract` command. ✅ (Basic integration)
+*   **Feature:** Add `state` CLI commands (`show`, `gaps`, `history`) for observability. ⏳ (Planned, currently mocked in tests)
 
 ### Epic 2: Automated Data Publishing *(MOVED TO baliza-site REPOSITORY)*
 

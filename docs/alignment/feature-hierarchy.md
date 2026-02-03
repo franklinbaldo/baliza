@@ -2,9 +2,9 @@
 
 **Purpose:** This document establishes a clear, prioritized hierarchy for all Baliza features, enabling rational decision-making about what to build, maintain, and defer.
 
-**Last Updated:** 2026-01-19
+**Last Updated:** 2026-02-11
 
-**Implementation Status:** ✅ Tier system is now implemented in code. Run `baliza tiers` to view the classification of all commands.
+**Implementation Status:** ⚠️ Tier system is documented and partially mapped in decorators, but the `baliza tiers` command and full enforcement are still **IN PROGRESS**.
 
 ## Overview
 
@@ -49,10 +49,10 @@ Tier 3: Future Enhancements → Aspirational features for later
 |---------|---------|--------|-----|----------|
 | Incremental extraction | `baliza extract --lookback-days` | ✅ Done | ~100 | P1 |
 | Gap detection | `baliza verify` | ✅ Done | ~300 | P1 |
-| Historical backfill | `baliza backfill YYYY-MM YYYY-MM` | ✅ Done | ~100 | P1 |
-| Coverage tracking | `baliza state show` | ✅ Done | ~150 | P1 |
-| Gap listing | `baliza state gaps` | ✅ Done | ~100 | P1 |
-| Run history | `baliza state history` | ✅ Done | ~100 | P1 |
+| Historical backfill | `baliza backfill YYYY-MM` | 📝 Planned | - | P1 |
+| Coverage tracking | `baliza state show` | 📝 Planned | - | P1 |
+| Gap listing | `baliza state gaps` | 📝 Planned | - | P1 |
+| Run history | `baliza state history` | 📝 Planned | - | P1 |
 | Suspect detection | (embedded in verify) | ✅ Done | ~100 | P1 |
 | Date filtering | `--start/--end` flags | ✅ Done | ~50 | P1 |
 
@@ -195,10 +195,10 @@ def should_implement(feature):
 | Tier | Current LOC | Target LOC | Status | Action |
 |------|------------|-----------|--------|--------|
 | Tier 0 | ~650 | ~650 | ✅ Good | Maintain |
-| Tier 1 | ~1,000 | ~1,000 | ✅ Good | Complete Epic 2 |
-| Tier 2 | ~590 | ~300 | 🔴 Over-invested | Simplify |
+| Tier 1 | ~500 | ~1,000 | ⚠️ Partial | Implement state/backfill |
+| Tier 2 | ~500 | ~300 | 🔴 Over-invested | Simplify |
 | Tier 3 | 0 | 0 | ✅ Good | Keep deferred |
-| **CLI.py** | 1,365 | ~400 | 🔴 Bloated | **REFACTOR** |
+| **CLI.py** | ~600 | ~400 | 🟡 Moderate | Refactor into groups |
 
 ### Recommendations
 
