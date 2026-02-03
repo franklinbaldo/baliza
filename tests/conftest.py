@@ -8,7 +8,7 @@ from typing import Any
 from urllib.parse import urlencode
 
 import pytest
-
+from pytest_bdd import given
 
 # =============================================================================
 # Test Tier Configuration
@@ -163,3 +163,17 @@ class HttpxMock:
 # @pytest.fixture()
 # def httpx_mock() -> HttpxMock:
 #     ...
+
+
+# =============================================================================
+# Shared BDD Fixtures
+# =============================================================================
+
+
+@given("a clean local data store", target_fixture="db_path")
+def db_path(tmp_path: Path) -> Path:
+    """Create a clean DuckDB database for BDD tests."""
+    db = tmp_path / "test.duckdb"
+    if db.exists():
+        db.unlink()
+    return db
