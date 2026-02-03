@@ -21,7 +21,7 @@ console = Console()
 
 
 @app.command("extract")
-def extract(
+def extract(  # noqa: PLR0913
     start: str = typer.Option(
         ...,
         "--start",
