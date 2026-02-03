@@ -6,7 +6,7 @@ Supports per-page checkpointing for resume on timeout.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -17,7 +17,7 @@ from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-from .utils import validate_identifier, validate_resource_path
+from .utils import validate_identifier, validate_resource_path, validate_url
 
 console = Console()
 
@@ -76,7 +76,8 @@ class PNCPExtractor:
         self.db_path = db_path
         # Validate dataset name to prevent SQL injection
         self.dataset = validate_identifier(dataset)
-        self.base_url = base_url
+        # Validate base_url to prevent SSRF
+        self.base_url = validate_url(base_url)
         self.client = httpx.Client(timeout=30.0)
 
     def _ensure_schema(self, con: duckdb.DuckDBPyConnection) -> None:
@@ -182,7 +183,7 @@ class PNCPExtractor:
             }
         return None
 
-    def _save_checkpoint(
+    def _save_checkpoint(  # noqa: PLR0913
         self,
         con: duckdb.DuckDBPyConnection,
         resource: str,
@@ -190,7 +191,7 @@ class PNCPExtractor:
         current_page: int,
         total_pages: int,
         rows_extracted: int,
-    ) -> None:
+    ) -> None:  # noqa: PLR0913
         """Save extraction checkpoint."""
         con.execute(
             """
@@ -533,8 +534,6 @@ class PNCPExtractor:
         Returns:
             List of dates ready for export
         """
-        from datetime import timedelta
-
         cutoff = datetime.now() - timedelta(days=stability_days)
 
         with duckdb.connect(str(self.db_path)) as con:
