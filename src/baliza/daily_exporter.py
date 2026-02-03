@@ -10,7 +10,7 @@ Exports self-contained daily packages with relational structure:
 from __future__ import annotations
 
 import json
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -99,7 +99,7 @@ class DailyExporter:
         stats = {
             "schema_version": SCHEMA_VERSION,
             "data_particao": date_str,
-            "extracted_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "extracted_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             "source": "PNCP API v1",
             "tables": {},
             "baliza_version": "0.1.0",
