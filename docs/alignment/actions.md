@@ -25,6 +25,7 @@ This document records the decisions and actions taken by the Baliza BDD Feature 
     -   **feature-hierarchy.md:** Rewritten to accurately reflect the 4-tier system and implementation status.
     -   **feature_goal_matrix.md:** Updated to show actual progress (8 features, 21 scenarios).
     -   **quarantine.md:** Renewed and updated with current state.
-    -   **daily_exporter.py:** Fixed `utcnow()` deprecation warning.
--   **Status:** Successfully stabilized core tests and aligned documentation with reality.
+    -   **daily_exporter.py:** Fixed `utcnow()` deprecation warning and Ruff lint issues.
+    -   **extractor.py:** Fixed Ruff lint issues (PLR0913, PLC0415).
+-   **Status:** Successfully stabilized core tests and aligned documentation with reality. Fixed all Ruff linting errors.
 -   **Owner:** Baliza BDD Alignment Agent (Jules)

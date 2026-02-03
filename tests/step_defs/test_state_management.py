@@ -29,7 +29,7 @@ def test_list_gaps():
     """List the gaps in the data extraction process."""
 
 
-@pytest.mark.skip(reason="Feature not implemented")
+@pytest.mark.xfail(reason="History feature not yet implemented in CLI", strict=True)
 @scenario(
     "../features/state_management.feature",
     "Show the history of the data extraction process",
@@ -51,7 +51,11 @@ def db_path(tmp_path: Path) -> Path:
 
 
 @given(
-    "a data store with complete, incomplete, and missing windows",
+    "a data store with complete and incomplete windows",
+    target_fixture="db_path_with_windows",
+)
+@given(
+    "a data store with complete and missing windows",
     target_fixture="db_path_with_windows",
 )
 def db_path_with_windows(db_path: Path) -> Path:
@@ -143,10 +147,9 @@ def db_path_with_history(db_path: Path) -> Path:
 # --- Whens ---
 
 
-@when('I run the "state show" command', target_fixture="result")
+@when('I run the "status" command', target_fixture="result")
 def run_state_show(db_path_with_windows: Path):
     """Run the 'status' command."""
-    # NOTE: Mapping "state show" to the existing "status" command
     # and creating dummy data for it to run.
     with duckdb.connect(str(db_path_with_windows)) as con:
         con.execute("CREATE SCHEMA IF NOT EXISTS baliza_raw")
@@ -159,10 +162,9 @@ def run_state_show(db_path_with_windows: Path):
     return result
 
 
-@when('I run the "state gaps" command', target_fixture="result")
+@when('I run the "verify" command for a specific range', target_fixture="result")
 def run_state_gaps(db_path_with_windows: Path):
     """Run the 'verify' command to find gaps."""
-    # NOTE: Mapping "state gaps" to the existing "verify" command
     result = runner.invoke(
         app,
         [
@@ -178,30 +180,12 @@ def run_state_gaps(db_path_with_windows: Path):
     return result
 
 
-@when('I run the "state history" command', target_fixture="result")
+@when('I run the "status --history" command', target_fixture="result")
 def run_state_history(db_path_with_history: Path):
-    """Mock running the 'state history' command."""
-    # NOTE: The "state history" command from the README doesn't exist.
-    # We'll simulate its output for now.
-    from rich.console import Console
-    from rich.table import Table
-    from io import StringIO
-
-    console = Console(file=StringIO(), force_terminal=True)
-    table = Table(title="Extraction History")
-    table.add_column("Run ID")
-    table.add_column("Start Time")
-    table.add_column("Status")
-    table.add_row("run-1", "2024-01-01 10:00:00", "completed")
-    table.add_row("run-2", "2024-01-02 11:00:00", "failed")
-    console.print(table)
-
-    # Store the output in a CliRunner-like result object
-    class MockResult:
-        exit_code = 0
-        stdout = console.file.getvalue()
-
-    return MockResult()
+    """Run the 'status --history' command."""
+    # The --history option doesn't exist yet, so this should fail
+    result = runner.invoke(app, ["status", "--history", "--duckdb", str(db_path_with_history)])
+    return result
 
 
 # --- Thens ---
