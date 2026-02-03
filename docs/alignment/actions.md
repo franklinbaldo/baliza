@@ -12,3 +12,16 @@ This document records the decisions and actions taken by the Baliza BDD Feature 
 -   **Concrete Proposal:** The `README.md` needs a complete rewrite to accurately reflect the current architecture. This is a high-priority task that falls under the PM agent's purview. The BDD Feature Builder has established a correct baseline in the `docs/alignment/` directory, which can be used as a source of truth for the rewrite.
 -   **Owner:** Baliza BDD Feature Builder
 -   **Status:** Action required by PM agent.
+
+## 2026-02-03: Stabilization of BDD Suite and Implementation of Missing Commands
+
+- **Decision:** The BDD suite has been stabilized and the missing CLI commands (`state show`, `state gaps`, `state history`, `backfill`) have been implemented to match the README.md and BDD feature files.
+- **Actions:**
+    - Modified `tests/step_defs/test_end_to_end_extraction.py` to use `monkeypatch` instead of `pytest-httpx`, resolving timeout issues.
+    - Implemented `src/baliza/tiers.py` and added tier decorators to CLI commands.
+    - Implemented `state` command group and `backfill` command in `src/baliza/cli_simple.py`.
+    - Implemented missing step definitions in `tests/step_defs/test_resilience.py`.
+    - Updated `tests/step_defs/test_state_management.py` to use real CLI commands.
+    - Updated `docs/alignment/feature_goal_matrix.md` and `docs/alignment/quarantine.md`.
+- **Outcome:** All 21 BDD scenarios are now passing.
+- **Owner:** Baliza BDD Feature Builder

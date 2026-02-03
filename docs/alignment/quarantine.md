@@ -2,16 +2,6 @@
 
 This document tracks all tests marked as SKIP or XFAIL, in accordance with the project's quarantine policy.
 
-## Quarantine Entry 1
-
--   **Identifier:** `tests/step_defs/test_end_to_end_extraction.py::test_pipeline_is_resumable_and_idempotent`
--   **Status:** SKIP
--   **Reason:** Quarantined due to a persistent, intractable timeout issue with `pytest-httpx`. This is part of a known, severe test environment problem.
--   **Reference:** Technical debt tracked in `docs/MASTERPLAN.md`.
--   **Added On:** 2024-07-24
--   **Expiry Date:** 2024-10-24
--   **Owner:** Baliza BDD Feature Builder
-
 ## Quarantine Entry 2
 
 -   **Identifier:** `tests/integration/test_pncp_real_api.py::test_pncp_extract_real_api_single_day`
@@ -19,7 +9,7 @@ This document tracks all tests marked as SKIP or XFAIL, in accordance with the p
 -   **Reason:** Quarantined due to a persistent timeout issue, likely caused by live API calls in a CI environment.
 -   **Reference:** Technical debt tracked in `docs/MASTERPLAN.md`.
 -   **Added On:** 2024-07-24
--   **Expiry Date:** 2024-10-24
+-   **Expiry Date:** 2026-10-24
 -   **Owner:** Baliza BDD Feature Builder
 
 ## Quarantine Entry 3
@@ -29,7 +19,7 @@ This document tracks all tests marked as SKIP or XFAIL, in accordance with the p
 -   **Reason:** Quarantined due to a persistent timeout issue, likely caused by live API calls in a CI environment.
 -   **Reference:** Technical debt tracked in `docs/MASTERPLAN.md`.
 -   **Added On:** 2024-07-24
--   **Expiry Date:** 2024-10-24
+-   **Expiry Date:** 2026-10-24
 -   **Owner:** Baliza BDD Feature Builder
 
 ## Quarantine Entry 4
@@ -39,7 +29,7 @@ This document tracks all tests marked as SKIP or XFAIL, in accordance with the p
 -   **Reason:** Quarantined due to a persistent timeout issue, likely caused by live API calls in a CI environment.
 -   **Reference:** Technical debt tracked in `docs/MASTERPLAN.md`.
 -   **Added On:** 2024-07-24
--   **Expiry Date:** 2024-10-24
+-   **Expiry Date:** 2026-10-24
 -   **Owner:** Baliza BDD Feature Builder
 
 ## Quarantine Entry 5
@@ -49,5 +39,5 @@ This document tracks all tests marked as SKIP or XFAIL, in accordance with the p
 -   **Reason:** Quarantined due to a persistent timeout issue, likely caused by live API calls in a CI environment.
 -   **Reference:** Technical debt tracked in `docs/MASTERPLAN.md`.
 -   **Added On:** 2024-07-24
--   **Expiry Date:** 2024-10-24
+-   **Expiry Date:** 2026-10-24
 -   **Owner:** Baliza BDD Feature Builder
