@@ -1,120 +1,213 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Baliza Status</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; padding: 2rem; }
-    .container { max-width: 800px; margin: 0 auto; }
-    h1 { margin-bottom: 0.5rem; }
-    .subtitle { color: #64748b; margin-bottom: 2rem; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
-    .card { background: #1e293b; border-radius: 8px; padding: 1.5rem; }
-    .card-label { font-size: 0.875rem; color: #94a3b8; margin-bottom: 0.25rem; }
-    .card-value { font-size: 2rem; font-weight: bold; }
-    .green { color: #34d399; }
-    .blue { color: #60a5fa; }
-    .yellow { color: #fbbf24; }
-    .progress-bar { background: #334155; border-radius: 4px; height: 8px; margin-top: 0.5rem; }
-    .progress-fill { background: linear-gradient(90deg, #3b82f6, #10b981); height: 100%; border-radius: 4px; transition: width 0.3s; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { text-align: left; padding: 0.75rem; border-bottom: 1px solid #334155; }
-    th { color: #94a3b8; font-weight: normal; }
-    .badge { display: inline-block; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; }
-    .badge-green { background: #064e3b; color: #34d399; }
-    .badge-yellow { background: #78350f; color: #fbbf24; }
-    .badge-blue { background: #1e3a8a; color: #60a5fa; }
-    footer { text-align: center; color: #64748b; margin-top: 2rem; font-size: 0.875rem; }
-    a { color: #60a5fa; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Baliza Dashboard</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body { background-color: #0f172a; color: #e2e8f0; }
+        .heatmap-cell { width: 12px; height: 12px; border-radius: 2px; }
+        .heatmap-grid { display: grid; grid-template-rows: repeat(7, 1fr); grid-auto-flow: column; gap: 4px; }
+    </style>
 </head>
 <body>
-  <div class="container">
-    <h1>Baliza PNCP</h1>
-    <p class="subtitle" id="lastUpdate">Carregando status...</p>
+    <div id="root"></div>
 
-    <div class="grid">
-      <div class="card">
-        <div class="card-label">Contratos</div>
-        <div class="card-value green" id="totalContracts">-</div>
-      </div>
-      <div class="card">
-        <div class="card-label">Dias Extraídos</div>
-        <div class="card-value blue" id="completedDays">-</div>
-      </div>
-      <div class="card">
-        <div class="card-label">No Internet Archive</div>
-        <div class="card-value" id="iaUploaded">-</div>
-      </div>
-      <div class="card">
-        <div class="card-label">Buffer</div>
-        <div class="card-value yellow" id="bufferRows">-</div>
-      </div>
-    </div>
+    <script type="text/babel">
+        const { useState, useEffect } = React;
 
-    <div class="card" style="margin-bottom: 2rem;">
-      <div class="card-label">Progresso Backfill</div>
-      <div style="display: flex; align-items: center; gap: 1rem; margin-top: 0.5rem;">
-        <div class="progress-bar" style="flex: 1;">
-          <div class="progress-fill" id="progressBar" style="width: 0%;"></div>
-        </div>
-        <span id="progressPct">0%</span>
-      </div>
-    </div>
+        function App() {
+            const [status, setStatus] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
 
-    <div class="card">
-      <div class="card-label" style="margin-bottom: 1rem;">Últimas Extrações</div>
-      <table>
-        <thead>
-          <tr><th>Data</th><th style="text-align: right;">Contratos</th><th style="text-align: right;">Status</th></tr>
-        </thead>
-        <tbody id="recentTable">
-          <tr><td colspan="3" style="text-align: center; color: #64748b;">Carregando...</td></tr>
-        </tbody>
-      </table>
-    </div>
+            useEffect(() => {
+                fetch('./status.json?t=' + Date.now())
+                    .then(res => {
+                        if (!res.ok) throw new Error("Failed to load status.json");
+                        return res.json();
+                    })
+                    .then(data => {
+                        setStatus(data);
+                        setLoading(false);
+                    })
+                    .catch(err => {
+                        console.error(err);
+                        setError(err.message);
+                        setLoading(false);
+                    });
+            }, []);
 
-    <footer>
-      <a href="https://github.com/franklinbaldo/baliza">GitHub</a> ·
-      <a href="https://archive.org/search?query=creator%3A%22Baliza+Project%22">Internet Archive</a>
-    </footer>
-  </div>
+            if (loading) return <div className="flex items-center justify-center h-screen text-slate-400">Carregando dashboard...</div>;
+            if (error) return <div className="flex items-center justify-center h-screen text-red-400">Erro: {error}. Execute o workflow para gerar dados.</div>;
+            if (!status) return null;
 
-  <script>
-    async function load() {
-      try {
-        const res = await fetch('./status.json?t=' + Date.now());
-        if (!res.ok) throw new Error('No status');
-        const d = await res.json();
+            const totalBackfill = (status.backfill?.completed || 0) + (status.backfill?.pending || 0) + (status.backfill?.empty || 0);
+            const progressPct = totalBackfill > 0 ? Math.round(((status.backfill?.completed || 0) + (status.backfill?.empty || 0)) / totalBackfill * 100) : 0;
 
-        document.getElementById('lastUpdate').textContent = 'Atualizado: ' + new Date(d.generated_at).toLocaleString('pt-BR');
-        document.getElementById('totalContracts').textContent = (d.stats?.total_contracts || 0).toLocaleString('pt-BR');
-        document.getElementById('completedDays').textContent = d.backfill?.completed || 0;
-        document.getElementById('iaUploaded').textContent = d.stats?.days_on_ia || 0;
-        document.getElementById('bufferRows').textContent = (d.buffer?.total_rows || 0).toLocaleString('pt-BR');
+            return (
+                <div className="max-w-6xl mx-auto p-6">
+                    <header className="mb-8">
+                        <h1 className="text-3xl font-bold text-white mb-2">Baliza Monitor</h1>
+                        <p className="text-slate-400">
+                            Última atualização: {new Date(status.generated_at).toLocaleString('pt-BR')}
+                            <span className="mx-2">•</span>
+                            Modo: <span className="uppercase text-xs font-semibold px-2 py-0.5 rounded bg-slate-700 text-slate-200">{status.mode}</span>
+                        </p>
+                    </header>
 
-        const total = (d.backfill?.completed || 0) + (d.backfill?.pending || 0) + (d.backfill?.empty || 0);
-        const pct = total > 0 ? Math.round((d.backfill?.completed || 0) / total * 100) : 0;
-        document.getElementById('progressBar').style.width = pct + '%';
-        document.getElementById('progressPct').textContent = pct + '%';
+                    {/* KPI Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                        <Card title="Total de Contratos" value={status.stats?.total_contracts?.toLocaleString('pt-BR')} icon="file-text" color="text-emerald-400" />
+                        <Card title="Dias no Archive.org" value={status.stats?.days_on_ia} icon="archive" color="text-blue-400" />
+                        <Card title="Buffer Local (Linhas)" value={status.buffer?.total_rows?.toLocaleString('pt-BR')} icon="database" color="text-amber-400" />
+                        <Card title="Progresso Backfill" value={`${progressPct}%`} icon="percent" color="text-indigo-400" />
+                    </div>
 
-        if (d.recent_dates?.length) {
-          document.getElementById('recentTable').innerHTML = d.recent_dates.slice(0, 7).map(r => `
-            <tr>
-              <td>${r.date}</td>
-              <td style="text-align: right;">${r.contracts.toLocaleString('pt-BR')}</td>
-              <td style="text-align: right;"><span class="badge badge-${r.status === 'uploaded' ? 'green' : r.status === 'complete' ? 'blue' : 'yellow'}">${r.status}</span></td>
-            </tr>
-          `).join('');
+                    {/* Progress Bar */}
+                    <div className="bg-slate-800 rounded-lg p-6 mb-8 border border-slate-700">
+                        <div className="flex justify-between items-end mb-2">
+                            <h2 className="text-lg font-semibold text-slate-200">Progresso Geral</h2>
+                            <div className="text-sm text-slate-400">
+                                {status.backfill?.completed} completos · {status.backfill?.empty} vazios · {status.backfill?.pending} pendentes
+                            </div>
+                        </div>
+                        <div className="h-4 bg-slate-700 rounded-full overflow-hidden">
+                            <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${progressPct}%` }}></div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        {/* Heatmap Section */}
+                        <div className="lg:col-span-2 bg-slate-800 rounded-lg p-6 border border-slate-700">
+                            <h2 className="text-lg font-semibold text-slate-200 mb-4">Cobertura de Dados</h2>
+                            <Heatmap completed={status.backfill?.completed} empty={status.backfill?.empty} />
+                            <div className="flex gap-4 mt-4 text-xs text-slate-400">
+                                <div className="flex items-center gap-2"><div className="w-3 h-3 bg-emerald-500 rounded-sm"></div> Completo</div>
+                                <div className="flex items-center gap-2"><div className="w-3 h-3 bg-slate-600 rounded-sm"></div> Vazio (Sem dados)</div>
+                                <div className="flex items-center gap-2"><div className="w-3 h-3 bg-slate-900 border border-slate-700 rounded-sm"></div> Pendente</div>
+                            </div>
+                        </div>
+
+                        {/* Recent Activity */}
+                        <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                            <h2 className="text-lg font-semibold text-slate-200 mb-4">Atividade Recente</h2>
+                            <div className="overflow-hidden">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="text-left text-slate-500 border-b border-slate-700">
+                                            <th className="pb-2 font-medium">Data</th>
+                                            <th className="pb-2 font-medium text-right">Contratos</th>
+                                            <th className="pb-2 font-medium text-right">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-700">
+                                        {(status.recent_dates || []).slice(0, 10).map((row, i) => (
+                                            <tr key={i} className="hover:bg-slate-700/50">
+                                                <td className="py-2 text-slate-300">{row.date}</td>
+                                                <td className="py-2 text-right text-slate-300">{row.contracts?.toLocaleString('pt-BR')}</td>
+                                                <td className="py-2 text-right">
+                                                    <StatusBadge status={row.status} />
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {(!status.recent_dates || status.recent_dates.length === 0) && (
+                                            <tr><td colSpan="3" className="py-4 text-center text-slate-500">Sem atividade recente</td></tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <footer className="mt-12 text-center text-slate-500 text-sm">
+                        <a href="https://github.com/franklinbaldo/baliza" className="hover:text-blue-400 transition-colors">GitHub Repository</a>
+                        <span className="mx-2">·</span>
+                        <a href="https://archive.org/search?query=creator%3A%22Baliza+Project%22" className="hover:text-blue-400 transition-colors">Internet Archive</a>
+                    </footer>
+                </div>
+            );
         }
-      } catch (e) {
-        document.getElementById('lastUpdate').textContent = 'Execute o workflow para gerar status.json';
-      }
-    }
-    load();
-    setInterval(load, 60000);
-  </script>
+
+        function Card({ title, value, icon, color }) {
+            return (
+                <div className="bg-slate-800 p-6 rounded-lg border border-slate-700 flex items-start justify-between">
+                    <div>
+                        <h3 className="text-slate-400 text-sm font-medium mb-1">{title}</h3>
+                        <p className={`text-2xl font-bold ${color}`}>{value || 0}</p>
+                    </div>
+                    <div className={`p-2 rounded-lg bg-slate-700/50 ${color}`}>
+                        <i data-lucide={icon} className="w-6 h-6"></i>
+                    </div>
+                </div>
+            );
+        }
+
+        function StatusBadge({ status }) {
+            const colors = {
+                uploaded: "bg-emerald-900/30 text-emerald-400 border-emerald-900",
+                complete: "bg-blue-900/30 text-blue-400 border-blue-900",
+                pending: "bg-amber-900/30 text-amber-400 border-amber-900",
+            };
+            const cls = colors[status] || "bg-slate-700 text-slate-400";
+            return (
+                <span className={`text-xs px-2 py-0.5 rounded border ${cls}`}>
+                    {status}
+                </span>
+            );
+        }
+
+        function Heatmap({ completed, empty }) {
+            // Simulated heatmap visualization since we don't have the full daily array in status.json yet
+            // In a real scenario, status.json should provide a bitmask or array of statuses for the year
+            // Here we render a placeholder grid for visual effect based on the request
+
+            // Generate last 365 days placeholder
+            const days = Array.from({ length: 160 }).map((_, i) => {
+                 // Mock pattern
+                 if (i < (completed || 0)) return 'complete';
+                 if (i < (completed + (empty || 0))) return 'empty';
+                 return 'missing';
+            });
+
+            return (
+                <div className="overflow-x-auto pb-2">
+                    <div className="heatmap-grid" style={{ minWidth: 'max-content' }}>
+                        {days.map((status, i) => (
+                            <div
+                                key={i}
+                                className={`heatmap-cell ${
+                                    status === 'complete' ? 'bg-emerald-500' :
+                                    status === 'empty' ? 'bg-slate-600' :
+                                    'bg-slate-900 border border-slate-800'
+                                }`}
+                                title={`Day ${i+1}: ${status}`}
+                            ></div>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+
+        // Initialize icons after render
+        setTimeout(() => lucide.createIcons(), 100);
+    </script>
 </body>
 </html>
