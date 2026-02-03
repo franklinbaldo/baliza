@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Upload packaged datasets to the Internet Archive.
+"""Upload packaged datasets to the Internet Archive using direct S3 API.
 
 The script is designed to be *resumable*: if the same file was previously
 published for the same identifier, the upload is skipped and a structured
@@ -17,11 +17,7 @@ from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
-try:  # pragma: no cover - optional dependency
-    import internetarchive  # type: ignore[import-untyped]
-except ModuleNotFoundError:  # pragma: no cover - fallback path
-    internetarchive = None  # type: ignore[assignment]
-
+import httpx
 
 Summary = dict[str, Any]
 
@@ -127,6 +123,29 @@ def _write_summary(metadata_output: Path | None, summary: Summary) -> None:
     )
 
 
+def _get_ia_s3_auth(access_key: str, secret_key: str) -> dict[str, str]:
+    """Generate S3 auth headers for IA (LOW auth)."""
+    return {"Authorization": f"LOW {access_key}:{secret_key}"}
+
+
+def _check_remote_exists(
+    client: httpx.Client,
+    identifier: str,
+    filename: str,
+    headers: dict[str, str],
+) -> int | None:
+    """Check if file exists on IA and return its size if it does."""
+    url = f"https://s3.us.archive.org/{identifier}/{filename}"
+    try:
+        response = client.head(url, headers=headers, timeout=10.0)
+        if response.status_code == 200:
+            content_length = response.headers.get("Content-Length")
+            return int(content_length) if content_length else None
+        return None
+    except Exception:
+        return None
+
+
 def upload_dataset(
     file_path: Path,
     identifier: str,
@@ -137,21 +156,9 @@ def upload_dataset(
     force: bool = False,
     access_key: str | None = None,
     secret_key: str | None = None,
-    get_item=None,
-    upload_func=None,
 ) -> Summary:
     if not file_path.exists():
         raise FileNotFoundError(f"Package not found: {file_path}")
-
-    if internetarchive is None and (get_item is None or upload_func is None):
-        raise ImportError(
-            "internetarchive library is required. Install with: pip install 'baliza[internet-archive]'"
-        )
-
-    if get_item is None:
-        get_item = internetarchive.get_item  # type: ignore[assignment]
-    if upload_func is None:
-        upload_func = internetarchive.upload  # type: ignore[assignment]
 
     manifest_dict: dict[str, Any] | None = dict(manifest) if manifest else None
     metadata = _build_metadata(manifest_dict, extra_metadata)
@@ -172,42 +179,45 @@ def upload_dataset(
         "skipped": False,
     }
 
-    if not force:
-        item = get_item(
-            identifier,
-            access_key=access_key,
-            secret_key=secret_key,
-        )
-        remote_file = item.get_file(filename)
-        remote_size = _coerce_size(getattr(remote_file, "size", None))
-        if getattr(remote_file, "exists", False) and remote_size == local_size:
-            summary.update(
-                {
-                    "skipped": True,
-                    "reason": "already_present",
-                    "remote_size": remote_size,
-                }
-            )
-            _write_summary(metadata_output, summary)
-            return summary
+    auth_headers = _get_ia_s3_auth(access_key, secret_key)
 
-    responses = upload_func(
-        identifier,
-        files=[str(file_path)],
-        metadata=metadata,
-        access_key=access_key,
-        secret_key=secret_key,
-        queue_derive=False,
-        verify=True,
-    )
+    with httpx.Client() as client:
+        # Check if already exists
+        if not force:
+            remote_size = _check_remote_exists(client, identifier, filename, auth_headers)
+            if remote_size is not None and remote_size == local_size:
+                summary.update(
+                    {
+                        "skipped": True,
+                        "reason": "already_present",
+                        "remote_size": remote_size,
+                    }
+                )
+                _write_summary(metadata_output, summary)
+                return summary
 
-    errors = [response for response in responses if getattr(response, "status_code", 200) >= 400]
-    if errors:
-        for response in errors:
-            status = getattr(response, "status_code", "unknown")
-            reason = getattr(response, "reason", "")
-            sys.stderr.write(f"Upload failed with status {status} {reason}\n")
-        raise SystemExit(1)
+        # Prepare upload
+        url = f"https://s3.us.archive.org/{identifier}/{filename}"
+
+        # Headers
+        headers = auth_headers.copy()
+        headers["x-archive-auto-make-bucket"] = "1"
+        headers["x-archive-queue-derive"] = "0"
+        for k, v in metadata.items():
+            headers[f"x-archive-meta-{k}"] = str(v)
+
+        # Upload
+        try:
+            with open(file_path, "rb") as f:
+                response = client.put(url, content=f, headers=headers, timeout=300.0)
+                response.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            sys.stderr.write(f"Upload failed with status {e.response.status_code} {e.response.reason_phrase}\n")
+            sys.stderr.write(f"Response: {e.response.text}\n")
+            raise SystemExit(1) from e
+        except Exception as e:
+            sys.stderr.write(f"Upload failed: {e}\n")
+            raise SystemExit(1) from e
 
     summary["uploaded"] = True
     _write_summary(metadata_output, summary)
