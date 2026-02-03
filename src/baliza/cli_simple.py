@@ -50,6 +50,12 @@ def extract(
         "-r",
         help="Resource to extract (contratos, etc.)",
     ),
+    workers: int = typer.Option(
+        4,
+        "--workers",
+        "-w",
+        help="Number of concurrent workers (1-16)",
+    ),
 ) -> None:
     """Extract data from PNCP API to DuckDB.
 
@@ -67,7 +73,7 @@ def extract(
         # Extract data
         start_time = time.time()
         with PNCPExtractor(db_path, dataset) as extractor:
-            result = extractor.extract(start_date, end_date, resource)
+            result = extractor.extract(start_date, end_date, resource, workers=workers)
         duration = time.time() - start_time
 
         # Create summary

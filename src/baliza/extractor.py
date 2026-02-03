@@ -6,6 +6,7 @@ Supports per-page checkpointing for resume on timeout.
 
 from __future__ import annotations
 
+import concurrent.futures
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, TypedDict
@@ -349,72 +350,43 @@ class PNCPExtractor:
 
         return len(values)
 
-    def extract(
+    def _extract_single_date(
         self,
-        start_date: datetime,
-        end_date: datetime,
-        resource: str = "contratos",
+        date: datetime,
+        resource: str,
+        progress: Progress | None = None,
     ) -> dict[str, Any]:
-        """Extract data from PNCP API for a date range.
-
-        Supports resuming from checkpoint if interrupted.
-
-        Args:
-            start_date: Start of date range
-            end_date: End of date range
-            resource: Resource type (default: contratos)
-
-        Returns:
-            Dict with extraction results (rows_extracted, pages, etc.)
-        """
-        # Validate resource path to prevent traversal/injection
-        validate_resource_path(resource)
-
-        # Format dates for PNCP API (YYYYMMDD)
-        data_inicial = start_date.strftime("%Y%m%d")
-        data_final = end_date.strftime("%Y%m%d")
-
+        """Extract data for a single date (worker function)."""
+        data_fmt = date.strftime("%Y%m%d")
         total_rows = 0
         page = 1
         total_pages = None
 
-        with duckdb.connect(str(self.db_path)) as con:
-            self._ensure_schema(con)
+        # Add transient task for this date if progress bar provided
+        task_id = None
+        if progress:
+            task_id = progress.add_task(f"Fetching {date.date()}...", total=None)
 
-            # Check for existing checkpoint
-            checkpoint = self._get_checkpoint(con, resource, start_date)
-            if checkpoint:
-                page = checkpoint["current_page"] + 1
-                total_rows = checkpoint["rows_extracted"]
-                total_pages = checkpoint["total_pages"]
-                console.print(
-                    f"[yellow]Resuming from page {page}/{total_pages} "
-                    f"({total_rows} rows already extracted)"
-                )
+        try:
+            # Open dedicated connection for this thread
+            with duckdb.connect(str(self.db_path)) as con:
+                # No need to ensure schema here, done in coordinator
 
-            console.print(
-                f"[cyan]Extracting {resource} from {start_date.date()} to {end_date.date()}..."
-            )
-
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                BarColumn(),
-                TaskProgressColumn(),
-                console=console,
-            ) as progress:
-                task = progress.add_task(
-                    "Fetching pages...",
-                    total=total_pages,
-                    completed=page - 1 if checkpoint else 0,
-                )
+                # Check for existing checkpoint
+                checkpoint = self._get_checkpoint(con, resource, date)
+                if checkpoint:
+                    page = checkpoint["current_page"] + 1
+                    total_rows = checkpoint["rows_extracted"]
+                    total_pages = checkpoint["total_pages"]
+                    if progress and task_id:
+                        progress.update(task_id, description=f"Resuming {date.date()} p{page}/{total_pages}")
 
                 while True:
                     # Call PNCP API with retry
                     url = f"{self.base_url}/{resource}"
                     params = {
-                        "dataInicial": data_inicial,
-                        "dataFinal": data_final,
+                        "dataInicial": data_fmt,
+                        "dataFinal": data_fmt,
                         "pagina": page,
                         "tamanhoPagina": 500,
                     }
@@ -432,7 +404,8 @@ class PNCPExtractor:
                     # Update total_pages on first response
                     if total_pages is None:
                         total_pages = data.get("totalPaginas", 1)
-                        progress.update(task, total=total_pages)
+                        if progress and task_id:
+                            progress.update(task_id, total=total_pages)
 
                     # Checkpoint after each page
                     stats: CheckpointData = {
@@ -442,38 +415,127 @@ class PNCPExtractor:
                     }
                     self._save_checkpoint(con, resource, start_date, stats)
 
-                    progress.update(
-                        task,
-                        completed=page,
-                        description=f"Fetching page {page}/{total_pages}",
-                    )
+                    if progress and task_id:
+                        progress.update(
+                            task_id,
+                            completed=page,
+                            description=f"Fetching {date.date()} {page}/{total_pages}",
+                        )
 
                     if page >= total_pages:
                         break
 
                     page += 1
 
-            console.print(
-                f"[green]✓ Extracted {total_rows} rows across {page} pages"
-            )
+                # Clear checkpoint on successful completion
+                self._clear_checkpoint(con, resource, date)
 
-            # Clear checkpoint on successful completion
-            self._clear_checkpoint(con, resource, start_date)
-
-            # Record coverage
-            con.execute(
-                """
-                INSERT OR REPLACE INTO baliza_state.coverage
-                VALUES (?, ?, ?, 'complete', ?, ?, NOW())
-            """,
-                [resource, start_date, end_date, page, total_rows],
-            )
+                # Record coverage for this single day
+                con.execute(
+                    """
+                    INSERT OR REPLACE INTO baliza_state.coverage
+                    VALUES (?, ?, ?, 'complete', ?, ?, NOW())
+                """,
+                    [resource, date, date, page, total_rows],
+                )
+        except Exception as e:
+            # We re-raise to be handled by coordinator
+            raise e
+        finally:
+            if progress and task_id:
+                progress.remove_task(task_id)
 
         return {
             "rows_extracted": total_rows,
             "pages": page,
+            "date": date,
+        }
+
+    def extract(
+        self,
+        start_date: datetime,
+        end_date: datetime,
+        resource: str = "contratos",
+        workers: int = 4,
+    ) -> dict[str, Any]:
+        """Extract data from PNCP API for a date range.
+
+        Supports parallel extraction with multiple workers.
+
+        Args:
+            start_date: Start of date range
+            end_date: End of date range
+            resource: Resource type (default: contratos)
+            workers: Number of concurrent workers (default: 4)
+
+        Returns:
+            Dict with extraction results (rows_extracted, pages, etc.)
+        """
+        # Validate resource path to prevent traversal/injection
+        validate_resource_path(resource)
+
+        console.print(
+            f"[cyan]Extracting {resource} from {start_date.date()} to {end_date.date()} "
+            f"using {workers} workers...[/cyan]"
+        )
+
+        # Ensure schema exists before any worker starts
+        with duckdb.connect(str(self.db_path)) as con:
+            self._ensure_schema(con)
+
+        # Generate list of dates to process
+        dates = []
+        curr = start_date
+        while curr <= end_date:
+            dates.append(curr)
+            curr += timedelta(days=1)
+
+        total_rows = 0
+        total_pages = 0
+        failed_dates = []
+
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TaskProgressColumn(),
+            console=console,
+        ) as progress:
+            main_task = progress.add_task(f"Overall Progress ({len(dates)} days)", total=len(dates))
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+                futures = {
+                    executor.submit(self._extract_single_date, date, resource, progress): date
+                    for date in dates
+                }
+
+                for future in concurrent.futures.as_completed(futures):
+                    date = futures[future]
+                    try:
+                        result = future.result()
+                        total_rows += result["rows_extracted"]
+                        total_pages += result["pages"]
+                        progress.update(main_task, advance=1)
+                    except Exception as e:
+                        console.print(f"[red]✗ Failed to extract {date.date()}: {e}")
+                        failed_dates.append(date)
+                        # We don't stop everything, but we should probably record failure
+                        # Checkpoint remains so it can be retried later
+
+        console.print(
+            f"[green]✓ Extracted {total_rows} rows across {total_pages} pages "
+            f"({len(dates) - len(failed_dates)}/{len(dates)} days successful)"
+        )
+
+        if failed_dates:
+            console.print(f"[red]⚠ {len(failed_dates)} days failed[/red]")
+
+        return {
+            "rows_extracted": total_rows,
+            "pages": total_pages,
             "start_date": start_date,
             "end_date": end_date,
+            "failed_dates": [d.date() for d in failed_dates]
         }
 
     def cleanup_uploaded(self, extraction_date: datetime) -> int:
