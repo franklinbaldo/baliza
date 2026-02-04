@@ -1,11 +1,13 @@
 """BDD step definitions for resilience.feature."""
 
+from pathlib import Path
+
 import httpx
 import pytest
 from pytest_bdd import given, scenario, then, when
 from typer.testing import CliRunner
+
 from baliza.cli_simple import app
-from pathlib import Path
 
 # Mark all resilience scenarios as Tier 1 (Core Features)
 pytestmark = pytest.mark.tier1
