@@ -16,7 +16,6 @@ from pathlib import Path
 
 import duckdb
 import pytest
-
 from baliza.extractor import PNCPExtractor
 
 

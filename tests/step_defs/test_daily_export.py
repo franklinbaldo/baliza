@@ -108,7 +108,7 @@ def run_export_daily(db_with_contracts, date_str, output_path):
     )
 
     if result.exit_code != 0:
-        print("\n=== EXPORT FAILED ===")
+        print(f"\n=== EXPORT FAILED ===")
         print(f"Exit code: {result.exit_code}")
         print(f"Output:\n{result.stdout}")
         if result.exception:
