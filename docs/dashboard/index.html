@@ -52,6 +52,12 @@
                     });
             }, []);
 
+            useEffect(() => {
+                if (!loading) {
+                    lucide.createIcons();
+                }
+            }, [loading, status]);
+
             if (loading) return <div className="flex items-center justify-center h-screen text-slate-400">Carregando dashboard...</div>;
             if (error) return <div className="flex items-center justify-center h-screen text-red-400">Erro: {error}. Execute o workflow para gerar dados.</div>;
             if (!status) return null;
@@ -79,14 +85,25 @@
                     </div>
 
                     {/* Progress Bar */}
-                    <div className="bg-slate-800 rounded-lg p-6 mb-8 border border-slate-700">
-                        <div className="flex justify-between items-end mb-2">
+                    <div
+                        className="bg-slate-800 rounded-lg p-6 mb-8 border border-slate-700"
+                        role="region"
+                        aria-label="Progresso do Backfill"
+                    >
+                        <div className="flex justify-between items-end mb-2" id="progress-label">
                             <h2 className="text-lg font-semibold text-slate-200">Progresso Geral</h2>
                             <div className="text-sm text-slate-400">
                                 {status.backfill?.completed} completos · {status.backfill?.empty} vazios · {status.backfill?.pending} pendentes
                             </div>
                         </div>
-                        <div className="h-4 bg-slate-700 rounded-full overflow-hidden">
+                        <div
+                            className="h-4 bg-slate-700 rounded-full overflow-hidden"
+                            role="progressbar"
+                            aria-valuenow={progressPct}
+                            aria-valuemin="0"
+                            aria-valuemax="100"
+                            aria-labelledby="progress-label"
+                        >
                             <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${progressPct}%` }}></div>
                         </div>
                     </div>
@@ -205,9 +222,6 @@
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
-
-        // Initialize icons after render
-        setTimeout(() => lucide.createIcons(), 100);
     </script>
 </body>
 </html>
