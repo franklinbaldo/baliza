@@ -11,10 +11,7 @@ from typing import Any, Callable, Dict, Iterable, Optional, Protocol, Tuple
 import duckdb
 import shutil
 
-try:  # pragma: no cover - optional dependency
-    import httpx
-except ModuleNotFoundError:  # pragma: no cover - fallback path
-    httpx = None  # type: ignore[assignment]
+import httpx
 
 try:  # pragma: no cover - optional dependency
     from internetarchive import get_session  # type: ignore[import-untyped]
@@ -59,121 +56,57 @@ class _HttpClient(Protocol):
 HttpClientFactory = Callable[..., AbstractContextManager[_HttpClient]]
 
 
-class _FallbackResponse:
-    def __init__(self, *, status_code: int, text: str) -> None:
-        self.status_code = status_code
-        self._text = text
+class _SecureClient(httpx.Client):
+    """
+    A secure wrapper around httpx.Client that enforces:
+    1. URL scheme validation (http/https only)
+    2. Response size limits to prevent DoS via memory exhaustion
+    3. Exception handling with sensitive data redaction
+    """
 
-    def json(self) -> Any:
-        if not self._text:
-            return {}
-        return json.loads(self._text)
+    def request(self, method: str, url: str | httpx.URL, **kwargs: Any) -> httpx.Response:
+        from urllib import parse
 
-    def raise_for_status(self) -> None:
-        if 400 <= self.status_code:
-            raise RuntimeError(f"HTTP request failed with status {self.status_code}")
-
-
-class _FallbackClient(AbstractContextManager["_FallbackClient"]):
-    def __init__(self, *, headers: Optional[Dict[str, str]] = None, timeout: int = 30) -> None:
-        self.headers = headers or {}
-        self.timeout = timeout
-
-    def __enter__(self) -> "_FallbackClient":
-        return self
-
-    def __exit__(self, exc_type, exc, exc_tb) -> None:  # pragma: no cover - no cleanup needed
-        return None
-
-    def get(self, url: str, params: Optional[Dict[str, Any]] = None) -> _FallbackResponse:
-        from urllib import parse, request
-
-        if not url.startswith(("http://", "https://")):
+        # Enforce scheme validation
+        # httpx.URL(url).scheme might be empty if it's a relative URL, but for base requests it matters
+        parsed_url = httpx.URL(url)
+        if parsed_url.scheme not in ("http", "https"):
             raise ValueError("URL scheme must be http or https")
 
-        query = parse.urlencode(params or {}, doseq=True)
-        full_url = f"{url}?{query}" if query else url
-        req = request.Request(full_url, headers=self.headers)
         try:
-            with request.urlopen(req, timeout=self.timeout) as response:  # type: ignore[attr-defined]
-                status = int(response.getcode() or 0)
-
+            # Use stream=True to control response reading
+            with self.stream(method, url, **kwargs) as response:
                 # Security: Limit response size to prevent DoS via memory exhaustion
                 content = bytearray()
                 chunk_size = 8192  # 8KB chunks
                 max_size = 10 * 1024 * 1024  # 10 MB limit
 
-                while True:
-                    chunk = response.read(chunk_size)
-                    if not chunk:
-                        break
+                for chunk in response.iter_bytes(chunk_size):
                     content.extend(chunk)
                     if len(content) > max_size:
                         raise RuntimeError(f"Response too large (exceeded {max_size} bytes)")
 
-                text = content.decode("utf-8")
-        except Exception as exc:  # pragma: no cover - network not exercised in tests
+                # Manually construct response with full content
+                # We need to set ._content and .is_stream_consumed because we consumed the stream
+                response._content = bytes(content)
+                response.is_stream_consumed = True
+
+                return response
+
+        except Exception as exc:
             # Security: Redact query parameters in error logs to prevent secret leakage
-            safe_url = parse.urlparse(full_url)._replace(query="").geturl()
-            raise RuntimeError(f"HTTP request to {safe_url} failed: {exc}") from exc
-        return _FallbackResponse(status_code=status, text=text)
-
-
-if httpx is not None:
-
-    class _SecureClient(httpx.Client):
-        """
-        A secure wrapper around httpx.Client that enforces:
-        1. URL scheme validation (http/https only)
-        2. Response size limits to prevent DoS via memory exhaustion
-        3. Exception handling with sensitive data redaction
-        """
-
-        def request(self, method: str, url: str | httpx.URL, **kwargs: Any) -> httpx.Response:
-            from urllib import parse
-
-            # Enforce scheme validation
-            # httpx.URL(url).scheme might be empty if it's a relative URL, but for base requests it matters
-            parsed_url = httpx.URL(url)
-            if parsed_url.scheme not in ("http", "https"):
-                raise ValueError("URL scheme must be http or https")
-
+            str_url = str(url)
             try:
-                # Use stream=True to control response reading
-                with self.stream(method, url, **kwargs) as response:
-                    # Security: Limit response size to prevent DoS via memory exhaustion
-                    content = bytearray()
-                    chunk_size = 8192  # 8KB chunks
-                    max_size = 10 * 1024 * 1024  # 10 MB limit
-
-                    for chunk in response.iter_bytes(chunk_size):
-                        content.extend(chunk)
-                        if len(content) > max_size:
-                            raise RuntimeError(f"Response too large (exceeded {max_size} bytes)")
-
-                    # Manually construct response with full content
-                    # We need to set ._content and .is_stream_consumed because we consumed the stream
-                    response._content = bytes(content)
-                    response.is_stream_consumed = True
-
-                    return response
-
-            except Exception as exc:
-                # Security: Redact query parameters in error logs to prevent secret leakage
-                str_url = str(url)
-                try:
-                    safe_url = parse.urlparse(str_url)._replace(query="").geturl()
-                except Exception:
-                    safe_url = "unknown_url"
-                raise RuntimeError(f"HTTP request to {safe_url} failed: {exc}") from exc
+                safe_url = parse.urlparse(str_url)._replace(query="").geturl()
+            except Exception:
+                safe_url = "unknown_url"
+            raise RuntimeError(f"HTTP request to {safe_url} failed: {exc}") from exc
 
 
 def _default_http_client_factory(
     *, headers: dict[str, str] | None = None, timeout: int = 30
 ) -> AbstractContextManager[_HttpClient]:
-    if httpx is not None:
-        return _SecureClient(headers=headers or None, timeout=timeout)
-    return _FallbackClient(headers=headers or None, timeout=timeout)
+    return _SecureClient(headers=headers or None, timeout=timeout)
 
 
 _HTTP_CLIENT_FACTORY: HttpClientFactory = _default_http_client_factory

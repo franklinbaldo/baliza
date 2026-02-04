@@ -79,3 +79,34 @@ def test_secure_client_redaction():
     assert "api_key=secret123" not in error_msg
     assert "http://example.com/api" in error_msg
     assert "failed" in error_msg
+
+
+def test_secure_client_rejects_file_scheme(tmp_path):
+    """Test that _SecureClient refuses to load file:// URLs."""
+    from baliza.cli import _default_http_client_factory
+
+    client = _default_http_client_factory()
+
+    # Create a dummy file
+    dummy_file = tmp_path / "secret.txt"
+    dummy_file.write_text("SECRET_DATA")
+
+    file_url = f"file://{dummy_file.absolute()}"
+
+    # It should raise ValueError
+    with pytest.raises(ValueError, match="URL scheme must be http or https"):
+        client.get(file_url)
+
+def test_secure_client_allows_http():
+    """Test that _SecureClient allows http/https URLs."""
+    from baliza.cli import _default_http_client_factory
+
+    client = _default_http_client_factory()
+
+    # We can mock the transport to avoid actual network
+    SecureClientClass = type(client)
+    transport = httpx.MockTransport(lambda r: httpx.Response(200))
+    client = SecureClientClass(transport=transport)
+
+    response = client.get("http://example.com")
+    assert response.status_code == 200
