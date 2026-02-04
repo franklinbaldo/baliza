@@ -1,16 +1,12 @@
 from __future__ import annotations
 
-import ipaddress
 import json
-import os
 import shutil
-import socket
 from collections.abc import Callable, Iterable
 from contextlib import AbstractContextManager
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Protocol
-from urllib.parse import urlparse
 
 import duckdb
 
@@ -57,42 +53,6 @@ from .utils.dates import humanize_duration, humanize_naturaltime, to_pncp_window
 console = Console()
 
 app = typer.Typer(help="Declarative PNCP pipeline runner")
-
-
-def _is_safe_url(url: str) -> bool:
-    """
-    Check if a URL is safe to request (prevents SSRF).
-    Blocks requests to private networks and loopback addresses unless explicitly allowed.
-    """
-    if os.environ.get("BALIZA_ALLOW_PRIVATE_NETWORKS") == "1":
-        return True
-
-    try:
-        parsed = urlparse(url)
-        hostname = parsed.hostname
-        if not hostname:
-            return False
-
-        # Resolve hostname to IP
-        # Note: This is a synchronous DNS resolution.
-        # It mitigates basic SSRF but is vulnerable to DNS rebinding if the
-        # underlying client resolves differently later.
-        # Given this is a CLI tool, this check provides reasonable defense-in-depth.
-        try:
-            ip_str = socket.gethostbyname(hostname)
-        except socket.gaierror:
-            # If we can't resolve it, let the client try (it will likely fail),
-            # or block it. Blocking is safer for security.
-            return False
-
-        ip = ipaddress.ip_address(ip_str)
-
-        if ip.is_loopback or ip.is_private or ip.is_link_local:
-            return False
-
-        return True
-    except Exception:
-        return False
 
 
 class _HttpClient(Protocol):
@@ -143,9 +103,6 @@ class _FallbackClient(AbstractContextManager["_FallbackClient"]):
         if not url.startswith(("http://", "https://")):
             raise ValueError("URL scheme must be http or https")
 
-        if not _is_safe_url(url):
-            raise RuntimeError(f"Private network access is blocked: {url}")
-
         query = parse.urlencode(params or {}, doseq=True)
         full_url = f"{url}?{query}" if query else url
         req = request.Request(full_url, headers=self.headers)
@@ -184,10 +141,6 @@ if httpx is not None:
         ) -> httpx.Response:
             if request.url.scheme not in ("http", "https"):
                 raise ValueError("URL scheme must be http or https")
-
-            if not _is_safe_url(str(request.url)):
-                # Redact URL in error message to avoid leaking internal structure if partial
-                raise RuntimeError("Private network access is blocked")
 
             try:
                 # Force stream=True to inspect/limit content
