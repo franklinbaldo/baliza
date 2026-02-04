@@ -18,10 +18,6 @@ def test_fallback_client_unbounded_read_dos():
     mock_response.__enter__.return_value = mock_response
     mock_response.__exit__.return_value = None
 
-    # This mock will be returned by the patched build_opener
-    mock_opener = MagicMock()
-    mock_opener.open.return_value = mock_response
-
     client = _FallbackClient()
 
     mock_opener = MagicMock()

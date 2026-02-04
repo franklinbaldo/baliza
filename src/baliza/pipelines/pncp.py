@@ -12,7 +12,6 @@ from dlt.sources import DltSource
 from dlt.sources.rest_api import rest_api_source
 
 from baliza.state import CoverageTracker
-from baliza.utils.caching import install_json_caching
 
 ConfigPath = Union[str, Path, None]
 
@@ -264,8 +263,7 @@ def run_pncp(
         tracker=tracker,
     )
     try:
-        with install_json_caching():
-            run_info = pipeline.run(source)
+        run_info = pipeline.run(source)
     finally:
         tracker.close()
     return pipeline, run_info

@@ -2,141 +2,29 @@ interactions:
 - request:
     body: ''
     headers:
-      Accept:
-      - application/json
-      Accept-Encoding:
+      accept:
+      - '*/*'
+      accept-encoding:
       - gzip, deflate
-      Connection:
+      connection:
       - keep-alive
-      Host:
+      host:
       - pncp.gov.br
-      User-Agent:
-      - baliza/0.1 integration-test
+      user-agent:
+      - python-httpx/0.28.1
     method: GET
     uri: https://pncp.gov.br/api/consulta/v1/contratos?dataInicial=20241001&dataFinal=20241001&pagina=1&tamanhoPagina=10
   response:
     body:
-      string: "{\"data\":[{\"numeroControlePncpCompra\":\"83500603000180-1-000077/2024\",\"codigoPaisFornecedor\":\"BRA\",\"dataAtualizacao\":\"2024-10-01T00:00:41\",\"orgaoEntidade\":{\"cnpj\":\"83500603000180\",\"razaoSocial\":\"ITAJAI
-        CAMARA DE VEREADORES\",\"poderId\":\"L\",\"esferaId\":\"M\"},\"dataAssinatura\":\"2024-09-30\",\"dataVigenciaInicio\":\"2024-09-30\",\"dataVigenciaFim\":\"2025-12-29\",\"niFornecedor\":\"02558157000162\",\"tipoPessoa\":\"PJ\",\"processo\":\"17/2024\",\"orgaoSubRogado\":null,\"unidadeOrgao\":{\"ufNome\":\"Santa
-        Catarina\",\"codigoUnidade\":\"22\",\"ufSigla\":\"SC\",\"municipioNome\":\"Itaja\xED\",\"nomeUnidade\":\"C\xE2mara
-        de Vereadores de Itaja\xED\",\"codigoIbge\":\"4208203\"},\"unidadeSubRogada\":null,\"nomeRazaoSocialFornecedor\":\"TELEFONICA
-        BRASIL S/A (VIVO)\",\"informacaoComplementar\":null,\"numeroContratoEmpenho\":\"31/2024\",\"categoriaProcesso\":{\"id\":8,\"nome\":\"Servi\xE7os\"},\"anoContrato\":2024,\"tipoContrato\":{\"id\":1,\"nome\":\"Contrato
-        (termo inicial)\"},\"sequencialContrato\":37,\"dataPublicacaoPncp\":\"2024-10-01T00:00:40\",\"niFornecedorSubContratado\":null,\"nomeFornecedorSubContratado\":null,\"dataAtualizacaoGlobal\":\"2025-09-27T00:00:57\",\"numeroControlePNCP\":\"83500603000180-2-000037/2024\",\"receita\":false,\"numeroParcelas\":1,\"numeroRetificacao\":0,\"tipoPessoaSubContratada\":null,\"objetoContrato\":\"CONTRATA\xC7\xC3O
-        DE EMPRESA ESPECIALIZADA EM TELECOMUNICA\xC7\xD5ES, PARA PRESTA\xC7\xC3O DE
-        SERVI\xC7OS DE TELEFONIA M\xD3VEL PESSOAL (SMP) E LINHAS DE DADOS PARA TR\xC1FEGO
-        NA INTERNET.\",\"valorInicial\":7128.0000,\"valorParcela\":7128.0000,\"valorGlobal\":7128.0000,\"valorAcumulado\":null,\"identificadorCipi\":null,\"urlCipi\":null,\"usuarioNome\":\"P\xFAblica
-        Tecnologia Ltda.\"},{\"numeroControlePncpCompra\":\"00394460005887-1-000049/2024\",\"codigoPaisFornecedor\":null,\"dataAtualizacao\":\"2024-10-01T00:30:03\",\"orgaoEntidade\":{\"cnpj\":\"00394460005887\",\"razaoSocial\":\"MINISTERIO
-        DA ECONOMIA\",\"poderId\":\"E\",\"esferaId\":\"F\"},\"dataAssinatura\":\"2024-09-30\",\"dataVigenciaInicio\":\"2024-09-30\",\"dataVigenciaFim\":\"2024-10-30\",\"niFornecedor\":\"52151061000153\",\"tipoPessoa\":\"PJ\",\"processo\":\"13113276165202419\",\"orgaoSubRogado\":null,\"unidadeOrgao\":{\"ufNome\":\"Rio
-        de Janeiro\",\"codigoUnidade\":\"700100\",\"ufSigla\":\"RJ\",\"municipioNome\":\"Rio
-        de Janeiro\",\"nomeUnidade\":\"Superintend\xEAncia Regional da Receita Federal
-        do Brasil da 7\xAA Regi\xE3o Fiscal\",\"codigoIbge\":\"3304557\"},\"unidadeSubRogada\":null,\"nomeRazaoSocialFornecedor\":\"LGA
-        SHOP LTDA\",\"informacaoComplementar\":null,\"numeroContratoEmpenho\":\"0700100/0125\",\"categoriaProcesso\":{\"id\":11,\"nome\":\"Aliena\xE7\xE3o
-        de bens m\xF3veis/im\xF3veis\"},\"anoContrato\":2024,\"tipoContrato\":{\"id\":1,\"nome\":\"Contrato
-        (termo inicial)\"},\"sequencialContrato\":4459,\"dataPublicacaoPncp\":\"2024-10-01T00:30:03\",\"niFornecedorSubContratado\":null,\"nomeFornecedorSubContratado\":null,\"dataAtualizacaoGlobal\":\"2024-10-01T00:30:03\",\"numeroControlePNCP\":\"00394460005887-2-004459/2024\",\"receita\":true,\"numeroParcelas\":1,\"numeroRetificacao\":0,\"tipoPessoaSubContratada\":null,\"objetoContrato\":\"Aliena\xE7\xE3o
-        de mercadorias apreendidas pela Receita Federal\",\"valorInicial\":42000.0000,\"valorParcela\":42000.0000,\"valorGlobal\":42000.0000,\"valorAcumulado\":null,\"identificadorCipi\":null,\"urlCipi\":null,\"usuarioNome\":\"Minist\xE9rio
-        da Fazenda / Receita Federal\"},{\"numeroControlePncpCompra\":\"00394460005887-1-000049/2024\",\"codigoPaisFornecedor\":null,\"dataAtualizacao\":\"2024-10-01T00:30:04\",\"orgaoEntidade\":{\"cnpj\":\"00394460005887\",\"razaoSocial\":\"MINISTERIO
-        DA ECONOMIA\",\"poderId\":\"E\",\"esferaId\":\"F\"},\"dataAssinatura\":\"2024-09-30\",\"dataVigenciaInicio\":\"2024-09-30\",\"dataVigenciaFim\":\"2024-10-30\",\"niFornecedor\":\"23121658000157\",\"tipoPessoa\":\"PJ\",\"processo\":\"13113276165202419\",\"orgaoSubRogado\":null,\"unidadeOrgao\":{\"ufNome\":\"Rio
-        de Janeiro\",\"codigoUnidade\":\"700100\",\"ufSigla\":\"RJ\",\"municipioNome\":\"Rio
-        de Janeiro\",\"nomeUnidade\":\"Superintend\xEAncia Regional da Receita Federal
-        do Brasil da 7\xAA Regi\xE3o Fiscal\",\"codigoIbge\":\"3304557\"},\"unidadeSubRogada\":null,\"nomeRazaoSocialFornecedor\":\"PONTO
-        CERTO IMPORTACAO E EXPORTACAO LTDA\",\"informacaoComplementar\":null,\"numeroContratoEmpenho\":\"0700100/0134\",\"categoriaProcesso\":{\"id\":11,\"nome\":\"Aliena\xE7\xE3o
-        de bens m\xF3veis/im\xF3veis\"},\"anoContrato\":2024,\"tipoContrato\":{\"id\":1,\"nome\":\"Contrato
-        (termo inicial)\"},\"sequencialContrato\":4460,\"dataPublicacaoPncp\":\"2024-10-01T00:30:04\",\"niFornecedorSubContratado\":null,\"nomeFornecedorSubContratado\":null,\"dataAtualizacaoGlobal\":\"2024-10-01T00:30:04\",\"numeroControlePNCP\":\"00394460005887-2-004460/2024\",\"receita\":true,\"numeroParcelas\":1,\"numeroRetificacao\":0,\"tipoPessoaSubContratada\":null,\"objetoContrato\":\"Aliena\xE7\xE3o
-        de mercadorias apreendidas pela Receita Federal\",\"valorInicial\":249000.0000,\"valorParcela\":249000.0000,\"valorGlobal\":249000.0000,\"valorAcumulado\":null,\"identificadorCipi\":null,\"urlCipi\":null,\"usuarioNome\":\"Minist\xE9rio
-        da Fazenda / Receita Federal\"},{\"numeroControlePncpCompra\":\"00394460005887-1-000049/2024\",\"codigoPaisFornecedor\":null,\"dataAtualizacao\":\"2024-10-01T00:30:04\",\"orgaoEntidade\":{\"cnpj\":\"00394460005887\",\"razaoSocial\":\"MINISTERIO
-        DA ECONOMIA\",\"poderId\":\"E\",\"esferaId\":\"F\"},\"dataAssinatura\":\"2024-09-30\",\"dataVigenciaInicio\":\"2024-09-30\",\"dataVigenciaFim\":\"2024-10-30\",\"niFornecedor\":\"46157057000108\",\"tipoPessoa\":\"PJ\",\"processo\":\"13113276165202419\",\"orgaoSubRogado\":null,\"unidadeOrgao\":{\"ufNome\":\"Rio
-        de Janeiro\",\"codigoUnidade\":\"700100\",\"ufSigla\":\"RJ\",\"municipioNome\":\"Rio
-        de Janeiro\",\"nomeUnidade\":\"Superintend\xEAncia Regional da Receita Federal
-        do Brasil da 7\xAA Regi\xE3o Fiscal\",\"codigoIbge\":\"3304557\"},\"unidadeSubRogada\":null,\"nomeRazaoSocialFornecedor\":\"JBC
-        MULTI VARIEDADES LTDA\",\"informacaoComplementar\":null,\"numeroContratoEmpenho\":\"0700100/0133\",\"categoriaProcesso\":{\"id\":11,\"nome\":\"Aliena\xE7\xE3o
-        de bens m\xF3veis/im\xF3veis\"},\"anoContrato\":2024,\"tipoContrato\":{\"id\":1,\"nome\":\"Contrato
-        (termo inicial)\"},\"sequencialContrato\":4461,\"dataPublicacaoPncp\":\"2024-10-01T00:30:04\",\"niFornecedorSubContratado\":null,\"nomeFornecedorSubContratado\":null,\"dataAtualizacaoGlobal\":\"2024-10-01T00:30:04\",\"numeroControlePNCP\":\"00394460005887-2-004461/2024\",\"receita\":true,\"numeroParcelas\":1,\"numeroRetificacao\":0,\"tipoPessoaSubContratada\":null,\"objetoContrato\":\"Aliena\xE7\xE3o
-        de mercadorias apreendidas pela Receita Federal\",\"valorInicial\":290222.0000,\"valorParcela\":290222.0000,\"valorGlobal\":290222.0000,\"valorAcumulado\":null,\"identificadorCipi\":null,\"urlCipi\":null,\"usuarioNome\":\"Minist\xE9rio
-        da Fazenda / Receita Federal\"},{\"numeroControlePncpCompra\":\"00394460005887-1-000049/2024\",\"codigoPaisFornecedor\":null,\"dataAtualizacao\":\"2024-10-01T00:30:05\",\"orgaoEntidade\":{\"cnpj\":\"00394460005887\",\"razaoSocial\":\"MINISTERIO
-        DA ECONOMIA\",\"poderId\":\"E\",\"esferaId\":\"F\"},\"dataAssinatura\":\"2024-09-30\",\"dataVigenciaInicio\":\"2024-09-30\",\"dataVigenciaFim\":\"2024-10-30\",\"niFornecedor\":\"46157057000108\",\"tipoPessoa\":\"PJ\",\"processo\":\"13113276165202419\",\"orgaoSubRogado\":null,\"unidadeOrgao\":{\"ufNome\":\"Rio
-        de Janeiro\",\"codigoUnidade\":\"700100\",\"ufSigla\":\"RJ\",\"municipioNome\":\"Rio
-        de Janeiro\",\"nomeUnidade\":\"Superintend\xEAncia Regional da Receita Federal
-        do Brasil da 7\xAA Regi\xE3o Fiscal\",\"codigoIbge\":\"3304557\"},\"unidadeSubRogada\":null,\"nomeRazaoSocialFornecedor\":\"JBC
-        MULTI VARIEDADES LTDA\",\"informacaoComplementar\":null,\"numeroContratoEmpenho\":\"0700100/0139\",\"categoriaProcesso\":{\"id\":11,\"nome\":\"Aliena\xE7\xE3o
-        de bens m\xF3veis/im\xF3veis\"},\"anoContrato\":2024,\"tipoContrato\":{\"id\":1,\"nome\":\"Contrato
-        (termo inicial)\"},\"sequencialContrato\":4462,\"dataPublicacaoPncp\":\"2024-10-01T00:30:05\",\"niFornecedorSubContratado\":null,\"nomeFornecedorSubContratado\":null,\"dataAtualizacaoGlobal\":\"2024-10-01T00:30:05\",\"numeroControlePNCP\":\"00394460005887-2-004462/2024\",\"receita\":true,\"numeroParcelas\":1,\"numeroRetificacao\":0,\"tipoPessoaSubContratada\":null,\"objetoContrato\":\"Aliena\xE7\xE3o
-        de mercadorias apreendidas pela Receita Federal\",\"valorInicial\":9000.0000,\"valorParcela\":9000.0000,\"valorGlobal\":9000.0000,\"valorAcumulado\":null,\"identificadorCipi\":null,\"urlCipi\":null,\"usuarioNome\":\"Minist\xE9rio
-        da Fazenda / Receita Federal\"},{\"numeroControlePncpCompra\":\"00394460005887-1-000049/2024\",\"codigoPaisFornecedor\":null,\"dataAtualizacao\":\"2024-10-01T00:30:05\",\"orgaoEntidade\":{\"cnpj\":\"00394460005887\",\"razaoSocial\":\"MINISTERIO
-        DA ECONOMIA\",\"poderId\":\"E\",\"esferaId\":\"F\"},\"dataAssinatura\":\"2024-09-30\",\"dataVigenciaInicio\":\"2024-09-30\",\"dataVigenciaFim\":\"2024-10-30\",\"niFornecedor\":\"46157057000108\",\"tipoPessoa\":\"PJ\",\"processo\":\"13113276165202419\",\"orgaoSubRogado\":null,\"unidadeOrgao\":{\"ufNome\":\"Rio
-        de Janeiro\",\"codigoUnidade\":\"700100\",\"ufSigla\":\"RJ\",\"municipioNome\":\"Rio
-        de Janeiro\",\"nomeUnidade\":\"Superintend\xEAncia Regional da Receita Federal
-        do Brasil da 7\xAA Regi\xE3o Fiscal\",\"codigoIbge\":\"3304557\"},\"unidadeSubRogada\":null,\"nomeRazaoSocialFornecedor\":\"JBC
-        MULTI VARIEDADES LTDA\",\"informacaoComplementar\":null,\"numeroContratoEmpenho\":\"0700100/0141\",\"categoriaProcesso\":{\"id\":11,\"nome\":\"Aliena\xE7\xE3o
-        de bens m\xF3veis/im\xF3veis\"},\"anoContrato\":2024,\"tipoContrato\":{\"id\":1,\"nome\":\"Contrato
-        (termo inicial)\"},\"sequencialContrato\":4463,\"dataPublicacaoPncp\":\"2024-10-01T00:30:05\",\"niFornecedorSubContratado\":null,\"nomeFornecedorSubContratado\":null,\"dataAtualizacaoGlobal\":\"2024-10-01T00:30:05\",\"numeroControlePNCP\":\"00394460005887-2-004463/2024\",\"receita\":true,\"numeroParcelas\":1,\"numeroRetificacao\":0,\"tipoPessoaSubContratada\":null,\"objetoContrato\":\"Aliena\xE7\xE3o
-        de mercadorias apreendidas pela Receita Federal\",\"valorInicial\":571100.0000,\"valorParcela\":571100.0000,\"valorGlobal\":571100.0000,\"valorAcumulado\":null,\"identificadorCipi\":null,\"urlCipi\":null,\"usuarioNome\":\"Minist\xE9rio
-        da Fazenda / Receita Federal\"},{\"numeroControlePncpCompra\":\"00394460005887-1-000049/2024\",\"codigoPaisFornecedor\":null,\"dataAtualizacao\":\"2024-10-01T00:30:06\",\"orgaoEntidade\":{\"cnpj\":\"00394460005887\",\"razaoSocial\":\"MINISTERIO
-        DA ECONOMIA\",\"poderId\":\"E\",\"esferaId\":\"F\"},\"dataAssinatura\":\"2024-09-30\",\"dataVigenciaInicio\":\"2024-09-30\",\"dataVigenciaFim\":\"2024-10-30\",\"niFornecedor\":\"30123041000136\",\"tipoPessoa\":\"PJ\",\"processo\":\"13113276165202419\",\"orgaoSubRogado\":null,\"unidadeOrgao\":{\"ufNome\":\"Rio
-        de Janeiro\",\"codigoUnidade\":\"700100\",\"ufSigla\":\"RJ\",\"municipioNome\":\"Rio
-        de Janeiro\",\"nomeUnidade\":\"Superintend\xEAncia Regional da Receita Federal
-        do Brasil da 7\xAA Regi\xE3o Fiscal\",\"codigoIbge\":\"3304557\"},\"unidadeSubRogada\":null,\"nomeRazaoSocialFornecedor\":\"I
-        L BASTOGI\",\"informacaoComplementar\":null,\"numeroContratoEmpenho\":\"0700100/0124\",\"categoriaProcesso\":{\"id\":11,\"nome\":\"Aliena\xE7\xE3o
-        de bens m\xF3veis/im\xF3veis\"},\"anoContrato\":2024,\"tipoContrato\":{\"id\":1,\"nome\":\"Contrato
-        (termo inicial)\"},\"sequencialContrato\":4464,\"dataPublicacaoPncp\":\"2024-10-01T00:30:06\",\"niFornecedorSubContratado\":null,\"nomeFornecedorSubContratado\":null,\"dataAtualizacaoGlobal\":\"2024-10-01T00:30:06\",\"numeroControlePNCP\":\"00394460005887-2-004464/2024\",\"receita\":true,\"numeroParcelas\":1,\"numeroRetificacao\":0,\"tipoPessoaSubContratada\":null,\"objetoContrato\":\"Aliena\xE7\xE3o
-        de mercadorias apreendidas pela Receita Federal\",\"valorInicial\":17033.0000,\"valorParcela\":17033.0000,\"valorGlobal\":17033.0000,\"valorAcumulado\":null,\"identificadorCipi\":null,\"urlCipi\":null,\"usuarioNome\":\"Minist\xE9rio
-        da Fazenda / Receita Federal\"},{\"numeroControlePncpCompra\":\"00394460005887-1-000049/2024\",\"codigoPaisFornecedor\":null,\"dataAtualizacao\":\"2024-10-01T00:30:06\",\"orgaoEntidade\":{\"cnpj\":\"00394460005887\",\"razaoSocial\":\"MINISTERIO
-        DA ECONOMIA\",\"poderId\":\"E\",\"esferaId\":\"F\"},\"dataAssinatura\":\"2024-09-30\",\"dataVigenciaInicio\":\"2024-09-30\",\"dataVigenciaFim\":\"2024-10-30\",\"niFornecedor\":\"30123041000136\",\"tipoPessoa\":\"PJ\",\"processo\":\"13113276165202419\",\"orgaoSubRogado\":null,\"unidadeOrgao\":{\"ufNome\":\"Rio
-        de Janeiro\",\"codigoUnidade\":\"700100\",\"ufSigla\":\"RJ\",\"municipioNome\":\"Rio
-        de Janeiro\",\"nomeUnidade\":\"Superintend\xEAncia Regional da Receita Federal
-        do Brasil da 7\xAA Regi\xE3o Fiscal\",\"codigoIbge\":\"3304557\"},\"unidadeSubRogada\":null,\"nomeRazaoSocialFornecedor\":\"I
-        L BASTOGI\",\"informacaoComplementar\":null,\"numeroContratoEmpenho\":\"0700100/0126\",\"categoriaProcesso\":{\"id\":11,\"nome\":\"Aliena\xE7\xE3o
-        de bens m\xF3veis/im\xF3veis\"},\"anoContrato\":2024,\"tipoContrato\":{\"id\":1,\"nome\":\"Contrato
-        (termo inicial)\"},\"sequencialContrato\":4465,\"dataPublicacaoPncp\":\"2024-10-01T00:30:06\",\"niFornecedorSubContratado\":null,\"nomeFornecedorSubContratado\":null,\"dataAtualizacaoGlobal\":\"2024-10-01T00:30:06\",\"numeroControlePNCP\":\"00394460005887-2-004465/2024\",\"receita\":true,\"numeroParcelas\":1,\"numeroRetificacao\":0,\"tipoPessoaSubContratada\":null,\"objetoContrato\":\"Aliena\xE7\xE3o
-        de mercadorias apreendidas pela Receita Federal\",\"valorInicial\":12333.0000,\"valorParcela\":12333.0000,\"valorGlobal\":12333.0000,\"valorAcumulado\":null,\"identificadorCipi\":null,\"urlCipi\":null,\"usuarioNome\":\"Minist\xE9rio
-        da Fazenda / Receita Federal\"},{\"numeroControlePncpCompra\":\"00394460005887-1-000037/2024\",\"codigoPaisFornecedor\":null,\"dataAtualizacao\":\"2024-10-01T00:30:07\",\"orgaoEntidade\":{\"cnpj\":\"00394460005887\",\"razaoSocial\":\"MINISTERIO
-        DA ECONOMIA\",\"poderId\":\"E\",\"esferaId\":\"F\"},\"dataAssinatura\":\"2024-09-30\",\"dataVigenciaInicio\":\"2024-09-30\",\"dataVigenciaFim\":\"2024-10-30\",\"niFornecedor\":\"26702164000154\",\"tipoPessoa\":\"PJ\",\"processo\":\"13083109687202401\",\"orgaoSubRogado\":null,\"unidadeOrgao\":{\"ufNome\":\"Pernambuco\",\"codigoUnidade\":\"400100\",\"ufSigla\":\"PE\",\"municipioNome\":\"Recife\",\"nomeUnidade\":\"Superintend\xEAncia
-        Regional da Receita Federal do Brasil da 4\xAA Regi\xE3o Fiscal\",\"codigoIbge\":\"2611606\"},\"unidadeSubRogada\":null,\"nomeRazaoSocialFornecedor\":\"R.
-        C. GOMES COMERCIO DE BENS ELETRONICOS\",\"informacaoComplementar\":null,\"numeroContratoEmpenho\":\"0400100/0060\",\"categoriaProcesso\":{\"id\":11,\"nome\":\"Aliena\xE7\xE3o
-        de bens m\xF3veis/im\xF3veis\"},\"anoContrato\":2024,\"tipoContrato\":{\"id\":1,\"nome\":\"Contrato
-        (termo inicial)\"},\"sequencialContrato\":4466,\"dataPublicacaoPncp\":\"2024-10-01T00:30:06\",\"niFornecedorSubContratado\":null,\"nomeFornecedorSubContratado\":null,\"dataAtualizacaoGlobal\":\"2024-10-01T00:30:07\",\"numeroControlePNCP\":\"00394460005887-2-004466/2024\",\"receita\":true,\"numeroParcelas\":1,\"numeroRetificacao\":0,\"tipoPessoaSubContratada\":null,\"objetoContrato\":\"Aliena\xE7\xE3o
-        de mercadorias apreendidas pela Receita Federal\",\"valorInicial\":36427.0000,\"valorParcela\":36427.0000,\"valorGlobal\":36427.0000,\"valorAcumulado\":null,\"identificadorCipi\":null,\"urlCipi\":null,\"usuarioNome\":\"Minist\xE9rio
-        da Fazenda / Receita Federal\"},{\"numeroControlePncpCompra\":\"02585924000122-1-000677/2024\",\"codigoPaisFornecedor\":\"BRA\",\"dataAtualizacao\":\"2024-10-01T01:00:05\",\"orgaoEntidade\":{\"cnpj\":\"02585924000122\",\"razaoSocial\":\"SECRETARIA
-        DE ESTADO DE EDUCACAO DE MATO GROSSO DO SUL\",\"poderId\":\"E\",\"esferaId\":\"E\"},\"dataAssinatura\":\"2024-09-30\",\"dataVigenciaInicio\":\"2024-09-30\",\"dataVigenciaFim\":\"2024-11-25\",\"niFornecedor\":\"08647485000111\",\"tipoPessoa\":\"PJ\",\"processo\":\"29.067.856-2024\",\"orgaoSubRogado\":null,\"unidadeOrgao\":{\"ufNome\":\"Mato
-        Grosso do Sul\",\"codigoUnidade\":\"50015958\",\"ufSigla\":\"MS\",\"municipioNome\":\"Dourados\",\"nomeUnidade\":\"APM
-        EE PASTOR DANIEL BERG\",\"codigoIbge\":\"5003702\"},\"unidadeSubRogada\":null,\"nomeRazaoSocialFornecedor\":\"MACRI
-        ALIMENTOS LTDA ME\",\"informacaoComplementar\":null,\"numeroContratoEmpenho\":\"2\",\"categoriaProcesso\":{\"id\":2,\"nome\":\"Compras\"},\"anoContrato\":2024,\"tipoContrato\":{\"id\":1,\"nome\":\"Contrato
-        (termo inicial)\"},\"sequencialContrato\":1616,\"dataPublicacaoPncp\":\"2024-10-01T01:00:04\",\"niFornecedorSubContratado\":null,\"nomeFornecedorSubContratado\":null,\"dataAtualizacaoGlobal\":\"2024-10-01T01:00:05\",\"numeroControlePNCP\":\"02585924000122-2-001616/2024\",\"receita\":false,\"numeroParcelas\":1,\"numeroRetificacao\":0,\"tipoPessoaSubContratada\":null,\"objetoContrato\":\"O
-        objeto do presente Contrato \xE9 a aquisi\xE7\xE3o de g\xEAneros aliment\xEDcios
-        destinados ao atendimento do Programa Nacional de Alimenta\xE7\xE3o Escolar
-        \u2013 PNAE, no(a) EE PASTOR DANIEL BERG, munic\xEDpio de DOURADOS / MS, conforme
-        especifica\xE7\xF5es e quantitativos estabelecidos no Termo de Refer\xEAncia
-        e na Proposta de Pre\xE7os.\",\"valorInicial\":10781.0200,\"valorParcela\":10781.0200,\"valorGlobal\":10781.0200,\"valorAcumulado\":null,\"identificadorCipi\":null,\"urlCipi\":null,\"usuarioNome\":\"D\xEDgithoBrasil
-        Solu\xE7\xF5es em Software Ltda\"}],\"totalRegistros\":5446,\"totalPaginas\":545,\"numeroPagina\":1,\"paginasRestantes\":544,\"empty\":false}"
+      string: Access denied
     headers:
-      access-control-allow-credentials:
-      - 'true'
-      access-control-allow-headers:
-      - Content-Type,Authorization,X-Requested-With,Content-Length,Accept,Origin,
-      access-control-allow-methods:
-      - GET,PUT,POST,DELETE,OPTIONS
-      access-control-allow-origin:
-      - '*'
-      cache-control:
-      - no-cache, no-store, max-age=0, must-revalidate
+      content-length:
+      - '13'
       content-type:
-      - application/json
+      - text/plain
       date:
-      - Wed, 14 Jan 2026 19:04:14 GMT
-      expires:
-      - '0'
-      pragma:
-      - no-cache
-      strict-transport-security:
-      - max-age=15768000
-      transfer-encoding:
-      - chunked
-      x-content-type-options:
-      - nosniff
-      x-frame-options:
-      - DENY
-      x-xss-protection:
-      - '0'
+      - Fri, 31 Oct 2025 15:39:11 GMT
     status:
-      code: 200
-      message: ''
+      code: 403
+      message: Forbidden
 version: 1

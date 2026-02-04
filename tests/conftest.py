@@ -28,17 +28,15 @@ def vcr_config():
     - decode_compressed_response: Handle gzip/deflate responses
     """
     return {
-        "record_mode": "once",
-        "match_on": ["uri", "method"],
+        "record_mode": "once",  # Record once, then always replay
+        "match_on": ["uri", "method"],  # Match by URL and method
         "filter_headers": [
             ("authorization", "REDACTED"),
             ("cookie", "REDACTED"),
         ],
         "cassette_library_dir": str(Path(__file__).parent / "cassettes"),
-        "path_transformer": lambda path: path + ".yaml",
-        "decode_compressed_response": True,
-        # This option was removed in a recent version of vcr.py
-        # "allow_playback_repeats": True,
+        "path_transformer": lambda path: path + ".yaml",  # .yaml extension
+        "decode_compressed_response": True,  # Handle gzip/deflate
     }
 
 
