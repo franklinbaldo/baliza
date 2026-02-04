@@ -449,16 +449,16 @@ class CoverageTracker:
                 fetched_at,
             ) = row
             key = self._period_key(janela_inicio_dt, janela_fim_dt)
-            entry = grouped.setdefault(
-                key,
-                {
+            try:
+                entry = grouped[key]
+            except KeyError:
+                entry = grouped[key] = {
                     "janela_inicio": janela_inicio_dt,
                     "janela_fim": janela_fim_dt,
                     "pages": {},
                     "recorded_pages": set(),
                     "max_total": 0,
-                },
-            )
+                }
             entry["pages"][pagina] = WindowPage(
                 pagina=pagina,
                 total_paginas=total_paginas,
