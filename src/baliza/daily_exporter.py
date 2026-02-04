@@ -135,10 +135,6 @@ class DailyExporter:
         output_dir: Path,
     ) -> dict[str, Any]:
         """Export contratos table for a specific date."""
-        from datetime import timedelta
-        start_ts = datetime.combine(target_date, datetime.min.time())
-        end_ts = start_ts + timedelta(days=1)
-
         # Query with column renaming to snake_case
         result = con.execute(
             f"""
@@ -163,10 +159,10 @@ class DailyExporter:
                 usuarioNome as usuario_nome,
                 CAST(? AS DATE) as data_particao
             FROM {self.dataset}.contratos
-            WHERE dataPublicacao >= ? AND dataPublicacao < ?
+            WHERE CAST(dataPublicacao AS DATE) = ?
             ORDER BY numero_controle_pncp
         """,
-            [target_date, start_ts, end_ts],
+            [target_date, target_date],
         ).arrow()
 
         # Handle both RecordBatchReader and Table
@@ -190,10 +186,6 @@ class DailyExporter:
         output_dir: Path,
     ) -> dict[str, Any]:
         """Export deduplicated orgaos for a specific date."""
-        from datetime import timedelta
-        start_ts = datetime.combine(target_date, datetime.min.time())
-        end_ts = start_ts + timedelta(days=1)
-
         result = con.execute(
             f"""
             SELECT
@@ -205,11 +197,11 @@ class DailyExporter:
                 COUNT(*) as contratos_no_dia,
                 SUM(valorInicial) as valor_total_no_dia
             FROM {self.dataset}.contratos
-            WHERE dataPublicacao >= ? AND dataPublicacao < ?
+            WHERE CAST(dataPublicacao AS DATE) = ?
             GROUP BY orgaoEntidade_cnpj
             ORDER BY cnpj
         """,
-            [start_ts, end_ts],
+            [target_date],
         ).arrow()
 
         # Handle both RecordBatchReader and Table
@@ -233,10 +225,6 @@ class DailyExporter:
         output_dir: Path,
     ) -> dict[str, Any]:
         """Export deduplicated unidades for a specific date."""
-        from datetime import timedelta
-        start_ts = datetime.combine(target_date, datetime.min.time())
-        end_ts = start_ts + timedelta(days=1)
-
         result = con.execute(
             f"""
             SELECT
@@ -245,12 +233,12 @@ class DailyExporter:
                 MAX(unidadeOrgao_nomeUnidade) as nome,
                 COUNT(*) as contratos_no_dia
             FROM {self.dataset}.contratos
-            WHERE dataPublicacao >= ? AND dataPublicacao < ?
+            WHERE CAST(dataPublicacao AS DATE) = ?
               AND unidadeOrgao_codigoUnidade IS NOT NULL
             GROUP BY unidadeOrgao_codigoUnidade, orgaoEntidade_cnpj
             ORDER BY codigo
         """,
-            [start_ts, end_ts],
+            [target_date],
         ).arrow()
 
         # Handle both RecordBatchReader and Table

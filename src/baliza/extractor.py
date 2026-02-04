@@ -477,12 +477,6 @@ class PNCPExtractor:
         Returns:
             Number of rows deleted
         """
-        # Calculate next day for range query (sargable)
-        from datetime import timedelta
-
-        start_ts = datetime.combine(extraction_date.date(), datetime.min.time())
-        end_ts = start_ts + timedelta(days=1)
-
         with duckdb.connect(str(self.db_path)) as con:
             self._ensure_schema(con)
 
@@ -490,9 +484,9 @@ class PNCPExtractor:
             result = con.execute(
                 f"""
                 SELECT COUNT(*) FROM {self.dataset}.contratos
-                WHERE dataPublicacao >= ? AND dataPublicacao < ?
+                WHERE CAST(dataPublicacao AS DATE) = ?
             """,
-                [start_ts, end_ts],
+                [extraction_date.date()],
             ).fetchone()
             row_count = result[0] if result else 0
 
@@ -501,9 +495,9 @@ class PNCPExtractor:
                 con.execute(
                     f"""
                     DELETE FROM {self.dataset}.contratos
-                    WHERE dataPublicacao >= ? AND dataPublicacao < ?
+                    WHERE CAST(dataPublicacao AS DATE) = ?
                 """,
-                    [start_ts, end_ts],
+                    [extraction_date.date()],
                 )
 
                 console.print(
@@ -542,7 +536,6 @@ class PNCPExtractor:
         from datetime import timedelta
 
         cutoff = datetime.now() - timedelta(days=stability_days)
-        cutoff_ts = datetime.combine(cutoff.date(), datetime.min.time())
 
         with duckdb.connect(str(self.db_path)) as con:
             self._ensure_schema(con)
@@ -551,18 +544,17 @@ class PNCPExtractor:
             # 1. Have data in contratos
             # 2. Are older than stability window
             # 3. Haven't been uploaded to IA yet
-            # Uses range query on dataPublicacao for index usage
             result = con.execute(
                 f"""
                 SELECT DISTINCT CAST(dataPublicacao AS DATE) as dt
                 FROM {self.dataset}.contratos
-                WHERE dataPublicacao < ?
+                WHERE CAST(dataPublicacao AS DATE) < ?
                   AND CAST(dataPublicacao AS DATE) NOT IN (
                       SELECT extraction_date FROM baliza_state.uploaded_to_ia
                   )
                 ORDER BY dt
             """,
-                [cutoff_ts],
+                [cutoff.date()],
             ).fetchall()
 
             return [datetime.combine(row[0], datetime.min.time()) for row in result]
