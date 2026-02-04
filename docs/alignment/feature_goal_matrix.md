@@ -6,8 +6,8 @@ This document tracks the alignment of all BDD features in the codebase with the 
 
 | Metric | Count |
 |---|---|
-| Total Feature Files | 8 |
-| Total Scenarios | 21 |
+| Total Feature Files | 7 |
+| Total Scenarios | 20 |
 | Last Updated | 2026-02-11 |
 
 ## Feature-Goal Mapping
@@ -19,9 +19,8 @@ This document tracks the alignment of all BDD features in the codebase with the 
 | `daily_export.feature` | 5 | Accessibility for Analysis | Tier 2 | ✅ Implemented | Creates self-contained daily data packages. |
 | `end_to_end_extraction.feature` | 1 | Reliable Data Extraction | Tier 0 | ⚠️ Quarantined | Full pipeline verification. Currently skipped due to CI timeout. |
 | `export.feature` | 1 | Accessibility for Analysis | Tier 0 | ✅ Implemented | Basic Parquet export functionality. |
-| `resilience.feature` | 2 | Reliable Data Extraction | Tier 1 | ❌ Not Implemented | Covers error recovery and retry logic. Scenarios exist but steps are mocked/skipped. |
-| `state_management.feature` | 3 | Reliable Data Extraction | Tier 1 | ⚠️ Partial / Mocked | CLI subcommands `state show`, `state gaps`, `state history` are missing or mocked. |
-| `verification.feature` | 1 | Reliable Data Extraction | Tier 1 | ✅ Implemented | Detects gaps in extracted data using the `verify` command. |
+| `resilience.feature` | 2 | Reliable Data Extraction | Tier 1 | ✅ Implemented | Covers error recovery and retry logic using simulated API failures. |
+| `state_management.feature` | 3 | Reliable Data Extraction | Tier 1 | ⚠️ Partial | Covers `state show` and `state gaps`. `state history` is currently a placeholder. |
 
 ## Tier Distribution
 

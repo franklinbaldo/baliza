@@ -16,26 +16,8 @@ This document tracks all tests marked as SKIP or XFAIL, in accordance with the p
 ## Tier 1: Core Features 🟠
 
 ### Quarantine Entry 2
-- **Identifier:** `tests/step_defs/test_resilience.py::test_extract_recovers_from_transient_error`
-- **Status:** SKIP
-- **Reason:** Steps are not implemented; currently just placeholders.
-- **Reference:** Feature Brief 004
-- **Added On:** 2026-02-11
-- **Expiry Date:** 2026-03-11
-- **Owner:** Baliza BDD Agent
-
-### Quarantine Entry 3
-- **Identifier:** `tests/step_defs/test_resilience.py::test_extract_fails_after_multiple_retries`
-- **Status:** SKIP
-- **Reason:** Steps are not implemented; currently just placeholders.
-- **Reference:** Feature Brief 004
-- **Added On:** 2026-02-11
-- **Expiry Date:** 2026-03-11
-- **Owner:** Baliza BDD Agent
-
-### Quarantine Entry 4
 - **Identifier:** `tests/step_defs/test_state_management.py::test_show_history`
-- **Status:** SKIP
+- **Status:** XFAIL (strict=True)
 - **Reason:** The `state history` command is not yet implemented in the CLI.
 - **Reference:** Feature Brief 002
 - **Added On:** 2026-02-11
@@ -44,7 +26,7 @@ This document tracks all tests marked as SKIP or XFAIL, in accordance with the p
 
 ## Integration & Environment 🌍
 
-### Quarantine Entry 5
+### Quarantine Entry 3
 - **Identifier:** `tests/integration/test_pncp_real_api.py` (All tests)
 - **Status:** SKIP
 - **Reason:** Requires live PNCP API access, which is flaky and often blocked in CI.
@@ -53,7 +35,7 @@ This document tracks all tests marked as SKIP or XFAIL, in accordance with the p
 - **Expiry Date:** 2026-12-31
 - **Owner:** Baliza BDD Agent
 
-### Quarantine Entry 6
+### Quarantine Entry 4
 - **Identifier:** `tests/integration/test_pncp_api_simple.py::test_pncp_api_response_fields`
 - **Status:** XFAIL (strict=False)
 - **Reason:** PNCP API is unstable and occasionally returns 400 for valid requests.
@@ -62,7 +44,7 @@ This document tracks all tests marked as SKIP or XFAIL, in accordance with the p
 - **Expiry Date:** 2026-05-11
 - **Owner:** Baliza BDD Agent
 
-### Quarantine Entry 7
+### Quarantine Entry 5
 - **Identifier:** `tests/integration/test_pncp_api_simple.py::test_pncp_api_date_format`
 - **Status:** XFAIL (strict=False)
 - **Reason:** PNCP API is unstable and occasionally returns 400 for valid requests.
