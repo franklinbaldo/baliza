@@ -14,7 +14,7 @@ from rich.table import Table
 
 from .daily_exporter import DailyExporter
 from .extractor import PNCPExtractor
-from .utils import validate_identifier, validate_resource_path
+from .utils import escape_sql_literal, validate_identifier, validate_resource_path
 
 app = typer.Typer(help="Baliza - Simple PNCP extraction tool")
 console = Console()
@@ -202,8 +202,10 @@ def export(
             with duckdb.connect(str(db_path)) as con:
                 # Simple export - dump everything to parquet
                 parquet_file = output / f"{table}.parquet"
+                # Escape path for SQL literal to prevent injection
+                parquet_file_sql = escape_sql_literal(str(parquet_file))
                 con.execute(f"""
-                    COPY {dataset}.{table} TO '{parquet_file}' (FORMAT PARQUET)
+                    COPY {dataset}.{table} TO '{parquet_file_sql}' (FORMAT PARQUET)
                 """)
 
         console.print(f"[green]✓ Exported {dataset}.{table} to {parquet_file}")
@@ -335,6 +337,8 @@ def status(
 ) -> None:
     """Show overall extraction status."""
     try:
+        validate_identifier(dataset)
+
         if not db_path.exists():
             console.print("[yellow]No database found. Run extraction first.[/yellow]")
             raise typer.Exit(0)

@@ -100,3 +100,15 @@ def validate_resource_path(path: str) -> str:
         raise ValueError(f"Invalid resource path: '{path}'. Path traversal ('..') is not allowed.")
 
     return path
+
+
+def escape_sql_literal(value: str) -> str:
+    """Escape a string for use in a SQL literal (doubling single quotes).
+
+    Args:
+        value: The string to escape.
+
+    Returns:
+        The escaped string.
+    """
+    return value.replace("'", "''")
