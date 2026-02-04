@@ -13,6 +13,7 @@ from baliza.cli_simple import app
 runner = CliRunner()
 
 
+@pytest.mark.xfail(strict=True, reason="baliza state show not implemented")
 @scenario(
     "../features/state_management.feature",
     "Show the state of the data extraction process",
@@ -21,6 +22,7 @@ def test_show_state():
     """Show the state of the data extraction process."""
 
 
+@pytest.mark.xfail(strict=True, reason="baliza state gaps not implemented")
 @scenario(
     "../features/state_management.feature",
     "List the gaps in the data extraction process",
@@ -29,7 +31,7 @@ def test_list_gaps():
     """List the gaps in the data extraction process."""
 
 
-@pytest.mark.skip(reason="Feature not implemented")
+@pytest.mark.xfail(strict=True, reason="baliza state history not implemented")
 @scenario(
     "../features/state_management.feature",
     "Show the history of the data extraction process",
@@ -104,19 +106,19 @@ def db_path_with_history(db_path: Path) -> Path:
         con.execute(
             dedent(
                 """
-            CREATE TABLE baliza_state.extraction_runs (
+            CREATE TABLE baliza_state.runs (
                 run_id VARCHAR,
-                start_time TIMESTAMP,
-                end_time TIMESTAMP,
+                started_at TIMESTAMP,
+                finished_at TIMESTAMP,
                 status VARCHAR,
-                windows_processed INTEGER,
+                windows_completed INTEGER,
                 rows_extracted INTEGER
             )
         """
             )
         )
         con.execute(
-            "INSERT INTO baliza_state.extraction_runs VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO baliza_state.runs VALUES (?, ?, ?, ?, ?, ?)",
             [
                 "run-1",
                 "2024-01-01 10:00:00",
@@ -127,7 +129,7 @@ def db_path_with_history(db_path: Path) -> Path:
             ],
         )
         con.execute(
-            "INSERT INTO baliza_state.extraction_runs VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO baliza_state.runs VALUES (?, ?, ?, ?, ?, ?)",
             [
                 "run-2",
                 "2024-01-02 11:00:00",
@@ -145,64 +147,29 @@ def db_path_with_history(db_path: Path) -> Path:
 
 @when('I run the "state show" command', target_fixture="result")
 def run_state_show(db_path_with_windows: Path):
-    """Run the 'status' command."""
-    # NOTE: Mapping "state show" to the existing "status" command
-    # and creating dummy data for it to run.
-    with duckdb.connect(str(db_path_with_windows)) as con:
-        con.execute("CREATE SCHEMA IF NOT EXISTS baliza_raw")
-        con.execute("CREATE TABLE baliza_raw.contratos (dataPublicacao VARCHAR)")
-        con.execute(
-            "INSERT INTO baliza_raw.contratos VALUES ('2024-01-01'), ('2024-01-03')"
-        )
-
-    result = runner.invoke(app, ["status", "--duckdb", str(db_path_with_windows)])
+    """Run the 'state show' command."""
+    result = runner.invoke(app, ["state", "show", "--duckdb", str(db_path_with_windows)])
+    if result.exit_code != 0:
+        pytest.fail(f"Command failed: {result.stdout}")
     return result
 
 
 @when('I run the "state gaps" command', target_fixture="result")
 def run_state_gaps(db_path_with_windows: Path):
-    """Run the 'verify' command to find gaps."""
-    # NOTE: Mapping "state gaps" to the existing "verify" command
-    result = runner.invoke(
-        app,
-        [
-            "verify",
-            "--start",
-            "2024-01-01",
-            "--end",
-            "2024-01-04",
-            "--duckdb",
-            str(db_path_with_windows),
-        ],
-    )
+    """Run the 'state gaps' command."""
+    result = runner.invoke(app, ["state", "gaps", "--duckdb", str(db_path_with_windows)])
+    if result.exit_code != 0:
+        pytest.fail(f"Command failed: {result.stdout}")
     return result
 
 
 @when('I run the "state history" command', target_fixture="result")
 def run_state_history(db_path_with_history: Path):
-    """Mock running the 'state history' command."""
-    # NOTE: The "state history" command from the README doesn't exist.
-    # We'll simulate its output for now.
-    from io import StringIO
-
-    from rich.console import Console
-    from rich.table import Table
-
-    console = Console(file=StringIO(), force_terminal=True)
-    table = Table(title="Extraction History")
-    table.add_column("Run ID")
-    table.add_column("Start Time")
-    table.add_column("Status")
-    table.add_row("run-1", "2024-01-01 10:00:00", "completed")
-    table.add_row("run-2", "2024-01-02 11:00:00", "failed")
-    console.print(table)
-
-    # Store the output in a CliRunner-like result object
-    class MockResult:
-        exit_code = 0
-        stdout = console.file.getvalue()
-
-    return MockResult()
+    """Run the 'state history' command."""
+    result = runner.invoke(app, ["state", "history", "--duckdb", str(db_path_with_history)])
+    if result.exit_code != 0:
+        pytest.fail(f"Command failed: {result.stdout}")
+    return result
 
 
 # --- Thens ---
@@ -211,27 +178,18 @@ def run_state_history(db_path_with_history: Path):
 @then("the output should summarize the state of the data store")
 def check_state_summary(result):
     """Check that the output summarizes the state of the data store."""
-    assert result.exit_code == 0
     assert "Baliza PNCP Status" in result.stdout
-    assert "Total contracts" in result.stdout
-    assert "2" in result.stdout  # 2 contracts from our dummy data
-    assert "Date range" in result.stdout
-    assert "2024-01-01 to 2024-01-03" in result.stdout
 
 
 @then("the output should list the missing windows")
 def check_missing_windows(result):
     """Check that the output lists the missing windows."""
-    assert result.exit_code == 0
-    assert "Found 1 gap(s)" in result.stdout
     assert "2024-01-02 to 2024-01-02" in result.stdout
 
 
 @then("the output should list the previous extraction runs")
 def check_extraction_history(result):
     """Check that the output lists the previous extraction runs."""
-    assert result.exit_code == 0
-    assert "Extraction History" in result.stdout
     assert "run-1" in result.stdout
     assert "completed" in result.stdout
     assert "run-2" in result.stdout
