@@ -51,8 +51,7 @@ def to_pncp_window(value: Any) -> str:
     else:
         dt = dt.astimezone(UTC)
 
-    # Optimization: f-string is ~2.4x faster than strftime("%Y%m%d")
-    return f"{dt.year:04d}{dt.month:02d}{dt.day:02d}"
+    return dt.strftime("%Y%m%d")
 
 
 def humanize_duration(seconds: float) -> str:
@@ -92,8 +91,7 @@ def humanize_naturaltime(dt: datetime) -> str:
     seconds = diff.total_seconds()
 
     if seconds < 0:
-        # Optimization: f-string is ~1.6x faster than strftime
-        return f"{dt.year:04d}-{dt.month:02d}-{dt.day:02d} {dt.hour:02d}:{dt.minute:02d}"
+        return dt.strftime("%Y-%m-%d %H:%M")
 
     if seconds < 60:
         return "just now"
@@ -110,5 +108,4 @@ def humanize_naturaltime(dt: datetime) -> str:
     if days < 7:
         return f"{days}d ago"
 
-    # Optimization: f-string is ~1.6x faster than strftime
-    return f"{dt.year:04d}-{dt.month:02d}-{dt.day:02d} {dt.hour:02d}:{dt.minute:02d}"
+    return dt.strftime("%Y-%m-%d %H:%M")
