@@ -51,8 +51,7 @@ def to_pncp_window(value: Any) -> str:
     else:
         dt = dt.astimezone(UTC)
 
-    # Optimization: f-string formatting is ~1.75x faster than strftime("%Y%m%d")
-    return f"{dt.year:04d}{dt.month:02d}{dt.day:02d}"
+    return dt.strftime("%Y%m%d")
 
 
 def humanize_duration(seconds: float) -> str:
