@@ -14,12 +14,11 @@ import duckdb
 import httpx
 from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from .utils import validate_identifier
 
 console = Console()
-EMPTY_DICT: dict[str, Any] = {}
 
 
 @retry(
@@ -204,20 +203,16 @@ class PNCPExtractor:
 
         values = []
         for row in rows:
-            # Optimize: avoid repeated lookups and empty dict creation
-            orgao = row.get("orgaoEntidade") or EMPTY_DICT
-            unidade = row.get("unidadeOrgao") or EMPTY_DICT
-
             values.append(
                 (
                     row.get("numeroControlePNCP"),
                     row.get("anoCompra"),
                     row.get("sequencialCompra"),
-                    orgao.get("cnpj"),
-                    orgao.get("razaoSocial"),
-                    orgao.get("poderId"),
-                    unidade.get("codigoUnidade"),
-                    unidade.get("nomeUnidade"),
+                    row.get("orgaoEntidade", {}).get("cnpj"),
+                    row.get("orgaoEntidade", {}).get("razaoSocial"),
+                    row.get("orgaoEntidade", {}).get("poderId"),
+                    row.get("unidadeOrgao", {}).get("codigoUnidade"),
+                    row.get("unidadeOrgao", {}).get("nomeUnidade"),
                     row.get("modalidadeId"),
                     row.get("modalidadeNome"),
                     row.get("valorInicial"),
