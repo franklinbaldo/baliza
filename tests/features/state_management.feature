@@ -1,8 +1,10 @@
+@tier1
 Feature: State Management
   As a data engineer,
   I want to inspect the state of the data extraction process,
   So that I can diagnose issues and understand the coverage of the local data store.
 
+  @smoke
   Scenario: Show the state of the data extraction process
     Given a data store with complete, incomplete, and missing windows
     When I run the "state show" command

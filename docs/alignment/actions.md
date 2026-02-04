@@ -1,14 +1,30 @@
-# BDD Alignment Actions Log
+# Alignment Actions Log
 
-This document records the decisions and actions taken by the Baliza BDD Feature Builder Agent.
+This document records significant alignment decisions and actions taken by the Baliza BDD Alignment Agent.
 
-## 2024-07-24: PM Escalation Note - Outdated README.md
+## 2026-02-11: BDD Alignment & Health Pass
 
--   **Concern:** The root `README.md` is dangerously outdated and describes an architecture that is no longer in use. It references a `dlt`-based pipeline, a `src/baliza/config/pncp.yml` configuration file, and a `baliza.duckdb` file structure that do not match the current, simpler `httpx`-based implementation. This creates a significant risk of confusion for new developers and users.
--   **Evidence:**
-    -   `README.md`: Describes a `dlt`-based pipeline.
-    -   `src/baliza/extractor.py`: Shows a simpler `httpx`-based implementation.
-    -   `src/baliza/cli_simple.py`: Shows the current CLI structure.
--   **Concrete Proposal:** The `README.md` needs a complete rewrite to accurately reflect the current architecture. This is a high-priority task that falls under the PM agent's purview. The BDD Feature Builder has established a correct baseline in the `docs/alignment/` directory, which can be used as a source of truth for the rewrite.
--   **Owner:** Baliza BDD Feature Builder
--   **Status:** Action required by PM agent.
+### Action: Implement `state` subcommands in CLI
+- **Reason:** Misalignment between `state_management.feature` and `cli_simple.py`. Feature expected `state show/gaps/history` while CLI had top-level `status/verify`.
+- **Decision:** Added `state` Typer app group to `cli_simple.py`. Mapped `state show` to `status`, `state gaps` to `verify`, and added `state buffer` for `buffer-stats`.
+- **Outcome:** Features and CLI are now aligned. Tests for these commands are now "honest" as they call the actual subcommands.
+
+### Action: Implement Resilience Tests
+- **Reason:** `resilience.feature` scenarios were entirely skipped with "Not implemented" messages, leaving a gap in core feature verification.
+- **Decision:** Implemented `tests/step_defs/test_resilience.py` using `monkeypatch` to mock `httpx.Client.get`.
+- **Outcome:** Both scenarios ("recovers from transient error" and "fails after multiple retries") are now passing, providing verified confidence in the pipeline's resilience.
+
+### Action: English Translation & Legacy Cleanup
+- **Reason:** Project standard is shifting to English (as per Masterplan), and legacy `dlt` references were still present in `README.md` and `ROADMAP.md`.
+- **Decision:** Translated `README.md` and `ROADMAP.md` to English. Removed all `dlt` references.
+- **Outcome:** Documentation is now accurate and consistent with the "Simple" (httpx + DuckDB) architecture.
+
+### Action: Feature Categorization (Tiers & Smoke)
+- **Reason:** Need for prioritized testing and clear feature hierarchy as per `feature-hierarchy.md`.
+- **Decision:** Added `@tierN` tags to all feature files and `@smoke` tags to critical scenarios.
+- **Outcome:** Enables targeted test runs (e.g., `pytest -m smoke`).
+
+### Action: Honest Quarantine Update
+- **Reason:** Previous `quarantine.md` was incomplete and outdated.
+- **Decision:** Fully updated `quarantine.md` with all current skips and xfails, including metadata (Reason, Reference, Expiry). Moved `state history` to `xfail(strict=True)`.
+- **Outcome:** Transparent and traceable test suite health.

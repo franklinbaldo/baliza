@@ -1,3 +1,4 @@
+@tier0
 Feature: Extraction Checkpointing
   As a data engineer
   I want extraction to checkpoint progress per page
@@ -12,6 +13,7 @@ Feature: Extraction Checkpointing
     And the database should contain data from page 1
 
   @tier0
+  @smoke
   Scenario: Extraction resumes from checkpoint
     Given an existing checkpoint at page 2 of 5
     And 1000 rows already extracted

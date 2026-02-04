@@ -1,3 +1,4 @@
+@tier2
 Feature: Daily Parquet Export
   As a data engineer
   I want to export daily data in a relational structure

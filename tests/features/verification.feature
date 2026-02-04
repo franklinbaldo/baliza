@@ -1,9 +1,10 @@
+@tier1
 Feature: Data Verification
   As a data engineer
   I want to verify data coverage
   So that I can identify gaps in extraction
 
-  @tier1
+  @tier1 @smoke
   Scenario: Verify command detects gaps
     Given I have extracted data for 2024-01-01 to 2024-01-10
     But 2024-01-05 to 2024-01-07 are missing

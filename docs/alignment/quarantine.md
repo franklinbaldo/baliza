@@ -2,52 +2,71 @@
 
 This document tracks all tests marked as SKIP or XFAIL, in accordance with the project's quarantine policy.
 
-## Quarantine Entry 1
+## Tier 0: Critical Path 🔴
 
--   **Identifier:** `tests/step_defs/test_end_to_end_extraction.py::test_pipeline_is_resumable_and_idempotent`
--   **Status:** SKIP
--   **Reason:** Quarantined due to a persistent, intractable timeout issue with `pytest-httpx`. This is part of a known, severe test environment problem.
--   **Reference:** Technical debt tracked in `docs/MASTERPLAN.md`.
--   **Added On:** 2024-07-24
--   **Expiry Date:** 2024-10-24
--   **Owner:** Baliza BDD Feature Builder
+### Quarantine Entry 1
+- **Identifier:** `tests/step_defs/test_end_to_end_extraction.py::test_pipeline_is_resumable_and_idempotent`
+- **Status:** SKIP
+- **Reason:** Persistent timeout issue with `pytest-httpx` in the test environment.
+- **Reference:** `docs/MASTERPLAN.md` (Technical Debt)
+- **Added On:** 2024-07-24
+- **Expiry Date:** 2026-06-01
+- **Owner:** Baliza BDD Agent
 
-## Quarantine Entry 2
+## Tier 1: Core Features 🟠
 
--   **Identifier:** `tests/integration/test_pncp_real_api.py::test_pncp_extract_real_api_single_day`
--   **Status:** SKIP
--   **Reason:** Quarantined due to a persistent timeout issue, likely caused by live API calls in a CI environment.
--   **Reference:** Technical debt tracked in `docs/MASTERPLAN.md`.
--   **Added On:** 2024-07-24
--   **Expiry Date:** 2024-10-24
--   **Owner:** Baliza BDD Feature Builder
+### Quarantine Entry 2
+- **Identifier:** `tests/step_defs/test_resilience.py::test_extract_recovers_from_transient_error`
+- **Status:** SKIP
+- **Reason:** Steps are not implemented; currently just placeholders.
+- **Reference:** Feature Brief 004
+- **Added On:** 2026-02-11
+- **Expiry Date:** 2026-03-11
+- **Owner:** Baliza BDD Agent
 
-## Quarantine Entry 3
+### Quarantine Entry 3
+- **Identifier:** `tests/step_defs/test_resilience.py::test_extract_fails_after_multiple_retries`
+- **Status:** SKIP
+- **Reason:** Steps are not implemented; currently just placeholders.
+- **Reference:** Feature Brief 004
+- **Added On:** 2026-02-11
+- **Expiry Date:** 2026-03-11
+- **Owner:** Baliza BDD Agent
 
--   **Identifier:** `tests/integration/test_pncp_real_api.py::test_pncp_pagination`
--   **Status:** SKIP
--   **Reason:** Quarantined due to a persistent timeout issue, likely caused by live API calls in a CI environment.
--   **Reference:** Technical debt tracked in `docs/MASTERPLAN.md`.
--   **Added On:** 2024-07-24
--   **Expiry Date:** 2024-10-24
--   **Owner:** Baliza BDD Feature Builder
+### Quarantine Entry 4
+- **Identifier:** `tests/step_defs/test_state_management.py::test_show_history`
+- **Status:** SKIP
+- **Reason:** The `state history` command is not yet implemented in the CLI.
+- **Reference:** Feature Brief 002
+- **Added On:** 2026-02-11
+- **Expiry Date:** 2026-04-11
+- **Owner:** Baliza BDD Agent
 
-## Quarantine Entry 4
+## Integration & Environment 🌍
 
--   **Identifier:** `tests/integration/test_pncp_real_api.py::test_pncp_api_error_handling`
--   **Status:** SKIP
--   **Reason:** Quarantined due to a persistent timeout issue, likely caused by live API calls in a CI environment.
--   **Reference:** Technical debt tracked in `docs/MASTERPLAN.md`.
--   **Added On:** 2024-07-24
--   **Expiry Date:** 2024-10-24
--   **Owner:** Baliza BDD Feature Builder
+### Quarantine Entry 5
+- **Identifier:** `tests/integration/test_pncp_real_api.py` (All tests)
+- **Status:** SKIP
+- **Reason:** Requires live PNCP API access, which is flaky and often blocked in CI.
+- **Reference:** `docs/alignment/quarantine.md`
+- **Added On:** 2024-07-24
+- **Expiry Date:** 2026-12-31
+- **Owner:** Baliza BDD Agent
 
-## Quarantine Entry 5
+### Quarantine Entry 6
+- **Identifier:** `tests/integration/test_pncp_api_simple.py::test_pncp_api_response_fields`
+- **Status:** XFAIL (strict=False)
+- **Reason:** PNCP API is unstable and occasionally returns 400 for valid requests.
+- **Reference:** In-code comment in test file.
+- **Added On:** 2026-02-11
+- **Expiry Date:** 2026-05-11
+- **Owner:** Baliza BDD Agent
 
--   **Identifier:** `tests/integration/test_pncp_real_api.py::test_pncp_coverage_tracker`
--   **Status:** SKIP
--   **Reason:** Quarantined due to a persistent timeout issue, likely caused by live API calls in a CI environment.
--   **Reference:** Technical debt tracked in `docs/MASTERPLAN.md`.
--   **Added On:** 2024-07-24
--   **Expiry Date:** 2024-10-24
--   **Owner:** Baliza BDD Feature Builder
+### Quarantine Entry 7
+- **Identifier:** `tests/integration/test_pncp_api_simple.py::test_pncp_api_date_format`
+- **Status:** XFAIL (strict=False)
+- **Reason:** PNCP API is unstable and occasionally returns 400 for valid requests.
+- **Reference:** In-code comment in test file.
+- **Added On:** 2026-02-11
+- **Expiry Date:** 2026-05-11
+- **Owner:** Baliza BDD Agent

@@ -1,27 +1,25 @@
 """BDD step definitions for resilience.feature."""
 
+import httpx
 import pytest
 from pytest_bdd import given, scenario, then, when
+from typer.testing import CliRunner
+from baliza.cli_simple import app
+from pathlib import Path
 
 # Mark all resilience scenarios as Tier 1 (Core Features)
 pytestmark = pytest.mark.tier1
 
+runner = CliRunner()
 
-# =============================================================================
-# Background Steps
-# =============================================================================
-
-
-@given("a clean local data store")
-def _():
-    """This step is shared across scenarios and should be implemented in a conftest.py."""
-    pytest.skip("Not implemented")
-
+@pytest.fixture
+def db_path(tmp_path: Path) -> Path:
+    """Create a clean DuckDB database."""
+    return tmp_path / "resilience.duckdb"
 
 # =============================================================================
 # Scenario: The extract command recovers from a transient API error
 # =============================================================================
-
 
 @scenario(
     "../features/resilience.feature",
@@ -31,51 +29,50 @@ def test_extract_recovers_from_transient_error():
     """Scenario: The extract command recovers from a transient API error."""
     pass
 
+@given("a PNCP API that will fail transiently", target_fixture="api_mock")
+def api_mock(monkeypatch):
+    calls = {"count": 0}
 
-@given("a PNCP API that will fail transiently")
-def _():
-    pytest.skip("Not implemented")
+    def mock_get(self, url, params=None, **kwargs):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            # Return a 500 error on first call
+            resp = httpx.Response(500, request=httpx.Request("GET", url))
+            return resp
+        else:
+            # Success on subsequent calls
+            data = {
+                "data": [{"numeroControlePNCP": "123-1-000001/2024", "valorInicial": 100.0}],
+                "totalPaginas": 1,
+                "totalRegistros": 1,
+                "numeroPagina": 1
+            }
+            resp = httpx.Response(200, json=data, request=httpx.Request("GET", url))
+            return resp
 
+    monkeypatch.setattr(httpx.Client, "get", mock_get)
+    return calls
 
-@given("the PNCP API will return a 500 error for the first half of a date range")
-def _():
-    pytest.skip("Not implemented")
-
-
-@given("the PNCP API will succeed for the second half of the date range")
-def _():
-    pytest.skip("Not implemented")
-
-
-@when('I run the "baliza extract" command for the full date range')
-def _():
-    pytest.skip("Not implemented")
-
+@when('I run the "baliza extract" command for the full date range', target_fixture="result")
+def run_extract(db_path):
+    result = runner.invoke(app, ["extract", "--start", "2024-01-01", "--end", "2024-01-01", "--duckdb", str(db_path)])
+    return result
 
 @then("the command should eventually succeed")
-def _():
-    pytest.skip("Not implemented")
-
+def check_success(result):
+    assert result.exit_code == 0
+    assert "Extraction Complete" in result.stdout
 
 @then("the final dataset should contain all records for the full date range")
-def _():
-    pytest.skip("Not implemented")
-
-
-@then("the final dataset should not contain duplicate records")
-def _():
-    pytest.skip("Not implemented")
-
-
-@then("the run history should show one failed run and one successful run")
-def _():
-    pytest.skip("Not implemented")
-
+def check_data(db_path):
+    import duckdb
+    with duckdb.connect(str(db_path)) as con:
+        count = con.execute("SELECT COUNT(*) FROM baliza_raw.contratos").fetchone()[0]
+        assert count == 1
 
 # =============================================================================
 # Scenario: The extract command gives up after multiple consecutive failures
 # =============================================================================
-
 
 @scenario(
     "../features/resilience.feature",
@@ -85,27 +82,23 @@ def test_extract_fails_after_multiple_retries():
     """Scenario: The extract command gives up after multiple consecutive failures."""
     pass
 
-
 @given("the PNCP API will consistently return a 500 error")
-def _():
-    pytest.skip("Not implemented")
+def api_fail_consistently(monkeypatch):
+    def mock_get(self, url, params=None, **kwargs):
+        return httpx.Response(500, request=httpx.Request("GET", url))
+    monkeypatch.setattr(httpx.Client, "get", mock_get)
 
-
-@when('I run the "baliza extract" command')
-def _():
-    pytest.skip("Not implemented")
-
+@when('I run the "baliza extract" command', target_fixture="result_fail")
+def run_extract_fail(db_path):
+    # Reduce retry wait time for tests if possible, but here we just wait
+    result = runner.invoke(app, ["extract", "--start", "2024-01-01", "--end", "2024-01-01", "--duckdb", str(db_path)])
+    return result
 
 @then("the command should fail after a reasonable number of retries")
-def _():
-    pytest.skip("Not implemented")
-
+def check_failure(result_fail):
+    assert result_fail.exit_code != 0
+    assert "Extraction failed" in result_fail.stdout
 
 @then("the error message should clearly indicate a persistent failure")
-def _():
-    pytest.skip("Not implemented")
-
-
-@then("the state history should log the multiple failed attempts")
-def _():
-    pytest.skip("Not implemented")
+def check_error_message(result_fail):
+    assert "500" in result_fail.stdout or "Error" in result_fail.stdout

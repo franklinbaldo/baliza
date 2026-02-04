@@ -17,6 +17,9 @@ from .extractor import PNCPExtractor
 from .utils import validate_identifier, validate_resource_path
 
 app = typer.Typer(help="Baliza - Simple PNCP extraction tool")
+state_app = typer.Typer(help="Manage and inspect extraction state")
+app.add_typer(state_app, name="state")
+
 console = Console()
 
 
@@ -95,6 +98,7 @@ def extract(
 
 
 @app.command("verify")
+@state_app.command("gaps")
 def verify(
     resource: str = typer.Option("contratos", "--resource", "-r", help="Resource to verify"),
     start: str = typer.Option(..., "--start", help="Start date (YYYY-MM-DD)"),
@@ -277,6 +281,7 @@ def export_daily(
 
 
 @app.command("buffer-stats")
+@state_app.command("buffer")
 def buffer_stats(
     db_path: Path = typer.Option(
         Path("baliza.duckdb"),
@@ -318,7 +323,15 @@ def buffer_stats(
         raise typer.Exit(1) from None
 
 
+@state_app.command("history")
+def history() -> None:
+    """Show extraction history (planned)."""
+    console.print("[yellow]The 'state history' command is planned but not yet implemented.")
+    raise typer.Exit(0)
+
+
 @app.command("status")
+@state_app.command("show")
 def status(
     db_path: Path = typer.Option(
         Path("baliza.duckdb"),

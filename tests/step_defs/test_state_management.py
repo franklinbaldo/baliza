@@ -29,7 +29,7 @@ def test_list_gaps():
     """List the gaps in the data extraction process."""
 
 
-@pytest.mark.skip(reason="Feature not implemented")
+@pytest.mark.xfail(reason="The 'state history' command is not fully implemented", strict=True)
 @scenario(
     "../features/state_management.feature",
     "Show the history of the data extraction process",
@@ -65,29 +65,38 @@ def db_path_with_windows(db_path: Path) -> Path:
                 resource VARCHAR,
                 window_start TIMESTAMP,
                 window_end TIMESTAMP,
-                status VARCHAR
+                status VARCHAR,
+                total_paginas INTEGER,
+                rows_extracted INTEGER,
+                extracted_at TIMESTAMP
             )
         """
             )
         )
         # Complete window for 2024-01-01
         con.execute(
-            "INSERT INTO baliza_state.coverage VALUES (?, ?, ?, ?)",
+            "INSERT INTO baliza_state.coverage VALUES (?, ?, ?, ?, ?, ?, ?)",
             [
                 "contratos",
                 "2024-01-01 00:00:00",
                 "2024-01-01 23:59:59",
                 "complete",
+                1,
+                100,
+                "2024-01-01 12:00:00"
             ],
         )
         # Incomplete window for 2024-01-03
         con.execute(
-            "INSERT INTO baliza_state.coverage VALUES (?, ?, ?, ?)",
+            "INSERT INTO baliza_state.coverage VALUES (?, ?, ?, ?, ?, ?, ?)",
             [
                 "contratos",
                 "2024-01-03 00:00:00",
                 "2024-01-03 23:59:59",
                 "incomplete",
+                2,
+                50,
+                "2024-01-03 12:00:00"
             ],
         )
     return db_path
@@ -104,37 +113,49 @@ def db_path_with_history(db_path: Path) -> Path:
         con.execute(
             dedent(
                 """
-            CREATE TABLE baliza_state.extraction_runs (
+            CREATE TABLE baliza_state.runs (
                 run_id VARCHAR,
-                start_time TIMESTAMP,
-                end_time TIMESTAMP,
+                resource VARCHAR,
+                pipeline_name VARCHAR,
+                started_at TIMESTAMP,
+                finished_at TIMESTAMP,
                 status VARCHAR,
-                windows_processed INTEGER,
-                rows_extracted INTEGER
+                windows_completed INTEGER,
+                windows_failed INTEGER,
+                rows_extracted INTEGER,
+                error_message VARCHAR
             )
         """
             )
         )
         con.execute(
-            "INSERT INTO baliza_state.extraction_runs VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO baliza_state.runs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [
                 "run-1",
+                "contratos",
+                "pncp",
                 "2024-01-01 10:00:00",
                 "2024-01-01 10:30:00",
                 "completed",
                 10,
+                0,
                 1000,
+                None
             ],
         )
         con.execute(
-            "INSERT INTO baliza_state.extraction_runs VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO baliza_state.runs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [
                 "run-2",
+                "contratos",
+                "pncp",
                 "2024-01-02 11:00:00",
                 "2024-01-02 11:15:00",
                 "failed",
                 5,
+                1,
                 50,
+                "Connection timeout"
             ],
         )
     return db_path
@@ -145,9 +166,7 @@ def db_path_with_history(db_path: Path) -> Path:
 
 @when('I run the "state show" command', target_fixture="result")
 def run_state_show(db_path_with_windows: Path):
-    """Run the 'status' command."""
-    # NOTE: Mapping "state show" to the existing "status" command
-    # and creating dummy data for it to run.
+    """Run the 'state show' command."""
     with duckdb.connect(str(db_path_with_windows)) as con:
         con.execute("CREATE SCHEMA IF NOT EXISTS baliza_raw")
         con.execute("CREATE TABLE baliza_raw.contratos (dataPublicacao VARCHAR)")
@@ -155,18 +174,18 @@ def run_state_show(db_path_with_windows: Path):
             "INSERT INTO baliza_raw.contratos VALUES ('2024-01-01'), ('2024-01-03')"
         )
 
-    result = runner.invoke(app, ["status", "--duckdb", str(db_path_with_windows)])
+    result = runner.invoke(app, ["state", "show", "--duckdb", str(db_path_with_windows)])
     return result
 
 
 @when('I run the "state gaps" command', target_fixture="result")
 def run_state_gaps(db_path_with_windows: Path):
-    """Run the 'verify' command to find gaps."""
-    # NOTE: Mapping "state gaps" to the existing "verify" command
+    """Run the 'state gaps' command."""
     result = runner.invoke(
         app,
         [
-            "verify",
+            "state",
+            "gaps",
             "--start",
             "2024-01-01",
             "--end",
@@ -180,29 +199,9 @@ def run_state_gaps(db_path_with_windows: Path):
 
 @when('I run the "state history" command', target_fixture="result")
 def run_state_history(db_path_with_history: Path):
-    """Mock running the 'state history' command."""
-    # NOTE: The "state history" command from the README doesn't exist.
-    # We'll simulate its output for now.
-    from io import StringIO
-
-    from rich.console import Console
-    from rich.table import Table
-
-    console = Console(file=StringIO(), force_terminal=True)
-    table = Table(title="Extraction History")
-    table.add_column("Run ID")
-    table.add_column("Start Time")
-    table.add_column("Status")
-    table.add_row("run-1", "2024-01-01 10:00:00", "completed")
-    table.add_row("run-2", "2024-01-02 11:00:00", "failed")
-    console.print(table)
-
-    # Store the output in a CliRunner-like result object
-    class MockResult:
-        exit_code = 0
-        stdout = console.file.getvalue()
-
-    return MockResult()
+    """Run the 'state history' command."""
+    result = runner.invoke(app, ["state", "history"])
+    return result
 
 
 # --- Thens ---
@@ -214,7 +213,7 @@ def check_state_summary(result):
     assert result.exit_code == 0
     assert "Baliza PNCP Status" in result.stdout
     assert "Total contracts" in result.stdout
-    assert "2" in result.stdout  # 2 contracts from our dummy data
+    assert "2" in result.stdout
     assert "Date range" in result.stdout
     assert "2024-01-01 to 2024-01-03" in result.stdout
 

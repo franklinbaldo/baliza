@@ -4,7 +4,7 @@
 
 **Last Updated:** 2026-01-19
 
-**Implementation Status:** ✅ Tier system is now implemented in code. Run `baliza tiers` to view the classification of all commands.
+**Implementation Status:** ⏳ Tier system is documented but not yet fully implemented as a CLI command (`baliza tiers`). Features are tagged in BDD tests.
 
 ## Overview
 
@@ -249,42 +249,14 @@ Review feature hierarchy quarterly:
 
 ### Code Organization
 
-The tier system is now implemented in code at `src/baliza/tiers.py`:
+The tier system is planned to be implemented in code at `src/baliza/tiers.py`.
 
-**Key Components:**
-- `FeatureTier` enum: Defines the 4 tier levels with badges and descriptions
-- `COMMAND_TIERS` dict: Maps each CLI command to its tier classification
-- Tier decorators (`@tier0`, `@tier1`, `@tier2`, `@tier3`): Mark commands with their tier
-- `get_tier_summary()`: Generate formatted tier hierarchy display
+**Planned Components:**
+- `FeatureTier` enum: Defines the 4 tier levels with badges and descriptions.
+- `COMMAND_TIERS` dict: Maps each CLI command to its tier classification.
+- Tier decorators: Mark commands with their tier for auto-documentation.
 
-**Usage in CLI:**
-
-Each command is decorated with its tier classification:
-
-```python
-@app.command("extract")
-@tier0  # Critical Path
-def extract(...):
-    pass
-
-@app.command("backfill")
-@tier1  # Core Features
-def backfill(...):
-    pass
-
-@app.command("state")
-@tier2  # Operator Experience
-def state(...):
-    pass
-```
-
-**View Tier Classifications:**
-
-```bash
-baliza tiers  # Display complete tier hierarchy
-```
-
-Output shows all commands organized by tier with emoji badges (🔴 🟠 🟡 ⚪).
+Currently, tiers are enforced via **Gherkin tags** in `tests/features/*.feature` and **pytest markers** in `tests/step_defs/*.py`.
 
 ### Future Enhancements
 

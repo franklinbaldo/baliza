@@ -6,107 +6,108 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Dashboard](https://img.shields.io/badge/Dashboard-Live-green)](https://franklinbaldo.github.io/baliza/)
 
-**Baliza** (Backup Aberto de Licitações Zelando pelo Acesso) é uma **ferramenta
-de linha de comando** de código aberto que captura dados de contratos do Portal
-Nacional de Contratações Públicas (PNCP) e os armazena em um banco **DuckDB**
-pronto para análise. O projeto nasceu para preservar o histórico das compras
-públicas brasileiras e oferecer uma base consistente para jornalistas,
-pesquisadores e órgãos de controle.
+**Baliza** (Backup Aberto de Licitações Zelando pelo Acesso) is an open-source **command-line tool** that captures contract data from the Brazilian National Public Procurement Portal (PNCP) and stores it in a **DuckDB** database ready for analysis. The project was created to preserve the history of Brazilian public procurement and provide a consistent base for journalists, researchers, and oversight bodies.
 
-> **⚠️ Este repositório contém apenas o CLI de extração de dados.**
-> Para visualização, dashboards e interface web, veja o projeto `baliza-site`
-> (em breve). Documentação completa da arquitetura em [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+> **⚠️ This repository contains only the data extraction CLI.**
+> For visualization, dashboards, and web interface, see the `baliza-site` project. Full architecture documentation in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
-## Visão geral
+## Overview
 
-- **Extração direta com HTTPX:** O Baliza utiliza `httpx` para fazer chamadas
-  diretas e resilientes ao endpoint `GET /v1/contratos` do PNCP.
-- **CLI enxuta:** O comando `baliza extract` executa a extração por período.
-- **Armazenamento em DuckDB:** Os dados brutos são armazenados em um banco de
-  dados local `baliza.duckdb` para fácil acesso e análise.
-- **Exportação Parquet:** `baliza export` e `baliza export-daily` geram arquivos
-  otimizados para consumo externo.
-- **Resiliência:** Suporte a checkpoints para retomar extrações interrompidas.
+- **Direct Extraction with HTTPX:** Baliza uses `httpx` for direct and resilient calls to the PNCP `GET /v1/contratos` endpoint.
+- **Lean CLI:** The `baliza extract` command performs extraction by period.
+- **DuckDB Storage:** Raw data is stored in a local `baliza.duckdb` database for easy access and analysis.
+- **Parquet Export:** `baliza export` and `baliza export-daily` generate optimized files for external consumption.
+- **Resilience:** Support for checkpoints to resume interrupted extractions.
+- **State Management:** Commands to inspect extraction status and coverage gaps.
 
-## Instalação
+## Installation
 
-### Opção 1: Execução direta com uvx (Recomendado)
+### Option 1: Direct Execution with uvx (Recommended)
 
-Execute o Baliza sem precisar clonar o repositório:
+Run Baliza without cloning the repository:
 
 ```bash
-# Executar diretamente do GitHub
+# Run directly from GitHub
 uvx --from "git+https://github.com/franklinbaldo/baliza" baliza --help
 
-# Exemplos de uso
+# Example usage
 uvx --from "git+https://github.com/franklinbaldo/baliza" baliza extract --start 2023-01-01 --end 2023-01-02
 ```
 
-### Opção 2: Instalação local
+### Option 2: Local Installation
 
 ```bash
-# Clonar repositório
+# Clone repository
 git clone https://github.com/franklinbaldo/baliza.git
 cd baliza
 
-# Instalar dependências
-uv sync
+# Install dependencies
+uv sync --all-extras
 
-# Executar
+# Run
 uv run baliza extract --start 2023-01-01 --end 2023-01-02
 ```
 
-## Comandos disponíveis
+## Available Commands
 
-| Comando | Descrição |
+| Command | Description |
 |---------|-----------|
-| `baliza extract` | Extrai dados do PNCP para o DuckDB (requer `--start` e `--end`). Suporta retoma automática via checkpoint. |
-| `baliza verify` | Verifica cobertura de dados e detecta lacunas (gaps) no período informado. |
-| `baliza export` | Exporta uma tabela inteira do DuckDB para arquivo Parquet. |
-| `baliza export-daily` | Exporta pacote diário (contratos + orgaos + metadados) particionado por data. |
-| `baliza buffer-stats` | Exibe estatísticas do banco de dados local (linhas, datas, status). |
-| `baliza status` | Exibe resumo geral do status da extração e buffer. |
+| `baliza extract` | Extracts data from PNCP to DuckDB (requires `--start` and `--end`). Supports automatic resume via checkpoint. |
+| `baliza verify` | Verifies data coverage and detects gaps in the specified period. |
+| `baliza state show` | Displays overall status of extraction and buffer. (Alias for `baliza status`) |
+| `baliza state gaps` | Lists identified coverage gaps. (Alias for `baliza verify`) |
+| `baliza state buffer` | Displays local database buffer statistics. (Alias for `baliza buffer-stats`) |
+| `baliza export` | Exports a full DuckDB table to a Parquet file. |
+| `baliza export-daily` | Exports a daily package (contracts + organizations + metadata) partitioned by date. |
 
-### Exemplos
+### Examples
 
 ```bash
-# Extrair dados de um período
+# Extract data for a period
 baliza extract --start 2023-10-01 --end 2023-10-05
 
-# Verificar se há lacunas
-baliza verify --start 2023-10-01 --end 2023-10-05
+# Check for gaps
+baliza state gaps --start 2023-10-01 --end 2023-10-05
 
-# Exportar pacote diário
+# Export daily package
 baliza export-daily --date 2023-10-01
 ```
 
-## Dashboard
+## Running Tests
 
-O projeto inclui um dashboard estático para monitoramento do status da extração,
-gerado via GitHub Actions.
+Baliza uses BDD (Behavior Driven Development) with `pytest-bdd`.
 
-Acesse: [docs/dashboard/index.html](docs/dashboard/index.html) (ou via GitHub Pages).
+```bash
+# Run all tests
+uv run pytest
 
-## Estrutura deste repositório
+# Run only Tier 0 (Critical Path) tests
+uv run pytest -m tier0
+
+# Run smoke tests
+uv run pytest -m smoke
+```
+
+## Repository Structure
 
 ```
 ├── src/baliza/
-│   ├── cli_simple.py       # Interface de linha de comando (Typer)
-│   ├── extractor.py        # Lógica de extração com httpx e DuckDB
-│   ├── daily_exporter.py   # Lógica para exportação diária de dados
-│   └── utils.py            # Funções auxiliares (validação, segurança)
-├── docs/                   # Documentação
-├── tests/                  # Testes automatizados
-└── pyproject.toml          # Metadados e dependências
+│   ├── cli_simple.py       # Command Line Interface (Typer)
+│   ├── extractor.py        # Extraction logic with httpx and DuckDB
+│   ├── daily_exporter.py   # Daily data export logic
+│   └── utils.py            # Helper functions (validation, security)
+├── docs/                   # Documentation
+├── tests/                  # Automated tests
+└── pyproject.toml          # Metadata and dependencies
 ```
 
-## Contribuindo
+## Contributing
 
-1. Abra uma issue descrevendo o problema ou melhoria desejada.
-2. Crie um fork e uma branch baseada em `main`.
-3. Rode os testes relevantes (`uv run pytest`) antes de abrir o PR.
-4. Descreva claramente o impacto das mudanças e atualize a documentação.
+1. Open an issue describing the problem or desired improvement.
+2. Create a fork and a branch based on `main`.
+3. Run relevant tests (`uv run pytest`) before opening the PR.
+4. Clearly describe the impact of changes and update documentation.
 
-## Licença
+## License
 
-Baliza é distribuído sob a licença [MIT](LICENSE).
+Baliza is distributed under the [MIT](LICENSE) license.

@@ -1,9 +1,10 @@
+@tier0
 Feature: Data Export
   As a data engineer
   I want to export data from DuckDB to Parquet
   So that baliza-site can consume it
 
-  @tier0
+  @tier0 @smoke
   Scenario: Export creates valid parquet
     Given a DuckDB database with 100 contracts
     When I run "baliza export --table contratos --output ./exports"
