@@ -1007,30 +1007,12 @@ def state_show(
         table = Table(title=f"State Summary for '{resource}'", box=box.ROUNDED)
         table.add_column("Status", style="bold")
         table.add_column("Count", justify="right")
-        table.add_column("Percentage", justify="right")
 
-        total = len(statuses)
-
-        def pct(val: int) -> str:
-            return f"{val / total * 100:.1f}%" if total > 0 else "0.0%"
-
-        table.add_row(
-            "[green]Complete windows[/green]", str(counts["ok"]), pct(counts["ok"])
-        )
-        table.add_row(
-            "[yellow]Incomplete windows[/yellow]",
-            str(counts["incompleto"]),
-            pct(counts["incompleto"]),
-        )
-        table.add_row(
-            "[red]Suspect windows[/red]", str(counts["suspeito"]), pct(counts["suspeito"])
-        )
-        table.add_row(
-            "[cyan]Unprocessed windows[/cyan]",
-            str(counts["nao_processado"]),
-            pct(counts["nao_processado"]),
-        )
-        table.add_row("Total windows", str(total), "100%", style="bold")
+        table.add_row("[green]Complete windows[/green]", str(counts["ok"]))
+        table.add_row("[yellow]Incomplete windows[/yellow]", str(counts["incompleto"]))
+        table.add_row("[red]Suspect windows[/red]", str(counts["suspeito"]))
+        table.add_row("[cyan]Unprocessed windows[/cyan]", str(counts["nao_processado"]))
+        table.add_row("Total windows", str(len(statuses)), style="bold")
 
         console.print(table)
 
