@@ -2,7 +2,7 @@
 import os
 import pytest
 from unittest.mock import patch, MagicMock
-from baliza.cli import _is_safe_url, _SecureClient, _FallbackClient
+from baliza.cli import _is_safe_url, _SecureClient
 
 def test_is_safe_url_public():
     # Google's public DNS should be safe
@@ -31,13 +31,6 @@ def test_is_safe_url_bypass():
 
 def test_secure_client_blocks_unsafe():
     client = _SecureClient()
-    # Mock _is_safe_url to return False
-    with patch("baliza.cli._is_safe_url", return_value=False):
-        with pytest.raises(ValueError, match="Blocked request to potentially unsafe URL"):
-            client.get("http://unsafe.local")
-
-def test_fallback_client_blocks_unsafe():
-    client = _FallbackClient()
     # Mock _is_safe_url to return False
     with patch("baliza.cli._is_safe_url", return_value=False):
         with pytest.raises(ValueError, match="Blocked request to potentially unsafe URL"):
