@@ -11,10 +11,7 @@ from typing import Any, Callable, Dict, Iterable, Optional, Protocol, Tuple
 import duckdb
 import shutil
 
-try:  # pragma: no cover - optional dependency
-    import httpx
-except ModuleNotFoundError:  # pragma: no cover - fallback path
-    httpx = None  # type: ignore[assignment]
+import httpx
 
 try:  # pragma: no cover - optional dependency
     from internetarchive import get_session  # type: ignore[import-untyped]
@@ -59,132 +56,66 @@ class _HttpClient(Protocol):
 HttpClientFactory = Callable[..., AbstractContextManager[_HttpClient]]
 
 
-class _FallbackResponse:
-    def __init__(self, *, status_code: int, text: str) -> None:
-        self.status_code = status_code
-        self._text = text
+class _SecureClient(AbstractContextManager["_SecureClient"]):
+    """
+    A wrapper around httpx.Client that enforces security policies:
+    1. Scheme validation (http/https only) to prevent SSRF
+    2. Response size limit to prevent DoS via memory exhaustion
+    """
 
-    def json(self) -> Any:
-        if not self._text:
-            return {}
-        return json.loads(self._text)
+    def __init__(
+        self, client: httpx.Client, max_size: int = 10 * 1024 * 1024
+    ) -> None:  # pragma: no cover
+        self._client = client
+        self._max_size = max_size
 
-    def raise_for_status(self) -> None:
-        if 400 <= self.status_code:
-            raise RuntimeError(f"HTTP request failed with status {self.status_code}")
-
-
-class _FallbackClient(AbstractContextManager["_FallbackClient"]):
-    def __init__(self, *, headers: Optional[Dict[str, str]] = None, timeout: int = 30) -> None:
-        self.headers = headers or {}
-        self.timeout = timeout
-
-    def __enter__(self) -> "_FallbackClient":
+    def __enter__(self) -> "_SecureClient":
+        self._client.__enter__()
         return self
 
-    def __exit__(self, exc_type, exc, exc_tb) -> None:  # pragma: no cover - no cleanup needed
-        return None
+    def __exit__(self, exc_type, exc, exc_tb) -> None:
+        return self._client.__exit__(exc_type, exc, exc_tb)
 
-    def get(self, url: str, params: Optional[Dict[str, Any]] = None) -> _FallbackResponse:
-        from urllib import parse, request
-
-        if not url.startswith(("http://", "https://")):
+    def get(
+        self, url: str, params: dict[str, Any] | None = None
+    ) -> httpx.Response:
+        # Security: Enforce scheme validation to prevent SSRF
+        if not url.lower().startswith(("http://", "https://")):
             raise ValueError("URL scheme must be http or https")
 
-        query = parse.urlencode(params or {}, doseq=True)
-        full_url = f"{url}?{query}" if query else url
-        req = request.Request(full_url, headers=self.headers)
+        # Security: Enforce response size limit to prevent DoS via memory exhaustion
+        # We must build the request and stream it to control the download
+        req = self._client.build_request("GET", url, params=params)
+        response = self._client.send(req, stream=True)
+
         try:
-            with request.urlopen(req, timeout=self.timeout) as response:  # type: ignore[attr-defined]
-                status = int(response.getcode() or 0)
+            content = bytearray()
+            for chunk in response.iter_bytes():
+                content.extend(chunk)
+                if len(content) > self._max_size:
+                    response.close()
+                    raise RuntimeError(
+                        f"Response too large (exceeded {self._max_size} bytes)"
+                    )
 
-                # Security: Limit response size to prevent DoS via memory exhaustion
-                content = bytearray()
-                chunk_size = 8192  # 8KB chunks
-                max_size = 10 * 1024 * 1024  # 10 MB limit
+            # Manually close stream and attach content to simulate non-streamed response
+            response.close()
+            response._content = bytes(content)
+            return response
 
-                while True:
-                    chunk = response.read(chunk_size)
-                    if not chunk:
-                        break
-                    content.extend(chunk)
-                    if len(content) > max_size:
-                        raise RuntimeError(f"Response too large (exceeded {max_size} bytes)")
-
-                text = content.decode("utf-8")
-        except Exception as exc:  # pragma: no cover - network not exercised in tests
-            # Security: Redact query parameters in error logs to prevent secret leakage
-            safe_url = parse.urlparse(full_url)._replace(query="").geturl()
-            raise RuntimeError(f"HTTP request to {safe_url} failed: {exc}") from exc
-        return _FallbackResponse(status_code=status, text=text)
-
-
-if httpx is not None:
-
-    class _SecureClient(AbstractContextManager["_SecureClient"]):
-        """
-        A wrapper around httpx.Client that enforces security policies:
-        1. Scheme validation (http/https only) to prevent SSRF
-        2. Response size limit to prevent DoS via memory exhaustion
-        """
-
-        def __init__(
-            self, client: httpx.Client, max_size: int = 10 * 1024 * 1024
-        ) -> None:  # pragma: no cover
-            self._client = client
-            self._max_size = max_size
-
-        def __enter__(self) -> "_SecureClient":
-            self._client.__enter__()
-            return self
-
-        def __exit__(self, exc_type, exc, exc_tb) -> None:
-            return self._client.__exit__(exc_type, exc, exc_tb)
-
-        def get(
-            self, url: str, params: dict[str, Any] | None = None
-        ) -> httpx.Response:
-            # Security: Enforce scheme validation to prevent SSRF
-            if not url.lower().startswith(("http://", "https://")):
-                raise ValueError("URL scheme must be http or https")
-
-            # Security: Enforce response size limit to prevent DoS via memory exhaustion
-            # We must build the request and stream it to control the download
-            req = self._client.build_request("GET", url, params=params)
-            response = self._client.send(req, stream=True)
-
-            try:
-                content = bytearray()
-                for chunk in response.iter_bytes():
-                    content.extend(chunk)
-                    if len(content) > self._max_size:
-                        response.close()
-                        raise RuntimeError(
-                            f"Response too large (exceeded {self._max_size} bytes)"
-                        )
-
-                # Manually close stream and attach content to simulate non-streamed response
-                response.close()
-                response._content = bytes(content)
-                return response
-
-            except Exception:
-                response.close()
-                # Note: httpx exceptions might leak URL parameters.
-                # Ideally we would catch and wrap them redacting the URL,
-                # but httpx exceptions are complex. We rely on standard logging hygiene
-                # and the fact that we validate the scheme.
-                raise
-else:
-    _SecureClient = None  # type: ignore[assignment]
+        except Exception:
+            response.close()
+            # Note: httpx exceptions might leak URL parameters.
+            # Ideally we would catch and wrap them redacting the URL,
+            # but httpx exceptions are complex. We rely on standard logging hygiene
+            # and the fact that we validate the scheme.
+            raise
 
 
 def _default_http_client_factory(
     *, headers: dict[str, str] | None = None, timeout: int = 30
 ) -> AbstractContextManager[_HttpClient]:
-    if httpx is not None and _SecureClient is not None:
-        return _SecureClient(httpx.Client(headers=headers or None, timeout=timeout))
-    return _FallbackClient(headers=headers or None, timeout=timeout)
+    return _SecureClient(httpx.Client(headers=headers or None, timeout=timeout))
 
 
 _HTTP_CLIENT_FACTORY: HttpClientFactory = _default_http_client_factory
