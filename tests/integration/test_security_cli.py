@@ -1,6 +1,4 @@
-from pathlib import Path
 import duckdb
-import pytest
 from typer.testing import CliRunner
 
 from baliza.cli_simple import app
