@@ -12,3 +12,10 @@
 **Vulnerability:** Path Traversal and Command Injection via `resource` parameter. The application used the `resource` string directly in URL construction (`base_url + "/" + resource`) and CLI suggestion strings. This could allow attackers to traverse paths (e.g., `../etc/passwd`) or inject shell commands if the suggestion was executed.
 **Learning:** Even when consuming external APIs, input used to construct URLs or CLI commands must be strictly validated against an allowlist to prevent traversal and injection.
 **Prevention:** Implemented `validate_resource_path` in `src/baliza/utils.py` enforcing `^[a-zA-Z0-9_\-/]+$` and rejecting `..`, and applied it in `PNCPExtractor` and CLI commands.
+
+## 2024-05-26 - Prevent SQL Injection in DuckDB Commands
+**Vulnerability:** SQL Injection in `baliza export` (file path) and `baliza status` (schema identifier). The `export` command used user-supplied file paths directly in a `COPY ... TO '...'` SQL string, allowing escape via single quotes. The `status` command used user-supplied dataset names directly in SQL without validation.
+**Learning:** Even when using "local" databases like DuckDB, file paths and identifiers used in SQL strings must be escaped or validated. Standard parameterized queries (`?`) are not supported for identifiers or utility command arguments like filenames in `COPY`.
+**Prevention:**
+1. Use `validate_identifier` for all schema/table names.
+2. Use `escape_sql_literal` (doubling single quotes) for string literals that cannot be parameterized (like file paths in `COPY`).
