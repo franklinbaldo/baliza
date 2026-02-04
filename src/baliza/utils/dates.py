@@ -27,7 +27,11 @@ def _coerce_datetime(value: str) -> datetime:
 
 
 def to_pncp_window(value: Any) -> str:
-    """Convert incremental cursor values into PNCP date window parameters."""
+    """Convert incremental cursor values into PNCP date window parameters.
+
+    This utility is actively used in the pipeline configuration (pncp.yml)
+    and CLI, making it a critical path for date serialization.
+    """
     if value is None:
         dt = datetime.now(UTC)
     elif isinstance(value, datetime):
