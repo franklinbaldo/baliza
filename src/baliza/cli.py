@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import json
-import shutil
-from collections.abc import Callable, Iterable
-from contextlib import AbstractContextManager
-from datetime import UTC, date, datetime, timedelta
+
+from datetime import date, datetime, timedelta, timezone
+
 from pathlib import Path
-from typing import Any, Protocol
+from contextlib import AbstractContextManager
+from typing import Any, Callable, Dict, Iterable, Optional, Protocol, Tuple
 
 import duckdb
+import shutil
 
 try:  # pragma: no cover - optional dependency
     import httpx
@@ -22,20 +23,7 @@ except ModuleNotFoundError:  # pragma: no cover - fallback path
 
 
 import typer
-from rich import box
-
-# Rich imports for improved CLI UX
-from rich.console import Console
-from rich.panel import Panel
-from rich.progress import (
-    BarColumn,
-    Progress,
-    SpinnerColumn,
-    TaskProgressColumn,
-    TextColumn,
-    TimeElapsedColumn,
-)
-from rich.table import Table
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn
 
 from .pipelines.pncp import (
     BACKFILL_PIPELINE_NAME,
@@ -45,9 +33,17 @@ from .pipelines.pncp import (
     load_pncp_config,
     run_pncp,
 )
-from .state import CoverageTracker, GapDetector, StateManager
+
+from .state import CoverageTracker, StateManager, GapDetector
+
+
 from .utils import export_parquet
 from .utils.dates import humanize_duration, humanize_naturaltime, to_pncp_window
+
+# Rich imports for improved CLI UX
+from rich.console import Console
+from rich.table import Table
+from rich import box
 
 console = Console()
 
@@ -55,7 +51,7 @@ app = typer.Typer(help="Declarative PNCP pipeline runner")
 
 
 class _HttpClient(Protocol):
-    def get(self, url: str, params: dict[str, Any] | None = None) -> Any:  # pragma: no cover - protocol definition
+    def get(self, url: str, params: Optional[Dict[str, Any]] = None) -> Any:  # pragma: no cover - protocol definition
         ...
 
 
@@ -78,17 +74,17 @@ class _FallbackResponse:
 
 
 class _FallbackClient(AbstractContextManager["_FallbackClient"]):
-    def __init__(self, *, headers: dict[str, str] | None = None, timeout: int = 30) -> None:
+    def __init__(self, *, headers: Optional[Dict[str, str]] = None, timeout: int = 30) -> None:
         self.headers = headers or {}
         self.timeout = timeout
 
-    def __enter__(self) -> _FallbackClient:
+    def __enter__(self) -> "_FallbackClient":
         return self
 
     def __exit__(self, exc_type, exc, exc_tb) -> None:  # pragma: no cover - no cleanup needed
         return None
 
-    def get(self, url: str, params: dict[str, Any] | None = None) -> _FallbackResponse:
+    def get(self, url: str, params: Optional[Dict[str, Any]] = None) -> _FallbackResponse:
         from urllib import parse, request
 
         if not url.startswith(("http://", "https://")):
@@ -136,18 +132,18 @@ def _resolve_config_path(config: Path | None) -> Path:
 
 def _month_windows(
     start_month: str, end_month: str
-) -> Iterable[tuple[datetime, datetime]]:
+) -> Iterable[Tuple[datetime, datetime]]:
     """Generate inclusive month windows between two YYYY-MM strings."""
 
     try:
         start = datetime.strptime(start_month, "%Y-%m").replace(
-            tzinfo=UTC, day=1
+            tzinfo=timezone.utc, day=1
         )
     except ValueError as exc:  # pragma: no cover - handled by Typer
         raise typer.BadParameter("start_month must follow YYYY-MM format") from exc
 
     try:
-        end = datetime.strptime(end_month, "%Y-%m").replace(tzinfo=UTC, day=1)
+        end = datetime.strptime(end_month, "%Y-%m").replace(tzinfo=timezone.utc, day=1)
     except ValueError as exc:  # pragma: no cover - handled by Typer
         raise typer.BadParameter("end_month must follow YYYY-MM format") from exc
 
@@ -164,7 +160,7 @@ def _month_windows(
         current = next_month
 
 
-def _parse_day(value: str | None, param_name: str) -> datetime | None:
+def _parse_day(value: Optional[str], param_name: str) -> Optional[datetime]:
     if value is None:
         return None
     try:
@@ -173,17 +169,17 @@ def _parse_day(value: str | None, param_name: str) -> datetime | None:
         raise typer.BadParameter(f"{param_name} must follow YYYY-MM-DD format") from exc
 
 
-def _pncp_date_param(value: datetime | None) -> str | None:
+def _pncp_date_param(value: Optional[datetime]) -> Optional[str]:
     if value is None:
         return None
     return to_pncp_window(value)
 
 
-def _filter_dict_none(values: dict[str, Any]) -> dict[str, Any]:
+def _filter_dict_none(values: Dict[str, Any]) -> Dict[str, Any]:
     return {k: v for k, v in values.items() if v is not None}
 
 
-def _parse_optional_date(value: str | None, *, option_name: str) -> date | None:
+def _parse_optional_date(value: Optional[str], *, option_name: str) -> Optional[date]:
     if value is None:
         return None
     try:
@@ -196,7 +192,7 @@ def _parse_optional_date(value: str | None, *, option_name: str) -> date | None:
 
 @app.command("extract")
 def extract(
-    config: Path | None = typer.Option(
+    config: Optional[Path] = typer.Option(
         None,
         "--config",
         "-c",
@@ -221,12 +217,12 @@ def extract(
         min=0,
         help="Number of days to look back from last successful run (for incremental extraction).",
     ),
-    start_date: str | None = typer.Option(
+    start_date: Optional[str] = typer.Option(
         None,
         "--start-date",
         help="Start date for extraction range (YYYY-MM-DD). If not specified, uses intelligent gap detection.",
     ),
-    end_date: str | None = typer.Option(
+    end_date: Optional[str] = typer.Option(
         None,
         "--end-date",
         help="End date for extraction range (YYYY-MM-DD). If not specified, uses today.",
@@ -275,21 +271,21 @@ def extract(
     try:
         # Determine date range
         if start_date:
-            start_dt = datetime.fromisoformat(start_date).replace(tzinfo=UTC)
+            start_dt = datetime.fromisoformat(start_date).replace(tzinfo=timezone.utc)
         else:
             # Use intelligent default: last successful run or 30 days ago
             last_run = state_manager.get_last_successful_run(resource)
             if last_run and last_run.completed_at:
                 # Start from completion time of last run
-                start_dt = last_run.completed_at.replace(tzinfo=UTC)
+                start_dt = last_run.completed_at.replace(tzinfo=timezone.utc)
             else:
                 # First run - go back 30 days
-                start_dt = datetime.now(UTC) - timedelta(days=30)
+                start_dt = datetime.now(timezone.utc) - timedelta(days=30)
 
         end_dt = (
-            datetime.fromisoformat(end_date).replace(tzinfo=UTC)
+            datetime.fromisoformat(end_date).replace(tzinfo=timezone.utc)
             if end_date
-            else datetime.now(UTC)
+            else datetime.now(timezone.utc)
         )
 
         # Analyze coverage
@@ -452,7 +448,7 @@ def extract(
 def backfill(
     start_month: str,
     end_month: str,
-    config: Path | None = typer.Option(
+    config: Optional[Path] = typer.Option(
         None,
         "--config",
         "-c",
@@ -521,17 +517,17 @@ def verify(
     resource: str = typer.Option(
         ..., "--resource", "-r", help="Resource name declared in the PNCP configuration"
     ),
-    desde: str | None = typer.Option(
+    desde: Optional[str] = typer.Option(
         None,
         "--desde",
         help="Optional start date filter (YYYY-MM-DD) for window evaluation",
     ),
-    ate: str | None = typer.Option(
+    ate: Optional[str] = typer.Option(
         None,
         "--ate",
         help="Optional end date filter (YYYY-MM-DD, inclusive) for window evaluation",
     ),
-    config: Path | None = typer.Option(
+    config: Optional[Path] = typer.Option(
         None,
         "--config",
         "-c",
@@ -602,8 +598,8 @@ def verify(
         status_map = {
             row["periodo"]: row for row in tracker.fetch_window_statuses(resource)
         }
-        pending_pages: dict[str, list[int]] = {}
-        hash_alerts: list[dict[str, Any]] = []
+        pending_pages: Dict[str, list[int]] = {}
+        hash_alerts: list[Dict[str, Any]] = []
 
         with _HTTP_CLIENT_FACTORY(headers=headers or None, timeout=timeout) as client:
             if endpoint_path.startswith("http"):
@@ -641,7 +637,7 @@ def verify(
 
                     response = client.get(endpoint_url, params=params)
                     if response.status_code == 204:
-                        payload: dict[str, Any] = {"data": [], "totalPaginas": 0}
+                        payload: Dict[str, Any] = {"data": [], "totalPaginas": 0}
                     else:
                         response.raise_for_status()
                         payload = response.json()
@@ -665,15 +661,16 @@ def verify(
                         tracker.mark_window_status(
                             resource, periodo, "incompleto", motivo
                         )
-                    elif (
-                        existing_status
-                        and existing_status.get("status") == "suspeito"
-                        and not sequencia
-                    ):
-                        # Preserve previous suspicion when sequence audits are disabled
-                        pass
                     else:
-                        tracker.mark_window_status(resource, periodo, "ok")
+                        if (
+                            existing_status
+                            and existing_status.get("status") == "suspeito"
+                            and not sequencia
+                        ):
+                            # Preserve previous suspicion when sequence audits are disabled
+                            pass
+                        else:
+                            tracker.mark_window_status(resource, periodo, "ok")
 
                     if sequencia and atual_total > 0:
                         sample_page = min(atual_total, max(1, atual_total // 2))
@@ -685,7 +682,7 @@ def verify(
                                 endpoint_url, params=sample_params
                             )
                             if sample_response.status_code == 204:
-                                sample_payload: dict[str, Any] = {"data": []}
+                                sample_payload: Dict[str, Any] = {"data": []}
                             else:
                                 sample_response.raise_for_status()
                                 sample_payload = sample_response.json()
@@ -1083,11 +1080,11 @@ def state_gaps(
     detector = GapDetector(manager)
 
     try:
-        start_dt = datetime.fromisoformat(start_date).replace(tzinfo=UTC)
+        start_dt = datetime.fromisoformat(start_date).replace(tzinfo=timezone.utc)
         end_dt = (
-            datetime.fromisoformat(end_date).replace(tzinfo=UTC)
+            datetime.fromisoformat(end_date).replace(tzinfo=timezone.utc)
             if end_date
-            else datetime.now(UTC)
+            else datetime.now(timezone.utc)
         )
 
         gaps = detector.find_gaps(
@@ -1149,14 +1146,10 @@ def state_history(
 
         if not history:
             console.print(
-                Panel(
-                    f"No run history found for resource '[bold cyan]{resource}[/bold cyan]'.\n\n"
-                    f"To start a new extraction, run:\n"
-                    f"[green]baliza extract --resource {resource}[/green]",
-                    title="[yellow]Empty State[/yellow]",
-                    border_style="yellow",
-                    expand=False,
-                )
+                f"[yellow]No run history found for resource '{resource}'.[/yellow]"
+            )
+            console.print(
+                f"To start a new extraction, run: [bold]baliza extract --resource {resource}[/bold]"
             )
             return
 
@@ -1185,7 +1178,7 @@ def state_history(
                 duration = humanize_duration(duration_secs)
             elif run.status == "running":
                 duration_secs = (
-                    datetime.now(UTC) - run.started_at
+                    datetime.now(timezone.utc) - run.started_at
                 ).total_seconds()
                 duration = f"[yellow]{humanize_duration(duration_secs)}[/yellow]"
 
