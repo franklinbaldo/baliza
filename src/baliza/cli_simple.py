@@ -54,6 +54,8 @@ def extract(  # noqa: PLR0913
         4,
         "--workers",
         "-w",
+        min=1,
+        max=16,
         help="Number of concurrent workers (1-16)",
     ),
 ) -> None:

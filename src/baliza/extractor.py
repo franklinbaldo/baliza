@@ -438,9 +438,6 @@ class PNCPExtractor:
                 """,
                     [resource, date, date, page, total_rows],
                 )
-        except Exception as e:
-            # We re-raise to be handled by coordinator
-            raise e
         finally:
             if progress and task_id:
                 progress.remove_task(task_id)
