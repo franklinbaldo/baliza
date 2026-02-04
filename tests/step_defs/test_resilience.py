@@ -166,10 +166,6 @@ def setup_persistent_failure(monkeypatch):
 @when('I run the "baliza extract" command', target_fixture="result")
 def run_extract_fail(db_path):
     """Run extract command expecting failure."""
-    # Speed up retries for testing
-    import baliza.extractor
-    from tenacity import stop_after_attempt, wait_none
-
     # We need to re-decorate or patch the retry settings.
     # This is tricky because it's already decorated.
     # For now, we'll just wait.

@@ -246,7 +246,7 @@ class PNCPExtractor:
         )
         return run_id
 
-    def _finish_run(
+    def _finish_run(  # noqa: PLR0913
         self,
         con: duckdb.DuckDBPyConnection,
         run_id: str,
