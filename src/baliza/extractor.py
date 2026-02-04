@@ -490,13 +490,16 @@ class PNCPExtractor:
         with duckdb.connect(str(self.db_path)) as con:
             self._ensure_schema(con)
 
+            # Calculate next day for range query to optimize index usage
+            next_day = extraction_date + timedelta(days=1)
+
             # Count rows before deletion
             result = con.execute(
                 f"""
                 SELECT COUNT(*) FROM {self.dataset}.contratos
-                WHERE CAST(dataPublicacao AS DATE) = ?
+                WHERE dataPublicacao >= ? AND dataPublicacao < ?
             """,
-                [extraction_date.date()],
+                [extraction_date.date(), next_day.date()],
             ).fetchone()
             row_count = result[0] if result else 0
 
@@ -505,9 +508,9 @@ class PNCPExtractor:
                 con.execute(
                     f"""
                     DELETE FROM {self.dataset}.contratos
-                    WHERE CAST(dataPublicacao AS DATE) = ?
+                    WHERE dataPublicacao >= ? AND dataPublicacao < ?
                 """,
-                    [extraction_date.date()],
+                    [extraction_date.date(), next_day.date()],
                 )
 
                 console.print(
@@ -556,7 +559,7 @@ class PNCPExtractor:
                 f"""
                 SELECT DISTINCT CAST(dataPublicacao AS DATE) as dt
                 FROM {self.dataset}.contratos
-                WHERE CAST(dataPublicacao AS DATE) < ?
+                WHERE dataPublicacao < ?
                   AND CAST(dataPublicacao AS DATE) NOT IN (
                       SELECT extraction_date FROM baliza_state.uploaded_to_ia
                   )
