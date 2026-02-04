@@ -195,45 +195,18 @@ def export(
 
         output.mkdir(parents=True, exist_ok=True)
 
-        start_time = time.time()
-        parquet_file = output / f"{table}.parquet"
-
         with console.status(
             f"[bold green]Exporting {dataset}.{table} to parquet...[/bold green]",
             spinner="dots",
         ):
             with duckdb.connect(str(db_path)) as con:
                 # Simple export - dump everything to parquet
-                # COPY returns the number of rows processed
-                result = con.execute(f"""
+                parquet_file = output / f"{table}.parquet"
+                con.execute(f"""
                     COPY {dataset}.{table} TO '{parquet_file}' (FORMAT PARQUET)
-                """).fetchone()
+                """)
 
-                rows_count = result[0] if result else 0
-
-        duration = time.time() - start_time
-        file_size = parquet_file.stat().st_size
-        size_mb = file_size / (1024 * 1024)
-
-        # Create summary grid
-        grid = Table.grid(padding=(0, 2))
-        grid.add_column(style="bold")
-        grid.add_column(justify="right")
-
-        grid.add_row("Table:", f"{dataset}.{table}")
-        grid.add_row("Rows Exported:", f"{rows_count:,}")
-        grid.add_row("File Size:", f"{size_mb:.1f} MB")
-        grid.add_row("Duration:", f"{duration:.1f}s")
-        grid.add_row("Output:", str(parquet_file))
-
-        console.print(
-            Panel(
-                grid,
-                title="[green]✓ Export Complete[/green]",
-                border_style="green",
-                expand=False,
-            )
-        )
+        console.print(f"[green]✓ Exported {dataset}.{table} to {parquet_file}")
 
     except Exception as e:
         console.print(f"[red]✗ Export failed: {e}")
