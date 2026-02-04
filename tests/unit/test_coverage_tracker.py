@@ -40,7 +40,6 @@ def test_record_page_creates_manifest_and_hash(temp_tracker: CoverageTracker) ->
         total_paginas=2,
         registros=records,
     )
-    temp_tracker.flush()
 
     hash_value = temp_tracker.hash_registros(records)
     assert hash_value is not None
@@ -77,7 +76,6 @@ def test_summarize_windows_detects_missing_periods(
     temp_tracker.record_page(
         "contratos", start, end, pagina=1, total_paginas=1, registros=records
     )
-    temp_tracker.flush()
 
     # Populate raw dataset with two daily entries (one missing from coverage)
     temp_tracker.conn.execute('CREATE SCHEMA IF NOT EXISTS "baliza_raw"')
