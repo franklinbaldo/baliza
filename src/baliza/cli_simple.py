@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from calendar import monthrange
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -17,6 +18,9 @@ from .extractor import PNCPExtractor
 from .utils import validate_identifier, validate_resource_path
 
 app = typer.Typer(help="Baliza - Simple PNCP extraction tool")
+state_app = typer.Typer(help="Manage and inspect extraction state")
+app.add_typer(state_app, name="state")
+
 console = Console()
 
 
@@ -94,6 +98,67 @@ def extract(
         raise typer.Exit(1) from None
 
 
+@app.command("backfill")
+def backfill(
+    start_month: str = typer.Argument(..., help="Start month (YYYY-MM)"),
+    end_month: str = typer.Argument(None, help="End month (YYYY-MM)"),
+    db_path: Path = typer.Option(
+        Path("baliza.duckdb"),
+        "--duckdb",
+        "-d",
+        help="Path to DuckDB database file",
+    ),
+    dataset: str = typer.Option(
+        "baliza_raw",
+        "--dataset",
+        "-s",
+        help="Dataset name in DuckDB",
+    ),
+    resource: str = typer.Option(
+        "contratos",
+        "--resource",
+        "-r",
+        help="Resource to extract (contratos, etc.)",
+    ),
+) -> None:
+    """Historical backfill by month."""
+    try:
+        # Validate resource
+        validate_resource_path(resource)
+
+        if end_month is None:
+            end_month = start_month
+
+        start_dt = datetime.strptime(start_month, "%Y-%m")
+        end_dt = datetime.strptime(end_month, "%Y-%m")
+
+        current_dt = start_dt
+        total_rows = 0
+
+        with PNCPExtractor(db_path, dataset) as extractor:
+            while current_dt <= end_dt:
+                # Calculate first and last day of month
+                _, last_day = monthrange(current_dt.year, current_dt.month)
+                month_start = current_dt.replace(day=1)
+                month_end = current_dt.replace(day=last_day)
+
+                console.print(f"\n[bold blue]Backfilling {current_dt.strftime('%Y-%m')}...[/bold blue]")
+                result = extractor.extract(month_start, month_end, resource, pipeline_name="backfill")
+                total_rows += result["rows_extracted"]
+
+                # Move to next month
+                if current_dt.month == 12:
+                    current_dt = current_dt.replace(year=current_dt.year + 1, month=1)
+                else:
+                    current_dt = current_dt.replace(month=current_dt.month + 1)
+
+        console.print(Panel(f"[green]✓ Backfill Complete. Total rows: {total_rows:,}[/green]"))
+
+    except Exception as e:
+        console.print(f"[red]✗ Backfill failed: {e}")
+        raise typer.Exit(1) from None
+
+
 @app.command("verify")
 def verify(
     resource: str = typer.Option("contratos", "--resource", "-r", help="Resource to verify"),
@@ -102,6 +167,10 @@ def verify(
     db_path: Path = typer.Option(Path("baliza.duckdb"), "--duckdb", "-d", help="DuckDB file"),
 ) -> None:
     """Verify data coverage and detect gaps."""
+    _verify_internal(resource, start, end, db_path)
+
+
+def _verify_internal(resource, start, end, db_path):
     try:
         # Validate resource
         validate_resource_path(resource)
@@ -239,14 +308,7 @@ def export_daily(
         help="Dataset name",
     ),
 ) -> None:
-    """Export daily self-contained parquet package.
-
-    Creates a date-specific directory with:
-    - contratos.parquet (main contracts table)
-    - orgaos.parquet (deduplicated organizations)
-    - unidades.parquet (organizational units)
-    - _metadata.json (schema version and stats)
-    """
+    """Export daily self-contained parquet package."""
     try:
         target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
 
@@ -334,10 +396,14 @@ def status(
     ),
 ) -> None:
     """Show overall extraction status."""
+    _status_internal(db_path, dataset)
+
+
+def _status_internal(db_path, dataset):
     try:
         if not db_path.exists():
             console.print("[yellow]No database found. Run extraction first.[/yellow]")
-            raise typer.Exit(0)
+            return
 
         with duckdb.connect(str(db_path), read_only=True) as con:
             # Total contracts
@@ -393,6 +459,74 @@ def status(
 
     except Exception as e:
         console.print(f"[red]✗ Failed to get status: {e}")
+        raise typer.Exit(1) from None
+
+
+# --- State Subcommands ---
+
+@state_app.command("show")
+def state_show(
+    db_path: Path = typer.Option(Path("baliza.duckdb"), "--duckdb", "-d", help="DuckDB file"),
+    dataset: str = typer.Option("baliza_raw", "--dataset", "-s", help="Dataset name"),
+):
+    """Show overall extraction status."""
+    _status_internal(db_path, dataset)
+
+
+@state_app.command("gaps")
+def state_gaps(
+    resource: str = typer.Option("contratos", "--resource", "-r", help="Resource to verify"),
+    start: str = typer.Option(..., "--start", help="Start date (YYYY-MM-DD)"),
+    end: str = typer.Option(..., "--end", help="End date (YYYY-MM-DD)"),
+    db_path: Path = typer.Option(Path("baliza.duckdb"), "--duckdb", "-d", help="DuckDB file"),
+):
+    """List gaps in extraction coverage."""
+    _verify_internal(resource, start, end, db_path)
+
+
+@state_app.command("history")
+def state_history(
+    db_path: Path = typer.Option(Path("baliza.duckdb"), "--duckdb", "-d", help="DuckDB file"),
+):
+    """Show history of extraction runs."""
+    try:
+        if not db_path.exists():
+            console.print("[yellow]No database found.[/yellow]")
+            return
+
+        with duckdb.connect(str(db_path), read_only=True) as con:
+            runs = con.execute("""
+                SELECT run_id, pipeline_name, started_at, finished_at, status, rows_extracted
+                FROM baliza_state.runs
+                ORDER BY started_at DESC
+                LIMIT 20
+            """).fetchall()
+
+            if not runs:
+                console.print("[yellow]No run history found.[/yellow]")
+                return
+
+            table = Table(title="Extraction History")
+            table.add_column("Run ID", style="dim")
+            table.add_column("Pipeline")
+            table.add_column("Started At")
+            table.add_column("Status")
+            table.add_column("Rows")
+
+            for run in runs:
+                status_style = "green" if run[4] == "completed" else "red" if run[4] == "failed" else "yellow"
+                table.add_row(
+                    run[0][:8],
+                    run[1],
+                    str(run[2]),
+                    f"[{status_style}]{run[4]}[/{status_style}]",
+                    f"{run[5]:,}",
+                )
+
+            console.print(table)
+
+    except Exception as e:
+        console.print(f"[red]✗ Failed to get history: {e}")
         raise typer.Exit(1) from None
 
 

@@ -4,7 +4,7 @@ Feature: Resilient and Resumable Extraction
     Given a clean local data store
     And a PNCP API that will fail transiently
 
-  @resilience @smoke
+  @tier1 @resilience @smoke
   Scenario: The extract command recovers from a transient API error
     Given the PNCP API will return a 500 error for the first half of a date range
     And the PNCP API will succeed for the second half of the date range
@@ -14,7 +14,7 @@ Feature: Resilient and Resumable Extraction
     And the final dataset should not contain duplicate records
     And the run history should show one failed run and one successful run
 
-  @resilience @edge-case
+  @tier3 @resilience @edge-case
   Scenario: The extract command gives up after multiple consecutive failures
     Given the PNCP API will consistently return a 500 error
     When I run the "baliza extract" command
