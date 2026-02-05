@@ -1,7 +1,10 @@
+from unittest.mock import Mock
+
 import httpx
 import pytest
-from unittest.mock import Mock
+
 from baliza.extractor import _fetch_page
+
 
 def test_fetch_page_size_limit():
     """Test that _fetch_page raises ValueError if response is too large."""
