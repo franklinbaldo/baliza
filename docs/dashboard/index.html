@@ -58,7 +58,12 @@
                 }
             }, [loading, status]);
 
-            if (loading) return <div className="flex items-center justify-center h-screen text-slate-400">Carregando dashboard...</div>;
+            if (loading) return (
+                <div className="flex flex-col items-center justify-center h-screen text-slate-400 space-y-4" role="status" aria-live="polite">
+                    <div className="w-12 h-12 border-4 border-slate-700 border-t-emerald-500 rounded-full animate-spin"></div>
+                    <p className="font-medium text-slate-500 animate-pulse">Carregando dashboard...</p>
+                </div>
+            );
             if (error) return <div className="flex items-center justify-center h-screen text-red-400">Erro: {error}. Execute o workflow para gerar dados.</div>;
             if (!status) return null;
 
@@ -167,7 +172,7 @@
                         <h3 className="text-slate-400 text-sm font-medium mb-1">{title}</h3>
                         <p className={`text-2xl font-bold ${color}`}>{value || 0}</p>
                     </div>
-                    <div className={`p-2 rounded-lg bg-slate-700/50 ${color}`}>
+                    <div className={`p-2 rounded-lg bg-slate-700/50 ${color}`} aria-hidden="true">
                         <i data-lucide={icon} className="w-6 h-6"></i>
                     </div>
                 </div>
