@@ -1,9 +1,11 @@
-import pytest
-from datetime import datetime, timedelta
+from datetime import datetime
+
 import duckdb
-from pathlib import Path
-from src.baliza.extractor import PNCPExtractor
-from src.baliza.daily_exporter import DailyExporter
+import pytest
+
+from baliza.daily_exporter import DailyExporter
+from baliza.extractor import PNCPExtractor
+
 
 @pytest.fixture
 def temp_db(tmp_path):

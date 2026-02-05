@@ -1,27 +1,37 @@
-# Feature-Goal Alignment Matrix (Corrected)
+# Feature-Goal Alignment Matrix
 
-This document tracks the alignment of the *actual* BDD features in the codebase with the project's primary goals. It replaces a previous, aspirational version that described features not yet implemented.
+This document tracks the alignment of the BDD features in the codebase with the project's primary goals.
 
 ## Summary
 
 | Metric | Count |
 |---|---|
-| Total Feature Files | 4 |
-| Total Scenarios | 4 |
+| Total Feature Files | 8 |
+| Total Scenarios | 21 |
 | Last Updated | 2024-07-24 |
 
 ## Feature-Goal Mapping
 
 | Feature File | Scenarios | Primary Goal | Status | Notes |
 |---|---|---|---|---|
-| `end_to_end_extraction.feature` | 1 | Reliable Data Extraction | ✅ Implemented | Covers the core pipeline's ability to be resumable and idempotent. Test is currently quarantined due to a timeout issue. |
-| `export.feature` | 1 | Accessibility for Analysis | ✅ Implemented | Covers the export of data to Parquet for consumption by other tools. |
-| `resilience.feature` | 1 | Reliable Data Extraction | ✅ Implemented | Ensures the pipeline handles API errors gracefully, which is crucial for reliability. |
-| `verification.feature` | 1 | Reliable Data Extraction | ✅ Implemented | Covers the `verify` command's ability to detect gaps, ensuring data completeness. |
-
+| `end_to_end_extraction.feature` | 1 | Reliable Data Extraction | ⚠️ Quarantined | Skipped due to timeout/environment issues in CI. |
+| `export.feature` | 1 | Accessibility for Analysis | ✅ Implemented | Covers basic Parquet export. |
+| `daily_export.feature` | 1 | Accessibility for Analysis | ✅ Implemented | Covers daily package export (contratos + orgaos + unidades). |
+| `resilience.feature` | 2 | Reliable Data Extraction | ❌ Placeholder | Scenarios defined but steps are mostly skipped (not implemented). |
+| `verification.feature` | 1 | Data Quality Monitoring | ✅ Implemented | Covers `verify` command's gap detection. |
+| `checkpoint.feature` | 4 | Reliable Data Extraction | ✅ Implemented | Verifies page-level checkpointing and resumability. |
+| `state_management.feature` | 3 | Operator Experience | ⚠️ Partial | `show` and `gaps` are mapped/faked; `history` is skipped. |
+| `buffer_management.feature` | 4 | Data Quality Monitoring | ✅ Implemented | Covers cleanup and stats of the local DuckDB buffer. |
 
 ## Gap Analysis
 
-This matrix reflects the *current* state of the BDD test suite. The previous version of this document described a much larger, aspirational suite including features like `state_management.feature`, `backfill.feature`, and `data_quality.feature`. These features do not currently exist and represent a significant gap between the project's documentation and its implementation.
+The BDD suite has grown but several key areas remain placeholder or faked:
 
-The immediate priority is to stabilize the existing tests and ensure the project's documentation, starting with the `README.md`, accurately reflects the current, simpler architecture.
+1.  **State Management:** The `state` command doesn't actually exist in the CLI; tests map it to `status` and `verify`.
+2.  **Resilience:** The resilience tests are not yet implemented with proper mocks/simulations.
+3.  **Backfill:** No `backfill.feature` exists yet, although it's a Tier 1 goal.
+
+Immediate priorities:
+- Implement the `state` command to consolidate observability.
+- Implement the `backfill` command for historical data.
+- Fix resilience tests to ensure robustness.
