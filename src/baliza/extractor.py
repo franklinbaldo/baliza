@@ -413,7 +413,7 @@ class PNCPExtractor:
                         "total_pages": total_pages,  # type: ignore[required]
                         "rows_extracted": total_rows,
                     }
-                    self._save_checkpoint(con, resource, start_date, stats)
+                    self._save_checkpoint(con, resource, date, stats)
 
                     if progress and task_id:
                         progress.update(
