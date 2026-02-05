@@ -121,6 +121,7 @@ def extract_first_page(mock_api):
                                 "total_pages": data.get("totalPaginas", 3),
                                 "rows_extracted": len(rows),
                             },
+                            start_date,
                         )
 
                     return result
@@ -188,6 +189,7 @@ def db_with_checkpoint(tmp_path: Path, page: int, total: int) -> dict:
                     "total_pages": total,
                     "rows_extracted": 1000,
                 },
+                datetime(2023, 1, 15),
             )
 
     return {"db_path": db_file, "dataset": "test_dataset", "checkpoint_page": page, "total_pages": total}
@@ -311,6 +313,7 @@ def in_progress_extraction(tmp_path: Path) -> dict:
                     "total_pages": 5,
                     "rows_extracted": 300,
                 },
+                datetime(2023, 1, 15),
             )
 
     return {"db_path": db_file, "dataset": "test_dataset"}
@@ -451,6 +454,7 @@ def extraction_timeout(pages_extracted):
                     "total_pages": 10,
                     "rows_extracted": pages * 10,
                 },
+                datetime(2023, 1, 15),
             )
 
     return pages_extracted

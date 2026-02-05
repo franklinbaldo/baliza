@@ -177,7 +177,7 @@ class PNCPExtractor:
         """Get existing checkpoint for a date."""
         result = con.execute(
             """
-            SELECT current_page, total_pages, rows_extracted
+            SELECT current_page, total_pages, rows_extracted, started_at
             FROM baliza_state.extraction_checkpoint
             WHERE resource = ? AND extraction_date = ?
         """,
@@ -189,6 +189,7 @@ class PNCPExtractor:
                 "current_page": result[0],
                 "total_pages": result[1],
                 "rows_extracted": result[2],
+                "started_at": result[3],
             }
         return None
 
@@ -198,16 +199,13 @@ class PNCPExtractor:
         resource: str,
         extraction_date: datetime,
         stats: CheckpointData,
+        started_at: datetime,
     ) -> None:
         """Save extraction checkpoint."""
         con.execute(
             """
             INSERT OR REPLACE INTO baliza_state.extraction_checkpoint
-            VALUES (?, ?, ?, ?, ?, COALESCE(
-                (SELECT started_at FROM baliza_state.extraction_checkpoint
-                 WHERE resource = ? AND extraction_date = ?),
-                NOW()
-            ), NOW())
+            VALUES (?, ?, ?, ?, ?, ?, NOW())
         """,
             [
                 resource,
@@ -215,8 +213,7 @@ class PNCPExtractor:
                 stats["current_page"],
                 stats["total_pages"],
                 stats["rows_extracted"],
-                resource,
-                extraction_date.date(),
+                started_at,
             ],
         )
 
@@ -379,10 +376,12 @@ class PNCPExtractor:
 
                 # Check for existing checkpoint
                 checkpoint = self._get_checkpoint(con, resource, start_date)
+                started_at = datetime.now()
                 if checkpoint:
                     page = checkpoint["current_page"] + 1
                     total_rows = checkpoint["rows_extracted"]
                     total_pages = checkpoint["total_pages"]
+                    started_at = checkpoint["started_at"]
                     if progress and task_id:
                         progress.update(task_id, description=f"Resuming {start_date.date()} p{page}/{total_pages}")
 
@@ -419,7 +418,7 @@ class PNCPExtractor:
                         "rows_extracted": total_rows,
                     }
                     self._save_checkpoint(
-                        con, resource, start_date, stats
+                        con, resource, start_date, stats, started_at
                     )
 
                     if progress and task_id:
