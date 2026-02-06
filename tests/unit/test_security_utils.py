@@ -1,6 +1,7 @@
 """Unit tests for security utilities."""
 
 import pytest
+
 from baliza.utils import validate_identifier, validate_resource_path
 
 
