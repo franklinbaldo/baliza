@@ -12,16 +12,17 @@ Test scenarios follow BDD principles (Given/When/Then):
 6. Network failures → partial state preserved
 """
 
-import unittest
-from datetime import datetime, timedelta
-from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch, call
-import tempfile
 import shutil
-import httpx
-import duckdb
+import tempfile
+import unittest
+from datetime import datetime
+from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
 
-from baliza.extractor import PNCPExtractor, CheckpointData
+import duckdb
+import httpx
+
+from baliza.extractor import CheckpointData, PNCPExtractor
 
 
 class TestExtractorCheckpointFirstRun(unittest.TestCase):
@@ -449,7 +450,7 @@ class TestExtractorCheckpointIdempotency(unittest.TestCase):
 
         # Second run (idempotent re-run)
         with patch.object(self.extractor.client, 'get', side_effect=mock_get):
-            result2 = self.extractor.extract(extraction_date, extraction_date, resource="contratos", workers=1)
+            self.extractor.extract(extraction_date, extraction_date, resource="contratos", workers=1)
         
         # Then: Should not duplicate
         with duckdb.connect(str(self.db_path)) as con:
