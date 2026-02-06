@@ -1,0 +1,73 @@
+name: 📚 Documentation
+description: Report missing, unclear, or outdated documentation
+title: "[Docs]: "
+labels: ["documentation", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Help us improve causaganha's documentation!
+
+  - type: dropdown
+    id: doc_type
+    attributes:
+      label: Documentation Type
+      description: What kind of documentation issue is this?
+      options:
+        - Missing documentation (feature not documented)
+        - Unclear / confusing (needs clarification)
+        - Outdated (docs don't match current behavior)
+        - Typo / formatting issue
+        - Example code doesn't work
+    validations:
+      required: true
+
+  - type: textarea
+    id: location
+    attributes:
+      label: Documentation Location
+      description: Where is the issue? (file path, URL, or section)
+      placeholder: "README.md, section 'Pipeline Setup'"
+    validations:
+      required: true
+
+  - type: textarea
+    id: issue_description
+    attributes:
+      label: Issue Description
+      description: What's wrong with the current documentation?
+      placeholder: |
+        The README says to run `python collect.py`, but the correct command is `uv run python scripts/pipeline/collect.py`.
+        Also, no mention of required environment variables (IA_S3_* vars).
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested Improvement
+      description: How should we fix or improve it?
+      placeholder: |
+        Update README.md to:
+        1. Show full command: `uv run python scripts/pipeline/collect.py`
+        2. Add section on required environment variables
+        3. Link to `docs/PIPELINE.md` for detailed setup
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Any other details, references, or examples?
+      placeholder: "Similar projects (baliza, egregora) have clear env setup docs..."
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: volunteer
+    attributes:
+      label: Contribution
+      options:
+        - label: I'm willing to submit a PR to fix this documentation
+          required: false

@@ -1,0 +1,74 @@
+name: ✨ Feature Request
+description: Suggest a new feature or enhancement
+title: "[Feature]: "
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have an idea to improve causaganha? We'd love to hear it!
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or Use Case
+      description: What problem does this feature solve? What's the use case?
+      placeholder: "Currently, there's no way to filter cases by date range in the dashboard..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: How would you like this to work?
+      placeholder: |
+        Add a date range picker component to the dashboard:
+        - Allow selecting start/end dates
+        - Filter cases table dynamically
+        - Update charts to reflect filtered data
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Have you thought of any other solutions?
+      placeholder: "Could use URL query params instead of a date picker UI..."
+    validations:
+      required: false
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Which Component?
+      description: What part of causaganha does this affect?
+      options:
+        - Pipeline (collect/consolidate/backfill)
+        - Dashboard (UI/visualization)
+        - Database schema
+        - Documentation
+        - CI/CD or deployment
+        - Other / Multiple components
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: |
+        Any mockups, references, or additional details?
+        Tip: You can drag and drop images here!
+      placeholder: "Similar feature in baliza dashboard..."
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: volunteer
+    attributes:
+      label: Contribution
+      options:
+        - label: I'm willing to implement this feature (create PR)
+          required: false
