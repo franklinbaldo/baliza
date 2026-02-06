@@ -7,6 +7,7 @@ Supports per-page checkpointing for resume on timeout.
 from __future__ import annotations
 
 import concurrent.futures
+import json
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, TypedDict
@@ -60,17 +61,27 @@ PNCP_ARROW_SCHEMA = pa.schema([
 ])
 
 
+DEFAULT_MAX_RESPONSE_SIZE = 10 * 1024 * 1024  # 10 MB
+
+
 @retry(
     stop=stop_after_attempt(4),
     wait=wait_exponential(multiplier=2, min=2, max=16),
     retry=retry_if_exception_type((httpx.HTTPStatusError, httpx.ConnectError, httpx.TimeoutException)),
     reraise=True,
 )
-def _fetch_page(client: httpx.Client, url: str, params: dict) -> dict:
-    """Fetch a single page from PNCP API with retry logic."""
-    response = client.get(url, params=params)
-    response.raise_for_status()
-    return response.json()
+def _fetch_page(client: httpx.Client, url: str, params: dict, max_size: int = DEFAULT_MAX_RESPONSE_SIZE) -> dict:
+    """Fetch a single page from PNCP API with retry logic and size limit."""
+    with client.stream("GET", url, params=params) as response:
+        response.raise_for_status()
+
+        content = bytearray()
+        for chunk in response.iter_bytes():
+            content.extend(chunk)
+            if len(content) > max_size:
+                raise ValueError(f"Response too large: >{max_size} bytes")
+
+    return json.loads(content)
 
 
 class PNCPExtractor:

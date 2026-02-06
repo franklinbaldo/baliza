@@ -1,5 +1,6 @@
 """BDD step definitions for checkpoint.feature."""
 
+import json
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -247,7 +248,16 @@ def resume_extraction(rows_already_extracted):
         response.raise_for_status = MagicMock()
         return response
 
-    with patch("httpx.Client.get", side_effect=mock_get):
+    def mock_stream(method, url, params=None, **kwargs):
+        response = mock_get(url, params=params, **kwargs)
+        data = response.json.return_value
+        response.iter_bytes = lambda: [json.dumps(data).encode()]
+        cm = MagicMock()
+        cm.__enter__.return_value = response
+        cm.__exit__.return_value = None
+        return cm
+
+    with patch("httpx.Client.stream", side_effect=mock_stream):
         with PNCPExtractor(db_path, dataset) as extractor:
             result = extractor.extract(datetime(2023, 1, 15), datetime(2023, 1, 15), "contratos")
 
@@ -345,7 +355,16 @@ def complete_extraction(in_progress_extraction):
         response.raise_for_status = MagicMock()
         return response
 
-    with patch("httpx.Client.get", side_effect=mock_get):
+    def mock_stream(method, url, params=None, **kwargs):
+        response = mock_get(url, params=params, **kwargs)
+        data = response.json.return_value
+        response.iter_bytes = lambda: [json.dumps(data).encode()]
+        cm = MagicMock()
+        cm.__enter__.return_value = response
+        cm.__exit__.return_value = None
+        return cm
+
+    with patch("httpx.Client.stream", side_effect=mock_stream):
         with PNCPExtractor(db_path, dataset) as extractor:
             result = extractor.extract(datetime(2023, 1, 15), datetime(2023, 1, 15), "contratos")
 
