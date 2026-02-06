@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 💬 Discussions
+    url: https://github.com/franklinbaldo/baliza/discussions
+    about: Ask questions, share ideas, or discuss the project
+  - name: 🐛 Security Issues
+    url: https://github.com/franklinbaldo/baliza/security/advisories/new
+    about: Report security vulnerabilities privately
