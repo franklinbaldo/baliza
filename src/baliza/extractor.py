@@ -75,13 +75,15 @@ def _fetch_page(client: httpx.Client, url: str, params: dict, max_size: int = DE
     with client.stream("GET", url, params=params) as response:
         response.raise_for_status()
 
-        content = bytearray()
+        chunks = []
+        total_size = 0
         for chunk in response.iter_bytes():
-            content.extend(chunk)
-            if len(content) > max_size:
+            total_size += len(chunk)
+            if total_size > max_size:
                 raise ValueError(f"Response too large: >{max_size} bytes")
+            chunks.append(chunk)
 
-    return json.loads(content)
+    return json.loads(b"".join(chunks))
 
 
 class PNCPExtractor:
@@ -396,15 +398,17 @@ class PNCPExtractor:
                     if progress and task_id:
                         progress.update(task_id, description=f"Resuming {start_date.date()} p{page}/{total_pages}")
 
+                # Prepare invariant params
+                url = f"{self.base_url}/{resource}"
+                params = {
+                    "dataInicial": data_inicial,
+                    "dataFinal": data_final,
+                    "tamanhoPagina": 500,
+                }
+
                 while True:
                     # Call PNCP API with retry
-                    url = f"{self.base_url}/{resource}"
-                    params = {
-                        "dataInicial": data_inicial,
-                        "dataFinal": data_final,
-                        "pagina": page,
-                        "tamanhoPagina": 500,
-                    }
+                    params["pagina"] = page
 
                     data = _fetch_page(self.client, url, params)
                     rows = data.get("data", [])
