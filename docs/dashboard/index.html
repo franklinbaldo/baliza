@@ -199,20 +199,28 @@
             // Here we render a placeholder grid for visual effect based on the request
 
             // Generate last 365 days placeholder
-            const days = Array.from({ length: 160 }).map((_, i) => {
+            const TOTAL_DAYS = 160;
+            const days = Array.from({ length: TOTAL_DAYS }).map((_, i) => {
                  // Mock pattern
                  if (i < (completed || 0)) return 'complete';
                  if (i < (completed + (empty || 0))) return 'empty';
                  return 'missing';
             });
 
+            const missing = TOTAL_DAYS - (completed || 0) - (empty || 0);
+            const a11yLabel = `Mapa de calor dos últimos ${TOTAL_DAYS} dias: ${completed || 0} completos, ${empty || 0} vazios, ${missing} pendentes.`;
+
             return (
-                <div className="overflow-x-auto pb-2">
+                <div
+                    className="overflow-x-auto pb-2"
+                    role="img"
+                    aria-label={a11yLabel}
+                >
                     <div className="heatmap-grid" style={{ minWidth: 'max-content' }}>
                         {days.map((status, i) => (
                             <div
                                 key={i}
-                                className={`heatmap-cell ${
+                                className={`heatmap-cell transition-all duration-200 ease-out hover:scale-150 hover:z-10 hover:ring-2 hover:ring-offset-2 hover:ring-offset-slate-800 hover:ring-white/50 ${
                                     status === 'complete' ? 'bg-emerald-500' :
                                     status === 'empty' ? 'bg-slate-600' :
                                     'bg-slate-900 border border-slate-800'
