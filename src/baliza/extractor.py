@@ -19,7 +19,12 @@ from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-from .utils import validate_identifier, validate_resource_path, validate_url
+from .utils import (
+    scrub_url_params,
+    validate_identifier,
+    validate_resource_path,
+    validate_url,
+)
 
 console = Console()
 
@@ -253,7 +258,8 @@ class PNCPExtractor:
             table = pa.Table.from_pylist(rows, schema=PNCP_ARROW_SCHEMA)
         except Exception as e:
             # Fallback for unexpected schema mismatches, though unlikely with explicit schema
-            console.print(f"[yellow]Warning: Arrow conversion failed ({e}), falling back to slow path")
+            msg = scrub_url_params(str(e))
+            console.print(f"[yellow]Warning: Arrow conversion failed ({msg}), falling back to slow path")
             return self._insert_page_slow(con, rows)
 
         # Register arrow table as a view
@@ -516,7 +522,8 @@ class PNCPExtractor:
                     total_rows = result["rows_extracted"]
                     total_pages = result["pages"]
                 except Exception as e:
-                    console.print(f"[red]✗ Failed to extract: {e}")
+                    msg = scrub_url_params(str(e))
+                    console.print(f"[red]✗ Failed to extract: {msg}")
                     raise
             else:
                 # Parallel mode (split by day)
@@ -542,7 +549,8 @@ class PNCPExtractor:
                             total_pages += result["pages"]
                             progress.update(main_task, advance=1)
                         except Exception as e:
-                            console.print(f"[red]✗ Failed to extract {date.date()}: {e}")
+                            msg = scrub_url_params(str(e))
+                            console.print(f"[red]✗ Failed to extract {date.date()}: {msg}")
                             failed_dates.append(date)
                             # We don't stop everything, but we should probably record failure
                             # Checkpoint remains so it can be retried later
