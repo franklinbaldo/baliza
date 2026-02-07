@@ -1,9 +1,11 @@
 
-import duckdb
 from datetime import datetime
 from unittest.mock import patch
-import pytest
+
+import duckdb
+
 from baliza.extractor import PNCPExtractor
+
 
 def test_extractor_insertion_logic(tmp_path):
     """
@@ -61,7 +63,7 @@ def test_extractor_insertion_logic(tmp_path):
         ]
 
         with PNCPExtractor(db_path) as extractor:
-            result = extractor.extract(start_date, end_date, workers=1)
+            extractor.extract(start_date, end_date, workers=1)
 
         # Verify insertion
         with duckdb.connect(str(db_path)) as con:
