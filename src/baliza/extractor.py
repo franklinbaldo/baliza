@@ -103,7 +103,9 @@ class PNCPExtractor:
         self.dataset = validate_identifier(dataset)
         # Validate base_url to prevent SSRF
         self.base_url = validate_url(base_url)
-        self.client = httpx.Client(timeout=30.0)
+        # Add User-Agent to identify the tool and avoid being blocked
+        headers = {"User-Agent": "baliza/0.1.0 (+https://github.com/franklinbaldo/baliza)"}
+        self.client = httpx.Client(timeout=30.0, headers=headers)
 
     def _ensure_schema(self, con: duckdb.DuckDBPyConnection) -> None:
         """Create schema and tables if they don't exist."""
