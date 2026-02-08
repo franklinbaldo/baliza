@@ -33,12 +33,9 @@
         function App() {
             const [status, setStatus] = useState(null);
             const [loading, setLoading] = useState(true);
-            const [isRefetching, setIsRefetching] = useState(false);
             const [error, setError] = useState(null);
 
-            const fetchData = (isManual = false) => {
-                if (isManual) setIsRefetching(true);
-
+            useEffect(() => {
                 fetch('./status.json?t=' + Date.now())
                     .then(res => {
                         if (!res.ok) throw new Error("Failed to load status.json");
@@ -46,20 +43,13 @@
                     })
                     .then(data => {
                         setStatus(data);
-                        setError(null);
+                        setLoading(false);
                     })
                     .catch(err => {
                         console.error(err);
                         setError(err.message);
-                    })
-                    .finally(() => {
                         setLoading(false);
-                        setIsRefetching(false);
                     });
-            };
-
-            useEffect(() => {
-                fetchData();
             }, []);
 
             useEffect(() => {
@@ -84,30 +74,11 @@
                 <div className="max-w-6xl mx-auto p-6">
                     <header className="mb-8">
                         <h1 className="text-3xl font-bold text-white mb-2">Baliza Monitor</h1>
-                        <div className="flex items-center text-slate-400">
-                            <p>
-                                Última atualização: {new Date(status.generated_at).toLocaleString('pt-BR')}
-                                <span className="mx-2">•</span>
-                                Modo: <span className="uppercase text-xs font-semibold px-2 py-0.5 rounded bg-slate-700 text-slate-200">{status.mode}</span>
-                            </p>
-                            <button
-                                onClick={() => fetchData(true)}
-                                className="ml-4 p-2 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-all focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-900 border border-slate-700"
-                                aria-label="Atualizar dados agora"
-                                disabled={isRefetching}
-                                title="Atualizar dados"
-                            >
-                                <svg
-                                    className={`w-4 h-4 ${isRefetching ? 'animate-spin' : ''}`}
-                                    xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                                >
-                                    <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
-                                    <path d="M21 3v5h-5"></path>
-                                    <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
-                                    <path d="M8 16H3v5"></path>
-                                </svg>
-                            </button>
-                        </div>
+                        <p className="text-slate-400">
+                            Última atualização: {new Date(status.generated_at).toLocaleString('pt-BR')}
+                            <span className="mx-2">•</span>
+                            Modo: <span className="uppercase text-xs font-semibold px-2 py-0.5 rounded bg-slate-700 text-slate-200">{status.mode}</span>
+                        </p>
                     </header>
 
                     {/* KPI Cards */}
@@ -228,25 +199,28 @@
             // Here we render a placeholder grid for visual effect based on the request
 
             // Generate last 365 days placeholder
-            const days = Array.from({ length: 160 }).map((_, i) => {
+            const TOTAL_DAYS = 160;
+            const days = Array.from({ length: TOTAL_DAYS }).map((_, i) => {
                  // Mock pattern
                  if (i < (completed || 0)) return 'complete';
                  if (i < (completed + (empty || 0))) return 'empty';
                  return 'missing';
             });
 
+            const missing = TOTAL_DAYS - (completed || 0) - (empty || 0);
+            const a11yLabel = `Mapa de calor dos últimos ${TOTAL_DAYS} dias: ${completed || 0} completos, ${empty || 0} vazios, ${missing} pendentes.`;
+
             return (
-                <div className="overflow-x-auto pb-2">
-                    <div
-                        className="heatmap-grid"
-                        style={{ minWidth: 'max-content' }}
-                        role="img"
-                        aria-label={`Mapa de cobertura: ${completed || 0} dias completos, ${empty || 0} dias vazios.`}
-                    >
+                <div
+                    className="overflow-x-auto pb-2"
+                    role="img"
+                    aria-label={a11yLabel}
+                >
+                    <div className="heatmap-grid" style={{ minWidth: 'max-content' }}>
                         {days.map((status, i) => (
                             <div
                                 key={i}
-                                className={`heatmap-cell ${
+                                className={`heatmap-cell transition-all duration-200 ease-out hover:scale-150 hover:z-10 hover:ring-2 hover:ring-offset-2 hover:ring-offset-slate-800 hover:ring-white/50 ${
                                     status === 'complete' ? 'bg-emerald-500' :
                                     status === 'empty' ? 'bg-slate-600' :
                                     'bg-slate-900 border border-slate-800'
