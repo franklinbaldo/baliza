@@ -9,3 +9,7 @@
 ## 2024-05-24 - [Accessible Data Visualizations]
 **Learning:** Dense data grids (heatmaps) are invisible to screen readers without a summary. Adding `role="img"` and a calculated `aria-label` provides a "glanceable" equivalent for AT users.
 **Action:** Always provide a text summary for complex visualizations, not just individual data points.
+
+## 2024-05-25 - [Keyboard Shortcuts]
+**Learning:** Adding keyboard shortcuts (like 'R' for refresh) transforms a passive dashboard into a power-user tool.
+**Action:** Pair every main action button with a documented keyboard shortcut and a tooltip hint.
