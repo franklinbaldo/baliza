@@ -257,69 +257,64 @@ class PNCPExtractor:
         # Create Arrow table from rows with explicit schema to handle nested fields
         # This is significantly faster than iterating in Python (~250x speedup)
         try:
-            table = pa.Table.from_pylist(rows, schema=PNCP_ARROW_SCHEMA)
+            arrow_table = pa.Table.from_pylist(rows, schema=PNCP_ARROW_SCHEMA)  # noqa: F841
         except Exception as e:
             # Fallback for unexpected schema mismatches, though unlikely with explicit schema
             msg = scrub_url_params(str(e))
             console.print(f"[yellow]Warning: Arrow conversion failed ({msg}), falling back to slow path")
             return self._insert_page_slow(con, rows)
 
-        # Register arrow table as a view
-        con.register("page_view", table)
-
-        try:
-            # Insert using SQL with struct accessors
-            # Note: Flattening happens in the SELECT statement
-            con.execute(f"""
-                INSERT OR IGNORE INTO {self.dataset}.contratos (
-                    numeroControlePNCP,
-                    anoCompra,
-                    sequencialCompra,
-                    orgaoEntidade_cnpj,
-                    orgaoEntidade_razaoSocial,
-                    orgaoEntidade_poderId,
-                    unidadeOrgao_codigoUnidade,
-                    unidadeOrgao_nomeUnidade,
-                    modalidadeId,
-                    modalidadeNome,
-                    valorInicial,
-                    dataPublicacao,
-                    dataVigenciaInicio,
-                    dataVigenciaFim,
-                    objetoContrato,
-                    informacaoComplementar,
-                    numeroProcesso,
-                    linkSistemaOrigem,
-                    dataInclusao,
-                    dataAtualizacao,
-                    usuarioNome
-                )
-                SELECT
-                    numeroControlePNCP,
-                    anoCompra,
-                    sequencialCompra,
-                    orgaoEntidade.cnpj,
-                    orgaoEntidade.razaoSocial,
-                    orgaoEntidade.poderId,
-                    unidadeOrgao.codigoUnidade,
-                    unidadeOrgao.nomeUnidade,
-                    modalidadeId,
-                    modalidadeNome,
-                    valorInicial,
-                    dataPublicacao,
-                    dataVigenciaInicio,
-                    dataVigenciaFim,
-                    objetoContrato,
-                    informacaoComplementar,
-                    numeroProcesso,
-                    linkSistemaOrigem,
-                    dataInclusao,
-                    dataAtualizacao,
-                    usuarioNome
-                FROM page_view
-            """)
-        finally:
-            con.unregister("page_view")
+        # Insert using SQL with struct accessors via replacement scan (faster than register/unregister)
+        # Note: Flattening happens in the SELECT statement
+        # We use 'arrow_table' variable name directly in the SQL query
+        con.execute(f"""
+            INSERT OR IGNORE INTO {self.dataset}.contratos (
+                numeroControlePNCP,
+                anoCompra,
+                sequencialCompra,
+                orgaoEntidade_cnpj,
+                orgaoEntidade_razaoSocial,
+                orgaoEntidade_poderId,
+                unidadeOrgao_codigoUnidade,
+                unidadeOrgao_nomeUnidade,
+                modalidadeId,
+                modalidadeNome,
+                valorInicial,
+                dataPublicacao,
+                dataVigenciaInicio,
+                dataVigenciaFim,
+                objetoContrato,
+                informacaoComplementar,
+                numeroProcesso,
+                linkSistemaOrigem,
+                dataInclusao,
+                dataAtualizacao,
+                usuarioNome
+            )
+            SELECT
+                numeroControlePNCP,
+                anoCompra,
+                sequencialCompra,
+                orgaoEntidade.cnpj,
+                orgaoEntidade.razaoSocial,
+                orgaoEntidade.poderId,
+                unidadeOrgao.codigoUnidade,
+                unidadeOrgao.nomeUnidade,
+                modalidadeId,
+                modalidadeNome,
+                valorInicial,
+                dataPublicacao,
+                dataVigenciaInicio,
+                dataVigenciaFim,
+                objetoContrato,
+                informacaoComplementar,
+                numeroProcesso,
+                linkSistemaOrigem,
+                dataInclusao,
+                dataAtualizacao,
+                usuarioNome
+            FROM arrow_table
+        """)
 
         return len(rows)
 
