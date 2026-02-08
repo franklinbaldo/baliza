@@ -123,15 +123,27 @@ def escape_sql_literal(value: str) -> str:
 
 
 def scrub_url_params(text: str) -> str:
-    """Mask query parameters in URLs found in text to prevent logging secrets.
+    """Mask credentials and query parameters in URLs found in text to prevent logging secrets.
 
     Args:
         text: The text containing URLs to scrub.
 
     Returns:
-        The text with query parameters replaced by '***'.
+        The text with credentials and query parameters replaced by '***'.
     """
-    # Regex explanation:
-    # (https?://[^\s'\"?]+)  : Group 1 - Matches protocol and path until whitespace, quote, or '?'
-    # (\?[^\s'\"]*)          : Group 2 - Matches the query string starting with '?' until whitespace or quote
-    return re.sub(r"(https?://[^\s'\"?]+)(\?[^\s'\"]*)", r"\1?***", text)
+    # 1. Scrub credentials in authority: scheme://user:pass@host
+    # ([a-zA-Z][a-zA-Z0-9+.-]*://) : Group 1 - Scheme + ://
+    # ([^/@\s'\"]+)                : Group 2 - User:pass (no slash, at, space, quotes)
+    # (@)                          : Group 3 - @ separator
+    text = re.sub(
+        r"([a-zA-Z][a-zA-Z0-9+.-]*://)([^/@\s'\"]+)(@)", r"\1***\3", text
+    )
+
+    # 2. Scrub query parameters: scheme://path?query
+    # ([a-zA-Z][a-zA-Z0-9+.-]*://[^\s'\"?]+) : Group 1 - Scheme + path (no space, quote, ?)
+    # (\?[^\s'\"]*)                          : Group 2 - Query string (starts with ?, no space, quote)
+    text = re.sub(
+        r"([a-zA-Z][a-zA-Z0-9+.-]*://[^\s'\"?]+)(\?[^\s'\"]*)", r"\1?***", text
+    )
+
+    return text

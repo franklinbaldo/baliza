@@ -19,3 +19,8 @@
 **Prevention:**
 1. Use `validate_identifier` for all schema/table names.
 2. Use `escape_sql_literal` (doubling single quotes) for string literals that cannot be parameterized (like file paths in `COPY`).
+
+## 2024-05-27 - Prevent Credential Leakage in Logs
+**Vulnerability:** Sensitive Credential Exposure in Logs via Exception Messages. The `scrub_url_params` utility only scrubbed query parameters for `http/https` URLs. Connection strings (e.g., `postgres://user:pass@host/db`, `s3://bucket/file?token=...`) in exception messages could leak credentials in logs if a connection error occurred.
+**Learning:** Security scrubbing must be robust against diverse URL schemes and authentication methods (authority-based credentials vs query params), especially in a tool that supports multiple backends (DuckDB, S3, etc.).
+**Prevention:** Enhanced `scrub_url_params` in `src/baliza/utils.py` to support generic schemes (`[a-z][a-z0-9+.-]*://`) and scrub both authority credentials (`user:pass@`) and query parameters.
