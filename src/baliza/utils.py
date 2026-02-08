@@ -64,35 +64,43 @@ def validate_url(url: str) -> str:
     return url
 
 
-def validate_identifier(name: str) -> str:
+def validate_identifier(name: str, max_length: int = 64) -> str:
     """Validate that a string is a safe SQL identifier (alphanumeric + underscore).
 
     Args:
         name: The identifier to validate.
+        max_length: Maximum allowed length (default: 64).
 
     Returns:
         The validated identifier.
 
     Raises:
-        ValueError: If the identifier is invalid.
+        ValueError: If the identifier is invalid or too long.
     """
+    if len(name) > max_length:
+        raise ValueError(f"Invalid identifier: '{name}'. Length {len(name)} exceeds limit of {max_length}.")
+
     if not re.match(r"^[a-zA-Z0-9_]+$", name):
         raise ValueError(f"Invalid identifier: '{name}'. Must be alphanumeric with underscores only.")
     return name
 
 
-def validate_resource_path(path: str) -> str:
+def validate_resource_path(path: str, max_length: int = 255) -> str:
     """Validate that a string is a safe resource path (alphanumeric, -, _, /).
 
     Args:
         path: The resource path to validate.
+        max_length: Maximum allowed length (default: 255).
 
     Returns:
         The validated path.
 
     Raises:
-        ValueError: If the path contains invalid characters or traversal attempts.
+        ValueError: If the path contains invalid characters, traversal attempts, or is too long.
     """
+    if len(path) > max_length:
+        raise ValueError(f"Invalid resource path: '{path}'. Length {len(path)} exceeds limit of {max_length}.")
+
     if not re.match(r"^[a-zA-Z0-9_\-/]+$", path):
         raise ValueError(f"Invalid resource path: '{path}'. Must be alphanumeric with '-', '_', or '/'.")
 
@@ -112,3 +120,18 @@ def escape_sql_literal(value: str) -> str:
         The escaped string.
     """
     return value.replace("'", "''")
+
+
+def scrub_url_params(text: str) -> str:
+    """Mask query parameters in URLs found in text to prevent logging secrets.
+
+    Args:
+        text: The text containing URLs to scrub.
+
+    Returns:
+        The text with query parameters replaced by '***'.
+    """
+    # Regex explanation:
+    # (https?://[^\s'\"?]+)  : Group 1 - Matches protocol and path until whitespace, quote, or '?'
+    # (\?[^\s'\"]*)          : Group 2 - Matches the query string starting with '?' until whitespace or quote
+    return re.sub(r"(https?://[^\s'\"?]+)(\?[^\s'\"]*)", r"\1?***", text)

@@ -19,7 +19,12 @@ from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-from .utils import validate_identifier, validate_resource_path, validate_url
+from .utils import (
+    scrub_url_params,
+    validate_identifier,
+    validate_resource_path,
+    validate_url,
+)
 
 console = Console()
 
@@ -75,13 +80,15 @@ def _fetch_page(client: httpx.Client, url: str, params: dict, max_size: int = DE
     with client.stream("GET", url, params=params) as response:
         response.raise_for_status()
 
-        content = bytearray()
+        chunks = []
+        total_size = 0
         for chunk in response.iter_bytes():
-            content.extend(chunk)
-            if len(content) > max_size:
+            total_size += len(chunk)
+            if total_size > max_size:
                 raise ValueError(f"Response too large: >{max_size} bytes")
+            chunks.append(chunk)
 
-    return json.loads(content)
+    return json.loads(b"".join(chunks))
 
 
 class PNCPExtractor:
@@ -98,7 +105,9 @@ class PNCPExtractor:
         self.dataset = validate_identifier(dataset)
         # Validate base_url to prevent SSRF
         self.base_url = validate_url(base_url)
-        self.client = httpx.Client(timeout=30.0)
+        # Add User-Agent to identify the tool and avoid being blocked
+        headers = {"User-Agent": "baliza/0.1.0 (+https://github.com/franklinbaldo/baliza)"}
+        self.client = httpx.Client(timeout=30.0, headers=headers)
 
     def _ensure_schema(self, con: duckdb.DuckDBPyConnection) -> None:
         """Create schema and tables if they don't exist."""
@@ -250,68 +259,64 @@ class PNCPExtractor:
         # Create Arrow table from rows with explicit schema to handle nested fields
         # This is significantly faster than iterating in Python (~250x speedup)
         try:
-            table = pa.Table.from_pylist(rows, schema=PNCP_ARROW_SCHEMA)
+            arrow_table = pa.Table.from_pylist(rows, schema=PNCP_ARROW_SCHEMA)  # noqa: F841
         except Exception as e:
             # Fallback for unexpected schema mismatches, though unlikely with explicit schema
-            console.print(f"[yellow]Warning: Arrow conversion failed ({e}), falling back to slow path")
+            msg = scrub_url_params(str(e))
+            console.print(f"[yellow]Warning: Arrow conversion failed ({msg}), falling back to slow path")
             return self._insert_page_slow(con, rows)
 
-        # Register arrow table as a view
-        con.register("page_view", table)
-
-        try:
-            # Insert using SQL with struct accessors
-            # Note: Flattening happens in the SELECT statement
-            con.execute(f"""
-                INSERT OR IGNORE INTO {self.dataset}.contratos (
-                    numeroControlePNCP,
-                    anoCompra,
-                    sequencialCompra,
-                    orgaoEntidade_cnpj,
-                    orgaoEntidade_razaoSocial,
-                    orgaoEntidade_poderId,
-                    unidadeOrgao_codigoUnidade,
-                    unidadeOrgao_nomeUnidade,
-                    modalidadeId,
-                    modalidadeNome,
-                    valorInicial,
-                    dataPublicacao,
-                    dataVigenciaInicio,
-                    dataVigenciaFim,
-                    objetoContrato,
-                    informacaoComplementar,
-                    numeroProcesso,
-                    linkSistemaOrigem,
-                    dataInclusao,
-                    dataAtualizacao,
-                    usuarioNome
-                )
-                SELECT
-                    numeroControlePNCP,
-                    anoCompra,
-                    sequencialCompra,
-                    orgaoEntidade.cnpj,
-                    orgaoEntidade.razaoSocial,
-                    orgaoEntidade.poderId,
-                    unidadeOrgao.codigoUnidade,
-                    unidadeOrgao.nomeUnidade,
-                    modalidadeId,
-                    modalidadeNome,
-                    valorInicial,
-                    dataPublicacao,
-                    dataVigenciaInicio,
-                    dataVigenciaFim,
-                    objetoContrato,
-                    informacaoComplementar,
-                    numeroProcesso,
-                    linkSistemaOrigem,
-                    dataInclusao,
-                    dataAtualizacao,
-                    usuarioNome
-                FROM page_view
-            """)
-        finally:
-            con.unregister("page_view")
+        # Insert using SQL with struct accessors via replacement scan (faster than register/unregister)
+        # Note: Flattening happens in the SELECT statement
+        # We use 'arrow_table' variable name directly in the SQL query
+        con.execute(f"""
+            INSERT OR IGNORE INTO {self.dataset}.contratos (
+                numeroControlePNCP,
+                anoCompra,
+                sequencialCompra,
+                orgaoEntidade_cnpj,
+                orgaoEntidade_razaoSocial,
+                orgaoEntidade_poderId,
+                unidadeOrgao_codigoUnidade,
+                unidadeOrgao_nomeUnidade,
+                modalidadeId,
+                modalidadeNome,
+                valorInicial,
+                dataPublicacao,
+                dataVigenciaInicio,
+                dataVigenciaFim,
+                objetoContrato,
+                informacaoComplementar,
+                numeroProcesso,
+                linkSistemaOrigem,
+                dataInclusao,
+                dataAtualizacao,
+                usuarioNome
+            )
+            SELECT
+                numeroControlePNCP,
+                anoCompra,
+                sequencialCompra,
+                orgaoEntidade.cnpj,
+                orgaoEntidade.razaoSocial,
+                orgaoEntidade.poderId,
+                unidadeOrgao.codigoUnidade,
+                unidadeOrgao.nomeUnidade,
+                modalidadeId,
+                modalidadeNome,
+                valorInicial,
+                dataPublicacao,
+                dataVigenciaInicio,
+                dataVigenciaFim,
+                objetoContrato,
+                informacaoComplementar,
+                numeroProcesso,
+                linkSistemaOrigem,
+                dataInclusao,
+                dataAtualizacao,
+                usuarioNome
+            FROM arrow_table
+        """)
 
         return len(rows)
 
@@ -396,15 +401,17 @@ class PNCPExtractor:
                     if progress and task_id:
                         progress.update(task_id, description=f"Resuming {start_date.date()} p{page}/{total_pages}")
 
+                # Prepare invariant params
+                url = f"{self.base_url}/{resource}"
+                params = {
+                    "dataInicial": data_inicial,
+                    "dataFinal": data_final,
+                    "tamanhoPagina": 500,
+                }
+
                 while True:
                     # Call PNCP API with retry
-                    url = f"{self.base_url}/{resource}"
-                    params = {
-                        "dataInicial": data_inicial,
-                        "dataFinal": data_final,
-                        "pagina": page,
-                        "tamanhoPagina": 500,
-                    }
+                    params["pagina"] = page
 
                     data = _fetch_page(self.client, url, params)
                     rows = data.get("data", [])
@@ -516,7 +523,8 @@ class PNCPExtractor:
                     total_rows = result["rows_extracted"]
                     total_pages = result["pages"]
                 except Exception as e:
-                    console.print(f"[red]✗ Failed to extract: {e}")
+                    msg = scrub_url_params(str(e))
+                    console.print(f"[red]✗ Failed to extract: {msg}")
                     raise
             else:
                 # Parallel mode (split by day)
@@ -542,7 +550,8 @@ class PNCPExtractor:
                             total_pages += result["pages"]
                             progress.update(main_task, advance=1)
                         except Exception as e:
-                            console.print(f"[red]✗ Failed to extract {date.date()}: {e}")
+                            msg = scrub_url_params(str(e))
+                            console.print(f"[red]✗ Failed to extract {date.date()}: {msg}")
                             failed_dates.append(date)
                             # We don't stop everything, but we should probably record failure
                             # Checkpoint remains so it can be retried later
