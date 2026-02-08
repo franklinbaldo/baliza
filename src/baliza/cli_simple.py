@@ -14,7 +14,12 @@ from rich.table import Table
 
 from .daily_exporter import DailyExporter
 from .extractor import PNCPExtractor
-from .utils import escape_sql_literal, validate_identifier, validate_resource_path
+from .utils import (
+    escape_sql_literal,
+    scrub_url_params,
+    validate_identifier,
+    validate_resource_path,
+)
 
 app = typer.Typer(help="Baliza - Simple PNCP extraction tool")
 console = Console()
@@ -98,7 +103,8 @@ def extract(  # noqa: PLR0913
         )
 
     except Exception as e:
-        console.print(f"[red]✗ Extraction failed: {e}")
+        msg = scrub_url_params(str(e))
+        console.print(f"[red]✗ Extraction failed: {msg}")
         raise typer.Exit(1) from None
 
 
@@ -181,7 +187,8 @@ def verify(
                 console.print(f"[green]✓ Complete coverage from {start} to {end}")
 
     except Exception as e:
-        console.print(f"[red]✗ Verify failed: {e}")
+        msg = scrub_url_params(str(e))
+        console.print(f"[red]✗ Verify failed: {msg}")
         raise typer.Exit(1) from None
 
 
@@ -219,7 +226,8 @@ def export(
         console.print(f"[green]✓ Exported {dataset}.{table} to {parquet_file}")
 
     except Exception as e:
-        console.print(f"[red]✗ Export failed: {e}")
+        msg = scrub_url_params(str(e))
+        console.print(f"[red]✗ Export failed: {msg}")
         raise typer.Exit(1) from None
 
 
@@ -282,7 +290,8 @@ def export_daily(
         console.print(f"\n[green]✓ Output: {output / date_str}/")
 
     except Exception as e:
-        console.print(f"[red]✗ Export failed: {e}")
+        msg = scrub_url_params(str(e))
+        console.print(f"[red]✗ Export failed: {msg}")
         raise typer.Exit(1) from None
 
 
@@ -324,7 +333,8 @@ def buffer_stats(
             console.print(table)
 
     except Exception as e:
-        console.print(f"[red]✗ Failed to get stats: {e}")
+        msg = scrub_url_params(str(e))
+        console.print(f"[red]✗ Failed to get stats: {msg}")
         raise typer.Exit(1) from None
 
 
@@ -404,7 +414,8 @@ def status(
             console.print(f"\n[yellow]⚠ {checkpoints} extraction(s) incomplete - will resume on next run[/yellow]")
 
     except Exception as e:
-        console.print(f"[red]✗ Failed to get status: {e}")
+        msg = scrub_url_params(str(e))
+        console.print(f"[red]✗ Failed to get status: {msg}")
         raise typer.Exit(1) from None
 
 

@@ -120,3 +120,18 @@ def escape_sql_literal(value: str) -> str:
         The escaped string.
     """
     return value.replace("'", "''")
+
+
+def scrub_url_params(text: str) -> str:
+    """Mask query parameters in URLs found in text to prevent logging secrets.
+
+    Args:
+        text: The text containing URLs to scrub.
+
+    Returns:
+        The text with query parameters replaced by '***'.
+    """
+    # Regex explanation:
+    # (https?://[^\s'\"?]+)  : Group 1 - Matches protocol and path until whitespace, quote, or '?'
+    # (\?[^\s'\"]*)          : Group 2 - Matches the query string starting with '?' until whitespace or quote
+    return re.sub(r"(https?://[^\s'\"?]+)(\?[^\s'\"]*)", r"\1?***", text)
