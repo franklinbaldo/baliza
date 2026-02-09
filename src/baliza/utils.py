@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 
 
 def validate_url(url: str) -> str:
-    """Validate that a URL points to a public IP address (SSRF protection).
+    """Validate that a URL points to a global, unicast IP address (SSRF protection).
 
     Args:
         url: The URL to validate.
@@ -17,7 +17,7 @@ def validate_url(url: str) -> str:
         The validated URL.
 
     Raises:
-        ValueError: If the URL is invalid or points to a private network.
+        ValueError: If the URL is invalid or points to a private/non-global network.
     """
     if not url:
         raise ValueError("URL cannot be empty.")
@@ -58,8 +58,9 @@ def validate_url(url: str) -> str:
             # Should not happen with valid getaddrinfo result
             continue
 
-        if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local:
-            raise ValueError(f"URL resolves to private/local IP: {ip_str}")
+        # Ensure the IP is globally reachable and not multicast
+        if not ip_obj.is_global or ip_obj.is_multicast:
+            raise ValueError(f"URL resolves to non-global or multicast IP: {ip_str}")
 
     return url
 
