@@ -13,3 +13,7 @@
 ## 2024-05-25 - [Keyboard Shortcuts]
 **Learning:** Adding keyboard shortcuts (like 'R' for refresh) transforms a passive dashboard into a power-user tool.
 **Action:** Pair every main action button with a documented keyboard shortcut and a tooltip hint.
+
+## 2024-06-05 - [Tab Personality & Focus]
+**Learning:** A custom favicon (even a simple emoji SVG) makes a tab instantly recognizable, and clear focus styles on secondary links (like footers) turn "hidden" navigation into accessible paths.
+**Action:** Always add a data-URI favicon to standalone HTML tools and ensure all interactive elements, even minor ones, have visible focus states.
