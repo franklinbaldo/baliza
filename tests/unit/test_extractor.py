@@ -64,7 +64,7 @@ class TestExtractorCheckpointFirstRun(unittest.TestCase):
                 "total_pages": 5,
                 "rows_extracted": 100,
             }
-            self.extractor._save_checkpoint(con, "contratos", datetime(2024, 1, 15), stats)
+            self.extractor._save_checkpoint(con, "contratos", datetime(2024, 1, 15), stats, datetime.now())
             
             # Then: Checkpoint should exist
             saved_checkpoint = self.extractor._get_checkpoint(con, "contratos", datetime(2024, 1, 15))
@@ -80,13 +80,11 @@ class TestExtractorCheckpointFirstRun(unittest.TestCase):
         Then: Extraction should start from page 1 (not resume from middle)
         """
         # Mock HTTP responses for 3 pages
-        def mock_get(url, params=None, **kwargs):
+        def mock_fetch(client, url, params, max_size=None):
             page = params.get("pagina", 1)
-            response = MagicMock()
-            response.status_code = 200
             
             if page <= 3:
-                response.json.return_value = {
+                return {
                     "data": [
                         {
                             "numeroControlePNCP": f"CTRL-{page}-{i}",
@@ -105,13 +103,10 @@ class TestExtractorCheckpointFirstRun(unittest.TestCase):
                     "totalPaginas": 3,
                 }
             else:
-                response.json.return_value = {"data": [], "totalPaginas": 3}
-                
-            response.raise_for_status = MagicMock()
-            return response
+                return {"data": [], "totalPaginas": 3}
 
         # When: Run extraction with mocked API
-        with patch.object(self.extractor.client, 'get', side_effect=mock_get):
+        with patch("baliza.extractor._fetch_page", side_effect=mock_fetch):
             result = self.extractor.extract(
                 datetime(2024, 1, 15),
                 datetime(2024, 1, 15),
@@ -164,7 +159,7 @@ class TestExtractorCheckpointResume(unittest.TestCase):
                 "total_pages": 5,
                 "rows_extracted": 200,
             }
-            self.extractor._save_checkpoint(con, "contratos", extraction_date, stats)
+            self.extractor._save_checkpoint(con, "contratos", extraction_date, stats, datetime.now())
             
             # Verify checkpoint exists
             checkpoint = self.extractor._get_checkpoint(con, "contratos", extraction_date)
@@ -173,16 +168,13 @@ class TestExtractorCheckpointResume(unittest.TestCase):
         # Track which pages were requested
         requested_pages = []
         
-        def mock_get(url, params=None, **kwargs):
+        def mock_fetch(client, url, params, max_size=None):
             page = params.get("pagina", 1)
             requested_pages.append(page)
             
-            response = MagicMock()
-            response.status_code = 200
-            
             # Return data for pages 3, 4, 5 (resume scenario)
             if page in [3, 4, 5]:
-                response.json.return_value = {
+                return {
                     "data": [
                         {
                             "numeroControlePNCP": f"CTRL-{page}-{i}",
@@ -196,13 +188,10 @@ class TestExtractorCheckpointResume(unittest.TestCase):
                 }
             else:
                 # Pages 1-2 should not be requested (already processed)
-                response.json.return_value = {"data": [], "totalPaginas": 5}
-                
-            response.raise_for_status = MagicMock()
-            return response
+                return {"data": [], "totalPaginas": 5}
 
         # When: Resume extraction
-        with patch.object(self.extractor.client, 'get', side_effect=mock_get):
+        with patch("baliza.extractor._fetch_page", side_effect=mock_fetch):
             result = self.extractor.extract(
                 extraction_date,
                 extraction_date,
@@ -236,16 +225,14 @@ class TestExtractorCheckpointResume(unittest.TestCase):
                 "total_pages": 3,
                 "rows_extracted": 200,
             }
-            self.extractor._save_checkpoint(con, "contratos", extraction_date, stats)
+            self.extractor._save_checkpoint(con, "contratos", extraction_date, stats, datetime.now())
 
         # Mock API to return 1 more page
-        def mock_get(url, params=None, **kwargs):
+        def mock_fetch(client, url, params, max_size=None):
             page = params.get("pagina", 1)
-            response = MagicMock()
-            response.status_code = 200
             
             if page == 3:
-                response.json.return_value = {
+                return {
                     "data": [
                         {
                             "numeroControlePNCP": f"CTRL-{page}-{i}",
@@ -258,13 +245,10 @@ class TestExtractorCheckpointResume(unittest.TestCase):
                     "totalPaginas": 3,
                 }
             else:
-                response.json.return_value = {"data": [], "totalPaginas": 3}
-                
-            response.raise_for_status = MagicMock()
-            return response
+                return {"data": [], "totalPaginas": 3}
 
         # When: Resume extraction
-        with patch.object(self.extractor.client, 'get', side_effect=mock_get):
+        with patch("baliza.extractor._fetch_page", side_effect=mock_fetch):
             result = self.extractor.extract(extraction_date, extraction_date, resource="contratos", workers=1)
         
         # Then: Total should be 200 (previous) + 100 (new) = 300
@@ -347,27 +331,22 @@ class TestExtractorCheckpointCompletion(unittest.TestCase):
                 "total_pages": 2,
                 "rows_extracted": 50,
             }
-            self.extractor._save_checkpoint(con, "contratos", extraction_date, stats)
+            self.extractor._save_checkpoint(con, "contratos", extraction_date, stats, datetime.now())
 
         # Mock API to complete extraction
-        def mock_get(url, params=None, **kwargs):
+        def mock_fetch(client, url, params, max_size=None):
             page = params.get("pagina", 1)
-            response = MagicMock()
-            response.status_code = 200
             
             if page == 2:
-                response.json.return_value = {
+                return {
                     "data": [{"numeroControlePNCP": f"CTRL-{page}-{i}", "anoCompra": 2024, "orgaoEntidade": {"cnpj": "12345678000190"}, "dataPublicacao": "2024-01-15T10:00:00"} for i in range(10)],
                     "totalPaginas": 2,
                 }
             else:
-                response.json.return_value = {"data": [], "totalPaginas": 2}
-                
-            response.raise_for_status = MagicMock()
-            return response
+                return {"data": [], "totalPaginas": 2}
 
         # When: Complete extraction
-        with patch.object(self.extractor.client, 'get', side_effect=mock_get):
+        with patch("baliza.extractor._fetch_page", side_effect=mock_fetch):
             self.extractor.extract(extraction_date, extraction_date, resource="contratos", workers=1)
         
         # Then: Coverage should exist
@@ -408,13 +387,11 @@ class TestExtractorCheckpointIdempotency(unittest.TestCase):
         extraction_date = datetime(2024, 1, 15)
         
         # Mock API with consistent data
-        def mock_get(url, params=None, **kwargs):
+        def mock_fetch(client, url, params, max_size=None):
             page = params.get("pagina", 1)
-            response = MagicMock()
-            response.status_code = 200
             
             if page == 1:
-                response.json.return_value = {
+                return {
                     "data": [
                         {
                             "numeroControlePNCP": "CTRL-UNIQUE-001",  # Same ID both times
@@ -432,13 +409,10 @@ class TestExtractorCheckpointIdempotency(unittest.TestCase):
                     "totalPaginas": 1,
                 }
             else:
-                response.json.return_value = {"data": [], "totalPaginas": 1}
-                
-            response.raise_for_status = MagicMock()
-            return response
+                return {"data": [], "totalPaginas": 1}
 
         # First run
-        with patch.object(self.extractor.client, 'get', side_effect=mock_get):
+        with patch("baliza.extractor._fetch_page", side_effect=mock_fetch):
             result1 = self.extractor.extract(extraction_date, extraction_date, resource="contratos", workers=1)
         
         self.assertEqual(result1["rows_extracted"], 1, "First run should extract 1 row")
@@ -449,7 +423,7 @@ class TestExtractorCheckpointIdempotency(unittest.TestCase):
             self.assertEqual(count1, 1, "Should have 1 row after first extraction")
 
         # Second run (idempotent re-run)
-        with patch.object(self.extractor.client, 'get', side_effect=mock_get):
+        with patch("baliza.extractor._fetch_page", side_effect=mock_fetch):
             self.extractor.extract(extraction_date, extraction_date, resource="contratos", workers=1)
         
         # Then: Should not duplicate
@@ -526,29 +500,24 @@ class TestExtractorCheckpointCorruption(unittest.TestCase):
                 "total_pages": 5,
                 "rows_extracted": 1000,
             }
-            self.extractor._save_checkpoint(con, "contratos", extraction_date, stats)
+            self.extractor._save_checkpoint(con, "contratos", extraction_date, stats, datetime.now())
 
         # Mock API with 5 pages
-        def mock_get(url, params=None, **kwargs):
+        def mock_fetch(client, url, params, max_size=None):
             page = params.get("pagina", 1)
-            response = MagicMock()
-            response.status_code = 200
             
             # Page 11 (current_page + 1) should return empty
             if page <= 5:
-                response.json.return_value = {
+                return {
                     "data": [{"numeroControlePNCP": f"CTRL-{page}-{i}", "anoCompra": 2024, "orgaoEntidade": {"cnpj": "12345678000190"}, "dataPublicacao": "2024-01-15T10:00:00"} for i in range(10)],
                     "totalPaginas": 5,
                 }
             else:
-                response.json.return_value = {"data": [], "totalPaginas": 5}
-                
-            response.raise_for_status = MagicMock()
-            return response
+                return {"data": [], "totalPaginas": 5}
 
         # When: Attempt to resume (should handle invalid state)
         try:
-            with patch.object(self.extractor.client, 'get', side_effect=mock_get):
+            with patch("baliza.extractor._fetch_page", side_effect=mock_fetch):
                 result = self.extractor.extract(extraction_date, extraction_date, resource="contratos", workers=1)
             
             # Then: Should complete without error (even if it restarts)
@@ -590,31 +559,24 @@ class TestExtractorCheckpointNetworkFailures(unittest.TestCase):
         # Mock API: pages 1-2 succeed, page 3 times out
         call_count = [0]
         
-        def mock_get(url, params=None, **kwargs):
+        def mock_fetch(client, url, params, max_size=None):
             page = params.get("pagina", 1)
             call_count[0] += 1
             
-            response = MagicMock()
-            response.status_code = 200
-            
             if page in [1, 2]:
-                response.json.return_value = {
+                return {
                     "data": [{"numeroControlePNCP": f"CTRL-{page}-{i}", "anoCompra": 2024, "orgaoEntidade": {"cnpj": "12345678000190"}, "dataPublicacao": "2024-01-15T10:00:00"} for i in range(10)],
                     "totalPaginas": 5,
                 }
-                response.raise_for_status = MagicMock()
-                return response
             elif page == 3 and call_count[0] <= 4:  # Fail first 4 attempts (triggers retry logic)
                 # Simulate network timeout
                 raise httpx.TimeoutException("Request timeout")
             else:
                 # After retries exhausted, return empty to stop
-                response.json.return_value = {"data": [], "totalPaginas": 5}
-                response.raise_for_status = MagicMock()
-                return response
+                return {"data": [], "totalPaginas": 5}
 
         # When: Run extraction (will fail at page 3)
-        with patch.object(self.extractor.client, 'get', side_effect=mock_get):
+        with patch("baliza.extractor._fetch_page", side_effect=mock_fetch):
             try:
                 self.extractor.extract(extraction_date, extraction_date, resource="contratos", workers=1)
             except httpx.TimeoutException:
@@ -643,33 +605,22 @@ class TestExtractorCheckpointNetworkFailures(unittest.TestCase):
         extraction_date = datetime(2024, 1, 15)
         
         # Mock API: page 1 succeeds, page 2 returns 500
-        def mock_get(url, params=None, **kwargs):
+        def mock_fetch(client, url, params, max_size=None):
             page = params.get("pagina", 1)
-            response = MagicMock()
             
             if page == 1:
-                response.status_code = 200
-                response.json.return_value = {
+                return {
                     "data": [{"numeroControlePNCP": f"CTRL-{page}-{i}", "anoCompra": 2024, "orgaoEntidade": {"cnpj": "12345678000190"}, "dataPublicacao": "2024-01-15T10:00:00"} for i in range(10)],
                     "totalPaginas": 3,
                 }
-                response.raise_for_status = MagicMock()
-                return response
             elif page == 2:
                 # Simulate 500 error
-                response.status_code = 500
-                response.raise_for_status.side_effect = httpx.HTTPStatusError(
-                    "500 Server Error", request=Mock(), response=response
-                )
-                return response
+                raise httpx.HTTPStatusError("500 Server Error", request=Mock(), response=Mock(status_code=500))
             else:
-                response.status_code = 200
-                response.json.return_value = {"data": [], "totalPaginas": 3}
-                response.raise_for_status = MagicMock()
-                return response
+                return {"data": [], "totalPaginas": 3}
 
         # When: Run extraction (will fail at page 2)
-        with patch.object(self.extractor.client, 'get', side_effect=mock_get):
+        with patch("baliza.extractor._fetch_page", side_effect=mock_fetch):
             try:
                 self.extractor.extract(extraction_date, extraction_date, resource="contratos", workers=1)
             except httpx.HTTPStatusError:
@@ -716,15 +667,11 @@ class TestExtractorCheckpointEdgeCases(unittest.TestCase):
         extraction_date = datetime(2024, 1, 15)
         
         # Mock API with no data
-        def mock_get(url, params=None, **kwargs):
-            response = MagicMock()
-            response.status_code = 200
-            response.json.return_value = {"data": [], "totalPaginas": 0}
-            response.raise_for_status = MagicMock()
-            return response
+        def mock_fetch(client, url, params, max_size=None):
+            return {"data": [], "totalPaginas": 0}
 
         # When: Run extraction
-        with patch.object(self.extractor.client, 'get', side_effect=mock_get):
+        with patch("baliza.extractor._fetch_page", side_effect=mock_fetch):
             result = self.extractor.extract(extraction_date, extraction_date, resource="contratos", workers=1)
         
         # Then: Should complete without error
@@ -745,24 +692,19 @@ class TestExtractorCheckpointEdgeCases(unittest.TestCase):
         extraction_date = datetime(2024, 1, 15)
         
         # Mock API with single page
-        def mock_get(url, params=None, **kwargs):
+        def mock_fetch(client, url, params, max_size=None):
             page = params.get("pagina", 1)
-            response = MagicMock()
-            response.status_code = 200
             
             if page == 1:
-                response.json.return_value = {
+                return {
                     "data": [{"numeroControlePNCP": "CTRL-SINGLE-001", "anoCompra": 2024, "orgaoEntidade": {"cnpj": "12345678000190"}, "dataPublicacao": "2024-01-15T10:00:00"}],
                     "totalPaginas": 1,
                 }
             else:
-                response.json.return_value = {"data": [], "totalPaginas": 1}
-                
-            response.raise_for_status = MagicMock()
-            return response
+                return {"data": [], "totalPaginas": 1}
 
         # When: Run extraction
-        with patch.object(self.extractor.client, 'get', side_effect=mock_get):
+        with patch("baliza.extractor._fetch_page", side_effect=mock_fetch):
             result = self.extractor.extract(extraction_date, extraction_date, resource="contratos", workers=1)
         
         # Then: Should complete successfully
@@ -789,8 +731,8 @@ class TestExtractorCheckpointEdgeCases(unittest.TestCase):
             stats1: CheckpointData = {"current_page": 3, "total_pages": 10, "rows_extracted": 300}
             stats2: CheckpointData = {"current_page": 7, "total_pages": 15, "rows_extracted": 700}
             
-            self.extractor._save_checkpoint(con, "contratos", date1, stats1)
-            self.extractor._save_checkpoint(con, "contratos", date2, stats2)
+            self.extractor._save_checkpoint(con, "contratos", date1, stats1, datetime.now())
+            self.extractor._save_checkpoint(con, "contratos", date2, stats2, datetime.now())
             
             # Get checkpoint for date1
             checkpoint1 = self.extractor._get_checkpoint(con, "contratos", date1)

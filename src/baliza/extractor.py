@@ -109,6 +109,62 @@ class PNCPExtractor:
         headers = {"User-Agent": "baliza/0.1.0 (+https://github.com/franklinbaldo/baliza)"}
         self.client = httpx.Client(timeout=30.0, headers=headers)
 
+        # Pre-compute SQL queries to avoid reconstruction in loops
+        # Optimization: Hoist invariant SQL construction out of the loop
+        self._insert_sql = f"""
+            INSERT OR IGNORE INTO {self.dataset}.contratos (
+                numeroControlePNCP,
+                anoCompra,
+                sequencialCompra,
+                orgaoEntidade_cnpj,
+                orgaoEntidade_razaoSocial,
+                orgaoEntidade_poderId,
+                unidadeOrgao_codigoUnidade,
+                unidadeOrgao_nomeUnidade,
+                modalidadeId,
+                modalidadeNome,
+                valorInicial,
+                dataPublicacao,
+                dataVigenciaInicio,
+                dataVigenciaFim,
+                objetoContrato,
+                informacaoComplementar,
+                numeroProcesso,
+                linkSistemaOrigem,
+                dataInclusao,
+                dataAtualizacao,
+                usuarioNome
+            )
+            SELECT
+                numeroControlePNCP,
+                anoCompra,
+                sequencialCompra,
+                orgaoEntidade.cnpj,
+                orgaoEntidade.razaoSocial,
+                orgaoEntidade.poderId,
+                unidadeOrgao.codigoUnidade,
+                unidadeOrgao.nomeUnidade,
+                modalidadeId,
+                modalidadeNome,
+                valorInicial,
+                dataPublicacao,
+                dataVigenciaInicio,
+                dataVigenciaFim,
+                objetoContrato,
+                informacaoComplementar,
+                numeroProcesso,
+                linkSistemaOrigem,
+                dataInclusao,
+                dataAtualizacao,
+                usuarioNome
+            FROM arrow_table
+        """
+
+        self._insert_slow_sql = f"""
+            INSERT OR IGNORE INTO {self.dataset}.contratos
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+
     def _ensure_schema(self, con: duckdb.DuckDBPyConnection) -> None:
         """Create schema and tables if they don't exist."""
         # Data schema
@@ -269,54 +325,8 @@ class PNCPExtractor:
         # Insert using SQL with struct accessors via replacement scan (faster than register/unregister)
         # Note: Flattening happens in the SELECT statement
         # We use 'arrow_table' variable name directly in the SQL query
-        con.execute(f"""
-            INSERT OR IGNORE INTO {self.dataset}.contratos (
-                numeroControlePNCP,
-                anoCompra,
-                sequencialCompra,
-                orgaoEntidade_cnpj,
-                orgaoEntidade_razaoSocial,
-                orgaoEntidade_poderId,
-                unidadeOrgao_codigoUnidade,
-                unidadeOrgao_nomeUnidade,
-                modalidadeId,
-                modalidadeNome,
-                valorInicial,
-                dataPublicacao,
-                dataVigenciaInicio,
-                dataVigenciaFim,
-                objetoContrato,
-                informacaoComplementar,
-                numeroProcesso,
-                linkSistemaOrigem,
-                dataInclusao,
-                dataAtualizacao,
-                usuarioNome
-            )
-            SELECT
-                numeroControlePNCP,
-                anoCompra,
-                sequencialCompra,
-                orgaoEntidade.cnpj,
-                orgaoEntidade.razaoSocial,
-                orgaoEntidade.poderId,
-                unidadeOrgao.codigoUnidade,
-                unidadeOrgao.nomeUnidade,
-                modalidadeId,
-                modalidadeNome,
-                valorInicial,
-                dataPublicacao,
-                dataVigenciaInicio,
-                dataVigenciaFim,
-                objetoContrato,
-                informacaoComplementar,
-                numeroProcesso,
-                linkSistemaOrigem,
-                dataInclusao,
-                dataAtualizacao,
-                usuarioNome
-            FROM arrow_table
-        """)
+        # Optimization: Use pre-computed SQL string
+        con.execute(self._insert_sql)
 
         return len(rows)
 
@@ -353,13 +363,8 @@ class PNCPExtractor:
             )
 
         # Insert or ignore (deduplication by primary key)
-        con.executemany(
-            f"""
-            INSERT OR IGNORE INTO {self.dataset}.contratos
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-            values,
-        )
+        # Optimization: Use pre-computed SQL string
+        con.executemany(self._insert_slow_sql, values)
 
         return len(values)
 
