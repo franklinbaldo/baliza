@@ -123,3 +123,15 @@ def test_scrub_url_params_empty_query():
     text = "https://example.com/?"
     expected = "https://example.com/?***"
     assert scrub_url_params(text) == expected
+
+def test_scrub_url_credentials():
+    """Test scrubbing credentials in URL authority."""
+    text = "Error connecting to postgres://user:secret@host/db"
+    expected = "Error connecting to postgres://***@host/db"
+    assert scrub_url_params(text) == expected
+
+def test_scrub_url_other_schemes():
+    """Test scrubbing query params for other schemes (s3, gcs, etc)."""
+    text = "Access denied for s3://bucket/file?token=12345"
+    expected = "Access denied for s3://bucket/file?***"
+    assert scrub_url_params(text) == expected
