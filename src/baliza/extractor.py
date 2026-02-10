@@ -80,6 +80,10 @@ PNCP_ARROW_SCHEMA = pa.schema(
 
 DEFAULT_MAX_RESPONSE_SIZE = 10 * 1024 * 1024  # 10 MB
 
+# Default retry configuration
+DEFAULT_MAX_RETRIES = 5
+DEFAULT_BASE_DELAY = 1.0  # seconds
+
 
 def _is_retryable_error(exc: BaseException) -> bool:
     """Check if an exception is retryable.
@@ -101,41 +105,57 @@ def _is_retryable_error(exc: BaseException) -> bool:
     return isinstance(exc, (httpx.ConnectError, httpx.TimeoutException))
 
 
-def _log_retry(retry_state: RetryCallState) -> None:
-    """Log retry attempts with useful context."""
-    exc = retry_state.outcome.exception() if retry_state.outcome else None
-    attempt = retry_state.attempt_number
+def _make_log_retry(max_retries: int) -> callable:
+    """Create a retry logging function with the configured max_retries."""
 
-    if isinstance(exc, httpx.HTTPStatusError):
-        status = exc.response.status_code
-        logger.warning(
-            "Retry %d/5 after HTTP %d: %s",
-            attempt,
-            status,
-            scrub_url_params(str(exc.request.url)),
-        )
-    elif isinstance(exc, httpx.ConnectError):
-        logger.warning("Retry %d/5 after connection error: %s", attempt, scrub_url_params(str(exc)))
-    elif isinstance(exc, httpx.TimeoutException):
-        logger.warning("Retry %d/5 after timeout: %s", attempt, scrub_url_params(str(exc)))
-    else:
-        logger.warning("Retry %d/5 after error: %s", attempt, scrub_url_params(str(exc)))
+    def _log_retry(retry_state: RetryCallState) -> None:
+        """Log retry attempts with useful context."""
+        exc = retry_state.outcome.exception() if retry_state.outcome else None
+        attempt = retry_state.attempt_number
+
+        if isinstance(exc, httpx.HTTPStatusError):
+            status = exc.response.status_code
+            logger.info(
+                "Retry attempt %d/%d (HTTP %d): waiting before retry - %s",
+                attempt,
+                max_retries,
+                status,
+                scrub_url_params(str(exc.request.url)),
+            )
+        elif isinstance(exc, httpx.ConnectError):
+            logger.info(
+                "Retry attempt %d/%d (connection error): waiting before retry - %s",
+                attempt,
+                max_retries,
+                scrub_url_params(str(exc)),
+            )
+        elif isinstance(exc, httpx.TimeoutException):
+            logger.info(
+                "Retry attempt %d/%d (timeout): waiting before retry - %s",
+                attempt,
+                max_retries,
+                scrub_url_params(str(exc)),
+            )
+        else:
+            logger.info(
+                "Retry attempt %d/%d: waiting before retry - %s",
+                attempt,
+                max_retries,
+                scrub_url_params(str(exc)),
+            )
+
+    return _log_retry
 
 
-@retry(
-    stop=stop_after_attempt(5),
-    wait=wait_exponential(multiplier=1, min=1, max=60),
-    retry=retry_if_exception(_is_retryable_error),
-    before_sleep=_log_retry,
-    reraise=True,
-)
 def _fetch_page(
     client: httpx.Client,
     url: str,
     params: dict,
     max_size: int = DEFAULT_MAX_RESPONSE_SIZE,
+    max_retries: int = DEFAULT_MAX_RETRIES,
+    base_delay: float = DEFAULT_BASE_DELAY,
 ) -> dict:
-    """Fetch a single page from PNCP API with retry logic and size limit.
+    """Fetch a single page from PNCP API with configurable retry logic.
 
     Uses exponential backoff with retries on:
     - HTTP 429 (rate limit)
@@ -143,11 +163,15 @@ def _fetch_page(
     - Connection errors
     - Timeouts
 
+    Formula: wait_time = base_delay * (2 ** attempt) with jitter
+
     Args:
         client: HTTP client to use
         url: API endpoint URL
         params: Query parameters
         max_size: Maximum response size in bytes
+        max_retries: Maximum number of retry attempts (default: 5)
+        base_delay: Base delay in seconds for exponential backoff (default: 1.0)
 
     Returns:
         Parsed JSON response
@@ -156,18 +180,29 @@ def _fetch_page(
         httpx.HTTPStatusError: On non-retryable HTTP errors or after max retries
         ValueError: If response exceeds max_size
     """
-    with client.stream("GET", url, params=params) as response:
-        response.raise_for_status()
+    # Create a retry-decorated function with configurable parameters
+    @retry(
+        stop=stop_after_attempt(max_retries + 1),  # +1 because it counts total attempts
+        wait=wait_exponential(multiplier=base_delay, min=base_delay, max=base_delay * 64),
+        retry=retry_if_exception(_is_retryable_error),
+        before_sleep=_make_log_retry(max_retries),
+        reraise=True,
+    )
+    def _do_fetch() -> dict:
+        with client.stream("GET", url, params=params) as response:
+            response.raise_for_status()
 
-        chunks = []
-        total_size = 0
-        for chunk in response.iter_bytes():
-            total_size += len(chunk)
-            if total_size > max_size:
-                raise ValueError(f"Response too large: >{max_size} bytes")
-            chunks.append(chunk)
+            chunks = []
+            total_size = 0
+            for chunk in response.iter_bytes():
+                total_size += len(chunk)
+                if total_size > max_size:
+                    raise ValueError(f"Response too large: >{max_size} bytes")
+                chunks.append(chunk)
 
-    return json.loads(b"".join(chunks))
+        return json.loads(b"".join(chunks))
+
+    return _do_fetch()
 
 
 class PNCPExtractor:
@@ -178,12 +213,28 @@ class PNCPExtractor:
         db_path: Path,
         dataset: str = "baliza_raw",
         base_url: str = "https://pncp.gov.br/api/consulta/v1",
+        max_retries: int = DEFAULT_MAX_RETRIES,
+        base_delay: float = DEFAULT_BASE_DELAY,
     ):
+        """Initialize the PNCP extractor.
+
+        Args:
+            db_path: Path to the DuckDB database file
+            dataset: Schema name for the data (default: baliza_raw)
+            base_url: Base URL for the PNCP API
+            max_retries: Maximum number of retry attempts for failed requests (default: 5)
+            base_delay: Base delay in seconds for exponential backoff (default: 1.0)
+        """
         self.db_path = db_path
         # Validate dataset name to prevent SQL injection
         self.dataset = validate_identifier(dataset)
         # Validate base_url to prevent SSRF
         self.base_url = validate_url(base_url)
+
+        # Retry configuration
+        self.max_retries = max_retries
+        self.base_delay = base_delay
+
         # Add User-Agent to identify the tool and avoid being blocked
         headers = {"User-Agent": "baliza/0.1.0 (+https://github.com/franklinbaldo/baliza)"}
         self.client = httpx.Client(timeout=30.0, headers=headers)
@@ -516,7 +567,13 @@ class PNCPExtractor:
                     # Call PNCP API with retry
                     params["pagina"] = page
 
-                    data = _fetch_page(self.client, url, params)
+                    data = _fetch_page(
+                        self.client,
+                        url,
+                        params,
+                        max_retries=self.max_retries,
+                        base_delay=self.base_delay,
+                    )
                     rows = data.get("data", [])
 
                     if not rows:

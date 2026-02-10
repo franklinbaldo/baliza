@@ -80,7 +80,7 @@ class TestExtractorCheckpointFirstRun(unittest.TestCase):
         Then: Extraction should start from page 1 (not resume from middle)
         """
         # Mock HTTP responses for 3 pages
-        def mock_fetch(client, url, params, max_size=None):
+        def mock_fetch(client, url, params, max_size=None, **kwargs):
             page = params.get("pagina", 1)
             
             if page <= 3:
@@ -168,7 +168,7 @@ class TestExtractorCheckpointResume(unittest.TestCase):
         # Track which pages were requested
         requested_pages = []
         
-        def mock_fetch(client, url, params, max_size=None):
+        def mock_fetch(client, url, params, max_size=None, **kwargs):
             page = params.get("pagina", 1)
             requested_pages.append(page)
             
@@ -228,7 +228,7 @@ class TestExtractorCheckpointResume(unittest.TestCase):
             self.extractor._save_checkpoint(con, "contratos", extraction_date, stats, datetime.now())
 
         # Mock API to return 1 more page
-        def mock_fetch(client, url, params, max_size=None):
+        def mock_fetch(client, url, params, max_size=None, **kwargs):
             page = params.get("pagina", 1)
             
             if page == 3:
@@ -334,7 +334,7 @@ class TestExtractorCheckpointCompletion(unittest.TestCase):
             self.extractor._save_checkpoint(con, "contratos", extraction_date, stats, datetime.now())
 
         # Mock API to complete extraction
-        def mock_fetch(client, url, params, max_size=None):
+        def mock_fetch(client, url, params, max_size=None, **kwargs):
             page = params.get("pagina", 1)
             
             if page == 2:
@@ -387,7 +387,7 @@ class TestExtractorCheckpointIdempotency(unittest.TestCase):
         extraction_date = datetime(2024, 1, 15)
         
         # Mock API with consistent data
-        def mock_fetch(client, url, params, max_size=None):
+        def mock_fetch(client, url, params, max_size=None, **kwargs):
             page = params.get("pagina", 1)
             
             if page == 1:
@@ -503,7 +503,7 @@ class TestExtractorCheckpointCorruption(unittest.TestCase):
             self.extractor._save_checkpoint(con, "contratos", extraction_date, stats, datetime.now())
 
         # Mock API with 5 pages
-        def mock_fetch(client, url, params, max_size=None):
+        def mock_fetch(client, url, params, max_size=None, **kwargs):
             page = params.get("pagina", 1)
             
             # Page 11 (current_page + 1) should return empty
@@ -559,7 +559,7 @@ class TestExtractorCheckpointNetworkFailures(unittest.TestCase):
         # Mock API: pages 1-2 succeed, page 3 times out
         call_count = [0]
         
-        def mock_fetch(client, url, params, max_size=None):
+        def mock_fetch(client, url, params, max_size=None, **kwargs):
             page = params.get("pagina", 1)
             call_count[0] += 1
             
@@ -605,7 +605,7 @@ class TestExtractorCheckpointNetworkFailures(unittest.TestCase):
         extraction_date = datetime(2024, 1, 15)
         
         # Mock API: page 1 succeeds, page 2 returns 500
-        def mock_fetch(client, url, params, max_size=None):
+        def mock_fetch(client, url, params, max_size=None, **kwargs):
             page = params.get("pagina", 1)
             
             if page == 1:
@@ -667,7 +667,7 @@ class TestExtractorCheckpointEdgeCases(unittest.TestCase):
         extraction_date = datetime(2024, 1, 15)
         
         # Mock API with no data
-        def mock_fetch(client, url, params, max_size=None):
+        def mock_fetch(client, url, params, max_size=None, **kwargs):
             return {"data": [], "totalPaginas": 0}
 
         # When: Run extraction
@@ -692,7 +692,7 @@ class TestExtractorCheckpointEdgeCases(unittest.TestCase):
         extraction_date = datetime(2024, 1, 15)
         
         # Mock API with single page
-        def mock_fetch(client, url, params, max_size=None):
+        def mock_fetch(client, url, params, max_size=None, **kwargs):
             page = params.get("pagina", 1)
             
             if page == 1:
