@@ -10,7 +10,6 @@ Tests the tenacity-based retry mechanism that handles:
 from unittest.mock import MagicMock
 
 import httpx
-import pytest
 
 from baliza.extractor import _is_retryable_error
 
