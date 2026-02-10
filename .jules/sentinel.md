@@ -29,3 +29,8 @@
 **Vulnerability:** Incomplete SSRF protection in `validate_url` due to reliance on a block-list (`is_private`, `is_loopback`, `is_link_local`). This allowed potential access to Reserved IPs (e.g., `240.0.0.0/4`) and Multicast IPs (`224.0.0.0/4`), which are not technically private but unsafe for SSRF contexts.
 **Learning:** Security controls based on "allow-lists" (what is explicitly safe, e.g., `is_global`) are safer than "block-lists" (what is known bad), as they handle edge cases and future protocol changes more robustly.
 **Prevention:** Replaced manual checks with strict `is_global` enforcement in `src/baliza/utils.py` and blocked multicast addresses explicitly.
+
+## 2026-02-10 - Prevent DNS Rebinding in HTTP Requests
+**Vulnerability:** TOCTOU vulnerability in SSRF protection where `validate_url` checked an IP, but `httpx` re-resolved the hostname, allowing DNS Rebinding attacks against internal HTTP services.
+**Learning:** Validating a hostname's IP is insufficient if the HTTP client performs its own resolution later. The validated IP must be the one used for the connection.
+**Prevention:** Implemented `secure_url_connection_params` in `src/baliza/utils.py` which resolves the IP, validates it, and rewrites the URL to use the IP directly (setting the Host header) for HTTP requests.

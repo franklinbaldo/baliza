@@ -4,7 +4,7 @@ import ipaddress
 import os
 import re
 import socket
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 
 def validate_url(url: str) -> str:
@@ -63,6 +63,139 @@ def validate_url(url: str) -> str:
             raise ValueError(f"URL resolves to non-global or multicast IP: {ip_str}")
 
     return url
+
+
+def secure_url_connection_params(url: str) -> tuple[str, dict[str, str]]:
+    """Resolve URL to an IP address (for HTTP) to prevent DNS rebinding.
+
+    For HTTP: Resolves hostname, validates IP, and returns (url_with_ip, {'Host': hostname}).
+    For HTTPS: Validates IP, but returns (original_url, {}) to preserve SNI/Cert validation.
+
+    If bypass is enabled via env var, returns (url, {}).
+
+    Args:
+        url: The URL to secure.
+
+    Returns:
+        Tuple of (safe_url, headers).
+
+    Raises:
+        ValueError: If validation fails.
+    """
+    if not url:
+        raise ValueError("URL cannot be empty.")
+
+    try:
+        parsed = urlparse(url)
+    except Exception as e:
+        raise ValueError(f"Invalid URL format: {e}") from e
+
+    # Basic validation
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError("URL must use http or https scheme.")
+
+    if not parsed.hostname:
+        raise ValueError("URL must have a hostname.")
+
+    # Allow bypass via env var
+    if os.getenv("BALIZA_ALLOW_PRIVATE_NETWORKS") == "1":
+        return url, {}
+
+    hostname = parsed.hostname
+    port = parsed.port
+
+    # Handle IPv6 literals in hostname (remove brackets)
+    is_ipv6_literal = False
+    if hostname.startswith("[") and hostname.endswith("]"):
+        hostname = hostname[1:-1]
+        is_ipv6_literal = True
+
+    try:
+        # Resolve hostname to IP addresses
+        addr_info = socket.getaddrinfo(hostname, None)
+    except socket.gaierror as e:
+        raise ValueError(f"Could not resolve hostname '{hostname}': {e}") from e
+
+    resolved_ip = None
+
+    for _, _, _, _, sockaddr in addr_info:
+        ip_str = sockaddr[0]
+        try:
+            ip_obj = ipaddress.ip_address(ip_str)
+        except ValueError:
+            continue
+
+        # Ensure the IP is globally reachable and not multicast
+        if not ip_obj.is_global or ip_obj.is_multicast:
+            raise ValueError(f"URL resolves to non-global or multicast IP: {ip_str}")
+
+        # Pick the first valid IP
+        if resolved_ip is None:
+            resolved_ip = ip_obj
+
+    if resolved_ip is None:
+        raise ValueError(f"Could not resolve valid IP for {hostname}")
+
+    # If HTTPS, return original URL (SSL handles validation)
+    if parsed.scheme == "https":
+        return url, {}
+
+    # If HTTP, rewrite URL to use IP
+    new_netloc = str(resolved_ip)
+    if resolved_ip.version == 6:
+        new_netloc = f"[{new_netloc}]"
+
+    if port:
+        new_netloc = f"{new_netloc}:{port}"
+
+    # Construct new URL
+    # urlunparse expects: scheme, netloc, path, params, query, fragment
+    new_url = urlunparse((
+        parsed.scheme,
+        new_netloc,
+        parsed.path,
+        parsed.params,
+        parsed.query,
+        parsed.fragment
+    ))
+
+    # Set Host header
+    # Note: parsed.hostname does not include port, but Host header usually should if non-standard?
+    # Actually, httpx sets Host header automatically from URL.
+    # If we override it, we should provide the original netloc (hostname:port).
+    # parsed.netloc includes user:pass@host:port. We want host:port.
+
+    # Use parsed.netloc but strip user:pass if present?
+    # If user:pass is present, it's safer to keep it in URL or header?
+    # If we change netloc to IP, user info might be lost if we don't handle it.
+
+    # Let's handle user/pass
+    user_info = ""
+    if parsed.username:
+        user_info = f"{parsed.username}"
+        if parsed.password:
+            user_info += f":{parsed.password}"
+        user_info += "@"
+
+    final_netloc = f"{user_info}{new_netloc}"
+
+    # Re-construct URL with user info if any
+    new_url = urlunparse((
+        parsed.scheme,
+        final_netloc,
+        parsed.path,
+        parsed.params,
+        parsed.query,
+        parsed.fragment
+    ))
+
+    # Host header should be the original hostname (and port if non-standard)
+    # If user provided user:pass@host:port, Host header should be host:port
+    original_host_header = parsed.hostname
+    if port:
+        original_host_header = f"{original_host_header}:{port}"
+
+    return new_url, {"Host": original_host_header}
 
 
 def validate_identifier(name: str, max_length: int = 64) -> str:
