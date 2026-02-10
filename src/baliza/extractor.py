@@ -81,6 +81,16 @@ PNCP_ARROW_SCHEMA = pa.schema(
 DEFAULT_MAX_RESPONSE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 
+# Columns that need to be cast to timestamp for efficient DuckDB insertion
+TIMESTAMP_COLS = {
+    "dataPublicacao",
+    "dataVigenciaInicio",
+    "dataVigenciaFim",
+    "dataInclusao",
+    "dataAtualizacao",
+}
+
+
 def _is_retryable_error(exc: BaseException) -> bool:
     """Check if an exception is retryable.
 
@@ -396,20 +406,21 @@ class PNCPExtractor:
 
             # Optimization: Cast date strings to timestamps in Arrow
             # This is ~40% faster than letting DuckDB parse strings during INSERT
-            timestamp_cols = [
-                "dataPublicacao",
-                "dataVigenciaInicio",
-                "dataVigenciaFim",
-                "dataInclusao",
-                "dataAtualizacao",
-            ]
+            # We rebuild the table once to avoid creating multiple intermediate Table objects
+            new_columns = []
+            new_fields = []
 
-            for col_name in timestamp_cols:
-                col_idx = arrow_table.schema.get_field_index(col_name)
-                if col_idx >= 0:
+            for i, field in enumerate(arrow_table.schema):
+                col = arrow_table.column(i)
+                if field.name in TIMESTAMP_COLS:
                     # pc.cast handles ISO 8601 strings efficiently
-                    ts_col = pc.cast(arrow_table.column(col_idx), pa.timestamp("us"))
-                    arrow_table = arrow_table.set_column(col_idx, col_name, ts_col)
+                    col = pc.cast(col, pa.timestamp("us"))
+                    new_fields.append(field.with_type(pa.timestamp("us")))
+                else:
+                    new_fields.append(field)
+                new_columns.append(col)
+
+            arrow_table = pa.Table.from_arrays(new_columns, schema=pa.schema(new_fields))
 
         except Exception as e:
             # Fallback for unexpected schema mismatches, though unlikely with explicit schema
