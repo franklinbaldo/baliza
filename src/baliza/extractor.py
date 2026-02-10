@@ -29,9 +29,9 @@ from tenacity import (
 
 from .utils import (
     scrub_url_params,
+    secure_url_connection_params,
     validate_identifier,
     validate_resource_path,
-    validate_url,
 )
 
 # Configure logger for retry logging
@@ -192,10 +192,15 @@ class PNCPExtractor:
         self.db_path = db_path
         # Validate dataset name to prevent SQL injection
         self.dataset = validate_identifier(dataset)
-        # Validate base_url to prevent SSRF
-        self.base_url = validate_url(base_url)
-        # Add User-Agent to identify the tool and avoid being blocked
-        headers = {"User-Agent": "baliza/0.1.0 (+https://github.com/franklinbaldo/baliza)"}
+
+        # Resolve URL and get security headers to prevent DNS Rebinding (SSRF)
+        self.base_url, security_headers = secure_url_connection_params(base_url)
+
+        # Add User-Agent and security headers
+        headers = {
+            "User-Agent": "baliza/0.1.0 (+https://github.com/franklinbaldo/baliza)",
+            **security_headers
+        }
         self.client = httpx.Client(timeout=30.0, headers=headers)
 
         # Pre-compute SQL queries to avoid reconstruction in loops

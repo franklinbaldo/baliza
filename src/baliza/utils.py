@@ -4,7 +4,11 @@ import ipaddress
 import os
 import re
 import socket
-from urllib.parse import urlparse
+from typing import TYPE_CHECKING
+from urllib.parse import ParseResult, urlparse, urlunparse
+
+if TYPE_CHECKING:
+    from ipaddress import IPv4Address, IPv6Address
 
 
 def validate_url(url: str) -> str:
@@ -63,6 +67,141 @@ def validate_url(url: str) -> str:
             raise ValueError(f"URL resolves to non-global or multicast IP: {ip_str}")
 
     return url
+
+
+def _resolve_safe_ip(hostname: str) -> "IPv4Address | IPv6Address":
+    """Resolve a hostname to a safe, global IP address.
+
+    Args:
+        hostname: The hostname to resolve.
+
+    Returns:
+        First valid global IP address found.
+
+    Raises:
+        ValueError: If resolution fails or all IPs are unsafe (private/multicast).
+    """
+    # Handle IPv6 literals in hostname (remove brackets)
+    if hostname.startswith("[") and hostname.endswith("]"):
+        hostname = hostname[1:-1]
+
+    try:
+        # Resolve hostname to IP addresses
+        addr_info = socket.getaddrinfo(hostname, None)
+    except socket.gaierror as e:
+        raise ValueError(f"Could not resolve hostname '{hostname}': {e}") from e
+
+    for _, _, _, _, sockaddr in addr_info:
+        ip_str = sockaddr[0]
+        try:
+            ip_obj = ipaddress.ip_address(ip_str)
+        except ValueError:
+            continue
+
+        # Ensure the IP is globally reachable and not multicast
+        if not ip_obj.is_global or ip_obj.is_multicast:
+            raise ValueError(f"URL resolves to non-global or multicast IP: {ip_str}")
+
+        return ip_obj
+
+    raise ValueError(f"Could not resolve valid IP for {hostname}")
+
+
+def _rewrite_url_with_ip(
+    parsed: ParseResult, ip_obj: "IPv4Address | IPv6Address"
+) -> tuple[str, dict[str, str]]:
+    """Rewrite a URL to use a specific IP address and return necessary headers.
+
+    Args:
+        parsed: The parsed original URL.
+        ip_obj: The resolved safe IP address.
+
+    Returns:
+        Tuple of (new_url, headers) where headers includes the Host header.
+    """
+    new_netloc = str(ip_obj)
+    if ip_obj.version == 6:
+        new_netloc = f"[{new_netloc}]"
+
+    if parsed.port:
+        new_netloc = f"{new_netloc}:{parsed.port}"
+
+    # Re-construct URL with user info if any
+    user_info = ""
+    if parsed.username:
+        user_info = f"{parsed.username}"
+        if parsed.password:
+            user_info += f":{parsed.password}"
+        user_info += "@"
+
+    final_netloc = f"{user_info}{new_netloc}"
+
+    new_url = urlunparse((
+        parsed.scheme,
+        final_netloc,
+        parsed.path,
+        parsed.params,
+        parsed.query,
+        parsed.fragment,
+    ))
+
+    # Host header should be the original hostname (and port if non-standard)
+    original_host_header = parsed.hostname
+    if parsed.port:
+        original_host_header = f"{original_host_header}:{parsed.port}"
+
+    return new_url, {"Host": str(original_host_header)}
+
+
+def secure_url_connection_params(url: str) -> tuple[str, dict[str, str]]:
+    """Resolve URL to an IP address (for HTTP) to prevent DNS rebinding.
+
+    For HTTP: Resolves hostname, validates IP, and returns (url_with_ip, {'Host': hostname}).
+    For HTTPS: Validates IP, but returns (original_url, {}) to preserve SNI/Cert validation.
+
+    If bypass is enabled via env var, returns (url, {}).
+
+    Args:
+        url: The URL to secure.
+
+    Returns:
+        Tuple of (safe_url, headers).
+
+    Raises:
+        ValueError: If validation fails.
+    """
+    if not url:
+        raise ValueError("URL cannot be empty.")
+
+    try:
+        parsed = urlparse(url)
+    except Exception as e:
+        raise ValueError(f"Invalid URL format: {e}") from e
+
+    # Basic validation
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError("URL must use http or https scheme.")
+
+    if not parsed.hostname:
+        raise ValueError("URL must have a hostname.")
+
+    # Allow bypass via env var
+    if os.getenv("BALIZA_ALLOW_PRIVATE_NETWORKS") == "1":
+        return url, {}
+
+    # Resolve IP (this validates SSRF rules)
+    resolved_ip = _resolve_safe_ip(parsed.hostname)
+
+    # If HTTPS, return original URL (SSL handles validation)
+    # We still resolved it above to ensure at least one valid IP exists (fail fast),
+    # although technically race conditions could still happen with HTTPS if we don't pin the IP.
+    # However, pinning IP for HTTPS breaks SNI in many clients unless custom transport is used.
+    # Given the risk profile, HTTPS + Valid Cert is generally considered safe enough against Rebinding.
+    if parsed.scheme == "https":
+        return url, {}
+
+    # If HTTP, rewrite URL to use IP
+    return _rewrite_url_with_ip(parsed, resolved_ip)
 
 
 def validate_identifier(name: str, max_length: int = 64) -> str:
