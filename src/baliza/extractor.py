@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import json
+import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, TypedDict
@@ -18,7 +19,13 @@ import pyarrow as pa
 import pyarrow.compute as pc
 from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+from tenacity import (
+    RetryCallState,
+    retry,
+    retry_if_exception,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from .utils import (
     scrub_url_params,
@@ -27,7 +34,11 @@ from .utils import (
     validate_url,
 )
 
+# Configure logger for retry logging
+logger = logging.getLogger(__name__)
+
 console = Console()
+
 
 class CheckpointData(TypedDict):
     """Data structure for checkpoint state."""
@@ -38,46 +49,113 @@ class CheckpointData(TypedDict):
 
 
 # Arrow schema for PNCP API response to handle nested structures
-PNCP_ARROW_SCHEMA = pa.schema([
-    ("numeroControlePNCP", pa.string()),
-    ("anoCompra", pa.int64()),
-    ("sequencialCompra", pa.int64()),
-    ("orgaoEntidade", pa.struct([
-        ("cnpj", pa.string()),
-        ("razaoSocial", pa.string()),
-        ("poderId", pa.string())
-    ])),
-    ("unidadeOrgao", pa.struct([
-        ("codigoUnidade", pa.string()),
-        ("nomeUnidade", pa.string())
-    ])),
-    ("modalidadeId", pa.int64()),
-    ("modalidadeNome", pa.string()),
-    ("valorInicial", pa.float64()),
-    ("dataPublicacao", pa.string()),
-    ("dataVigenciaInicio", pa.string()),
-    ("dataVigenciaFim", pa.string()),
-    ("objetoContrato", pa.string()),
-    ("informacaoComplementar", pa.string()),
-    ("numeroProcesso", pa.string()),
-    ("linkSistemaOrigem", pa.string()),
-    ("dataInclusao", pa.string()),
-    ("dataAtualizacao", pa.string()),
-    ("usuarioNome", pa.string())
-])
+PNCP_ARROW_SCHEMA = pa.schema(
+    [
+        ("numeroControlePNCP", pa.string()),
+        ("anoCompra", pa.int64()),
+        ("sequencialCompra", pa.int64()),
+        (
+            "orgaoEntidade",
+            pa.struct(
+                [("cnpj", pa.string()), ("razaoSocial", pa.string()), ("poderId", pa.string())]
+            ),
+        ),
+        ("unidadeOrgao", pa.struct([("codigoUnidade", pa.string()), ("nomeUnidade", pa.string())])),
+        ("modalidadeId", pa.int64()),
+        ("modalidadeNome", pa.string()),
+        ("valorInicial", pa.float64()),
+        ("dataPublicacao", pa.string()),
+        ("dataVigenciaInicio", pa.string()),
+        ("dataVigenciaFim", pa.string()),
+        ("objetoContrato", pa.string()),
+        ("informacaoComplementar", pa.string()),
+        ("numeroProcesso", pa.string()),
+        ("linkSistemaOrigem", pa.string()),
+        ("dataInclusao", pa.string()),
+        ("dataAtualizacao", pa.string()),
+        ("usuarioNome", pa.string()),
+    ]
+)
 
 
 DEFAULT_MAX_RESPONSE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 
+def _is_retryable_error(exc: BaseException) -> bool:
+    """Check if an exception is retryable.
+
+    Only retries on:
+    - HTTP 429 (Too Many Requests)
+    - HTTP 5xx (Server errors)
+    - Connection errors
+    - Timeout exceptions
+
+    Does NOT retry on:
+    - HTTP 4xx client errors (except 429)
+    - ValueError (response too large)
+    - Other exceptions
+    """
+    if isinstance(exc, httpx.HTTPStatusError):
+        status = exc.response.status_code
+        return status == 429 or status >= 500
+    return isinstance(exc, (httpx.ConnectError, httpx.TimeoutException))
+
+
+def _log_retry(retry_state: RetryCallState) -> None:
+    """Log retry attempts with useful context."""
+    exc = retry_state.outcome.exception() if retry_state.outcome else None
+    attempt = retry_state.attempt_number
+
+    if isinstance(exc, httpx.HTTPStatusError):
+        status = exc.response.status_code
+        logger.warning(
+            "Retry %d/5 after HTTP %d: %s",
+            attempt,
+            status,
+            scrub_url_params(str(exc.request.url)),
+        )
+    elif isinstance(exc, httpx.ConnectError):
+        logger.warning("Retry %d/5 after connection error: %s", attempt, scrub_url_params(str(exc)))
+    elif isinstance(exc, httpx.TimeoutException):
+        logger.warning("Retry %d/5 after timeout: %s", attempt, scrub_url_params(str(exc)))
+    else:
+        logger.warning("Retry %d/5 after error: %s", attempt, scrub_url_params(str(exc)))
+
+
 @retry(
-    stop=stop_after_attempt(4),
-    wait=wait_exponential(multiplier=2, min=2, max=16),
-    retry=retry_if_exception_type((httpx.HTTPStatusError, httpx.ConnectError, httpx.TimeoutException)),
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=1, max=60),
+    retry=retry_if_exception(_is_retryable_error),
+    before_sleep=_log_retry,
     reraise=True,
 )
-def _fetch_page(client: httpx.Client, url: str, params: dict, max_size: int = DEFAULT_MAX_RESPONSE_SIZE) -> dict:
-    """Fetch a single page from PNCP API with retry logic and size limit."""
+def _fetch_page(
+    client: httpx.Client,
+    url: str,
+    params: dict,
+    max_size: int = DEFAULT_MAX_RESPONSE_SIZE,
+) -> dict:
+    """Fetch a single page from PNCP API with retry logic and size limit.
+
+    Uses exponential backoff with retries on:
+    - HTTP 429 (rate limit)
+    - HTTP 5xx (server errors)
+    - Connection errors
+    - Timeouts
+
+    Args:
+        client: HTTP client to use
+        url: API endpoint URL
+        params: Query parameters
+        max_size: Maximum response size in bytes
+
+    Returns:
+        Parsed JSON response
+
+    Raises:
+        httpx.HTTPStatusError: On non-retryable HTTP errors or after max retries
+        ValueError: If response exceeds max_size
+    """
     with client.stream("GET", url, params=params) as response:
         response.raise_for_status()
 
@@ -306,9 +384,7 @@ class PNCPExtractor:
             [resource, extraction_date.date()],
         )
 
-    def _insert_page(
-        self, con: duckdb.DuckDBPyConnection, rows: list[dict[str, Any]]
-    ) -> int:
+    def _insert_page(self, con: duckdb.DuckDBPyConnection, rows: list[dict[str, Any]]) -> int:
         """Insert a single page of results immediately."""
         if not rows:
             return 0
@@ -338,7 +414,9 @@ class PNCPExtractor:
         except Exception as e:
             # Fallback for unexpected schema mismatches, though unlikely with explicit schema
             msg = scrub_url_params(str(e))
-            console.print(f"[yellow]Warning: Arrow conversion failed ({msg}), falling back to slow path")
+            console.print(
+                f"[yellow]Warning: Arrow conversion failed ({msg}), falling back to slow path"
+            )
             return self._insert_page_slow(con, rows)
 
         # Insert using SQL with struct accessors via replacement scan (faster than register/unregister)
@@ -349,9 +427,7 @@ class PNCPExtractor:
 
         return len(rows)
 
-    def _insert_page_slow(
-        self, con: duckdb.DuckDBPyConnection, rows: list[dict[str, Any]]
-    ) -> int:
+    def _insert_page_slow(self, con: duckdb.DuckDBPyConnection, rows: list[dict[str, Any]]) -> int:
         """Fallback insertion method (legacy slow path)."""
         values = []
         for row in rows:
@@ -423,7 +499,10 @@ class PNCPExtractor:
                     total_pages = checkpoint["total_pages"]
                     started_at = checkpoint["started_at"]
                     if progress and task_id:
-                        progress.update(task_id, description=f"Resuming {start_date.date()} p{page}/{total_pages}")
+                        progress.update(
+                            task_id,
+                            description=f"Resuming {start_date.date()} p{page}/{total_pages}",
+                        )
 
                 # Prepare invariant params
                 url = f"{self.base_url}/{resource}"
@@ -459,9 +538,7 @@ class PNCPExtractor:
                         "total_pages": total_pages,  # type: ignore[required]
                         "rows_extracted": total_rows,
                     }
-                    self._save_checkpoint(
-                        con, resource, start_date, stats, started_at
-                    )
+                    self._save_checkpoint(con, resource, start_date, stats, started_at)
 
                     if progress and task_id:
                         progress.update(
@@ -558,11 +635,15 @@ class PNCPExtractor:
                     dates.append(curr)
                     curr += timedelta(days=1)
 
-                main_task = progress.add_task(f"Overall Progress ({len(dates)} days)", total=len(dates))
+                main_task = progress.add_task(
+                    f"Overall Progress ({len(dates)} days)", total=len(dates)
+                )
 
                 with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
                     futures = {
-                        executor.submit(self._extract_range_task, date, date, resource, progress): date
+                        executor.submit(
+                            self._extract_range_task, date, date, resource, progress
+                        ): date
                         for date in dates
                     }
 
@@ -593,7 +674,7 @@ class PNCPExtractor:
             "pages": total_pages,
             "start_date": start_date,
             "end_date": end_date,
-            "failed_dates": [d.date() for d in failed_dates]
+            "failed_dates": [d.date() for d in failed_dates],
         }
 
     def cleanup_uploaded(self, extraction_date: datetime) -> int:
@@ -633,9 +714,7 @@ class PNCPExtractor:
                     [extraction_date.date(), next_day.date()],
                 )
 
-                console.print(
-                    f"[green]✓ Cleaned up {row_count} rows for {extraction_date.date()}"
-                )
+                console.print(f"[green]✓ Cleaned up {row_count} rows for {extraction_date.date()}")
 
             return row_count
 
@@ -696,9 +775,7 @@ class PNCPExtractor:
             self._ensure_schema(con)
 
             # Total rows in buffer
-            total_rows = con.execute(
-                f"SELECT COUNT(*) FROM {self.dataset}.contratos"
-            ).fetchone()[0]
+            total_rows = con.execute(f"SELECT COUNT(*) FROM {self.dataset}.contratos").fetchone()[0]
 
             # Rows by date
             by_date = con.execute(
@@ -711,9 +788,7 @@ class PNCPExtractor:
             ).fetchall()
 
             # Uploaded dates
-            uploaded = con.execute(
-                "SELECT COUNT(*) FROM baliza_state.uploaded_to_ia"
-            ).fetchone()[0]
+            uploaded = con.execute("SELECT COUNT(*) FROM baliza_state.uploaded_to_ia").fetchone()[0]
 
             # Pending checkpoints
             checkpoints = con.execute(
