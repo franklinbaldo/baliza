@@ -24,3 +24,8 @@
 **Vulnerability:** Sensitive Credential Exposure in Logs via Exception Messages. The `scrub_url_params` utility only scrubbed query parameters for `http/https` URLs. Connection strings (e.g., `postgres://user:pass@host/db`, `s3://bucket/file?token=...`) in exception messages could leak credentials in logs if a connection error occurred.
 **Learning:** Security scrubbing must be robust against diverse URL schemes and authentication methods (authority-based credentials vs query params), especially in a tool that supports multiple backends (DuckDB, S3, etc.).
 **Prevention:** Enhanced `scrub_url_params` in `src/baliza/utils.py` to support generic schemes (`[a-z][a-z0-9+.-]*://`) and scrub both authority credentials (`user:pass@`) and query parameters.
+
+## 2026-02-09 - Enhance SSRF Protection with is_global
+**Vulnerability:** Incomplete SSRF protection in `validate_url` due to reliance on a block-list (`is_private`, `is_loopback`, `is_link_local`). This allowed potential access to Reserved IPs (e.g., `240.0.0.0/4`) and Multicast IPs (`224.0.0.0/4`), which are not technically private but unsafe for SSRF contexts.
+**Learning:** Security controls based on "allow-lists" (what is explicitly safe, e.g., `is_global`) are safer than "block-lists" (what is known bad), as they handle edge cases and future protocol changes more robustly.
+**Prevention:** Replaced manual checks with strict `is_global` enforcement in `src/baliza/utils.py` and blocked multicast addresses explicitly.

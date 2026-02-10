@@ -23,7 +23,7 @@ def test_validate_url_private_ip(monkeypatch):
     with patch("socket.getaddrinfo") as mock_getaddrinfo:
         # Mock resolving to a private IP
         mock_getaddrinfo.return_value = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("192.168.1.1", 80))]
-        with pytest.raises(ValueError, match="resolves to private/local IP"):
+        with pytest.raises(ValueError, match="resolves to non-global or multicast IP"):
             validate_url("https://internal-service")
 
 def test_validate_url_loopback(monkeypatch):
@@ -31,8 +31,26 @@ def test_validate_url_loopback(monkeypatch):
     monkeypatch.delenv("BALIZA_ALLOW_PRIVATE_NETWORKS", raising=False)
     with patch("socket.getaddrinfo") as mock_getaddrinfo:
         mock_getaddrinfo.return_value = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 80))]
-        with pytest.raises(ValueError, match="resolves to private/local IP"):
+        with pytest.raises(ValueError, match="resolves to non-global or multicast IP"):
             validate_url("https://localhost")
+
+def test_validate_url_reserved_ip(monkeypatch):
+    """Test that reserved IPs (e.g. 240.0.0.0/4) are rejected."""
+    monkeypatch.delenv("BALIZA_ALLOW_PRIVATE_NETWORKS", raising=False)
+    with patch("socket.getaddrinfo") as mock_getaddrinfo:
+        # Mock resolving to a reserved IP (Class E)
+        mock_getaddrinfo.return_value = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("240.0.0.1", 80))]
+        with pytest.raises(ValueError, match="resolves to non-global or multicast IP"):
+            validate_url("https://reserved-ip")
+
+def test_validate_url_multicast_ip(monkeypatch):
+    """Test that multicast IPs are rejected."""
+    monkeypatch.delenv("BALIZA_ALLOW_PRIVATE_NETWORKS", raising=False)
+    with patch("socket.getaddrinfo") as mock_getaddrinfo:
+        # Mock resolving to a multicast IP
+        mock_getaddrinfo.return_value = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("224.0.0.1", 80))]
+        with pytest.raises(ValueError, match="resolves to non-global or multicast IP"):
+            validate_url("https://multicast-ip")
 
 def test_validate_url_bypass(monkeypatch):
     """Test that private IPs are allowed when bypass env var is set."""
@@ -49,7 +67,7 @@ def test_extractor_enforces_ssrf(tmp_path, monkeypatch):
     with patch("socket.getaddrinfo") as mock_getaddrinfo:
         mock_getaddrinfo.return_value = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.1", 80))]
 
-        with pytest.raises(ValueError, match="resolves to private/local IP"):
+        with pytest.raises(ValueError, match="resolves to non-global or multicast IP"):
             PNCPExtractor(db_path, base_url="https://internal-api")
 
 def test_extractor_allows_valid_url(tmp_path):
