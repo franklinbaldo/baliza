@@ -196,6 +196,14 @@
             );
         }
 
+        const STATUS_CONFIG = {
+            uploaded: { label: "Enviado", color: "bg-emerald-900/30 text-emerald-400 border-emerald-900" },
+            complete: { label: "Completo", color: "bg-blue-900/30 text-blue-400 border-blue-900" },
+            pending: { label: "Pendente", color: "bg-amber-900/30 text-amber-400 border-amber-900" },
+            empty: { label: "Vazio", color: "bg-slate-800 text-slate-400 border-slate-700" },
+            missing: { label: "Pendente", color: "bg-slate-800 text-slate-500 border-slate-700" }
+        };
+
         function Card({ title, value, icon, color }) {
             return (
                 <div className="bg-slate-800 p-6 rounded-lg border border-slate-700 flex items-start justify-between">
@@ -211,15 +219,10 @@
         }
 
         function StatusBadge({ status }) {
-            const colors = {
-                uploaded: "bg-emerald-900/30 text-emerald-400 border-emerald-900",
-                complete: "bg-blue-900/30 text-blue-400 border-blue-900",
-                pending: "bg-amber-900/30 text-amber-400 border-amber-900",
-            };
-            const cls = colors[status] || "bg-slate-700 text-slate-400";
+            const config = STATUS_CONFIG[status] || { label: status, color: "bg-slate-700 text-slate-400 border-slate-600" };
             return (
-                <span className={`text-xs px-2 py-0.5 rounded border ${cls}`}>
-                    {status}
+                <span className={`text-xs px-2 py-0.5 rounded border ${config.color}`}>
+                    {config.label}
                 </span>
             );
         }
@@ -256,7 +259,7 @@
                                     status === 'empty' ? 'bg-slate-600' :
                                     'bg-slate-900 border border-slate-800'
                                 }`}
-                                title={`Day ${i+1}: ${status}`}
+                                title={`Dia ${i+1}: ${STATUS_CONFIG[status]?.label || status}`}
                             ></div>
                         ))}
                     </div>
