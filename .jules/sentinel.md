@@ -34,3 +34,8 @@
 **Vulnerability:** TOCTOU vulnerability in SSRF protection where `validate_url` checked an IP, but `httpx` re-resolved the hostname, allowing DNS Rebinding attacks against internal HTTP services.
 **Learning:** Validating a hostname's IP is insufficient if the HTTP client performs its own resolution later. The validated IP must be the one used for the connection.
 **Prevention:** Implemented `secure_url_connection_params` in `src/baliza/utils.py` which resolves the IP, validates it, and rewrites the URL to use the IP directly (setting the Host header) for HTTP requests.
+
+## 2026-02-18 - Restrict Unsafe Ports in URL Validation
+**Vulnerability:** Potential SSRF Port Scanning. The `validate_url` function allowed connections to any port (e.g., `http://internal:22`), enabling attackers to probe internal services and potentially exploit non-HTTP protocols via error messages or timing.
+**Learning:** Validating the IP address is insufficient for SSRF protection; the destination port must also be restricted to prevent interacting with unintended services.
+**Prevention:** Enhanced `validate_url` in `src/baliza/utils.py` to block privileged ports (< 1024) unless they are standard HTTP/HTTPS ports (80, 443).

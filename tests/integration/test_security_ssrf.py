@@ -80,3 +80,31 @@ def test_extractor_allows_valid_url(tmp_path):
         # Should not raise
         extractor = PNCPExtractor(db_path, base_url="https://public-api.com")
         assert extractor.base_url == "https://public-api.com"
+
+def test_validate_url_unsafe_port(monkeypatch):
+    """Test that unsafe ports are rejected."""
+    monkeypatch.delenv("BALIZA_ALLOW_PRIVATE_NETWORKS", raising=False)
+    # SSH port
+    with pytest.raises(ValueError, match="URL uses unsafe port: 22"):
+        validate_url("http://example.com:22")
+    # SMTP port
+    with pytest.raises(ValueError, match="URL uses unsafe port: 25"):
+        validate_url("http://example.com:25")
+
+def test_validate_url_safe_ports():
+    """Test that safe ports are allowed."""
+    with patch("socket.getaddrinfo") as mock_getaddrinfo:
+        mock_getaddrinfo.return_value = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 80))]
+
+        # Standard HTTP
+        assert validate_url("http://google.com:80") == "http://google.com:80"
+        # Standard HTTPS
+        assert validate_url("https://google.com:443") == "https://google.com:443"
+        # High port
+        assert validate_url("http://google.com:8080") == "http://google.com:8080"
+
+def test_validate_url_unsafe_port_bypass(monkeypatch):
+    """Test that unsafe ports are allowed when bypass env var is set."""
+    monkeypatch.setenv("BALIZA_ALLOW_PRIVATE_NETWORKS", "1")
+    url = "http://localhost:22"
+    assert validate_url(url) == url
