@@ -96,7 +96,7 @@ class DailyExporter:
         day_dir = output_dir / date_str
         day_dir.mkdir(parents=True, exist_ok=True)
 
-        stats = {
+        stats: dict[str, Any] = {
             "schema_version": SCHEMA_VERSION,
             "data_particao": date_str,
             "extracted_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
@@ -137,7 +137,8 @@ class DailyExporter:
         """Export contratos table for a specific date."""
         next_day = target_date + timedelta(days=1)
         # Query with column renaming to snake_case
-        result = con.execute(
+        # Optimization: Stream results directly to parquet without loading full table
+        reader = con.execute(
             f"""
             SELECT
                 numeroControlePNCP as numero_controle_pncp,
@@ -164,19 +165,13 @@ class DailyExporter:
             ORDER BY numero_controle_pncp
         """,
             [target_date, target_date, next_day],
-        ).arrow()
-
-        # Handle both RecordBatchReader and Table
-        if hasattr(result, "read_all"):
-            df = result.read_all()
-        else:
-            df = result
+        ).fetch_record_batch(rows_per_batch=10000)
 
         output_path = output_dir / "contratos.parquet"
-        file_size = self._write_parquet(df, output_path, CONTRATOS_SCHEMA)
+        file_size, row_count = self._write_parquet(reader, output_path, CONTRATOS_SCHEMA)
 
         return {
-            "row_count": df.num_rows,
+            "row_count": row_count,
             "file_size_bytes": file_size,
         }
 
@@ -188,7 +183,8 @@ class DailyExporter:
     ) -> dict[str, Any]:
         """Export deduplicated orgaos for a specific date."""
         next_day = target_date + timedelta(days=1)
-        result = con.execute(
+        # Optimization: Stream results directly to parquet without loading full table
+        reader = con.execute(
             f"""
             SELECT
                 orgaoEntidade_cnpj as cnpj,
@@ -204,19 +200,13 @@ class DailyExporter:
             ORDER BY cnpj
         """,
             [target_date, next_day],
-        ).arrow()
-
-        # Handle both RecordBatchReader and Table
-        if hasattr(result, "read_all"):
-            df = result.read_all()
-        else:
-            df = result
+        ).fetch_record_batch(rows_per_batch=10000)
 
         output_path = output_dir / "orgaos.parquet"
-        file_size = self._write_parquet(df, output_path, ORGAOS_SCHEMA)
+        file_size, row_count = self._write_parquet(reader, output_path, ORGAOS_SCHEMA)
 
         return {
-            "row_count": df.num_rows,
+            "row_count": row_count,
             "file_size_bytes": file_size,
         }
 
@@ -228,7 +218,8 @@ class DailyExporter:
     ) -> dict[str, Any]:
         """Export deduplicated unidades for a specific date."""
         next_day = target_date + timedelta(days=1)
-        result = con.execute(
+        # Optimization: Stream results directly to parquet without loading full table
+        reader = con.execute(
             f"""
             SELECT
                 unidadeOrgao_codigoUnidade as codigo,
@@ -242,44 +233,51 @@ class DailyExporter:
             ORDER BY codigo
         """,
             [target_date, next_day],
-        ).arrow()
-
-        # Handle both RecordBatchReader and Table
-        if hasattr(result, "read_all"):
-            df = result.read_all()
-        else:
-            df = result
+        ).fetch_record_batch(rows_per_batch=10000)
 
         output_path = output_dir / "unidades.parquet"
-        file_size = self._write_parquet(df, output_path, UNIDADES_SCHEMA)
+        file_size, row_count = self._write_parquet(reader, output_path, UNIDADES_SCHEMA)
 
         return {
-            "row_count": df.num_rows,
+            "row_count": row_count,
             "file_size_bytes": file_size,
         }
 
     def _write_parquet(
         self,
-        table: pa.Table,
+        table_or_reader: pa.Table | pa.RecordBatchReader,
         path: Path,
         schema: pa.Schema,
-    ) -> int:
-        """Write PyArrow table to parquet with standard settings."""
-        # Cast to expected schema (handles type mismatches)
-        try:
-            table = table.cast(schema)
-        except pa.ArrowInvalid:
-            # If cast fails, write with inferred schema
-            pass
+    ) -> tuple[int, int]:
+        """Write PyArrow table or reader to parquet with standard settings."""
 
-        pq.write_table(
-            table,
+        # Convert Table to batches if needed
+        if isinstance(table_or_reader, pa.Table):
+            batches = table_or_reader.to_batches()
+        else:
+            batches = table_or_reader
+
+        row_count = 0
+
+        with pq.ParquetWriter(
             path,
+            schema,
             compression="zstd",
             compression_level=3,
             write_statistics=True,
-            row_group_size=10_000,
             version="2.6",
-        )
+        ) as writer:
+            for batch in batches:
+                # Cast batch if needed
+                out_batch = batch
+                if not batch.schema.equals(schema):
+                    try:
+                        out_batch = batch.cast(schema)
+                    except (pa.ArrowInvalid, AttributeError):
+                        # If cast fails or method missing, try to write as is (implicit cast or error)
+                        pass
 
-        return path.stat().st_size
+                writer.write_batch(out_batch)
+                row_count += out_batch.num_rows
+
+        return path.stat().st_size, row_count
