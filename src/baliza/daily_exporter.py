@@ -96,7 +96,7 @@ class DailyExporter:
         day_dir = output_dir / date_str
         day_dir.mkdir(parents=True, exist_ok=True)
 
-        stats = {
+        stats: dict[str, Any] = {
             "schema_version": SCHEMA_VERSION,
             "data_particao": date_str,
             "extracted_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
