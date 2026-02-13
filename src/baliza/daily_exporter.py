@@ -137,16 +137,18 @@ class DailyExporter:
         """Export contratos table for a specific date."""
         next_day = target_date + timedelta(days=1)
         # Query with column renaming to snake_case
-        result = con.execute(
+        # Optimization: Use fetch_record_batch() for O(1) memory usage
+        # Note: fetch_record_batch() returns a RecordBatchReader in this version
+        reader = con.execute(
             f"""
             SELECT
                 numeroControlePNCP as numero_controle_pncp,
                 orgaoEntidade_cnpj as orgao_cnpj,
                 unidadeOrgao_codigoUnidade as unidade_codigo,
-                anoCompra as ano_compra,
-                sequencialCompra as sequencial_compra,
+                CAST(anoCompra AS INTEGER) as ano_compra,
+                CAST(sequencialCompra AS INTEGER) as sequencial_compra,
                 numeroProcesso as numero_processo,
-                modalidadeId as modalidade_id,
+                CAST(modalidadeId AS INTEGER) as modalidade_id,
                 modalidadeNome as modalidade_nome,
                 valorInicial as valor_inicial,
                 objetoContrato as objeto_contrato,
@@ -164,19 +166,13 @@ class DailyExporter:
             ORDER BY numero_controle_pncp
         """,
             [target_date, target_date, next_day],
-        ).arrow()
-
-        # Handle both RecordBatchReader and Table
-        if hasattr(result, "read_all"):
-            df = result.read_all()
-        else:
-            df = result
+        ).fetch_record_batch(rows_per_batch=10000)
 
         output_path = output_dir / "contratos.parquet"
-        file_size = self._write_parquet(df, output_path, CONTRATOS_SCHEMA)
+        file_size, row_count = self._write_parquet(reader, output_path, CONTRATOS_SCHEMA)
 
         return {
-            "row_count": df.num_rows,
+            "row_count": row_count,
             "file_size_bytes": file_size,
         }
 
@@ -188,7 +184,7 @@ class DailyExporter:
     ) -> dict[str, Any]:
         """Export deduplicated orgaos for a specific date."""
         next_day = target_date + timedelta(days=1)
-        result = con.execute(
+        reader = con.execute(
             f"""
             SELECT
                 orgaoEntidade_cnpj as cnpj,
@@ -196,7 +192,7 @@ class DailyExporter:
                 MAX(orgaoEntidade_poderId) as poder_id,
                 NULL as esfera,
                 NULL as uf,
-                COUNT(*) as contratos_no_dia,
+                CAST(COUNT(*) AS INTEGER) as contratos_no_dia,
                 SUM(valorInicial) as valor_total_no_dia
             FROM {self.dataset}.contratos
             WHERE dataPublicacao >= ? AND dataPublicacao < ?
@@ -204,19 +200,13 @@ class DailyExporter:
             ORDER BY cnpj
         """,
             [target_date, next_day],
-        ).arrow()
-
-        # Handle both RecordBatchReader and Table
-        if hasattr(result, "read_all"):
-            df = result.read_all()
-        else:
-            df = result
+        ).fetch_record_batch(rows_per_batch=10000)
 
         output_path = output_dir / "orgaos.parquet"
-        file_size = self._write_parquet(df, output_path, ORGAOS_SCHEMA)
+        file_size, row_count = self._write_parquet(reader, output_path, ORGAOS_SCHEMA)
 
         return {
-            "row_count": df.num_rows,
+            "row_count": row_count,
             "file_size_bytes": file_size,
         }
 
@@ -228,13 +218,13 @@ class DailyExporter:
     ) -> dict[str, Any]:
         """Export deduplicated unidades for a specific date."""
         next_day = target_date + timedelta(days=1)
-        result = con.execute(
+        reader = con.execute(
             f"""
             SELECT
                 unidadeOrgao_codigoUnidade as codigo,
                 orgaoEntidade_cnpj as orgao_cnpj,
                 MAX(unidadeOrgao_nomeUnidade) as nome,
-                COUNT(*) as contratos_no_dia
+                CAST(COUNT(*) AS INTEGER) as contratos_no_dia
             FROM {self.dataset}.contratos
             WHERE dataPublicacao >= ? AND dataPublicacao < ?
               AND unidadeOrgao_codigoUnidade IS NOT NULL
@@ -242,44 +232,67 @@ class DailyExporter:
             ORDER BY codigo
         """,
             [target_date, next_day],
-        ).arrow()
-
-        # Handle both RecordBatchReader and Table
-        if hasattr(result, "read_all"):
-            df = result.read_all()
-        else:
-            df = result
+        ).fetch_record_batch(rows_per_batch=10000)
 
         output_path = output_dir / "unidades.parquet"
-        file_size = self._write_parquet(df, output_path, UNIDADES_SCHEMA)
+        file_size, row_count = self._write_parquet(reader, output_path, UNIDADES_SCHEMA)
 
         return {
-            "row_count": df.num_rows,
+            "row_count": row_count,
             "file_size_bytes": file_size,
         }
 
     def _write_parquet(
         self,
-        table: pa.Table,
+        data: pa.Table | pa.RecordBatchReader,
         path: Path,
         schema: pa.Schema,
-    ) -> int:
-        """Write PyArrow table to parquet with standard settings."""
-        # Cast to expected schema (handles type mismatches)
-        try:
-            table = table.cast(schema)
-        except pa.ArrowInvalid:
-            # If cast fails, write with inferred schema
-            pass
+    ) -> tuple[int, int]:
+        """Write PyArrow table or reader to parquet with standard settings.
 
-        pq.write_table(
-            table,
+        Args:
+            data: Arrow Table or RecordBatchReader to write
+            path: Output file path
+            schema: Target schema
+
+        Returns:
+            Tuple of (file_size_bytes, row_count)
+        """
+        row_count = 0
+
+        # Configure Parquet Writer
+        with pq.ParquetWriter(
             path,
+            schema=schema,
             compression="zstd",
             compression_level=3,
             write_statistics=True,
-            row_group_size=10_000,
             version="2.6",
-        )
+        ) as writer:
 
-        return path.stat().st_size
+            if isinstance(data, pa.Table):
+                # Legacy path for Table
+                try:
+                    table = data.cast(schema)
+                except pa.ArrowInvalid:
+                    table = data
+                writer.write_table(table)
+                row_count = table.num_rows
+            else:
+                # Streaming path for RecordBatchReader
+                # Reduces memory usage from O(N) to O(1) (batch size)
+                for batch in data:
+                    # Cast batch to expected schema for safety
+                    # We convert batch to table to perform cast, which is lightweight
+                    # for small batches (~2048 rows)
+                    try:
+                        t = pa.Table.from_batches([batch])
+                        t = t.cast(schema)
+                        writer.write_table(t)
+                        row_count += t.num_rows
+                    except Exception:
+                        # Fallback if cast fails (though queries should align)
+                        writer.write_batch(batch)
+                        row_count += batch.num_rows
+
+        return path.stat().st_size, row_count
