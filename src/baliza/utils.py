@@ -96,6 +96,7 @@ def _resolve_safe_ip(hostname: str) -> "IPv4Address | IPv6Address":
     except socket.gaierror as e:
         raise ValueError(f"Could not resolve hostname '{hostname}': {e}") from e
 
+    safe_ips = []
     for _, _, _, _, sockaddr in addr_info:
         ip_str = sockaddr[0]
         try:
@@ -107,9 +108,12 @@ def _resolve_safe_ip(hostname: str) -> "IPv4Address | IPv6Address":
         if not ip_obj.is_global or ip_obj.is_multicast:
             raise ValueError(f"URL resolves to non-global or multicast IP: {ip_str}")
 
-        return ip_obj
+        safe_ips.append(ip_obj)
 
-    raise ValueError(f"Could not resolve valid IP for {hostname}")
+    if not safe_ips:
+        raise ValueError(f"Could not resolve valid IP for {hostname}")
+
+    return safe_ips[0]
 
 
 def _rewrite_url_with_ip(
@@ -193,6 +197,10 @@ def secure_url_connection_params(url: str) -> tuple[str, dict[str, str]]:
     # Allow bypass via env var
     if os.getenv("BALIZA_ALLOW_PRIVATE_NETWORKS") == "1":
         return url, {}
+
+    # Ensure port is safe (block privileged ports except 80/443)
+    if parsed.port and parsed.port < 1024 and parsed.port not in (80, 443):
+        raise ValueError(f"URL uses unsafe port: {parsed.port}")
 
     # Resolve IP (this validates SSRF rules)
     resolved_ip = _resolve_safe_ip(parsed.hostname)

@@ -9,3 +9,7 @@
 ## 2025-05-25 - Bytearray vs List Join for Stream Buffering
 **Learning:** Accumulating bytes from a stream using a list of chunks and `b"".join(chunks)` is nearly 2x faster than using `bytearray` and `extend()` in a loop. `bytearray` incurs frequent reallocations and data copying, while `list` only stores references, and `join` allocates the result buffer once.
 **Action:** For buffering streams (like HTTP responses) into a single bytes object, prefer `b"".join(iterator)` or `list.append` loop + `join` over `bytearray.extend`.
+
+## 2025-05-26 - Streaming Parquet Exports with DuckDB
+**Learning:** Exporting large DuckDB result sets to Parquet using `.arrow()` materializes the entire table in RAM (O(N)), leading to OOM on constrained environments. Using `fetch_record_batch()` (which returns a `RecordBatchReader` or iterator) combined with `ParquetWriter.write_batch()` allows for O(1) memory usage relative to total data size.
+**Action:** For exporting potentially large datasets from DuckDB to files, always prefer streaming via `fetch_record_batch()` or `fetch_arrow_reader()` over full materialization, and use explicit SQL casts to ensure type alignment with the target schema.

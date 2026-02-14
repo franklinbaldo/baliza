@@ -35,7 +35,7 @@
 **Learning:** Validating a hostname's IP is insufficient if the HTTP client performs its own resolution later. The validated IP must be the one used for the connection.
 **Prevention:** Implemented `secure_url_connection_params` in `src/baliza/utils.py` which resolves the IP, validates it, and rewrites the URL to use the IP directly (setting the Host header) for HTTP requests.
 
-## 2026-02-18 - Restrict Unsafe Ports in URL Validation
-**Vulnerability:** Potential SSRF Port Scanning. The `validate_url` function allowed connections to any port (e.g., `http://internal:22`), enabling attackers to probe internal services and potentially exploit non-HTTP protocols via error messages or timing.
-**Learning:** Validating the IP address is insufficient for SSRF protection; the destination port must also be restricted to prevent interacting with unintended services.
-**Prevention:** Enhanced `validate_url` in `src/baliza/utils.py` to block privileged ports (< 1024) unless they are standard HTTP/HTTPS ports (80, 443).
+## 2026-02-11 - Prevent Mixed-IP DNS Rebinding in SSRF Protection
+**Vulnerability:** The SSRF protection mechanism `_resolve_safe_ip` only validated the first IP address returned by `getaddrinfo`. This allowed a DNS Rebinding attack where a domain resolves to both a public (safe) IP and a private (unsafe) IP. If the public IP was returned first, the validation passed, but the subsequent HTTP request could connect to the private IP.
+**Learning:** Checking only the first result of a DNS resolution is insufficient. Attackers can control the order or provide multiple records to bypass checks.
+**Prevention:** Always iterate through **ALL** resolved IP addresses for a hostname. If **ANY** of them are unsafe (private/loopback/multicast), reject the entire request immediately.

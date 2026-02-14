@@ -21,3 +21,7 @@
 ## 2024-06-13 - [Localized Status Labels]
 **Learning:** Localizing status codes in UI components and tooltips significantly reduces cognitive load for non-English users, especially when technical terms (like 'uploaded') are mapped to user-friendly labels ('Enviado').
 **Action:** Always map internal status codes to localized, human-readable labels in the UI layer, rather than displaying raw database values.
+
+## 2026-02-11 - [Actionable Error States]
+**Learning:** A blank "Error" text is a dead end. Providing a clear "Try Again" button not only empowers the user but also turns a frustration point into a recoverable flow. Also, when using React via CDN with Lucide, explicit `key` props are crucial to prevent DOM conflicts during unmounting/remounting of icon-heavy components.
+**Action:** Always include a recovery action in error states and ensure component identity is managed explicitly when manipulating the DOM with external libraries.
