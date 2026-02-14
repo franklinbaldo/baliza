@@ -41,6 +41,11 @@ def validate_url(url: str) -> str:
     if os.getenv("BALIZA_ALLOW_PRIVATE_NETWORKS") == "1":
         return url
 
+    # Ensure port is safe (block privileged ports except 80/443)
+    # This prevents SSRF port scanning of system services (SSH, SMTP, etc.)
+    if parsed.port and parsed.port < 1024 and parsed.port not in (80, 443):
+        raise ValueError(f"URL uses unsafe port: {parsed.port}")
+
     hostname = parsed.hostname
 
     # Handle IPv6 literals in hostname (remove brackets)
@@ -192,6 +197,10 @@ def secure_url_connection_params(url: str) -> tuple[str, dict[str, str]]:
     # Allow bypass via env var
     if os.getenv("BALIZA_ALLOW_PRIVATE_NETWORKS") == "1":
         return url, {}
+
+    # Ensure port is safe (block privileged ports except 80/443)
+    if parsed.port and parsed.port < 1024 and parsed.port not in (80, 443):
+        raise ValueError(f"URL uses unsafe port: {parsed.port}")
 
     # Resolve IP (this validates SSRF rules)
     resolved_ip = _resolve_safe_ip(parsed.hostname)
