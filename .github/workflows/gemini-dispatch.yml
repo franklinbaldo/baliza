@@ -1,0 +1,77 @@
+name: '🔀 Gemini Dispatch'
+
+on:
+  pull_request:
+    types:
+      - 'opened'
+  issue_comment:
+    types:
+      - 'created'
+
+defaults:
+  run:
+    shell: 'bash'
+
+jobs:
+  dispatch:
+    if: |-
+      (
+        github.event_name == 'pull_request' &&
+        github.event.pull_request.head.repo.fork == false
+      ) || (
+        github.event.sender.type == 'User' &&
+        startsWith(github.event.comment.body, '@gemini-cli') &&
+        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
+      )
+    runs-on: 'ubuntu-latest'
+    permissions:
+      contents: 'read'
+      issues: 'write'
+      pull-requests: 'write'
+    outputs:
+      command: '${{ steps.extract_command.outputs.command }}'
+      additional_context: '${{ steps.extract_command.outputs.additional_context }}'
+    steps:
+      - name: 'Extract command'
+        id: 'extract_command'
+        uses: 'actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea'
+        env:
+          EVENT_TYPE: '${{ github.event_name }}.${{ github.event.action }}'
+          REQUEST: '${{ github.event.comment.body || github.event.issue.body }}'
+        with:
+          script: |
+            const eventType = process.env.EVENT_TYPE;
+            const request = process.env.REQUEST || '';
+            if (eventType === 'pull_request.opened') {
+              core.setOutput('command', 'review');
+            } else if (request.startsWith('@gemini-cli /review')) {
+              core.setOutput('command', 'review');
+              core.setOutput('additional_context', request.replace(/^@gemini-cli \/review/, '').trim());
+            } else if (request.startsWith('@gemini-cli')) {
+              core.setOutput('command', 'review');
+              core.setOutput('additional_context', request.replace(/^@gemini-cli/, '').trim());
+            }
+
+      - name: 'Acknowledge request'
+        if: github.event_name == 'issue_comment'
+        env:
+          GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
+          ISSUE_NUMBER: '${{ github.event.pull_request.number || github.event.issue.number }}'
+          REPOSITORY: '${{ github.repository }}'
+        run: |-
+          gh issue comment "${ISSUE_NUMBER}" \
+            --body "🤖 Working on it! [See logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" \
+            --repo "${REPOSITORY}"
+
+  review:
+    needs: 'dispatch'
+    if: |-
+      ${{ needs.dispatch.outputs.command == 'review' }}
+    uses: './.github/workflows/gemini-review.yml'
+    permissions:
+      contents: 'read'
+      issues: 'write'
+      pull-requests: 'write'
+    with:
+      additional_context: '${{ needs.dispatch.outputs.additional_context }}'
+    secrets: 'inherit'
