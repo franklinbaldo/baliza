@@ -20,3 +20,7 @@ uv.lock
 repomix-output.*
 data/catalog.yml
 baliza.duckdb
+
+# Gemini CLI
+.gemini/
+gha-creds-*.json
