@@ -1,9 +1,9 @@
 name: '🔀 Gemini Dispatch'
 
 on:
-  pull_request:
-    types:
-      - 'opened'
+  # pull_request:
+  #   types:
+  #     - 'opened'
   issue_comment:
     types:
       - 'created'
