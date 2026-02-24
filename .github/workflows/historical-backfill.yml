@@ -84,6 +84,32 @@ jobs:
           if_no_artifact_found: ignore
           workflow_conclusion: success
 
+
+      - name: Validate database integrity
+        run: |
+          if [ -f baliza.duckdb ]; then
+            echo "Checking baliza.duckdb integrity..."
+            if python3 -c "
+import duckdb, sys
+try:
+    con = duckdb.connect('baliza.duckdb')
+    con.execute('SELECT 1')
+    con.close()
+    print('✅ Database is valid')
+    sys.exit(0)
+except Exception as e:
+    print(f'❌ Database is corrupted: {e}')
+    sys.exit(1)
+" 2>&1; then
+              echo "Database OK"
+            else
+              echo "⚠️ Corrupted database detected — removing and starting fresh"
+              rm -f baliza.duckdb
+            fi
+          else
+            echo "No existing database — will be created fresh"
+          fi
+
       - name: Initialize state files
         run: |
           mkdir -p state
@@ -524,8 +550,8 @@ jobs:
                       buffer_stats["pending_checkpoints"] = result[0] if result else 0
                   except Exception as e:
                       print(f"DB query error: {e}")
-          except ImportError:
-              pass
+          except Exception as e:
+              print(f"Database unavailable: {e}")
 
           # Build status
           status = {
