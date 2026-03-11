@@ -65,6 +65,15 @@ uv run baliza --help
 | `baliza export-daily` | Exporta pacote diário particionado. |
 | `baliza status` | Exibe resumo do status da extração (Será movido para `baliza state show`). |
 
+## 🚀 Performance Benchmarks
+
+Recent benchmark findings for the Baliza extraction pipeline reveal the following speeds based on the number of workers:
+- **1 worker**: ~12s
+- **4 workers**: 3.5s (optimal speed)
+- **16 workers**: 34s (regression due to PNCP API rate limits/timeouts)
+
+**Recommendation:** Use 4-8 workers for best performance. Higher concurrency (e.g., 16 workers) leads to slower results because it triggers API rate limits and connection timeouts from the PNCP server, causing retries and backoffs.
+
 ## Contribuindo
 
 Veja [CONTRIBUTING.md](CONTRIBUTING.md) (em breve) ou abra uma issue.
