@@ -48,12 +48,12 @@ jobs:
         run: |
           # Always extract yesterday first (D-1 priority)
           YESTERDAY=$(date -d "-1 day" +%Y-%m-%d)
-          uv run baliza extract --start $YESTERDAY --end $YESTERDAY --duckdb baliza.duckdb --dataset baliza_raw
+          uv run baliza extract --start $YESTERDAY --end $YESTERDAY --duckdb baliza.duckdb --dataset baliza_raw --deadline-minutes 27
           # Then backfill recent days
           # --lookback-days removed in CLI refactor; use --start/--end instead
           DAY3=$(date -d "-3 days" +%Y-%m-%d)
           DAY2=$(date -d "-2 days" +%Y-%m-%d)
-          uv run baliza extract --start $DAY3 --end $DAY2 --duckdb baliza.duckdb --dataset baliza_raw
+          uv run baliza extract --start $DAY3 --end $DAY2 --duckdb baliza.duckdb --dataset baliza_raw --deadline-minutes 27
 
       - name: Export current month parquet snapshot
         run: |

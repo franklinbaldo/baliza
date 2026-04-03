@@ -118,7 +118,8 @@ jobs:
             --start ${{ steps.dates.outputs.start }} \
             --end ${{ steps.dates.outputs.end }} \
             --duckdb baliza.duckdb \
-            --dataset baliza_raw
+            --dataset baliza_raw \
+            --deadline-minutes 22
         env:
           # Rate limiting via environment
           BALIZA_PAGE_DELAY: ${{ env.SLEEP_BETWEEN_PAGES }}

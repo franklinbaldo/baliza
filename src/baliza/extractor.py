@@ -8,8 +8,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import json
-import logging
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, TypedDict
 
@@ -17,6 +16,7 @@ import duckdb
 import httpx
 import pyarrow as pa
 import pyarrow.compute as pc
+import structlog
 from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 from tenacity import (
@@ -35,7 +35,7 @@ from .utils import (
 )
 
 # Configure logger for retry logging
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 console = Console()
 
@@ -119,17 +119,37 @@ def _log_retry(retry_state: RetryCallState) -> None:
     if isinstance(exc, httpx.HTTPStatusError):
         status = exc.response.status_code
         logger.warning(
-            "Retry %d/5 after HTTP %d: %s",
-            attempt,
-            status,
-            scrub_url_params(str(exc.request.url)),
+            "retry_attempt",
+            attempt=attempt,
+            max_attempts=5,
+            kind="http_error",
+            status=status,
+            url=scrub_url_params(str(exc.request.url)),
         )
     elif isinstance(exc, httpx.ConnectError):
-        logger.warning("Retry %d/5 after connection error: %s", attempt, scrub_url_params(str(exc)))
+        logger.warning(
+            "retry_attempt",
+            attempt=attempt,
+            max_attempts=5,
+            kind="connection_error",
+            error=scrub_url_params(str(exc)),
+        )
     elif isinstance(exc, httpx.TimeoutException):
-        logger.warning("Retry %d/5 after timeout: %s", attempt, scrub_url_params(str(exc)))
+        logger.warning(
+            "retry_attempt",
+            attempt=attempt,
+            max_attempts=5,
+            kind="timeout",
+            error=scrub_url_params(str(exc)),
+        )
     else:
-        logger.warning("Retry %d/5 after error: %s", attempt, scrub_url_params(str(exc)))
+        logger.warning(
+            "retry_attempt",
+            attempt=attempt,
+            max_attempts=5,
+            kind="unknown",
+            error=scrub_url_params(str(exc)),
+        )
 
 
 @retry(
@@ -340,6 +360,17 @@ class PNCPExtractor:
                 total_rows INTEGER
             )
         """)
+        # Track resource health for stall/circuit breaker detection
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS baliza_state.resource_health (
+                resource VARCHAR PRIMARY KEY,
+                consecutive_empty_days INTEGER DEFAULT 0,
+                last_nonempty_date DATE,
+                last_checked_date DATE,
+                status VARCHAR DEFAULT 'healthy',
+                updated_at TIMESTAMP
+            )
+        """)
 
     def _get_checkpoint(
         self, con: duckdb.DuckDBPyConnection, resource: str, extraction_date: datetime
@@ -398,6 +429,60 @@ class PNCPExtractor:
         """,
             [resource, extraction_date.date()],
         )
+
+    # -- Circuit breaker / resource health tracking --
+
+    STALL_WARNING_THRESHOLD = 3
+    STALL_CRITICAL_THRESHOLD = 7
+
+    def _update_resource_health(
+        self,
+        con: duckdb.DuckDBPyConnection,
+        resource: str,
+        checked_date: date,
+        rows_extracted: int,
+    ) -> None:
+        """Update resource health tracking for stall detection."""
+        existing = con.execute(
+            "SELECT consecutive_empty_days FROM baliza_state.resource_health WHERE resource = ?",
+            [resource],
+        ).fetchone()
+
+        if rows_extracted == 0:
+            new_count = (existing[0] + 1) if existing else 1
+            if new_count >= self.STALL_CRITICAL_THRESHOLD:
+                new_status = "stalled"
+            elif new_count >= self.STALL_WARNING_THRESHOLD:
+                new_status = "warning"
+            else:
+                new_status = "healthy"
+
+            # Preserve last_nonempty_date from existing row
+            last_nonempty = con.execute(
+                "SELECT last_nonempty_date FROM baliza_state.resource_health WHERE resource = ?",
+                [resource],
+            ).fetchone()
+            last_nonempty_date = last_nonempty[0] if last_nonempty else None
+
+            con.execute(
+                """INSERT OR REPLACE INTO baliza_state.resource_health
+                VALUES (?, ?, ?, ?, ?, NOW())""",
+                [resource, new_count, last_nonempty_date, checked_date, new_status],
+            )
+
+            if new_status != "healthy":
+                logger.warning(
+                    "resource_health_degraded",
+                    resource=resource,
+                    consecutive_empty_days=new_count,
+                    status=new_status,
+                )
+        else:
+            con.execute(
+                """INSERT OR REPLACE INTO baliza_state.resource_health
+                VALUES (?, 0, ?, ?, 'healthy', NOW())""",
+                [resource, checked_date, checked_date],
+            )
 
     def _insert_page(self, con: duckdb.DuckDBPyConnection, rows: list[dict[str, Any]]) -> int:
         """Insert a single page of results immediately."""
@@ -479,12 +564,13 @@ class PNCPExtractor:
 
         return len(values)
 
-    def _extract_range_task(
+    def _extract_range_task(  # noqa: PLR0912, PLR0915
         self,
         start_date: datetime,
         end_date: datetime,
         resource: str,
         progress: Progress | None = None,
+        deadline: datetime | None = None,
     ) -> dict[str, Any]:
         """Extract data for a date range (worker function)."""
         data_inicial = start_date.strftime("%Y%m%d")
@@ -529,6 +615,17 @@ class PNCPExtractor:
                 }
 
                 while True:
+                    # Check deadline before fetching next page
+                    if deadline is not None and datetime.now() >= deadline:
+                        logger.info(
+                            "deadline_reached",
+                            resource=resource,
+                            date=str(start_date.date()),
+                            pages_completed=page - 1,
+                            rows=total_rows,
+                        )
+                        break
+
                     # Call PNCP API with retry
                     params["pagina"] = page
 
@@ -568,17 +665,30 @@ class PNCPExtractor:
 
                     page += 1
 
-                # Clear checkpoint on successful completion
-                self._clear_checkpoint(con, resource, start_date)
+                # Determine completion status
+                stopped_by_deadline = (
+                    deadline is not None and datetime.now() >= deadline
+                )
+                status = "deadline" if stopped_by_deadline else "complete"
+
+                # Only clear checkpoint on true completion
+                if not stopped_by_deadline:
+                    self._clear_checkpoint(con, resource, start_date)
 
                 # Record coverage for this range
                 con.execute(
                     """
                     INSERT OR REPLACE INTO baliza_state.coverage
-                    VALUES (?, ?, ?, 'complete', ?, ?, NOW())
+                    VALUES (?, ?, ?, ?, ?, ?, NOW())
                 """,
-                    [resource, start_date, end_date, page, total_rows],
+                    [resource, start_date, end_date, status, page, total_rows],
                 )
+
+                # Update resource health (circuit breaker) for single-day extractions
+                if start_date.date() == end_date.date() and status == "complete":
+                    self._update_resource_health(
+                        con, resource, start_date.date(), total_rows
+                    )
         finally:
             if progress and task_id:
                 progress.remove_task(task_id)
@@ -596,6 +706,7 @@ class PNCPExtractor:
         end_date: datetime,
         resource: str = "contratos",
         workers: int = 4,
+        deadline: datetime | None = None,
     ) -> dict[str, Any]:
         """Extract data from PNCP API for a date range.
 
@@ -606,6 +717,7 @@ class PNCPExtractor:
             end_date: End of date range
             resource: Resource type (default: contratos)
             workers: Number of concurrent workers (default: 4)
+            deadline: Stop gracefully after this time (default: None = no limit)
 
         Returns:
             Dict with extraction results (rows_extracted, pages, etc.)
@@ -636,7 +748,9 @@ class PNCPExtractor:
             if workers == 1:
                 # Sequential mode (matches original behavior)
                 try:
-                    result = self._extract_range_task(start_date, end_date, resource, progress)
+                    result = self._extract_range_task(
+                        start_date, end_date, resource, progress, deadline=deadline
+                    )
                     total_rows = result["rows_extracted"]
                     total_pages = result["pages"]
                 except Exception as e:
@@ -658,7 +772,8 @@ class PNCPExtractor:
                 with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
                     futures = {
                         executor.submit(
-                            self._extract_range_task, date, date, resource, progress
+                            self._extract_range_task, date, date, resource, progress,
+                            deadline
                         ): date
                         for date in dates
                     }

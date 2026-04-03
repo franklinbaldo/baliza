@@ -14,6 +14,7 @@ from rich.table import Table
 
 from .daily_exporter import DailyExporter
 from .extractor import PNCPExtractor
+from .logging import configure_logging
 from .utils import (
     escape_sql_literal,
     scrub_url_params,
@@ -21,8 +22,14 @@ from .utils import (
     validate_resource_path,
 )
 
-app = typer.Typer(help="Baliza - Simple PNCP extraction tool")
+app = typer.Typer()
 console = Console()
+
+
+@app.callback()
+def main() -> None:
+    """Baliza - Simple PNCP extraction tool."""
+    configure_logging()
 
 
 @app.command("extract")
@@ -63,6 +70,11 @@ def extract(  # noqa: PLR0913
         max=16,
         help="Number of concurrent workers (1-16)",
     ),
+    deadline_minutes: int | None = typer.Option(
+        None,
+        "--deadline-minutes",
+        help="Stop gracefully after N minutes (preserves checkpoint)",
+    ),
 ) -> None:
     """Extract data from PNCP API to DuckDB.
 
@@ -77,10 +89,17 @@ def extract(  # noqa: PLR0913
         start_date = datetime.strptime(start, "%Y-%m-%d")
         end_date = datetime.strptime(end, "%Y-%m-%d")
 
+        # Compute deadline if specified
+        deadline: datetime | None = None
+        if deadline_minutes is not None:
+            deadline = datetime.now() + timedelta(minutes=deadline_minutes)
+
         # Extract data
         start_time = time.time()
         with PNCPExtractor(db_path, dataset) as extractor:
-            result = extractor.extract(start_date, end_date, resource, workers=workers)
+            result = extractor.extract(
+                start_date, end_date, resource, workers=workers, deadline=deadline
+            )
         duration = time.time() - start_time
 
         # Create summary
@@ -185,6 +204,23 @@ def verify(
                     console.print(f"  • {first_missing} to {last_missing}")
             else:
                 console.print(f"[green]✓ Complete coverage from {start} to {end}")
+
+            # Check resource health (circuit breaker)
+            try:
+                health = con.execute(
+                    "SELECT consecutive_empty_days, status "
+                    "FROM baliza_state.resource_health WHERE resource = ?",
+                    [resource],
+                ).fetchone()
+                if health and health[1] in ("warning", "stalled"):
+                    style = "red" if health[1] == "stalled" else "yellow"
+                    console.print(
+                        f"[{style}]⚠ Resource '{resource}': "
+                        f"{health[0]} consecutive empty days "
+                        f"(status: {health[1]})[/{style}]"
+                    )
+            except Exception:
+                pass  # Table may not exist in older databases
 
     except Exception as e:
         msg = scrub_url_params(str(e))
@@ -393,6 +429,15 @@ def status(
             except Exception:
                 checkpoints = 0
 
+            # Resource health (circuit breaker)
+            try:
+                health_rows = con.execute(
+                    "SELECT resource, consecutive_empty_days, last_nonempty_date, status "
+                    "FROM baliza_state.resource_health"
+                ).fetchall()
+            except Exception:
+                health_rows = []
+
         # Display
         console.print(Panel("[bold]Baliza PNCP Status[/bold]", style="blue"))
         console.print()
@@ -411,7 +456,22 @@ def status(
 
         # Warnings
         if checkpoints > 0:
-            console.print(f"\n[yellow]⚠ {checkpoints} extraction(s) incomplete - will resume on next run[/yellow]")
+            console.print(
+                f"\n[yellow]⚠ {checkpoints} extraction(s) incomplete"
+                " - will resume on next run[/yellow]"
+            )
+
+        # Resource health warnings
+        for row in health_rows:
+            resource_name, empty_days, last_nonempty, health_status = row
+            if health_status in ("warning", "stalled"):
+                style = "red" if health_status == "stalled" else "yellow"
+                last = str(last_nonempty) if last_nonempty else "never"
+                console.print(
+                    f"[{style}]⚠ Resource '{resource_name}': "
+                    f"{empty_days} consecutive empty days "
+                    f"(status: {health_status}, last data: {last})[/{style}]"
+                )
 
     except Exception as e:
         msg = scrub_url_params(str(e))

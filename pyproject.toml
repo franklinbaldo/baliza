@@ -16,6 +16,7 @@ dependencies = [
     "duckdb>=1.4.3",
     "pyarrow>=14.0.0",
     "tenacity>=8.2.0",
+    "structlog>=24.0.0",
 ]
 
 [project.optional-dependencies]
