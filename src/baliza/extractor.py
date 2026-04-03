@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import json
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, TypedDict
 
@@ -360,6 +360,17 @@ class PNCPExtractor:
                 total_rows INTEGER
             )
         """)
+        # Track resource health for stall/circuit breaker detection
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS baliza_state.resource_health (
+                resource VARCHAR PRIMARY KEY,
+                consecutive_empty_days INTEGER DEFAULT 0,
+                last_nonempty_date DATE,
+                last_checked_date DATE,
+                status VARCHAR DEFAULT 'healthy',
+                updated_at TIMESTAMP
+            )
+        """)
 
     def _get_checkpoint(
         self, con: duckdb.DuckDBPyConnection, resource: str, extraction_date: datetime
@@ -418,6 +429,60 @@ class PNCPExtractor:
         """,
             [resource, extraction_date.date()],
         )
+
+    # -- Circuit breaker / resource health tracking --
+
+    STALL_WARNING_THRESHOLD = 3
+    STALL_CRITICAL_THRESHOLD = 7
+
+    def _update_resource_health(
+        self,
+        con: duckdb.DuckDBPyConnection,
+        resource: str,
+        checked_date: date,
+        rows_extracted: int,
+    ) -> None:
+        """Update resource health tracking for stall detection."""
+        existing = con.execute(
+            "SELECT consecutive_empty_days FROM baliza_state.resource_health WHERE resource = ?",
+            [resource],
+        ).fetchone()
+
+        if rows_extracted == 0:
+            new_count = (existing[0] + 1) if existing else 1
+            if new_count >= self.STALL_CRITICAL_THRESHOLD:
+                new_status = "stalled"
+            elif new_count >= self.STALL_WARNING_THRESHOLD:
+                new_status = "warning"
+            else:
+                new_status = "healthy"
+
+            # Preserve last_nonempty_date from existing row
+            last_nonempty = con.execute(
+                "SELECT last_nonempty_date FROM baliza_state.resource_health WHERE resource = ?",
+                [resource],
+            ).fetchone()
+            last_nonempty_date = last_nonempty[0] if last_nonempty else None
+
+            con.execute(
+                """INSERT OR REPLACE INTO baliza_state.resource_health
+                VALUES (?, ?, ?, ?, ?, NOW())""",
+                [resource, new_count, last_nonempty_date, checked_date, new_status],
+            )
+
+            if new_status != "healthy":
+                logger.warning(
+                    "resource_health_degraded",
+                    resource=resource,
+                    consecutive_empty_days=new_count,
+                    status=new_status,
+                )
+        else:
+            con.execute(
+                """INSERT OR REPLACE INTO baliza_state.resource_health
+                VALUES (?, 0, ?, ?, 'healthy', NOW())""",
+                [resource, checked_date, checked_date],
+            )
 
     def _insert_page(self, con: duckdb.DuckDBPyConnection, rows: list[dict[str, Any]]) -> int:
         """Insert a single page of results immediately."""
@@ -618,6 +683,12 @@ class PNCPExtractor:
                 """,
                     [resource, start_date, end_date, status, page, total_rows],
                 )
+
+                # Update resource health (circuit breaker) for single-day extractions
+                if start_date.date() == end_date.date() and status == "complete":
+                    self._update_resource_health(
+                        con, resource, start_date.date(), total_rows
+                    )
         finally:
             if progress and task_id:
                 progress.remove_task(task_id)

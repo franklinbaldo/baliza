@@ -205,6 +205,23 @@ def verify(
             else:
                 console.print(f"[green]✓ Complete coverage from {start} to {end}")
 
+            # Check resource health (circuit breaker)
+            try:
+                health = con.execute(
+                    "SELECT consecutive_empty_days, status "
+                    "FROM baliza_state.resource_health WHERE resource = ?",
+                    [resource],
+                ).fetchone()
+                if health and health[1] in ("warning", "stalled"):
+                    style = "red" if health[1] == "stalled" else "yellow"
+                    console.print(
+                        f"[{style}]⚠ Resource '{resource}': "
+                        f"{health[0]} consecutive empty days "
+                        f"(status: {health[1]})[/{style}]"
+                    )
+            except Exception:
+                pass  # Table may not exist in older databases
+
     except Exception as e:
         msg = scrub_url_params(str(e))
         console.print(f"[red]✗ Verify failed: {msg}")
@@ -412,6 +429,15 @@ def status(
             except Exception:
                 checkpoints = 0
 
+            # Resource health (circuit breaker)
+            try:
+                health_rows = con.execute(
+                    "SELECT resource, consecutive_empty_days, last_nonempty_date, status "
+                    "FROM baliza_state.resource_health"
+                ).fetchall()
+            except Exception:
+                health_rows = []
+
         # Display
         console.print(Panel("[bold]Baliza PNCP Status[/bold]", style="blue"))
         console.print()
@@ -430,7 +456,22 @@ def status(
 
         # Warnings
         if checkpoints > 0:
-            console.print(f"\n[yellow]⚠ {checkpoints} extraction(s) incomplete - will resume on next run[/yellow]")
+            console.print(
+                f"\n[yellow]⚠ {checkpoints} extraction(s) incomplete"
+                " - will resume on next run[/yellow]"
+            )
+
+        # Resource health warnings
+        for row in health_rows:
+            resource_name, empty_days, last_nonempty, health_status = row
+            if health_status in ("warning", "stalled"):
+                style = "red" if health_status == "stalled" else "yellow"
+                last = str(last_nonempty) if last_nonempty else "never"
+                console.print(
+                    f"[{style}]⚠ Resource '{resource_name}': "
+                    f"{empty_days} consecutive empty days "
+                    f"(status: {health_status}, last data: {last})[/{style}]"
+                )
 
     except Exception as e:
         msg = scrub_url_params(str(e))
