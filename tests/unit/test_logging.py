@@ -1,10 +1,9 @@
 import json
-import logging
-from unittest.mock import patch
+
 import structlog
-import pytest
 
 from baliza.logging import configure_logging
+
 
 def test_configure_logging_console(monkeypatch):
     monkeypatch.setenv("BALIZA_LOG_FORMAT", "console")

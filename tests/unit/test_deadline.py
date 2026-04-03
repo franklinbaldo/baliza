@@ -1,11 +1,10 @@
-import os
 from datetime import datetime, timedelta
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import duckdb
 import pytest
 
-from baliza.extractor import PNCPExtractor, CheckpointData
+from baliza.extractor import PNCPExtractor
 
 
 @pytest.fixture
@@ -74,7 +73,7 @@ def test_no_deadline_completes_normally(temp_db, fake_page_data, monkeypatch):
 
     empty_page = {"totalPaginas": 1, "data": []}
 
-    with patch("baliza.extractor._fetch_page", side_effect=[fake_page_data, empty_page]) as mock_fetch:
+    with patch("baliza.extractor._fetch_page", side_effect=[fake_page_data, empty_page]):
         result = extractor._extract_range_task(
             start_date=start_date,
             end_date=end_date,
@@ -124,7 +123,7 @@ def test_deadline_preserves_checkpoint(temp_db, fake_page_data, monkeypatch):
 
     deadline = datetime.now() - timedelta(minutes=5)
 
-    with patch("baliza.extractor._fetch_page") as mock_fetch:
+    with patch("baliza.extractor._fetch_page"):
         extractor._extract_range_task(
             start_date=start_date,
             end_date=end_date,
