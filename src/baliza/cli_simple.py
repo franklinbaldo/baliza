@@ -14,6 +14,7 @@ from rich.table import Table
 
 from .daily_exporter import DailyExporter
 from .extractor import PNCPExtractor
+from .logging import configure_logging
 from .utils import (
     escape_sql_literal,
     scrub_url_params,
@@ -21,8 +22,14 @@ from .utils import (
     validate_resource_path,
 )
 
-app = typer.Typer(help="Baliza - Simple PNCP extraction tool")
+app = typer.Typer()
 console = Console()
+
+
+@app.callback()
+def main() -> None:
+    """Baliza - Simple PNCP extraction tool."""
+    configure_logging()
 
 
 @app.command("extract")

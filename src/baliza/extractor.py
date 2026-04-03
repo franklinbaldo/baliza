@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import concurrent.futures
 import json
-import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, TypedDict
@@ -17,6 +16,7 @@ import duckdb
 import httpx
 import pyarrow as pa
 import pyarrow.compute as pc
+import structlog
 from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 from tenacity import (
@@ -35,7 +35,7 @@ from .utils import (
 )
 
 # Configure logger for retry logging
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 console = Console()
 
@@ -119,17 +119,37 @@ def _log_retry(retry_state: RetryCallState) -> None:
     if isinstance(exc, httpx.HTTPStatusError):
         status = exc.response.status_code
         logger.warning(
-            "Retry %d/5 after HTTP %d: %s",
-            attempt,
-            status,
-            scrub_url_params(str(exc.request.url)),
+            "retry_attempt",
+            attempt=attempt,
+            max_attempts=5,
+            kind="http_error",
+            status=status,
+            url=scrub_url_params(str(exc.request.url)),
         )
     elif isinstance(exc, httpx.ConnectError):
-        logger.warning("Retry %d/5 after connection error: %s", attempt, scrub_url_params(str(exc)))
+        logger.warning(
+            "retry_attempt",
+            attempt=attempt,
+            max_attempts=5,
+            kind="connection_error",
+            error=scrub_url_params(str(exc)),
+        )
     elif isinstance(exc, httpx.TimeoutException):
-        logger.warning("Retry %d/5 after timeout: %s", attempt, scrub_url_params(str(exc)))
+        logger.warning(
+            "retry_attempt",
+            attempt=attempt,
+            max_attempts=5,
+            kind="timeout",
+            error=scrub_url_params(str(exc)),
+        )
     else:
-        logger.warning("Retry %d/5 after error: %s", attempt, scrub_url_params(str(exc)))
+        logger.warning(
+            "retry_attempt",
+            attempt=attempt,
+            max_attempts=5,
+            kind="unknown",
+            error=scrub_url_params(str(exc)),
+        )
 
 
 @retry(
