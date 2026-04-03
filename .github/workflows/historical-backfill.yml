@@ -186,7 +186,8 @@ jobs:
                 --start "$DATE" \
                 --end "$DATE" \
                 --duckdb baliza.duckdb \
-                --dataset baliza_raw 2>&1 | tee extract.log; then
+                --dataset baliza_raw \
+                --deadline-minutes 22 2>&1 | tee extract.log; then
 
               # Check if any records were extracted
               RECORDS=$(uv run python -c "

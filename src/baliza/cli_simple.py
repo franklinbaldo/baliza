@@ -70,6 +70,11 @@ def extract(  # noqa: PLR0913
         max=16,
         help="Number of concurrent workers (1-16)",
     ),
+    deadline_minutes: int | None = typer.Option(
+        None,
+        "--deadline-minutes",
+        help="Stop gracefully after N minutes (preserves checkpoint)",
+    ),
 ) -> None:
     """Extract data from PNCP API to DuckDB.
 
@@ -84,10 +89,17 @@ def extract(  # noqa: PLR0913
         start_date = datetime.strptime(start, "%Y-%m-%d")
         end_date = datetime.strptime(end, "%Y-%m-%d")
 
+        # Compute deadline if specified
+        deadline: datetime | None = None
+        if deadline_minutes is not None:
+            deadline = datetime.now() + timedelta(minutes=deadline_minutes)
+
         # Extract data
         start_time = time.time()
         with PNCPExtractor(db_path, dataset) as extractor:
-            result = extractor.extract(start_date, end_date, resource, workers=workers)
+            result = extractor.extract(
+                start_date, end_date, resource, workers=workers, deadline=deadline
+            )
         duration = time.time() - start_time
 
         # Create summary

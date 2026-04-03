@@ -499,12 +499,13 @@ class PNCPExtractor:
 
         return len(values)
 
-    def _extract_range_task(
+    def _extract_range_task(  # noqa: PLR0912, PLR0915
         self,
         start_date: datetime,
         end_date: datetime,
         resource: str,
         progress: Progress | None = None,
+        deadline: datetime | None = None,
     ) -> dict[str, Any]:
         """Extract data for a date range (worker function)."""
         data_inicial = start_date.strftime("%Y%m%d")
@@ -549,6 +550,17 @@ class PNCPExtractor:
                 }
 
                 while True:
+                    # Check deadline before fetching next page
+                    if deadline is not None and datetime.now() >= deadline:
+                        logger.info(
+                            "deadline_reached",
+                            resource=resource,
+                            date=str(start_date.date()),
+                            pages_completed=page - 1,
+                            rows=total_rows,
+                        )
+                        break
+
                     # Call PNCP API with retry
                     params["pagina"] = page
 
@@ -588,16 +600,23 @@ class PNCPExtractor:
 
                     page += 1
 
-                # Clear checkpoint on successful completion
-                self._clear_checkpoint(con, resource, start_date)
+                # Determine completion status
+                stopped_by_deadline = (
+                    deadline is not None and datetime.now() >= deadline
+                )
+                status = "deadline" if stopped_by_deadline else "complete"
+
+                # Only clear checkpoint on true completion
+                if not stopped_by_deadline:
+                    self._clear_checkpoint(con, resource, start_date)
 
                 # Record coverage for this range
                 con.execute(
                     """
                     INSERT OR REPLACE INTO baliza_state.coverage
-                    VALUES (?, ?, ?, 'complete', ?, ?, NOW())
+                    VALUES (?, ?, ?, ?, ?, ?, NOW())
                 """,
-                    [resource, start_date, end_date, page, total_rows],
+                    [resource, start_date, end_date, status, page, total_rows],
                 )
         finally:
             if progress and task_id:
@@ -616,6 +635,7 @@ class PNCPExtractor:
         end_date: datetime,
         resource: str = "contratos",
         workers: int = 4,
+        deadline: datetime | None = None,
     ) -> dict[str, Any]:
         """Extract data from PNCP API for a date range.
 
@@ -626,6 +646,7 @@ class PNCPExtractor:
             end_date: End of date range
             resource: Resource type (default: contratos)
             workers: Number of concurrent workers (default: 4)
+            deadline: Stop gracefully after this time (default: None = no limit)
 
         Returns:
             Dict with extraction results (rows_extracted, pages, etc.)
@@ -656,7 +677,9 @@ class PNCPExtractor:
             if workers == 1:
                 # Sequential mode (matches original behavior)
                 try:
-                    result = self._extract_range_task(start_date, end_date, resource, progress)
+                    result = self._extract_range_task(
+                        start_date, end_date, resource, progress, deadline=deadline
+                    )
                     total_rows = result["rows_extracted"]
                     total_pages = result["pages"]
                 except Exception as e:
@@ -678,7 +701,8 @@ class PNCPExtractor:
                 with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
                     futures = {
                         executor.submit(
-                            self._extract_range_task, date, date, resource, progress
+                            self._extract_range_task, date, date, resource, progress,
+                            deadline
                         ): date
                         for date in dates
                     }
