@@ -101,15 +101,34 @@ jobs:
 
       - name: Package artifacts
         run: |
-          tar -czf baliza-daily-${{ steps.partition.outputs.year }}-${{ steps.partition.outputs.month }}.tar.gz \
+          zip -r baliza-daily-${{ steps.partition.outputs.year }}-${{ steps.partition.outputs.month }}.zip \
             baliza.duckdb \
             data/contratos/ano=${{ steps.partition.outputs.year }}/mes=${{ steps.partition.outputs.month }}
+
+      - name: Build manifest
+        run: |
+          uv run python scripts/build_manifest.py \
+            --parquet-dir data/contratos/ano=${{ steps.partition.outputs.year }}/mes=${{ steps.partition.outputs.month }} \
+            --dataset-version ${{ steps.partition.outputs.year }}-${{ steps.partition.outputs.month }}
+
+      - name: Upload to Internet Archive
+        env:
+          IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
+          IA_SECRET_KEY: ${{ secrets.IA_SECRET_KEY }}
+        run: |
+          uv run python scripts/upload_internet_archive.py \
+            --file baliza-daily-${{ steps.partition.outputs.year }}-${{ steps.partition.outputs.month }}.zip \
+            --identifier baliza-pncp-daily-${{ steps.partition.outputs.year }}-${{ steps.partition.outputs.month }} \
+            --manifest data/contratos/ano=${{ steps.partition.outputs.year }}/mes=${{ steps.partition.outputs.month }}/manifest.json \
+            --metadata-output ia_summary.json
 
       - name: Upload daily artifact
         uses: actions/upload-artifact@v4
         with:
           name: baliza-daily-${{ steps.partition.outputs.year }}-${{ steps.partition.outputs.month }}
-          path: baliza-daily-${{ steps.partition.outputs.year }}-${{ steps.partition.outputs.month }}.tar.gz
+          path: |
+            baliza-daily-${{ steps.partition.outputs.year }}-${{ steps.partition.outputs.month }}.zip
+            ia_summary.json
 
   report-failure:
     name: Report workflow failure
