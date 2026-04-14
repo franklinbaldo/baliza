@@ -4,49 +4,18 @@
 [![Backfill](https://github.com/franklinbaldo/baliza/actions/workflows/historical-backfill.yml/badge.svg)](https://github.com/franklinbaldo/baliza/actions/workflows/historical-backfill.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Dashboard](https://img.shields.io/badge/Dashboard-Live-green)](https://franklinbaldo.github.io/baliza/)
 
-**Baliza** (Backup Aberto de Licitações Zelando pelo Acesso) é uma **ferramenta
-de linha de comando** de código aberto que captura dados de contratos do Portal
-Nacional de Contratações Públicas (PNCP) e os armazena em um banco **DuckDB**
-pronto para análise.
+**Baliza** (Backup Aberto de Licitações Zelando pelo Acesso) is an open-source CLI that extracts contract data from the Brazilian public procurement portal (PNCP) and stores it in a DuckDB database ready for analysis.
 
-> **⚠️ Este repositório contém apenas o CLI de extração de dados.**
-> Para visualização, dashboards e interface web, veja o projeto `baliza-site`.
-> Documentação estratégica em [`docs/MASTERPLAN.md`](docs/MASTERPLAN.md).
+## Installation
 
-## 🎯 Project Goals
-
-- **Reliability:** Bulletproof extraction that survives network failures and API instability.
-- **Preservation:** Creating a permanent, versioned record of Brazilian procurement history.
-- **Accessibility:** Exporting data in open, high-performance formats (DuckDB, Parquet).
-- **Transparency:** Clear reporting on data coverage and gaps.
-
-### Non-Goals
-- Not a general-purpose data analysis tool (use the exported Parquet files for that).
-- Not a real-time monitoring tool (optimized for daily/batch updates).
-- Not a frontend/dashboard provider (see `baliza-site`).
-
-## 📊 Current Status
-
-| Feature | Status | Tier |
-|---------|--------|------|
-| **Core Extraction** | ✅ Done | 🔴 Tier 0 |
-| **Gap Detection** | ✅ Done | 🟠 Tier 1 |
-| **Parquet Export** | ✅ Done | 🔴 Tier 0 |
-| **Resumability** | ✅ Done | 🟠 Tier 1 |
-| **State CLI** | ⏳ In Progress | 🟠 Tier 1 |
-| **Backfill CLI** | 📝 Planned | 🟠 Tier 1 |
-
-## Instalação
-
-### Opção 1: Execução direta com uvx (Recomendado)
+**Run directly (no install):**
 
 ```bash
 uvx --from "git+https://github.com/franklinbaldo/baliza" baliza --help
 ```
 
-### Opção 2: Instalação local
+**Install locally:**
 
 ```bash
 git clone https://github.com/franklinbaldo/baliza.git
@@ -55,29 +24,91 @@ uv sync
 uv run baliza --help
 ```
 
-## Comandos principais
+Requires Python 3.11+.
 
-| Comando | Descrição |
-|---------|-----------|
-| `baliza extract` | Extrai dados do PNCP (requer `--start` e `--end`). Suporta checkpointing. |
-| `baliza verify` | Verifica cobertura e detecta lacunas (gaps) no período informado. |
-| `baliza export` | Exporta tabela para Parquet. |
-| `baliza export-daily` | Exporta pacote diário particionado. |
-| `baliza status` | Exibe resumo do status da extração (Será movido para `baliza state show`). |
+## Commands
 
-## 🚀 Performance Benchmarks
+### `extract` — Fetch data from PNCP
 
-Recent benchmark findings for the Baliza extraction pipeline reveal the following speeds based on the number of workers:
-- **1 worker**: ~12s
-- **4 workers**: 3.5s (optimal speed)
-- **16 workers**: 34s (regression due to PNCP API rate limits/timeouts)
+```bash
+baliza extract --start 2024-01-01 --end 2024-01-31
+```
 
-**Recommendation:** Use 4-8 workers for best performance. Higher concurrency (e.g., 16 workers) leads to slower results because it triggers API rate limits and connection timeouts from the PNCP server, causing retries and backoffs.
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--start` | required | Start date (YYYY-MM-DD) |
+| `--end` | required | End date (YYYY-MM-DD) |
+| `--duckdb, -d` | `baliza.duckdb` | Path to DuckDB file |
+| `--dataset, -s` | `baliza_raw` | Dataset/schema name |
+| `--resource, -r` | `contratos` | PNCP resource to extract |
+| `--workers, -w` | `4` | Parallel workers (1–16) |
+| `--deadline-minutes` | none | Stop gracefully after N minutes |
 
-## Contribuindo
+Extraction is resumable — interrupted runs pick up from the last checkpoint.
 
-Veja [CONTRIBUTING.md](CONTRIBUTING.md) (em breve) ou abra uma issue.
+**Tip:** 4–8 workers is optimal. More workers triggers PNCP rate limits and causes slowdowns.
 
-## Licença
+### `verify` — Check coverage and detect gaps
+
+```bash
+baliza verify --start 2024-01-01 --end 2024-01-31 --resource contratos
+```
+
+### `export` — Export a table to Parquet
+
+```bash
+baliza export --table contratos --output ./output/
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--table` | required | Table name to export |
+| `--output, -o` | required | Output directory |
+| `--duckdb` | `baliza.duckdb` | Path to DuckDB file |
+| `--dataset` | `baliza_raw` | Dataset/schema name |
+| `--date-col` | `dataPublicacao` | Date column for partitioning |
+
+### `export-daily` — Export a daily Parquet package
+
+```bash
+baliza export-daily --date 2024-01-15
+```
+
+Writes a self-contained directory for the given date with `contratos.parquet`, `orgaos.parquet`, `unidades.parquet`, and `_metadata.json`.
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--date` | required | Date (YYYY-MM-DD) |
+| `--output, -o` | `data/daily` | Output directory |
+| `--duckdb` | `baliza.duckdb` | Path to DuckDB file |
+| `--dataset` | `baliza_raw` | Dataset/schema name |
+
+### `status` — Show extraction status
+
+```bash
+baliza status
+```
+
+### `buffer-stats` — Show buffer statistics
+
+```bash
+baliza buffer-stats
+```
+
+## Environment variables
+
+| Variable | Description |
+|----------|-------------|
+| `BALIZA_LOG_FORMAT` | Set to `json` for structured logging (default: human-readable console output) |
+| `BALIZA_ALLOW_PRIVATE_NETWORKS` | Set to `1` to disable SSRF protection (testing only) |
+
+## Development
+
+```bash
+uv sync
+pytest tests/
+```
+
+## License
 
 MIT
