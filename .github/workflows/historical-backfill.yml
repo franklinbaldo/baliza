@@ -75,16 +75,6 @@ jobs:
           if_no_artifact_found: ignore
           workflow_conclusion: success
 
-      - name: Download database state
-        uses: dawidd6/action-download-artifact@v6
-        continue-on-error: true
-        with:
-          name: baliza-db-state
-          path: ./
-          if_no_artifact_found: ignore
-          workflow_conclusion: success
-
-
       - name: Validate database integrity
         run: |
           if [ -f baliza.duckdb ]; then
@@ -196,7 +186,7 @@ jobs:
           try:
               result = con.execute('''
                   SELECT COUNT(*) FROM baliza_raw.contratos
-                  WHERE CAST(dataPublicacaoPncp AS DATE) = ?
+                  WHERE CAST(data_publicacao AS DATE) = ?
               ''', ['$DATE']).fetchone()
               print(result[0] if result else 0)
           except Exception as e:
@@ -233,58 +223,57 @@ jobs:
           STABILITY_DAYS=7
 
           uv run python - << 'PY'
-          import duckdb
-          from pathlib import Path
-          from datetime import datetime, timedelta
+import duckdb
+from pathlib import Path
+from datetime import datetime, timedelta
 
-          STABILITY_DAYS = 7
-          cutoff = datetime.now() - timedelta(days=STABILITY_DAYS)
+STABILITY_DAYS = 7
+cutoff = datetime.now() - timedelta(days=STABILITY_DAYS)
 
-          con = duckdb.connect('baliza.duckdb')
+# Load completed dates
+completed = set()
+completed_file = Path('state/completed.txt')
+if completed_file.exists():
+    for line in completed_file.read_text().strip().split('\n'):
+        if line:
+            completed.add(line)
 
-          # Load completed dates
-          completed = set()
-          completed_file = Path('state/completed.txt')
-          if completed_file.exists():
-              for line in completed_file.read_text().strip().split('\n'):
-                  if line:
-                      completed.add(line)
+# Load already-uploaded dates from IA manifest (source of truth)
+uploaded = set()
+try:
+    con = duckdb.connect(':memory:')
+    try:
+        con.execute('LOAD httpfs;')
+    except Exception:
+        con.execute('INSTALL httpfs; LOAD httpfs;')
+    rows = con.execute("""SELECT DISTINCT CAST(data_particao AS VARCHAR)
+                          FROM read_parquet('https://archive.org/download/baliza-pncp-manifest/manifest.parquet')
+                          WHERE table_name = 'contratos'""").fetchall()
+    uploaded = {r[0] for r in rows}
+    print(f'Found {len(uploaded)} dates already on IA manifest')
+except Exception as e:
+    print(f'Could not read IA manifest (will assume empty): {e}')
 
-          # Load already uploaded to IA
-          uploaded = set()
-          uploaded_file = Path('state/uploaded_to_ia.txt')
-          if uploaded_file.exists():
-              for line in uploaded_file.read_text().strip().split('\n'):
-                  if line:
-                      # Format: baliza-pncp-YYYY-MM-DD
-                      parts = line.split('-')
-                      if len(parts) >= 5:
-                          uploaded.add(f"{parts[2]}-{parts[3]}-{parts[4]}")
+# Find dates ready for export and upload
+ready_dates = []
+for date_str in completed:
+    try:
+        dt = datetime.strptime(date_str, '%Y-%m-%d')
+        if dt < cutoff and date_str not in uploaded:
+            ready_dates.append(date_str)
+    except ValueError:
+        continue
 
-          # Find dates that are:
-          # 1. Completed
-          # 2. Older than stability window
-          # 3. Not yet uploaded to IA
-          ready_dates = []
-          for date_str in completed:
-              try:
-                  dt = datetime.strptime(date_str, '%Y-%m-%d')
-                  if dt < cutoff and date_str not in uploaded:
-                      ready_dates.append(date_str)
-              except ValueError:
-                  continue
+ready_dates.sort()
 
-          ready_dates.sort()
+with open('ready_dates.txt', 'w') as f:
+    for d in ready_dates:
+        f.write(f"{d}\n")
 
-          # Write ready dates for export
-          with open('ready_dates.txt', 'w') as f:
-              for d in ready_dates:
-                  f.write(f"{d}\n")
-
-          print(f"Dates ready for export (D-{STABILITY_DAYS}): {len(ready_dates)}")
-          if ready_dates:
-              print(f"  Range: {ready_dates[0]} to {ready_dates[-1]}")
-          PY
+print(f'Dates ready for upload (D-{STABILITY_DAYS}): {len(ready_dates)}')
+if ready_dates:
+    print(f'  Range: {ready_dates[0]} to {ready_dates[-1]}')
+PY
 
           READY_COUNT=$(wc -l < ready_dates.txt 2>/dev/null | tr -d ' ' || echo "0")
           echo "ready_count=$READY_COUNT" >> $GITHUB_OUTPUT
@@ -313,134 +302,31 @@ jobs:
 
           done < export_batch.txt
 
-      - name: Upload to Internet Archive
-        if: steps.find.outputs.batch_size != '0' && steps.export-dates.outputs.ready_count != '0' && env.IA_ACCESS_KEY != ''
+      - name: Upload extracted dates to Internet Archive
+        if: steps.find.outputs.batch_size != '0' && steps.export-dates.outputs.ready_count != '0'
         env:
           IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
+          IA_SECRET_KEY: ${{ secrets.IA_SECRET_KEY }}
         run: |
-          if [ ! -d data/daily ]; then
-            echo "No parquet files to upload"
-            exit 0
-          fi
+          mkdir -p data/daily
 
-          # Find daily directories not yet uploaded
-          for DATE_DIR in data/daily/*/; do
-            DATE=$(basename "$DATE_DIR")
-            ITEM_ID="${IA_ITEM_PREFIX}-${DATE}"
+          # upload-daily = export-daily + ia.upload + record_ia_upload + cleanup_buffer + manifest refresh
+          # It is safe to run multiple times for the same date (idempotent).
+          head -n 10 ready_dates.txt > upload_batch.txt
 
-            # Check if already uploaded
-            if grep -q "^${ITEM_ID}$" state/uploaded_to_ia.txt 2>/dev/null; then
-              echo "⏭️ $ITEM_ID already uploaded"
-              continue
-            fi
-
-            echo "📤 Uploading $DATE to $ITEM_ID..."
-
-            # Upload all files in the daily directory
-            if ia upload "$ITEM_ID" "${DATE_DIR}"* \
-                --metadata="collection:opensource" \
-                --metadata="mediatype:data" \
-                --metadata="title:Baliza PNCP Contracts ${DATE}" \
-                --metadata="description:Brazilian public procurement contracts from PNCP (Portal Nacional de Contratações Públicas) for ${DATE}. Contains contratos, orgaos, and unidades tables in Parquet format." \
-                --metadata="subject:brazil;procurement;pncp;open-data;government;contracts" \
-                --metadata="creator:Baliza Project" \
-                --no-derive; then
-              echo "$ITEM_ID" >> state/uploaded_to_ia.txt
-              echo "✅ Uploaded $ITEM_ID"
+          while read -r DATE; do
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "📤 Uploading $DATE to Internet Archive..."
+            if uv run baliza upload-daily \
+                --date "$DATE" \
+                --output data/daily \
+                --duckdb baliza.duckdb; then
+              echo "✅ $DATE uploaded and buffer cleaned"
             else
-              echo "❌ Failed to upload $ITEM_ID"
+              echo "⚠️ $DATE upload skipped or failed (will retry next run)"
             fi
-
-            # Rate limiting for IA
-            sleep 5
-          done
-
-      - name: Cleanup buffer after successful uploads
-        if: steps.find.outputs.batch_size != '0' && steps.export-dates.outputs.ready_count != '0' && env.IA_ACCESS_KEY != ''
-        env:
-          IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
-        run: |
-          if [ ! -f state/uploaded_to_ia.txt ]; then
-            echo "No uploads to clean up"
-            exit 0
-          fi
-
-          echo "Cleaning up buffer for uploaded dates..."
-
-          # For each uploaded item, clean up the corresponding data from DuckDB
-          uv run python - << 'PY'
-          import duckdb
-          from pathlib import Path
-          from datetime import datetime
-
-          uploaded_file = Path('state/uploaded_to_ia.txt')
-          if not uploaded_file.exists():
-              print("No uploaded items file")
-              exit(0)
-
-          # Parse uploaded items (format: baliza-pncp-YYYY-MM-DD)
-          uploaded_dates = []
-          for line in uploaded_file.read_text().strip().split('\n'):
-              if not line:
-                  continue
-              # Extract date from item ID
-              parts = line.split('-')
-              if len(parts) >= 5:
-                  try:
-                      date_str = f"{parts[2]}-{parts[3]}-{parts[4]}"
-                      uploaded_dates.append(date_str)
-                  except (ValueError, IndexError):
-                      continue
-
-          if not uploaded_dates:
-              print("No valid uploaded dates found")
-              exit(0)
-
-          print(f"Found {len(uploaded_dates)} uploaded dates to clean up")
-
-          con = duckdb.connect('baliza.duckdb')
-
-          total_deleted = 0
-          for date_str in uploaded_dates:
-              # Count rows before deletion
-              result = con.execute('''
-                  SELECT COUNT(*) FROM baliza_raw.contratos
-                  WHERE CAST(dataPublicacao AS DATE) = ?
-              ''', [date_str]).fetchone()
-              count = result[0] if result else 0
-
-              if count > 0:
-                  # Delete data for this date
-                  con.execute('''
-                      DELETE FROM baliza_raw.contratos
-                      WHERE CAST(dataPublicacao AS DATE) = ?
-                  ''', [date_str])
-                  print(f"✅ Cleaned up {count} rows for {date_str}")
-                  total_deleted += count
-
-                  # Record in uploaded_to_ia table
-                  con.execute('''
-                      INSERT OR REPLACE INTO baliza_state.uploaded_to_ia
-                      VALUES (?, ?, NOW(), 3, ?)
-                  ''', [f"baliza-pncp-{date_str}", date_str, count])
-              else:
-                  print(f"⏭️ No data to clean for {date_str}")
-
-          print(f"\nTotal rows cleaned from buffer: {total_deleted}")
-
-          # Show buffer stats
-          result = con.execute('SELECT COUNT(*) FROM baliza_raw.contratos').fetchone()
-          print(f"Rows remaining in buffer: {result[0]}")
-          PY
-
-      - name: Save database state
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: baliza-db-state
-          path: baliza.duckdb
-          retention-days: 30
-          overwrite: true
+            sleep 3  # IA rate limiting
+          done < upload_batch.txt
 
       - name: Save backfill state
         if: always()

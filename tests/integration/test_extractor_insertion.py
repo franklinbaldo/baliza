@@ -34,15 +34,15 @@ def test_extractor_insertion_logic(tmp_path):
         "modalidadeNome": "Pregão",
         "valorInicial": 1000.00,
         "dataPublicacao": "2023-01-01T10:00:00",
-        "dataVigenciaInicio": "2023-01-01",
-        "dataVigenciaFim": "2023-12-31",
+        "data_vigencia_inicio": "2023-01-01",
+        "data_vigencia_fim": "2023-12-31",
         "objetoContrato": "Test Contract",
-        "informacaoComplementar": "Info",
-        "numeroProcesso": "123/2023",
-        "linkSistemaOrigem": "http://example.com",
-        "dataInclusao": "2023-01-01T09:00:00",
-        "dataAtualizacao": "2023-01-01T09:00:00",
-        "usuarioNome": "User"
+        "informacao_complementar": "Info",
+        "processo": "123/2023",
+        "link_sistema_origem": "http://example.com",
+        "data_inclusao": "2023-01-01T09:00:00",
+        "data_atualizacao": "2023-01-01T09:00:00",
+        "usuario_nome": "User"
     }]
 
     with patch("baliza.extractor._fetch_page") as mock_fetch:
@@ -70,6 +70,6 @@ def test_extractor_insertion_logic(tmp_path):
             count = con.execute("SELECT COUNT(*) FROM baliza_raw.contratos").fetchone()[0]
             assert count == 1, "Should have inserted 1 row"
 
-            row = con.execute("SELECT numeroControlePNCP, valorInicial FROM baliza_raw.contratos").fetchone()
+            row = con.execute("SELECT numero_controle_pncp, valor_inicial FROM baliza_raw.contratos").fetchone()
             assert row[0] == "12345678000190-1-1/2023"
             assert row[1] == 1000.00

@@ -14,6 +14,8 @@ from rich.table import Table
 
 from .daily_exporter import DailyExporter
 from .extractor import PNCPExtractor
+from .consolidator import IAConsolidator
+from .ia_uploader import IAUploader
 from .logging import configure_logging
 from .utils import (
     escape_sql_literal,
@@ -235,7 +237,7 @@ def export(
     db_path: Path = typer.Option(Path("baliza.duckdb"), "--duckdb", "-d", help="DuckDB file"),
     dataset: str = typer.Option("baliza_raw", "--dataset", "-s", help="Dataset name"),
     date_col: str = typer.Option(
-        "dataPublicacao", "--date-col", help="Date column for partitioning"
+        "data_publicacao", "--date-col", help="Date column for partitioning"
     ),
 ) -> None:
     """Export DuckDB table to Parquet files."""
@@ -331,7 +333,104 @@ def export_daily(
         raise typer.Exit(1) from None
 
 
+@app.command("upload-daily")
+def upload_daily(
+    date_str: str = typer.Option(
+        ...,
+        "--date",
+        "-d",
+        help="Date to export and upload (YYYY-MM-DD)",
+    ),
+    output: Path = typer.Option(
+        Path("data/daily"),
+        "--output",
+        "-o",
+        help="Output directory (date subdirectory will be created)",
+    ),
+    db_path: Path = typer.Option(
+        Path("baliza.duckdb"),
+        "--duckdb",
+        help="DuckDB file",
+    ),
+) -> None:
+    """Export daily parquet package and upload to Internet Archive.
+    
+    This command combines export-daily with pushing to archive.org,
+    creating manifest updates and handling dedup tracking. 
+    Requires IA_ACCESS_KEY and IA_SECRET_KEY environment variables.
+    """
+    import os
+    try:
+        target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        
+        ia_access_key = os.environ.get("IA_ACCESS_KEY")
+        ia_secret_key = os.environ.get("IA_SECRET_KEY")
+        if not ia_access_key or not ia_secret_key:
+            console.print("[red]✗ Missing IA_ACCESS_KEY or IA_SECRET_KEY in environment.[/red]")
+            raise typer.Exit(1)
+            
+        uploader = IAUploader(db_path)
+        
+        success = uploader.upload_day(target_date, output, ia_access_key, ia_secret_key)
+            
+        if not success:
+            console.print(f"[dim]{date_str}: already uploaded or no data — skipped.[/dim]")
+            raise typer.Exit(0)
+            
+    except Exception as e:
+        msg = scrub_url_params(str(e))
+        console.print(f"[red]✗ Upload failed: {msg}")
+        raise typer.Exit(1) from None
+
+
+@app.command("consolidate")
+def consolidate(
+    start_year: int = typer.Option(
+        2021,
+        "--start-year",
+        help="First year to consolidate (PNCP launched in 2021).",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Re-upload even for frozen years that already have a consolidated file.",
+    ),
+) -> None:
+    """Build and upload annual consolidated Parquet files to Internet Archive.
+
+    Reads all daily Parquet files from IA (via manifest), merges them into one
+    large annual file per year with optimal row groups, and uploads to
+    baliza-pncp-consolidated/.
+
+    Frozen past years are skipped if the consolidated file already exists.
+    The current year is always rebuilt.
+
+    Requires IA_ACCESS_KEY and IA_SECRET_KEY environment variables.
+    """
+    import os
+
+    try:
+        ia_access_key = os.environ.get("IA_ACCESS_KEY")
+        ia_secret_key = os.environ.get("IA_SECRET_KEY")
+        if not ia_access_key or not ia_secret_key:
+            console.print("[red]✗ Missing IA_ACCESS_KEY or IA_SECRET_KEY in environment.[/red]")
+            raise typer.Exit(1)
+
+        consolidator = IAConsolidator()
+        results = consolidator.consolidate_all(start_year, ia_access_key, ia_secret_key, force=force)
+
+        uploaded = sum(1 for v in results.values() if v)
+        skipped = sum(1 for v in results.values() if not v)
+        console.print(f"\n[green]✓ Consolidation complete: {uploaded} uploaded, {skipped} skipped.[/green]")
+
+    except Exception as e:
+        msg = scrub_url_params(str(e))
+        console.print(f"[red]✗ Consolidation failed: {msg}")
+        raise typer.Exit(1) from None
+
+
 @app.command("buffer-stats")
+
 def buffer_stats(
     db_path: Path = typer.Option(
         Path("baliza.duckdb"),
@@ -403,13 +502,13 @@ def status(
 
             # Date range
             date_range = con.execute(f"""
-                SELECT MIN(CAST(dataPublicacao AS DATE)), MAX(CAST(dataPublicacao AS DATE))
+                SELECT MIN(CAST(data_publicacao AS DATE)), MAX(CAST(data_publicacao AS DATE))
                 FROM {dataset}.contratos
             """).fetchone()
 
             # Days with data
             days_count = con.execute(f"""
-                SELECT COUNT(DISTINCT CAST(dataPublicacao AS DATE))
+                SELECT COUNT(DISTINCT CAST(data_publicacao AS DATE))
                 FROM {dataset}.contratos
             """).fetchone()[0]
 

@@ -105,7 +105,7 @@ def db_path_with_windows(db_path: Path) -> Path:
 
         # Ensure raw data table exists for status command
         con.execute("CREATE SCHEMA IF NOT EXISTS baliza_raw")
-        con.execute("CREATE TABLE baliza_raw.contratos (dataPublicacao TIMESTAMP)")
+        con.execute("CREATE TABLE baliza_raw.contratos (data_publicacao TIMESTAMP)")
         con.execute("INSERT INTO baliza_raw.contratos VALUES ('2024-01-01'), ('2024-01-03')")
 
     return db_path

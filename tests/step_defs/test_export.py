@@ -36,10 +36,10 @@ def db_with_data(tmp_path: Path, count: int) -> dict:
         con.execute("""
             CREATE TABLE test_dataset.contratos (
                 id INTEGER,
-                numeroControlePNCP VARCHAR,
-                dataPublicacao TIMESTAMP,
-                dataAtualizacao TIMESTAMP,
-                valorInicial DECIMAL(15,2)
+                numero_controle_pncp VARCHAR,
+                data_publicacao TIMESTAMP,
+                data_atualizacao TIMESTAMP,
+                valor_inicial DECIMAL(15,2)
             )
         """)
 

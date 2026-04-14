@@ -134,9 +134,9 @@ def check_no_duplicates(db_path):
     """Verify that the final dataset does not contain duplicate records."""
     with duckdb.connect(str(db_path), read_only=True) as con:
         query = """
-            SELECT numeroControlePNCP, COUNT(*) as cnt
+            SELECT numero_controle_pncp, COUNT(*) as cnt
             FROM test_dataset.contratos
-            GROUP BY numeroControlePNCP
+            GROUP BY numero_controle_pncp
             HAVING COUNT(*) > 1
         """
         duplicates = con.execute(query).fetchall()

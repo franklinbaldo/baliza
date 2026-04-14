@@ -45,6 +45,6 @@ Feature: Daily Parquet Export
   Scenario: Metadata file contains stats
     Given a daily export with 500 contracts
     When I read _metadata.json
-    Then schema_version should be "1.0.0"
+    Then schema_version should be "2.0.0"
     And tables.contratos.row_count should be 500
     And data_particao should be "2023-01-15"

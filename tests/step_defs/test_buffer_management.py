@@ -40,7 +40,7 @@ def db_with_extractions(tmp_path: Path, days: int) -> dict:
                     con.execute(
                         """
                         INSERT INTO baliza_raw.contratos
-                        (numeroControlePNCP, anoCompra, orgaoEntidade_cnpj, dataPublicacao)
+                        (numero_controle_pncp, ano_compra, cnpj_orgao, data_publicacao)
                         VALUES (?, 2023, '12345678000190', ?)
                     """,
                         [f"CTRL-{day:02d}-{i:03d}", date_str],
@@ -134,7 +134,7 @@ def buffer_with_data(tmp_path: Path, rows: int, date_str: str) -> dict:
                 con.execute(
                     """
                     INSERT INTO baliza_raw.contratos
-                    (numeroControlePNCP, anoCompra, orgaoEntidade_cnpj, dataPublicacao)
+                    (numero_controle_pncp, ano_compra, cnpj_orgao, data_publicacao)
                     VALUES (?, 2023, '12345678000190', ?)
                 """,
                     [f"CTRL-{i:05d}", f"{date_str}T10:00:00"],
@@ -182,7 +182,7 @@ def check_buffer_empty_for_date(cleanup_result, date_str):
             """
             SELECT COUNT(*)
             FROM baliza_raw.contratos
-            WHERE CAST(dataPublicacao AS DATE) = ?
+            WHERE CAST(data_publicacao AS DATE) = ?
         """,
             [date_str],
         ).fetchone()[0]
@@ -241,7 +241,7 @@ def buffer_with_recent_data(tmp_path: Path, days: int) -> dict:
                     con.execute(
                         """
                         INSERT INTO baliza_raw.contratos
-                        (numeroControlePNCP, anoCompra, orgaoEntidade_cnpj, dataPublicacao)
+                        (numero_controle_pncp, ano_compra, cnpj_orgao, data_publicacao)
                         VALUES (?, 2023, '12345678000190', ?)
                     """,
                         [f"CTRL-{day_offset:02d}-{i:03d}", date_str],
@@ -336,7 +336,7 @@ def buffer_stats_setup(tmp_path: Path, total_rows: int, dates: int) -> dict:
                     con.execute(
                         """
                         INSERT INTO baliza_raw.contratos
-                        (numeroControlePNCP, anoCompra, orgaoEntidade_cnpj, dataPublicacao)
+                        (numero_controle_pncp, ano_compra, cnpj_orgao, data_publicacao)
                         VALUES (?, 2023, '12345678000190', ?)
                     """,
                         [f"CTRL-{day:02d}-{i:04d}", date_str],

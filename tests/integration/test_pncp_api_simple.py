@@ -79,13 +79,13 @@ def test_pncp_api_get_contratos_single_day():
     if len(data["data"]) > 0:
         # Verify contract structure
         contrato = data["data"][0]
-        assert "numeroControlePNCP" in contrato
-        assert "valorInicial" in contrato
-        assert "dataPublicacaoPncp" in contrato
+        assert "numero_controle_pncp" in contrato
+        assert "valor_inicial" in contrato
+        assert "data_publicacaoPncp" in contrato
 
-        # Verify numeroControlePNCP format (CNPJ-2-seq/year)
-        assert "-" in contrato["numeroControlePNCP"]
-        assert "/" in contrato["numeroControlePNCP"]
+        # Verify numero_controle_pncp format (CNPJ-2-seq/year)
+        assert "-" in contrato["numero_controle_pncp"]
+        assert "/" in contrato["numero_controle_pncp"]
 
 
 @pytest.mark.vcr()
@@ -198,11 +198,11 @@ def test_pncp_api_response_fields():
 
         # Core contract fields
         expected_fields = [
-            "numeroControlePNCP",
-            "valorInicial",
-            "dataPublicacaoPncp",
-            "objetoContrato",
-            "modalidadeId",
+            "numero_controle_pncp",
+            "valor_inicial",
+            "data_publicacaoPncp",
+            "objeto_contrato",
+            "modalidade_id",
         ]
 
         for field in expected_fields:

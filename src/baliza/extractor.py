@@ -48,31 +48,104 @@ class CheckpointData(TypedDict):
     rows_extracted: int
 
 
-# Arrow schema for PNCP API response to handle nested structures
+# Arrow schema for PNCP API response — full RecuperarContratoDTO surface.
+# Nested structs are captured as-is; flattening happens in the INSERT SQL.
 PNCP_ARROW_SCHEMA = pa.schema(
     [
+        # --- Identity ---
         ("numeroControlePNCP", pa.string()),
-        ("anoCompra", pa.int64()),
+        ("numeroControlePncpCompra", pa.string()),   # FK → contratacoes
+        ("anoContrato", pa.int64()),
+        ("sequencialContrato", pa.int64()),
+        ("anoCompra", pa.int64()),                   # legacy field, kept for compat
         ("sequencialCompra", pa.int64()),
+        ("numeroContratoEmpenho", pa.string()),
+        ("numeroRetificacao", pa.int64()),            # 0=original, >0=amendment
+        ("processo", pa.string()),
+        # --- Órgão contratante ---
         (
             "orgaoEntidade",
-            pa.struct(
-                [("cnpj", pa.string()), ("razaoSocial", pa.string()), ("poderId", pa.string())]
-            ),
+            pa.struct([
+                ("cnpj", pa.string()),
+                ("razaoSocial", pa.string()),
+                ("poderId", pa.string()),             # E/L/J
+                ("esferaId", pa.string()),            # F/E/M/D
+            ]),
         ),
-        ("unidadeOrgao", pa.struct([("codigoUnidade", pa.string()), ("nomeUnidade", pa.string())])),
+        (
+            "unidadeOrgao",
+            pa.struct([
+                ("codigoUnidade", pa.string()),
+                ("nomeUnidade", pa.string()),
+                ("ufSigla", pa.string()),
+                ("ufNome", pa.string()),
+                ("municipioNome", pa.string()),
+                ("codigoIbge", pa.string()),
+            ]),
+        ),
+        # --- Órgão sub-rogado (proxy agency, nullable) ---
+        (
+            "orgaoSubRogado",
+            pa.struct([
+                ("cnpj", pa.string()),
+                ("razaoSocial", pa.string()),
+                ("poderId", pa.string()),
+                ("esferaId", pa.string()),
+            ]),
+        ),
+        (
+            "unidadeSubRogada",
+            pa.struct([
+                ("codigoUnidade", pa.string()),
+                ("nomeUnidade", pa.string()),
+                ("ufSigla", pa.string()),
+                ("ufNome", pa.string()),
+                ("municipioNome", pa.string()),
+                ("codigoIbge", pa.string()),
+            ]),
+        ),
+        # --- Fornecedor (supplier) ---
+        ("niFornecedor", pa.string()),               # CNPJ or CPF — the WHO got paid
+        ("tipoPessoa", pa.string()),                 # PJ / PF / PE
+        ("nomeRazaoSocialFornecedor", pa.string()),
+        ("codigoPaisFornecedor", pa.string()),        # for PE (foreign entities)
+        ("niFornecedorSubContratado", pa.string()),
+        ("nomeFornecedorSubContratado", pa.string()),
+        ("tipoPessoaSubContratada", pa.string()),
+        # --- Classification ---
         ("modalidadeId", pa.int64()),
         ("modalidadeNome", pa.string()),
+        (
+            "tipoContrato",
+            pa.struct([("id", pa.int64()), ("nome", pa.string())]),
+        ),
+        (
+            "categoriaProcesso",
+            pa.struct([("id", pa.int64()), ("nome", pa.string())]),
+        ),
+        ("receita", pa.bool_()),                     # TRUE = revenue contract
+        # --- Financial ---
         ("valorInicial", pa.float64()),
-        ("dataPublicacao", pa.string()),
+        ("valorParcela", pa.float64()),
+        ("valorGlobal", pa.float64()),               # total value including amendments
+        ("valorAcumulado", pa.float64()),            # accumulated payments so far
+        ("numeroParcelas", pa.int64()),
+        # --- Dates ---
+        ("dataPublicacao", pa.string()),             # ← primary partition key
+        ("dataPublicacaoPncp", pa.string()),
+        ("dataAssinatura", pa.string()),
         ("dataVigenciaInicio", pa.string()),
         ("dataVigenciaFim", pa.string()),
-        ("objetoContrato", pa.string()),
-        ("informacaoComplementar", pa.string()),
-        ("numeroProcesso", pa.string()),
-        ("linkSistemaOrigem", pa.string()),
         ("dataInclusao", pa.string()),
         ("dataAtualizacao", pa.string()),
+        ("dataAtualizacaoGlobal", pa.string()),
+        # --- Text / links ---
+        ("objetoContrato", pa.string()),
+        ("informacaoComplementar", pa.string()),
+        ("linkSistemaOrigem", pa.string()),         # kept from old schema
+        ("identificadorCipi", pa.string()),
+        ("urlCipi", pa.string()),
+        # --- Audit ---
         ("usuarioNome", pa.string()),
     ]
 )
@@ -84,10 +157,17 @@ DEFAULT_MAX_RESPONSE_SIZE = 10 * 1024 * 1024  # 10 MB
 # Columns that need to be cast to timestamp for efficient DuckDB insertion
 TIMESTAMP_COLS = {
     "dataPublicacao",
+    "dataPublicacaoPncp",
     "dataVigenciaInicio",
     "dataVigenciaFim",
     "dataInclusao",
     "dataAtualizacao",
+    "dataAtualizacaoGlobal",
+}
+
+# Date-only columns (not timestamp)
+DATE_COLS = {
+    "dataAssinatura",
 }
 
 
@@ -226,90 +306,278 @@ class PNCPExtractor:
         # Pre-compute SQL queries to avoid reconstruction in loops
         # Optimization: Hoist invariant SQL construction out of the loop
         self._insert_sql = f"""
-            INSERT OR IGNORE INTO {self.dataset}.contratos (
-                numeroControlePNCP,
-                anoCompra,
-                sequencialCompra,
-                orgaoEntidade_cnpj,
-                orgaoEntidade_razaoSocial,
-                orgaoEntidade_poderId,
-                unidadeOrgao_codigoUnidade,
-                unidadeOrgao_nomeUnidade,
-                modalidadeId,
-                modalidadeNome,
-                valorInicial,
-                dataPublicacao,
-                dataVigenciaInicio,
-                dataVigenciaFim,
-                objetoContrato,
-                informacaoComplementar,
-                numeroProcesso,
-                linkSistemaOrigem,
-                dataInclusao,
-                dataAtualizacao,
-                usuarioNome
+            INSERT OR REPLACE INTO {self.dataset}.contratos (
+                numero_controle_pncp,
+                numero_controle_pncp_compra,
+                ano_contrato,
+                sequencial_contrato,
+                ano_compra,
+                sequencial_compra,
+                numero_contrato_empenho,
+                numero_retificacao,
+                processo,
+                cnpj_orgao,
+                razao_social_orgao,
+                poder_id,
+                esfera_id,
+                codigo_unidade,
+                nome_unidade,
+                uf_sigla,
+                uf_nome,
+                municipio_nome,
+                codigo_ibge,
+                cnpj_orgao_subrogado,
+                razao_social_orgao_subrogado,
+                codigo_unidade_subrogada,
+                nome_unidade_subrogada,
+                uf_sigla_subrogada,
+                ni_fornecedor,
+                tipo_pessoa,
+                nome_razao_social_fornecedor,
+                codigo_pais_fornecedor,
+                ni_fornecedor_subcontratado,
+                nome_fornecedor_subcontratado,
+                tipo_pessoa_subcontratada,
+                modalidade_id,
+                modalidade_nome,
+                tipo_contrato_id,
+                tipo_contrato_nome,
+                categoria_processo_id,
+                categoria_processo_nome,
+                receita,
+                valor_inicial,
+                valor_parcela,
+                valor_global,
+                valor_acumulado,
+                numero_parcelas,
+                data_publicacao,
+                data_publicacao_pncp,
+                data_assinatura,
+                data_vigencia_inicio,
+                data_vigencia_fim,
+                data_inclusao,
+                data_atualizacao,
+                data_atualizacao_global,
+                objeto_contrato,
+                informacao_complementar,
+                link_sistema_origem,
+                identificador_cipi,
+                url_cipi,
+                usuario_nome
             )
             SELECT
                 numeroControlePNCP,
+                numeroControlePncpCompra,
+                anoContrato,
+                sequencialContrato,
                 anoCompra,
                 sequencialCompra,
+                numeroContratoEmpenho,
+                COALESCE(numeroRetificacao, 0),
+                processo,
                 orgaoEntidade.cnpj,
                 orgaoEntidade.razaoSocial,
                 orgaoEntidade.poderId,
+                orgaoEntidade.esferaId,
                 unidadeOrgao.codigoUnidade,
                 unidadeOrgao.nomeUnidade,
+                unidadeOrgao.ufSigla,
+                unidadeOrgao.ufNome,
+                unidadeOrgao.municipioNome,
+                unidadeOrgao.codigoIbge,
+                orgaoSubRogado.cnpj,
+                orgaoSubRogado.razaoSocial,
+                unidadeSubRogada.codigoUnidade,
+                unidadeSubRogada.nomeUnidade,
+                unidadeSubRogada.ufSigla,
+                niFornecedor,
+                tipoPessoa,
+                nomeRazaoSocialFornecedor,
+                codigoPaisFornecedor,
+                niFornecedorSubContratado,
+                nomeFornecedorSubContratado,
+                tipoPessoaSubContratada,
                 modalidadeId,
                 modalidadeNome,
+                tipoContrato.id,
+                tipoContrato.nome,
+                categoriaProcesso.id,
+                categoriaProcesso.nome,
+                receita,
                 valorInicial,
+                valorParcela,
+                valorGlobal,
+                valorAcumulado,
+                numeroParcelas,
                 dataPublicacao,
-                dataVigenciaInicio,
-                dataVigenciaFim,
-                objetoContrato,
-                informacaoComplementar,
-                numeroProcesso,
-                linkSistemaOrigem,
+                dataPublicacaoPncp,
+                TRY_CAST(dataAssinatura AS DATE),
+                TRY_CAST(dataVigenciaInicio AS DATE),
+                TRY_CAST(dataVigenciaFim AS DATE),
                 dataInclusao,
                 dataAtualizacao,
+                dataAtualizacaoGlobal,
+                objetoContrato,
+                informacaoComplementar,
+                linkSistemaOrigem,
+                identificadorCipi,
+                urlCipi,
                 usuarioNome
             FROM arrow_table
         """
 
-        self._insert_slow_sql = f"""
-            INSERT OR IGNORE INTO {self.dataset}.contratos
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        # Dimension upsert SQLs — populated on each page insert
+        self._upsert_orgao_sql = f"""
+            INSERT INTO {self.dataset}.dim_orgaos
+                (cnpj, razao_social, poder_id, esfera_id, first_seen_at, last_seen_at, last_seen_resource)
+            VALUES (?, ?, ?, ?, NOW(), NOW(), 'contratos')
+            ON CONFLICT (cnpj) DO UPDATE SET
+                last_seen_at = NOW(),
+                razao_social = COALESCE(EXCLUDED.razao_social, dim_orgaos.razao_social)
+        """
+
+        self._upsert_unidade_sql = f"""
+            INSERT INTO {self.dataset}.dim_unidades
+                (codigo_unidade, cnpj_orgao, nome_unidade, uf_sigla, uf_nome,
+                 municipio_nome, codigo_ibge, last_seen_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+            ON CONFLICT (codigo_unidade, cnpj_orgao) DO UPDATE SET
+                last_seen_at = NOW()
+        """
+
+        self._upsert_fornecedor_sql = f"""
+            INSERT INTO {self.dataset}.dim_fornecedores
+                (ni_fornecedor, tipo_pessoa, nome_razao_social, codigo_pais,
+                 first_seen_at, last_seen_at)
+            VALUES (?, ?, ?, ?, NOW(), NOW())
+            ON CONFLICT (ni_fornecedor) DO UPDATE SET
+                last_seen_at = NOW(),
+                nome_razao_social = COALESCE(EXCLUDED.nome_razao_social, dim_fornecedores.nome_razao_social)
         """
 
     def _ensure_schema(self, con: duckdb.DuckDBPyConnection) -> None:
-        """Create schema and tables if they don't exist."""
-        # Data schema
+        """Create schema and tables if they don't exist.
+
+        Implements the normalized relational schema from the PNCP data model design.
+        Dimension tables (dim_*) are populated during ingestion.
+        Fact table (contratos) is the primary data store.
+        """
+        # ── Data schema ──────────────────────────────────────────────────────────
         con.execute(f"CREATE SCHEMA IF NOT EXISTS {self.dataset}")
+
+        # Dimension: government agencies
         con.execute(f"""
-            CREATE TABLE IF NOT EXISTS {self.dataset}.contratos (
-                numeroControlePNCP VARCHAR PRIMARY KEY,
-                anoCompra INTEGER,
-                sequencialCompra INTEGER,
-                orgaoEntidade_cnpj VARCHAR,
-                orgaoEntidade_razaoSocial VARCHAR,
-                orgaoEntidade_poderId VARCHAR,
-                unidadeOrgao_codigoUnidade VARCHAR,
-                unidadeOrgao_nomeUnidade VARCHAR,
-                modalidadeId INTEGER,
-                modalidadeNome VARCHAR,
-                valorInicial DECIMAL(18,2),
-                dataPublicacao TIMESTAMP,
-                dataVigenciaInicio TIMESTAMP,
-                dataVigenciaFim TIMESTAMP,
-                objetoContrato VARCHAR,
-                informacaoComplementar VARCHAR,
-                numeroProcesso VARCHAR,
-                linkSistemaOrigem VARCHAR,
-                dataInclusao TIMESTAMP,
-                dataAtualizacao TIMESTAMP,
-                usuarioNome VARCHAR
+            CREATE TABLE IF NOT EXISTS {self.dataset}.dim_orgaos (
+                cnpj                VARCHAR PRIMARY KEY,
+                razao_social        VARCHAR,
+                poder_id            VARCHAR,   -- E=Executive L=Legislative J=Judiciary
+                esfera_id           VARCHAR,   -- F=Federal E=Estadual M=Municipal D=DF
+                first_seen_at       TIMESTAMP,
+                last_seen_at        TIMESTAMP,
+                last_seen_resource  VARCHAR
             )
         """)
 
-        # State schema
+        # Dimension: administrative units (codigoUnidade is not globally unique)
+        con.execute(f"""
+            CREATE TABLE IF NOT EXISTS {self.dataset}.dim_unidades (
+                codigo_unidade      VARCHAR,
+                cnpj_orgao          VARCHAR,
+                nome_unidade        VARCHAR,
+                uf_sigla            VARCHAR,
+                uf_nome             VARCHAR,
+                municipio_nome      VARCHAR,
+                codigo_ibge         VARCHAR,
+                last_seen_at        TIMESTAMP,
+                PRIMARY KEY (codigo_unidade, cnpj_orgao)
+            )
+        """)
+
+        # Dimension: suppliers (the WHO got paid)
+        con.execute(f"""
+            CREATE TABLE IF NOT EXISTS {self.dataset}.dim_fornecedores (
+                ni_fornecedor       VARCHAR PRIMARY KEY,  -- CNPJ or CPF
+                tipo_pessoa         VARCHAR,              -- PJ/PF/PE
+                nome_razao_social   VARCHAR,
+                codigo_pais         VARCHAR,              -- for PE (foreign entities)
+                first_seen_at       TIMESTAMP,
+                last_seen_at        TIMESTAMP
+            )
+        """)
+
+        # Fact: signed contracts — full RecuperarContratoDTO surface
+        con.execute(f"""
+            CREATE TABLE IF NOT EXISTS {self.dataset}.contratos (
+                -- Identity
+                numero_controle_pncp            VARCHAR PRIMARY KEY,
+                numero_controle_pncp_compra     VARCHAR,   -- FK → contratacoes
+                ano_contrato                    INTEGER,
+                sequencial_contrato             INTEGER,
+                ano_compra                      INTEGER,   -- legacy compat
+                sequencial_compra               INTEGER,
+                numero_contrato_empenho         VARCHAR,
+                numero_retificacao              INTEGER DEFAULT 0,
+                processo                        VARCHAR,
+                -- Órgão contratante
+                cnpj_orgao                      VARCHAR,
+                razao_social_orgao              VARCHAR,
+                poder_id                        VARCHAR,
+                esfera_id                       VARCHAR,
+                codigo_unidade                  VARCHAR,
+                nome_unidade                    VARCHAR,
+                uf_sigla                        VARCHAR,
+                uf_nome                         VARCHAR,
+                municipio_nome                  VARCHAR,
+                codigo_ibge                     VARCHAR,
+                -- Órgão sub-rogado (nullable)
+                cnpj_orgao_subrogado            VARCHAR,
+                razao_social_orgao_subrogado    VARCHAR,
+                codigo_unidade_subrogada        VARCHAR,
+                nome_unidade_subrogada          VARCHAR,
+                uf_sigla_subrogada              VARCHAR,
+                -- Fornecedor
+                ni_fornecedor                   VARCHAR,   -- CNPJ or CPF
+                tipo_pessoa                     VARCHAR,   -- PJ/PF/PE
+                nome_razao_social_fornecedor    VARCHAR,
+                codigo_pais_fornecedor          VARCHAR,
+                ni_fornecedor_subcontratado     VARCHAR,
+                nome_fornecedor_subcontratado   VARCHAR,
+                tipo_pessoa_subcontratada       VARCHAR,
+                -- Classification
+                modalidade_id                   INTEGER,
+                modalidade_nome                 VARCHAR,
+                tipo_contrato_id                INTEGER,
+                tipo_contrato_nome              VARCHAR,
+                categoria_processo_id           INTEGER,
+                categoria_processo_nome         VARCHAR,
+                receita                         BOOLEAN,
+                -- Financial
+                valor_inicial                   DECIMAL(18,2),
+                valor_parcela                   DECIMAL(18,2),
+                valor_global                    DECIMAL(18,2),
+                valor_acumulado                 DECIMAL(18,2),
+                numero_parcelas                 INTEGER,
+                -- Dates
+                data_publicacao                 TIMESTAMP,  -- partition key
+                data_publicacao_pncp            TIMESTAMP,
+                data_assinatura                 DATE,
+                data_vigencia_inicio            DATE,
+                data_vigencia_fim               DATE,
+                data_inclusao                   TIMESTAMP,
+                data_atualizacao                TIMESTAMP,
+                data_atualizacao_global         TIMESTAMP,
+                -- Text / links
+                objeto_contrato                 VARCHAR,
+                informacao_complementar         VARCHAR,
+                link_sistema_origem             VARCHAR,
+                identificador_cipi              VARCHAR,
+                url_cipi                        VARCHAR,
+                -- Audit
+                usuario_nome                    VARCHAR
+            )
+        """)
+
+        # ── State schema ──────────────────────────────────────────────────────────
         con.execute("CREATE SCHEMA IF NOT EXISTS baliza_state")
         con.execute("""
             CREATE TABLE IF NOT EXISTS baliza_state.coverage (
@@ -337,7 +605,6 @@ class PNCPExtractor:
                 error_message VARCHAR
             )
         """)
-        # Checkpoint table for resumable extraction
         con.execute("""
             CREATE TABLE IF NOT EXISTS baliza_state.extraction_checkpoint (
                 resource VARCHAR,
@@ -350,7 +617,6 @@ class PNCPExtractor:
                 PRIMARY KEY (resource, extraction_date)
             )
         """)
-        # Track what's been uploaded to Internet Archive
         con.execute("""
             CREATE TABLE IF NOT EXISTS baliza_state.uploaded_to_ia (
                 item_id VARCHAR PRIMARY KEY,
@@ -360,7 +626,6 @@ class PNCPExtractor:
                 total_rows INTEGER
             )
         """)
-        # Track resource health for stall/circuit breaker detection
         con.execute("""
             CREATE TABLE IF NOT EXISTS baliza_state.resource_health (
                 resource VARCHAR PRIMARY KEY,
@@ -485,7 +750,7 @@ class PNCPExtractor:
             )
 
     def _insert_page(self, con: duckdb.DuckDBPyConnection, rows: list[dict[str, Any]]) -> int:
-        """Insert a single page of results immediately."""
+        """Insert a single page of results, updating dimension tables."""
         if not rows:
             return 0
 
@@ -494,75 +759,174 @@ class PNCPExtractor:
         try:
             arrow_table = pa.Table.from_pylist(rows, schema=PNCP_ARROW_SCHEMA)  # noqa: F841
 
-            # Optimization: Cast date strings to timestamps in Arrow
-            # This is ~40% faster than letting DuckDB parse strings during INSERT
-            # We rebuild the table once to avoid creating multiple intermediate Table objects
+            # Cast timestamp string columns to pa.timestamp for efficient DuckDB insertion
             new_columns = []
             new_fields = []
-
             for i, field in enumerate(arrow_table.schema):
                 col = arrow_table.column(i)
                 if field.name in TIMESTAMP_COLS:
-                    # pc.cast handles ISO 8601 strings efficiently
                     col = pc.cast(col, pa.timestamp("us"))
                     new_fields.append(field.with_type(pa.timestamp("us")))
                 else:
                     new_fields.append(field)
                 new_columns.append(col)
-
             arrow_table = pa.Table.from_arrays(new_columns, schema=pa.schema(new_fields))
 
         except Exception as e:
-            # Fallback for unexpected schema mismatches, though unlikely with explicit schema
             msg = scrub_url_params(str(e))
             console.print(
                 f"[yellow]Warning: Arrow conversion failed ({msg}), falling back to slow path"
             )
             return self._insert_page_slow(con, rows)
 
-        # Insert using SQL with struct accessors via replacement scan (faster than register/unregister)
-        # Note: Flattening happens in the SELECT statement
-        # We use 'arrow_table' variable name directly in the SQL query
-        # Optimization: Use pre-computed SQL string
+        # 1. Insert fact rows (INSERT OR REPLACE — idempotent on numero_controle_pncp)
         con.execute(self._insert_sql)
+
+        # 2. Upsert dimension tables from the same page data
+        #    These are best-effort: dimension misses don't block fact ingestion.
+        try:
+            for row in rows:
+                orgao = row.get("orgaoEntidade") or {}
+                unidade = row.get("unidadeOrgao") or {}
+                orgao_sub = row.get("orgaoSubRogado") or {}
+                unidade_sub = row.get("unidadeSubRogada") or {}
+
+                # Primary agency
+                if orgao.get("cnpj"):
+                    con.execute(self._upsert_orgao_sql, [
+                        orgao["cnpj"],
+                        orgao.get("razaoSocial"),
+                        orgao.get("poderId"),
+                        orgao.get("esferaId"),
+                    ])
+
+                # Administrative unit
+                if unidade.get("codigoUnidade") and orgao.get("cnpj"):
+                    con.execute(self._upsert_unidade_sql, [
+                        unidade["codigoUnidade"],
+                        orgao["cnpj"],
+                        unidade.get("nomeUnidade"),
+                        unidade.get("ufSigla"),
+                        unidade.get("ufNome"),
+                        unidade.get("municipioNome"),
+                        unidade.get("codigoIbge"),
+                    ])
+
+                # Sub-rogated agency (proxy)
+                if orgao_sub.get("cnpj"):
+                    con.execute(self._upsert_orgao_sql, [
+                        orgao_sub["cnpj"],
+                        orgao_sub.get("razaoSocial"),
+                        orgao_sub.get("poderId"),
+                        orgao_sub.get("esferaId"),
+                    ])
+                if unidade_sub.get("codigoUnidade") and orgao_sub.get("cnpj"):
+                    con.execute(self._upsert_unidade_sql, [
+                        unidade_sub["codigoUnidade"],
+                        orgao_sub["cnpj"],
+                        unidade_sub.get("nomeUnidade"),
+                        unidade_sub.get("ufSigla"),
+                        unidade_sub.get("ufNome"),
+                        unidade_sub.get("municipioNome"),
+                        unidade_sub.get("codigoIbge"),
+                    ])
+
+                # Supplier
+                ni = row.get("niFornecedor")
+                if ni:
+                    con.execute(self._upsert_fornecedor_sql, [
+                        ni,
+                        row.get("tipoPessoa"),
+                        row.get("nomeRazaoSocialFornecedor"),
+                        row.get("codigoPaisFornecedor"),
+                    ])
+
+        except Exception as dim_err:
+            msg = scrub_url_params(str(dim_err))
+            logger.warning("dim_upsert_failed", error=msg)
+            # Dimension failures are non-fatal — fact data was already committed
 
         return len(rows)
 
     def _insert_page_slow(self, con: duckdb.DuckDBPyConnection, rows: list[dict[str, Any]]) -> int:
-        """Fallback insertion method (legacy slow path)."""
-        values = []
+        """Fallback insertion method — pure Python, no Arrow dependency."""
+        inserted = 0
         for row in rows:
-            values.append(
-                (
+            orgao = row.get("orgaoEntidade") or {}
+            unidade = row.get("unidadeOrgao") or {}
+            orgao_sub = row.get("orgaoSubRogado") or {}
+            unidade_sub = row.get("unidadeSubRogada") or {}
+            tipo_contrato = row.get("tipoContrato") or {}
+            categoria = row.get("categoriaProcesso") or {}
+            con.execute(
+                f"""
+                INSERT OR REPLACE INTO {self.dataset}.contratos VALUES (
+                    ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,
+                    ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,
+                    ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
+                )""",
+                [
                     row.get("numeroControlePNCP"),
+                    row.get("numeroControlePncpCompra"),
+                    row.get("anoContrato"),
+                    row.get("sequencialContrato"),
                     row.get("anoCompra"),
                     row.get("sequencialCompra"),
-                    row.get("orgaoEntidade", {}).get("cnpj"),
-                    row.get("orgaoEntidade", {}).get("razaoSocial"),
-                    row.get("orgaoEntidade", {}).get("poderId"),
-                    row.get("unidadeOrgao", {}).get("codigoUnidade"),
-                    row.get("unidadeOrgao", {}).get("nomeUnidade"),
+                    row.get("numeroContratoEmpenho"),
+                    row.get("numeroRetificacao", 0),
+                    row.get("processo"),
+                    orgao.get("cnpj"),
+                    orgao.get("razaoSocial"),
+                    orgao.get("poderId"),
+                    orgao.get("esferaId"),
+                    unidade.get("codigoUnidade"),
+                    unidade.get("nomeUnidade"),
+                    unidade.get("ufSigla"),
+                    unidade.get("ufNome"),
+                    unidade.get("municipioNome"),
+                    unidade.get("codigoIbge"),
+                    orgao_sub.get("cnpj"),
+                    orgao_sub.get("razaoSocial"),
+                    unidade_sub.get("codigoUnidade"),
+                    unidade_sub.get("nomeUnidade"),
+                    unidade_sub.get("ufSigla"),
+                    row.get("niFornecedor"),
+                    row.get("tipoPessoa"),
+                    row.get("nomeRazaoSocialFornecedor"),
+                    row.get("codigoPaisFornecedor"),
+                    row.get("niFornecedorSubContratado"),
+                    row.get("nomeFornecedorSubContratado"),
+                    row.get("tipoPessoaSubContratada"),
                     row.get("modalidadeId"),
                     row.get("modalidadeNome"),
+                    tipo_contrato.get("id"),
+                    tipo_contrato.get("nome"),
+                    categoria.get("id"),
+                    categoria.get("nome"),
+                    row.get("receita"),
                     row.get("valorInicial"),
+                    row.get("valorParcela"),
+                    row.get("valorGlobal"),
+                    row.get("valorAcumulado"),
+                    row.get("numeroParcelas"),
                     row.get("dataPublicacao"),
+                    row.get("dataPublicacaoPncp"),
+                    row.get("dataAssinatura"),
                     row.get("dataVigenciaInicio"),
                     row.get("dataVigenciaFim"),
-                    row.get("objetoContrato"),
-                    row.get("informacaoComplementar"),
-                    row.get("numeroProcesso"),
-                    row.get("linkSistemaOrigem"),
                     row.get("dataInclusao"),
                     row.get("dataAtualizacao"),
+                    row.get("dataAtualizacaoGlobal"),
+                    row.get("objetoContrato"),
+                    row.get("informacaoComplementar"),
+                    row.get("linkSistemaOrigem"),
+                    row.get("identificadorCipi"),
+                    row.get("urlCipi"),
                     row.get("usuarioNome"),
-                )
+                ],
             )
-
-        # Insert or ignore (deduplication by primary key)
-        # Optimization: Use pre-computed SQL string
-        con.executemany(self._insert_slow_sql, values)
-
-        return len(values)
+            inserted += 1
+        return inserted
 
     def _extract_range_task(  # noqa: PLR0912, PLR0915
         self,
@@ -829,18 +1193,17 @@ class PNCPExtractor:
             result = con.execute(
                 f"""
                 SELECT COUNT(*) FROM {self.dataset}.contratos
-                WHERE dataPublicacao >= ? AND dataPublicacao < ?
+                WHERE data_publicacao >= ? AND data_publicacao < ?
             """,
                 [extraction_date.date(), next_day.date()],
             ).fetchone()
             row_count = result[0] if result else 0
 
             if row_count > 0:
-                # Delete only the data for this date
                 con.execute(
                     f"""
                     DELETE FROM {self.dataset}.contratos
-                    WHERE dataPublicacao >= ? AND dataPublicacao < ?
+                    WHERE data_publicacao >= ? AND data_publicacao < ?
                 """,
                     [extraction_date.date(), next_day.date()],
                 )
@@ -887,10 +1250,10 @@ class PNCPExtractor:
             # 3. Haven't been uploaded to IA yet
             result = con.execute(
                 f"""
-                SELECT DISTINCT CAST(dataPublicacao AS DATE) as dt
+                SELECT DISTINCT CAST(data_publicacao AS DATE) as dt
                 FROM {self.dataset}.contratos
-                WHERE dataPublicacao < ?
-                  AND CAST(dataPublicacao AS DATE) NOT IN (
+                WHERE data_publicacao < ?
+                  AND CAST(data_publicacao AS DATE) NOT IN (
                       SELECT extraction_date FROM baliza_state.uploaded_to_ia
                   )
                 ORDER BY dt
@@ -911,7 +1274,7 @@ class PNCPExtractor:
             # Rows by date
             by_date = con.execute(
                 f"""
-                SELECT CAST(dataPublicacao AS DATE) as dt, COUNT(*) as cnt
+                SELECT CAST(data_publicacao AS DATE) as dt, COUNT(*) as cnt
                 FROM {self.dataset}.contratos
                 GROUP BY dt
                 ORDER BY dt

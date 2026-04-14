@@ -208,7 +208,7 @@ def rows_already_extracted(db_with_checkpoint, count):
             con.execute(
                 f"""
                 INSERT OR IGNORE INTO {dataset}.contratos
-                (numeroControlePNCP, anoCompra, orgaoEntidade_cnpj, dataPublicacao)
+                (numero_controle_pncp, ano_compra, cnpj_orgao, data_publicacao)
                 VALUES (?, 2023, '12345678000190', '2023-01-15T10:00:00')
             """,
                 [f"CTRL-EXISTING-{i:04d}"],
@@ -282,12 +282,12 @@ def check_all_pages_extracted(resume_result, total):
     dataset = resume_result["dataset"]
 
     with duckdb.connect(str(db_path), read_only=True) as con:
-        # Count unique page numbers from numeroControlePNCP
+        # Count unique page numbers from numero_controle_pncp
         distinct_pages = con.execute(
             f"""
-            SELECT COUNT(DISTINCT SUBSTRING(numeroControlePNCP, 7, 1))
+            SELECT COUNT(DISTINCT SUBSTRING(numero_controle_pncp, 7, 1))
             FROM {dataset}.contratos
-            WHERE numeroControlePNCP LIKE 'CTRL-P%'
+            WHERE numero_controle_pncp LIKE 'CTRL-P%'
         """
         ).fetchone()[0]
 
