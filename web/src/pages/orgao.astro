@@ -1,0 +1,11 @@
+---
+import Layout from '../layouts/Layout.astro';
+import AgencyDetailView from '../components/AgencyDetailView.svelte';
+---
+
+<Layout 
+  title="Painel do Órgão" 
+  description="Consulte o perfil de compras e o histórico de contratações deste órgão público."
+>
+  <AgencyDetailView client:only="svelte" />
+</Layout>

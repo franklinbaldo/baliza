@@ -1,0 +1,31 @@
+---
+import Layout from '../layouts/Layout.astro';
+import DuckDBExplorer from '../components/DuckDBExplorer.svelte';
+---
+
+<Layout 
+  title="Explorador SQL" 
+  description="Execute consultas DuckDB WASM diretamente no navegador sobre os dados do PNCP."
+>
+  <div class="container">
+    <header class="page-header">
+      <h1>Explorador de Dados</h1>
+      <p>Consultas SQL de alta performance rodando 100% no seu navegador.</p>
+    </header>
+
+    <DuckDBExplorer client:load />
+  </div>
+</Layout>
+
+<style>
+  .page-header {
+    padding: var(--space-xl) 0 0;
+  }
+  h1 {
+    color: var(--color-primary);
+    margin-bottom: var(--space-xs);
+  }
+  p {
+    color: var(--color-secondary);
+  }
+</style>

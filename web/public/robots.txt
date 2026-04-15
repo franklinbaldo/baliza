@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://franklinbaldo.github.io/baliza/sitemap-index.xml
