@@ -591,11 +591,11 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
 ) -> None:
     """Unified sync: extracts missing dates and uploads to IA (greedy backwards sweep)."""
     start_time = datetime.now()
-    ia_access_key = os.environ.get("IA_ACCESS_KEY")
-    ia_secret_key = os.environ.get("IA_SECRET_KEY")
+    ia_access_key = os.environ.get("IA_ACCESS_KEY") or os.environ.get("IAS3_ACCESS_KEY")
+    ia_secret_key = os.environ.get("IA_SECRET_KEY") or os.environ.get("IAS3_SECRET_KEY")
 
     if not dry_run and (not ia_access_key or not ia_secret_key):
-        console.print("[red]✗ Missing IA_ACCESS_KEY or IA_SECRET_KEY in environment.[/red]")
+        console.print("[red]✗ Missing IA_ACCESS_KEY/IAS3_ACCESS_KEY or IA_SECRET_KEY/IAS3_SECRET_KEY in environment.[/red]")
         raise typer.Exit(1)
 
     uploader = IAUploader(db_path)
