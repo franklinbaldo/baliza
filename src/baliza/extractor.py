@@ -26,7 +26,7 @@ class PNCPExtractor:
     def __init__(
         self,
         engine: BalizaEngine,
-        base_url: str = "https://pncp.gov.br/api/pncp/v1",
+        base_url: str = "https://pncp.gov.br/api/consulta/v1",
         use_curl: bool = False,
     ):
         self.engine = engine
@@ -41,13 +41,16 @@ class PNCPExtractor:
         self.client = httpx.Client(headers=self.headers, timeout=30.0)
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
-    def fetch_page(self, resource: str, extraction_date: datetime, page: int = 1) -> dict[str, Any]:
+    def fetch_page(
+        self, resource: str, start_date: datetime, end_date: datetime, page: int = 1
+    ) -> dict[str, Any]:
         """Fetch a single page from the PNCP API with resumption support."""
-        date_iso = extraction_date.date().isoformat()
-        filename = Path(f"data/raw/{date_iso}/{resource}_p{page}.json")
+        # For directory naming, use YYYY-MM
+        month_str = start_date.strftime("%Y-%m")
+        filename = Path(f"data/raw/{month_str}/{resource}_p{page}.json")
 
         # RESUMABILITY: Check if valid file already exists
-        if filename.exists():
+        if filename.exists() and filename.stat().st_size > 0:
             try:
                 with open(filename) as f:
                     data = json.load(f)
@@ -58,13 +61,16 @@ class PNCPExtractor:
                 logger.warning("corrupt_cache_found", file=str(filename))
                 filename.unlink()
 
-        date_str = extraction_date.strftime("%Y-%m-%d")
+        start_str = start_date.strftime("%Y%m%d")
+        end_str = end_date.strftime("%Y%m%d")
         url = f"{self.base_url}/{resource}"
-        params = {
-            "dataPublicacao": date_str,
+        params: dict[str, str | int] = {
+            "dataInicial": start_str,
+            "dataFinal": end_str,
             "pagina": page,
-            "tamanhoPagina": 500,
+            "tamanhoPagina": 100,
         }
+        logger.info("fetching_page_params", resource=resource, url=url, params=params)
 
         if self.use_curl:
             try:
@@ -76,14 +82,14 @@ class PNCPExtractor:
                         "accept: */*",
                         "-H",
                         f"User-Agent: {self.headers['User-Agent']}",
-                        f"{url}?dataPublicacao={date_str}&pagina={page}&tamanhoPagina=500",
+                        f"{url}?dataInicial={start_str}&dataFinal={end_str}&pagina={page}&tamanhoPagina=500",
                     ],
                     capture_output=True,
                     text=True,
                     check=True,
                 )
                 data = json.loads(result.stdout)
-                self._save_raw(resource, extraction_date, page, data)
+                self._save_raw(resource, start_date, page, data)
                 return data
             except Exception:
                 raise
@@ -91,13 +97,13 @@ class PNCPExtractor:
         resp = self.client.get(url, params=params)
         resp.raise_for_status()
         data = resp.json()
-        self._save_raw(resource, extraction_date, page, data)
+        self._save_raw(resource, start_date, page, data)
         return data
 
-    def _save_raw(self, resource: str, extraction_date: datetime, page: int, data: dict[str, Any]):
+    def _save_raw(self, resource: str, start_date: datetime, page: int, data: dict[str, Any]):
         """Save raw JSON payload to disk with deterministic name."""
-        date_iso = extraction_date.date().isoformat()
-        raw_dir = Path("data/raw") / date_iso
+        month_str = start_date.strftime("%Y-%m")
+        raw_dir = Path("data/raw") / month_str
         raw_dir.mkdir(parents=True, exist_ok=True)
 
         # Deterministic filename for resumability
@@ -105,18 +111,18 @@ class PNCPExtractor:
         with open(filename, "w") as f:
             json.dump(data, f, ensure_ascii=False)
 
-    def probe_date(self, resource: str, extraction_date: datetime) -> dict[str, Any]:
-        """Fetch page 1 to determine total pages and registry count."""
-        data = self.fetch_page(resource, extraction_date, page=1)
+    def probe_range(self, resource: str, start_date: datetime, end_date: datetime) -> dict[str, Any]:
+        """Fetch page 1 to determine total pages and registry count for a range."""
+        data = self.fetch_page(resource, start_date, end_date, page=1)
         return {
             "total_pages": data.get("totalPaginas", 1),
             "total_registries": data.get("totalRegistros", 0),
         }
 
-    def ingest_day(self, extraction_date: datetime) -> dict[str, int]:
-        """Validate and ingest all raw JSON files for a specific day into the shared engine."""
-        date_iso = extraction_date.date().isoformat()
-        raw_dir = Path("data/raw") / date_iso
+    def ingest_range(self, start_date: datetime) -> dict[str, int]:
+        """Validate and ingest all raw JSON files for a specific month/range into the shared engine."""
+        month_str = start_date.strftime("%Y-%m")
+        raw_dir = Path("data/raw") / month_str
 
         stats = {"valid": 0, "quarantine": 0}
 
@@ -139,7 +145,7 @@ class PNCPExtractor:
                 except ValidationError as e:
                     stats["quarantine"] += 1
                     logger.warning("validation_failed", error=str(e), entry_id=entry.get("id"))
-                    self.engine.quarantine_record("contratos", extraction_date, str(e), entry)
+                    self.engine.quarantine_record("contratos", start_date, str(e), entry)
 
             # Ingest valid rows into Ibis (shared engine) via UPSERT
             if valid_rows:

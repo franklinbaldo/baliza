@@ -34,6 +34,10 @@ class BalizaEngine:
         self._ensure_schema("main")
         self._ensure_schema("baliza_state")
 
+    def connect_thread_safe(self) -> 'BalizaEngine':
+        """Return a new engine instance sharing the same database path but with a fresh connection."""
+        return BalizaEngine(db_path=self.path)
+
     def _ensure_schema(self, schema_name: str = "baliza_state"):
         """Create a schema and necessary state tables if they don't exist."""
         try:

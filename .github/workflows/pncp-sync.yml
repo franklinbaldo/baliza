@@ -24,10 +24,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Get current month for cache key
+        id: get-cache-key
+        run: echo "month=$(date +'%Y-%m')" >> $GITHUB_OUTPUT
+
       - name: Setup uv
         uses: astral-sh/setup-uv@v4
         with:
           version: "latest"
+
+      - name: Restore Raw Data Cache
+        uses: actions/cache/restore@v4
+        with:
+          path: data/raw
+          key: pncp-raw-${{ steps.get-cache-key.outputs.month }}-${{ github.run_id }}
+          restore-keys: |
+            pncp-raw-${{ steps.get-cache-key.outputs.month }}-
 
       - name: Install dependencies
         run: uv sync
@@ -41,3 +53,10 @@ jobs:
           uv run baliza sync \
             --start-date "${{ github.event.inputs.start_date || '2023-01-01' }}" \
             --limit-minutes 340
+
+      - name: Save Raw Data Cache (Always)
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: data/raw
+          key: pncp-raw-${{ steps.get-cache-key.outputs.month }}-${{ github.run_id }}
