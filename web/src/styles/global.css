@@ -81,6 +81,11 @@ html {
   background: var(--color-base-100);
 }
 
+*:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
 h1, h2 { font-family: var(--font-serif); font-weight: 400; }
 h3, h4, h5, h6 { font-family: var(--font-sans); }
 
@@ -98,7 +103,7 @@ h3 { font-size: var(--font-size-xl); }
 
 .card:hover {
   border-color: var(--color-primary);
-  box-shadow: var(--shadow-glow);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05), var(--shadow-glow);
   transform: translateY(-2px);
 }
 
