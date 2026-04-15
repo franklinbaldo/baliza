@@ -15,6 +15,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.progress import (
     BarColumn,
+    MofNCompleteColumn,
     Progress,
     SpinnerColumn,
     TaskID,
@@ -659,22 +660,20 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
         console.print("[green]✓ Everything up to date.[/green]")
         return
 
-    console.print(
-        f"Syncing up to {len(batch)} dates"
-        + (f" (timeout: {limit_minutes}m)" if limit_minutes else "")
-    )
-
     # 2. Orchestration logic
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
+        BarColumn(bar_width=None),
         TaskProgressColumn(),
+        MofNCompleteColumn(),
         TimeElapsedColumn(),
         console=console,
         refresh_per_second=4,  # Smoother UI
+        expand=True,
     ) as progress:
         # Global Summary Tasks
+        overall_task = progress.add_task("[bold white]Overall Progress[/bold white]", total=len(batch))
         probe_task = progress.add_task("[bold cyan]Probing Dates[/bold cyan]", total=len(batch))
         fetch_task = progress.add_task("[bold magenta]Global Fetch Queue[/bold magenta]", total=0)
         upload_task = progress.add_task(
@@ -707,7 +706,7 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                         progress.update(probe_task, advance=1)
 
                         if tp == 0:
-                            progress.update(upload_task, advance=1)
+                            progress.update(overall_task, advance=1)
                             return False
 
                         # Show progress bar for this day if it has more than 1 page (or even if it has 1)
@@ -771,9 +770,9 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                     del day_tasks[t_date]
 
                 progress.update(
-                    upload_task,
+                    overall_task,
                     advance=1,
-                    description=f"[bold green]Uploaded {t_date}[/bold green]",
+                    description=f"[bold white]Processed {t_date}[/bold white]",
                 )
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
