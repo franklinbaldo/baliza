@@ -9,6 +9,7 @@ from __future__ import annotations
 import concurrent.futures
 import json
 import threading
+import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, TypedDict
@@ -1175,12 +1176,20 @@ class PNCPExtractor:
                 )
 
                 with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
-                    futures = {
-                        executor.submit(
-                            self._extract_range_task, date, date, resource, progress, deadline
-                        ): date
-                        for date in dates
-                    }
+                    futures = {}
+                    # Calculate delay to hit target requests per second (1.0 default)
+                    # This ensures we don't 'burst' all workers at once
+                    delay = 0.5  # 2 requests per second cadence for submission
+                    
+                    for date in dates:
+                        f = executor.submit(
+                            self._extract_range_task, date, date, resource, progress,
+                            deadline
+                        )
+                        futures[f] = date
+                        # Stagger the submissions of next tasks
+                        if len(dates) > 1:
+                            time.sleep(delay)
 
                     for future in concurrent.futures.as_completed(futures):
                         date = futures[future]
