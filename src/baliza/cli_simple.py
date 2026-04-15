@@ -137,6 +137,14 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
 
                 def finish_day(t_date: date):
                     try:
+                        # Ensure task exists and update status
+                        if t_date not in day_tasks:
+                            day_tasks[t_date] = progress.add_task(
+                                f"[dim]Day {t_date}[/dim] [magenta][Ingesting][/magenta]", total=1, completed=0
+                            )
+                        else:
+                            progress.update(day_tasks[t_date], description=f"[dim]Day {t_date}[/dim] [magenta][Ingesting][/magenta]")
+
                         # 1. Ingest (Stateless Pydantic + Shared Ibis Engine)
                         stats = extractor.ingest_day(datetime.combine(t_date, datetime.min.time()))
 
@@ -147,6 +155,7 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                         )
 
                         if not dry_run:
+                            progress.update(day_tasks[t_date], description=f"[dim]Day {t_date}[/dim] [cyan][Uploading][/cyan]")
                             # 3. Upload Parquet + Raw Zip + Quarantine CSV
                             if not ia_access_key or not ia_secret_key:
                                 raise ValueError("Missing IA credentials for upload")
@@ -168,6 +177,7 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                             q_csv.unlink()
 
                         if t_date in day_tasks:
+                            # Mark as finished and remove
                             progress.remove_task(day_tasks[t_date])
                             del day_tasks[t_date]
                         progress.update(overall_task, advance=1)
@@ -175,8 +185,9 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                         console.print(
                             f"[bold red]✗ Fatal error processing {t_date}: {e}[/bold red]"
                         )
-                        # We don't re-raise here to avoid killing the entire worker pool,
-                        # but the overall task will show it didn't complete.
+                        if t_date in day_tasks:
+                            progress.remove_task(day_tasks[t_date])
+                            del day_tasks[t_date]
 
                 # DISPATCH LOOP
                 for target_date in batch:
@@ -189,6 +200,11 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                         break
 
                     # Dispatch Probes
+                    # UI: Create task for probing
+                    day_tasks[target_date] = progress.add_task(
+                        f"[dim]Day {target_date}[/dim] [yellow][Probing][/yellow]", total=1, completed=0
+                    )
+                    
                     f = executor.submit(
                         extractor.probe_date,
                         "contratos",
@@ -211,11 +227,15 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                                     tp = res["total_pages"]
                                     progress.update(probe_task, advance=1)
                                     if tp <= 1:  # Done or 1 page (probe already saved p1)
+                                        # Keep the task for Ingesting/Uploading phase
                                         finish_day(t_date)
                                     else:
-                                        # Queue remaining pages
-                                        day_tasks[t_date] = progress.add_task(
-                                            f"[dim]Day {t_date}[/dim]", total=tp, completed=1
+                                        # Update task for Fetching phase
+                                        progress.update(
+                                            day_tasks[t_date],
+                                            description=f"[dim]Day {t_date}[/dim] [blue][Fetching][/blue]",
+                                            total=tp,
+                                            completed=1
                                         )
                                         progress.update(
                                             fetch_task,
@@ -231,6 +251,9 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                                             futures[pf] = ("fetch", t_date, p)
                             except Exception as e:
                                 console.print(f"[red]✗ {task_type} {t_date} failed: {e}[/red]")
+                                if t_date in day_tasks:
+                                    progress.remove_task(day_tasks[t_date])
+                                    del day_tasks[t_date]
 
                 # Final drain
                 for f in concurrent.futures.as_completed(futures):
@@ -239,10 +262,11 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                         res = f.result()
                         if task_type == "fetch":
                             progress.update(fetch_task, advance=1)
-                            progress.update(day_tasks[t_date], advance=1)
-                            # Check if day is complete
-                            if progress.tasks[day_tasks[t_date]].finished:
-                                finish_day(t_date)
+                            if t_date in day_tasks:
+                                progress.update(day_tasks[t_date], advance=1)
+                                # Check if day is complete
+                                if progress.tasks[day_tasks[t_date]].finished:
+                                    finish_day(t_date)
                         elif task_type == "probe":
                             progress.update(probe_task, advance=1)
                             tp = res["total_pages"]
@@ -250,12 +274,20 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                                 finish_day(t_date)
                             else:
                                 # This rarely happens in the drain phase unless workers=1 and only 1 day
-                                day_tasks[t_date] = progress.add_task(
-                                    f"[dim]Day {t_date}[/dim]", total=tp, completed=1
+                                progress.update(
+                                    day_tasks[t_date],
+                                    description=f"[dim]Day {t_date}[/dim] [blue][Fetching][/blue]",
+                                    total=tp,
+                                    completed=1
                                 )
                                 finish_day(t_date)  # Fallback
                     except Exception as e:
                         console.print(f"[red]✗ {t_date} drain error: {e}[/red]")
+                        if t_date in day_tasks:
+                            progress.remove_task(day_tasks[t_date])
+                            del day_tasks[t_date]
+
+        console.print(Panel("[bold green]✓ Sync Cycle Complete[/bold green]", expand=False))
 
     console.print(Panel("[bold green]✓ Sync Cycle Complete[/bold green]", expand=False))
 

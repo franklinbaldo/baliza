@@ -24,8 +24,7 @@
         if (!res.ok) throw new Error("Contratação não localizada no PNCP.");
         return (await res.json()) as PNCPContract;
       } catch (err: unknown) {
-        const error = err as Error;
-        throw new Error(error.message || "Erro ao consultar contrato.", { cause: err });
+        throw new Error(err instanceof Error ? err.message : "Erro ao consultar contrato.", { cause: err });
       }
     },
     enabled: !!id
@@ -33,7 +32,7 @@
 
   const data = $derived(contractQuery.data);
   const loading = $derived(contractQuery.isFetching);
-  const error = $derived(contractQuery.error as Error | null);
+  const error = $derived(contractQuery.error instanceof Error ? contractQuery.error : null);
 </script>
 
 <div class="contract-view container">
@@ -69,7 +68,7 @@
       <section class="card">
         <h3>Itens da Licitação</h3>
         <ul class="item-list">
-          {#each (data as any).itens || [] as item (item.sequencialItem)}
+          {#each data.itens || [] as item (item.sequencialItem)}
             <li>{item.descricao}</li>
           {/each}
         </ul>

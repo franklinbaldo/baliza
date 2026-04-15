@@ -17,6 +17,11 @@ export interface PNCPContract {
   municipio?: {
     nomeMunicipio: string;
   };
+  modalidadeNome?: string;
+  situacaoNome?: string;
+  anoCompra?: number;
+  sequencialCompra?: number;
+  itens?: any[]; 
 }
 
 export interface PNCPAgency {

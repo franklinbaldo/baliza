@@ -10,7 +10,7 @@ logger = structlog.get_logger()
 
 
 class BalizaEngine:
-    """Ibis-based backend for DuckDB. Statless by default (in-memory)."""
+    """Ibis-based backend for DuckDB. Stateless by default (in-memory)."""
 
     def __init__(self, db_path: Path | str | None = None, connection: Any = None):
         """Initialize engine.
@@ -38,6 +38,7 @@ class BalizaEngine:
         """Create a schema and necessary state tables if they don't exist."""
         try:
             # DDL for schema still uses raw_sql as per Ibis standard for DuckDB
+            # This is acceptable as it's part of connection setup, but we'll try to reach for con.create_database if needed
             self.con.raw_sql(f"CREATE SCHEMA IF NOT EXISTS {schema_name}")
 
             # Create quarantine table if it's the state schema
@@ -60,70 +61,53 @@ class BalizaEngine:
             raise RuntimeError(f"Could not initialize schema {schema_name}") from e
 
     def upsert_rows(
-        self, data: list[dict[str, Any]], table_name: str, schema: str = "main", pk: str = "numeroControlePNCP"
+        self,
+        data: list[dict[str, Any]],
+        table_name: str,
+        schema: str = "main",
+        pk: str = "numeroControlePNCP",
     ) -> int:
-        """Upsert a list of dictionaries into a table using Ibis/DuckDB."""
+        """Upsert rows using pure Ibis logic (Union + Overwrite)."""
         if not data:
             return 0
 
         # Create a memtable from the new data
         t_new = ibis.memtable(data)
-        
-        # Ensure no NULL typed columns (DuckDB hates them)
+
+        # Ensure no NULL typed columns in the memtable for DuckDB compatibility
         new_schema = {}
         for name, dtype in t_new.schema().items():
-            if str(dtype).lower() in ("null", "nulltype", "null-type"):
+            dtype_str = str(dtype).lower()
+            if dtype_str in ("null", "nulltype", "null-type"):
                 new_schema[name] = "string"
+            elif "timestamp" in dtype_str:
+                new_schema[name] = "timestamp"
             else:
                 new_schema[name] = dtype
         t_new = t_new.cast(new_schema)
 
-        # Check if table exists
         tables = self.con.list_tables(database=schema)
-        if table_name not in tables:
-            # Create table with Primary Key (requires raw_sql for PK constraint in DuckDB)
-            # We first extract the schema from the memtable
-            schema_def = t_new.schema()
-            columns = []
-            # Improved mapping for DuckDB
-            type_map = {
-                "string": "VARCHAR",
-                "int64": "BIGINT",
-                "float64": "DOUBLE",
-                "timestamp": "TIMESTAMP",
-                "timestamp('UTC')": "TIMESTAMP WITH TIME ZONE",
-                "boolean": "BOOLEAN",
-                "date": "DATE",
-                "null": "VARCHAR",
-                "nulltype": "VARCHAR",
-            }
+        if table_name in tables:
+            # PURE IBIS UPSERT:
+            # 1. Get existing table
+            t_existing = self.con.table(table_name, database=schema)
             
-            for name, dtype in schema_def.items():
-                dtype_str = str(dtype).lower()
-                sql_type = type_map.get(dtype_str, "VARCHAR") # Fallback to VARCHAR
-                
-                if name == pk:
-                    columns.append(f'"{name}" {sql_type} PRIMARY KEY')
-                else:
-                    columns.append(f'"{name}" {sql_type}')
-            
-            cols_str = ", ".join(columns)
-            sql = f'CREATE TABLE {schema}."{table_name}" ({cols_str})'
-            self.con.raw_sql(sql)
-            self.con.insert(table_name, t_new, database=schema)
+            # 2. ALIGN SCHEMAS: Force new data to match existing DB schema exactly 
+            # (resolves DuckDB timestamp vs timestamp(6) conflicts)
+            try:
+                t_new = t_new.cast(t_existing.schema())
+            except Exception:
+                # Fallback if Ibis cast fails (e.g. new columns added in code)
+                pass
+
+            # 3. Filter out rows that are in the new batch (based on PK)
+            # 4. Union with new batch
+            t_combined = ibis.union(t_existing.filter(~t_existing[pk].isin(t_new[pk])), t_new)
+            # 5. Overwrite table
+            self.con.create_table(table_name, t_combined, database=schema, overwrite=True)
         else:
-            # Use DuckDB's INSERT OR REPLACE for idempotency
-            # This requires the table to have a PRIMARY KEY constraint
-            temp_name = f"tmp_{table_name}_{datetime.now().strftime('%H%M%S')}"
-            self.con.create_table(temp_name, t_new, temp=True)
-            
-            # native DuckDB UPSERT
-            sql = f"""
-                INSERT OR REPLACE INTO {schema}."{table_name}"
-                SELECT * FROM {temp_name}
-            """
-            self.con.raw_sql(sql)
-            self.con.drop_table(temp_name)
+            # Simple creation
+            self.con.create_table(table_name, t_new, database=schema)
 
         return len(data)
 
@@ -131,9 +115,14 @@ class BalizaEngine:
         """DEPRECATED: Use upsert_rows instead. Ingest a JSONL file."""
         if not Path(json_path).exists():
             return 0
+        
+        # Load as Ibis table
         t = self.con.read_json(str(json_path))
-        self.con.insert(table_name, t, database=schema)
-        return t.count().execute()
+        
+        # Call upsert_rows to ensure idempotency even for JSONL ingestion
+        # (This is more consistent than just calling self.con.insert)
+        data = t.execute().to_dict("records")
+        return self.upsert_rows(data, table_name, schema=schema)
 
     def get_table(self, table_name: str, schema: str = "main"):
         """Return an Ibis table expression."""

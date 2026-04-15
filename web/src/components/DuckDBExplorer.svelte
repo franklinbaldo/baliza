@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
   import * as duckdb from '@duckdb/duckdb-wasm';
   import { fade } from 'svelte/transition';
   import { getDuckDB } from '../lib/duckdb';
@@ -16,9 +15,9 @@
       const { conn } = await getDuckDB();
       const res = await conn.query(query);
       results = res.toArray().map((r: any) => r.toJSON());
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      error = err.message || "Erro ao executar consulta SQL.";
+      error = err instanceof Error ? err.message : "Erro ao executar consulta SQL.";
     } finally {
       loading = false;
     }

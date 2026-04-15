@@ -5,7 +5,6 @@
 
   setQueryClientContext(getQueryClient());
 
-
   const { ibge = "" } = $props();
 
   const cityQuery = createQuery(() => ({
@@ -32,8 +31,7 @@
           contracts: data.data || [] 
         };
       } catch (err: unknown) {
-        const error = err as Error;
-        throw new Error(error.message || "Erro ao consultar o município.", { cause: err });
+        throw new Error(err instanceof Error ? err.message : "Erro ao consultar o município.", { cause: err });
       }
     },
     enabled: !!ibge
@@ -41,7 +39,7 @@
 
   const data = $derived(cityQuery.data);
   const loading = $derived(cityQuery.isFetching);
-  const error = $derived(cityQuery.error as Error | null);
+  const error = $derived(cityQuery.error instanceof Error ? cityQuery.error : null);
 </script>
 
 <div class="city-detail container">
