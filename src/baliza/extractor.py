@@ -277,6 +277,10 @@ def _fetch_page(
         ValueError: If response exceeds max_size
     """
     with client.stream("GET", url, params=params) as response:
+        if response.status_code == 404:
+            # PNCP returns 404 if no records found for the date/filters
+            return {"data": [], "totalPaginas": 0, "totalRegistros": 0}
+            
         response.raise_for_status()
 
         chunks = []
