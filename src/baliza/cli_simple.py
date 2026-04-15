@@ -585,7 +585,7 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
     db_path: Path = typer.Option(Path("baliza.duckdb"), "--duckdb", help="DuckDB file"),
     dataset: str = typer.Option("baliza_raw", "--dataset", help="Dataset name"),
     force_date: str | None = typer.Option(None, "--force-date", help="Target a specific date regardless of manifest"),
-    limit_minutes: int = typer.Option(330, "--limit-minutes", help="Gracefully stop after N minutes"),
+    limit_minutes: int | None = typer.Option(None, "--limit-minutes", help="Gracefully stop after N minutes"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done without uploading"),
     workers: int = typer.Option(4, "--workers", "-w", help="Parallel workers for page extraction"),
 ) -> None:
@@ -632,14 +632,14 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
         console.print("[green]✓ Everything up to date.[/green]")
         return
 
-    console.print(f"Syncing up to {len(batch)} dates (timeout: {limit_minutes}m)")
+    console.print(f"Syncing up to {len(batch)} dates" + (f" (timeout: {limit_minutes}m)" if limit_minutes else ""))
 
     # 2. Process batch
     with PNCPExtractor(db_path, dataset) as extractor:
         for target_date in batch:
             # Time check
             elapsed = (datetime.now() - start_time).total_seconds() / 60
-            if elapsed >= limit_minutes:
+            if limit_minutes and elapsed >= limit_minutes:
                 console.print(f"\n[yellow]⚠ Time limit reached ({limit_minutes}m). Stopping gracefully.[/yellow]")
                 break
 
