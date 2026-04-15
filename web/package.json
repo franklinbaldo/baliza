@@ -1,6 +1,6 @@
 {
   "name": "baliza-web",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "scripts": {
     "dev": "node scripts/build-data.mjs && astro dev",
@@ -13,15 +13,15 @@
   "dependencies": {
     "@astrojs/check": "^0.9.8",
     "@astrojs/sitemap": "^3.7.2",
-    "@astrojs/svelte": "^7.2.5",
+    "@astrojs/svelte": "^8.0.5",
     "@duckdb/duckdb-wasm": "^1.33.1-dev45.0",
     "@observablehq/plot": "^0.6.0",
     "@tanstack/svelte-query": "^6.1.14",
-    "astro": "^5.18.1",
-    "lucide-svelte": "^0.470.0",
+    "astro": "^6.1.7",
+    "lucide-svelte": "^1.0.1",
     "papaparse": "^5.4.1",
     "svelte": "^5.55.2",
-    "zod": "^3.25.76"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -38,7 +38,7 @@
     "prettier": "^3.8.3",
     "svelte-check": "^4.4.6",
     "svelte-eslint-parser": "^1.6.0",
-    "typescript": "~5.9.3",
+    "typescript": "^5.7.3",
     "typescript-eslint": "^8.58.2"
   }
 }
