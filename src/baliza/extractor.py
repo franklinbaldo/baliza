@@ -1131,7 +1131,7 @@ class PNCPExtractor:
         }
 
     def fetch_page(self, resource: str, extraction_date: datetime, page: int) -> int:
-        """Fetch a specific page and insert into DuckDB."""
+        """Fetch a specific page and save to raw JSONL file."""
         data_inicial = extraction_date.strftime("%Y%m%d")
         data_final = extraction_date.strftime("%Y%m%d")
         url = f"{self.base_url}/{resource}"
@@ -1141,16 +1141,50 @@ class PNCPExtractor:
             "tamanhoPagina": 500,
             "pagina": page,
         }
-        
-        data = _fetch_page(self.client, url, params)
-        rows = data.get("data", [])
+        res = _fetch_page(self.client, url, params)
+        rows = res.get("data", [])
         if not rows:
             return 0
             
+        # Save to raw staging area
+        day_str = extraction_date.strftime("%Y-%m-%d")
+        raw_dir = Path("data/raw") / day_str
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        
+        raw_file = raw_dir / f"page_{page:04d}.jsonl"
+        with raw_file.open("w", encoding="utf-8") as f:
+            for row in rows:
+                f.write(json.dumps(row, ensure_ascii=False) + "\n")
+        
+        return len(rows)
+
+    def ingest_day(self, extraction_date: datetime) -> int:
+        """Ingest all JSONL files for a day into DuckDB in one go."""
+        day_str = extraction_date.strftime("%Y-%m-%d")
+        raw_dir = Path("data/raw") / day_str
+        if not raw_dir.exists():
+            return 0
+            
+        jsonl_files = list(raw_dir.glob("*.jsonl"))
+        if not jsonl_files:
+            return 0
+            
+        total_ingested = 0
         with self._db_lock:
-            with duckdb.connect(str(self.db_path)) as con:
+            with duckdb.connect(str(self.db_path), config={"access_mode": "READ_WRITE"}) as con:
                 self._ensure_schema(con)
-                return self._insert_page(con, rows)
+                
+                # Combine all rows from all pages
+                all_rows = []
+                for jf in jsonl_files:
+                    with jf.open("r", encoding="utf-8") as f:
+                        for line in f:
+                            all_rows.append(json.loads(line))
+                
+                if all_rows:
+                    total_ingested = self._insert_page(con, all_rows)
+        
+        return total_ingested
 
     def extract(
         self,

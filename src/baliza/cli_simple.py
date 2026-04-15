@@ -691,8 +691,21 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                         progress.update(fetch_task, advance=1)
                         if day_to_pages[t_date] == 0:
                             if not dry_run:
+                                # 1. Bulk Ingest JSONL to DuckDB (Sequentially handled here)
+                                ingested_count = extractor.ingest_day(datetime.combine(t_date, datetime.min.time()))
+                                progress.console.print(f"[blue]ℹ Ingested {ingested_count} records for {t_date}[/blue]")
+                                
+                                # 2. Upload to IA
                                 uploader.upload_day(t_date, Path("data/daily"), ia_access_key, ia_secret_key)
                                 extractor.cleanup_uploaded(datetime.combine(t_date, datetime.min.time()))
+                                
+                                # 3. Cleanup raw staging
+                                raw_dir = Path("data/raw") / t_date.strftime("%Y-%m-%d")
+                                if raw_dir.exists():
+                                    for f in raw_dir.glob("*"):
+                                        f.unlink()
+                                    raw_dir.rmdir()
+                                    
                             progress.update(upload_task, advance=1, description=f"[bold green]Uploaded {t_date}[/bold green]")
                         return True
                 except Exception as e:
