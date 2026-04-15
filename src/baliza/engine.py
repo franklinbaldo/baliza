@@ -59,21 +59,80 @@ class BalizaEngine:
             logger.error("schema_init_failed", schema=schema_name, error=str(e))
             raise RuntimeError(f"Could not initialize schema {schema_name}") from e
 
-    def ingest_json(self, json_path: Path, table_name: str, schema: str = "main") -> int:
-        """Ingest a JSON file into a table using Ibis."""
-        if not Path(json_path).exists():
+    def upsert_rows(
+        self, data: list[dict[str, Any]], table_name: str, schema: str = "main", pk: str = "numeroControlePNCP"
+    ) -> int:
+        """Upsert a list of dictionaries into a table using Ibis/DuckDB."""
+        if not data:
             return 0
 
-        # Read JSON using Ibis/DuckDB
-        t = self.con.read_json(str(json_path))
+        # Create a memtable from the new data
+        t_new = ibis.memtable(data)
+        
+        # Ensure no NULL typed columns (DuckDB hates them)
+        new_schema = {}
+        for name, dtype in t_new.schema().items():
+            if str(dtype).lower() in ("null", "nulltype", "null-type"):
+                new_schema[name] = "string"
+            else:
+                new_schema[name] = dtype
+        t_new = t_new.cast(new_schema)
 
-        # Schema-qualified table check
+        # Check if table exists
         tables = self.con.list_tables(database=schema)
-        if table_name in tables:
-            self.con.insert(table_name, t, database=schema)
+        if table_name not in tables:
+            # Create table with Primary Key (requires raw_sql for PK constraint in DuckDB)
+            # We first extract the schema from the memtable
+            schema_def = t_new.schema()
+            columns = []
+            # Improved mapping for DuckDB
+            type_map = {
+                "string": "VARCHAR",
+                "int64": "BIGINT",
+                "float64": "DOUBLE",
+                "timestamp": "TIMESTAMP",
+                "timestamp('UTC')": "TIMESTAMP WITH TIME ZONE",
+                "boolean": "BOOLEAN",
+                "date": "DATE",
+                "null": "VARCHAR",
+                "nulltype": "VARCHAR",
+            }
+            
+            for name, dtype in schema_def.items():
+                dtype_str = str(dtype).lower()
+                sql_type = type_map.get(dtype_str, "VARCHAR") # Fallback to VARCHAR
+                
+                if name == pk:
+                    columns.append(f'"{name}" {sql_type} PRIMARY KEY')
+                else:
+                    columns.append(f'"{name}" {sql_type}')
+            
+            cols_str = ", ".join(columns)
+            sql = f'CREATE TABLE {schema}."{table_name}" ({cols_str})'
+            self.con.raw_sql(sql)
+            self.con.insert(table_name, t_new, database=schema)
         else:
-            self.con.create_table(table_name, t, database=schema)
+            # Use DuckDB's INSERT OR REPLACE for idempotency
+            # This requires the table to have a PRIMARY KEY constraint
+            temp_name = f"tmp_{table_name}_{datetime.now().strftime('%H%M%S')}"
+            self.con.create_table(temp_name, t_new, temp=True)
+            
+            # native DuckDB UPSERT
+            sql = f"""
+                INSERT OR REPLACE INTO {schema}."{table_name}"
+                SELECT * FROM {temp_name}
+            """
+            self.con.raw_sql(sql)
+            self.con.drop_table(temp_name)
 
+        return len(data)
+
+    def ingest_jsonl(self, json_path: Path, table_name: str, schema: str = "main") -> int:
+        """DEPRECATED: Use upsert_rows instead. Ingest a JSONL file."""
+        if not Path(json_path).exists():
+            return 0
+        t = self.con.read_json(str(json_path))
+        self.con.insert(table_name, t, database=schema)
         return t.count().execute()
 
     def get_table(self, table_name: str, schema: str = "main"):

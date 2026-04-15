@@ -25,31 +25,37 @@ class TestBalizaV2(unittest.TestCase):
             count = q.count().execute()
             self.assertEqual(count, 1)
 
-    def test_ingestion_flow_real(self):
-        """Verify that ingest_json actually loads data into a table."""
+    def test_upsert_flow(self):
+        """Verify that upsert_rows handles duplicates correctly (idempotency)."""
         with BalizaEngine() as engine:
-            # Create a mock JSON payload
             mock_data = {
-                "id": 123,
+                "numeroControlePNCP": "123456",
                 "identificador": "TEST-001",
                 "valor": 1000.50,
-                "data": "2024-01-01"
             }
             
-            with tempfile.TemporaryDirectory() as tmp_dir:
-                json_path = Path(tmp_dir) / "test_data.json"
-                with open(json_path, "w") as f:
-                    json.dump([mock_data], f)
-                
-                # Ingest into a test table
-                engine.ingest_json(str(json_path), "test_table", schema="main")
-                
-                # Verify
-                t = engine.get_table("test_table", schema="main")
-                res = t.execute()
-                self.assertEqual(len(res), 1)
-                self.assertEqual(res.iloc[0]["identificador"], "TEST-001")
-                self.assertEqual(float(res.iloc[0]["valor"]), 1000.50)
+            # First ingestion
+            engine.upsert_rows([mock_data], "test_table")
+            
+            # Second ingestion with same PK but updated data
+            updated_data = mock_data.copy()
+            updated_data["valor"] = 1500.00
+            engine.upsert_rows([updated_data], "test_table")
+            
+            # Verify: should still have 1 row, but with updated value
+            t = engine.get_table("test_table")
+            res = t.execute()
+            self.assertEqual(len(res), 1)
+            self.assertEqual(float(res.iloc[0]["valor"]), 1500.00)
+
+    def test_ingestion_memory_direct(self):
+        """Verify direct memory ingestion from list of dicts."""
+        with BalizaEngine() as engine:
+            rows = [{"numeroControlePNCP": f"ID-{i}", "val": i} for i in range(10)]
+            engine.upsert_rows(rows, "batch_table")
+            
+            t = engine.get_table("batch_table")
+            self.assertEqual(t.count().execute(), 10)
 
     def test_list_tables_schema_aware(self):
         with BalizaEngine() as engine:

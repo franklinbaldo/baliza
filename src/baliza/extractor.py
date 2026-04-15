@@ -43,7 +43,22 @@ class PNCPExtractor:
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def fetch_page(self, resource: str, extraction_date: datetime, page: int = 1) -> dict[str, Any]:
-        """Fetch a single page from the PNCP API using a date range."""
+        """Fetch a single page from the PNCP API with resumption support."""
+        date_iso = extraction_date.date().isoformat()
+        filename = Path(f"data/raw/{date_iso}/{resource}_p{page}.json")
+
+        # RESUMABILITY: Check if valid file already exists
+        if filename.exists():
+            try:
+                with open(filename) as f:
+                    data = json.load(f)
+                if "data" in data or "totalPaginas" in data:
+                    logger.info("resuming_from_cache", file=str(filename))
+                    return data
+            except (json.JSONDecodeError, KeyError):
+                logger.warning("corrupt_cache_found", file=str(filename))
+                filename.unlink()
+
         date_str = extraction_date.strftime("%Y-%m-%d")
         url = f"{self.base_url}/{resource}"
         params = {
@@ -81,13 +96,13 @@ class PNCPExtractor:
         return data
 
     def _save_raw(self, resource: str, extraction_date: datetime, page: int, data: dict[str, Any]):
-        """Save raw JSON payload to disk (staging for ZIP upload)."""
+        """Save raw JSON payload to disk with deterministic name."""
         date_iso = extraction_date.date().isoformat()
         raw_dir = Path("data/raw") / date_iso
         raw_dir.mkdir(parents=True, exist_ok=True)
 
-        timestamp = datetime.now().strftime("%H%M%S_%f")
-        filename = raw_dir / f"{resource}_{timestamp}.json"
+        # Deterministic filename for resumability
+        filename = raw_dir / f"{resource}_p{page}.json"
         with open(filename, "w") as f:
             json.dump(data, f, ensure_ascii=False)
 
@@ -127,19 +142,10 @@ class PNCPExtractor:
                     logger.warning("validation_failed", error=str(e), entry_id=entry.get("id"))
                     self.engine.quarantine_record("contratos", extraction_date, str(e), entry)
 
-            # Ingest valid rows into Ibis (shared engine)
+            # Ingest valid rows into Ibis (shared engine) via UPSERT
             if valid_rows:
-                # We save a temporary valid JSONL to use Ibis.read_json
-                with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as tf:
-                    for row in valid_rows:
-                        tf.write(json.dumps(row, default=str) + "\n")
-                    temp_path = Path(tf.name)
-
-                try:
-                    self.engine.ingest_jsonl(temp_path, "contratos", schema="main")
-                finally:
-                    if temp_path.exists():
-                        temp_path.unlink()
+                # Direct memory ingestion (Idempotent)
+                self.engine.upsert_rows(valid_rows, "contratos", schema="main")
 
         return stats
 

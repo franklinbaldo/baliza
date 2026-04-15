@@ -1,6 +1,7 @@
 <script lang="ts">
   import { createQuery, setQueryClientContext } from '@tanstack/svelte-query';
   import { getQueryClient } from '../lib/queryClient';
+  import type { PNCPContract, PNCPAgency } from '../lib/types';
   import EntityNotFound from './EntityNotFound.svelte';
 
   setQueryClientContext(getQueryClient());
@@ -12,13 +13,13 @@
     queryFn: async () => {
       if (!cnpj) return null;
       try {
-        const pncpUrl = `https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?cnpjOrgao=${cnpj}&tamanhoPagina=10`;
-        const pncpRes = await fetch(pncpUrl);
-        if (!pncpRes.ok) throw new Error("CNPJ não localizado ou sem publicações.");
-        const pncpData = await pncpRes.json();
+        const url = `https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?cnpjOrgao=${cnpj}&tamanhoPagina=10`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Órgão não localizado ou sem publicações.");
+        const pncpData = (await res.json()) as { data: PNCPContract[] };
         
         if (!pncpData.data || pncpData.data.length === 0) {
-          throw new Error("Nenhuma contratação encontrada para este Órgão no PNCP.");
+          throw new Error("Nenhuma contratação recente encontrada para este CNPJ no PNCP.");
         }
 
         const agencyName = pncpData.data[0].orgaoEntidade?.razaoSocial || "Órgão Público";
@@ -28,8 +29,9 @@
           cnpj: cnpj,
           contracts: pncpData.data || [] 
         };
-      } catch (err: any) {
-        throw new Error(err.message || "Erro ao consultar o órgão.", { cause: err });
+      } catch (err: unknown) {
+        const error = err as Error;
+        throw new Error(error.message || "Erro ao consultar o órgão.", { cause: err });
       }
     },
     enabled: !!cnpj
