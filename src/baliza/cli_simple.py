@@ -13,7 +13,15 @@ import typer
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from rich.progress import Progress, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn, SpinnerColumn
+from rich.progress import (
+    BarColumn, 
+    Progress, 
+    SpinnerColumn, 
+    TaskProgressColumn, 
+    TimeElapsedColumn,
+    TaskID,
+    TextColumn
+)
 
 from .consolidator import IAConsolidator
 from .daily_exporter import DailyExporter
@@ -651,11 +659,8 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
         fetch_task = progress.add_task("[bold magenta]Global Fetch Queue[/bold magenta]", total=0)
         upload_task = progress.add_task("[bold green]IA Upload Progress[/bold green]", total=len(batch))
         
-        # Worker Status Slots (Fixed number based on --workers)
-        worker_tasks = [
-            progress.add_task(f"[dim]Worker {i+1:02d}: Idle[/dim]", total=100, completed=0)
-            for i in range(workers)
-        ]
+        # Track active progress bars for specific days
+        day_tasks: dict[datetime.date, TaskID] = {}
 
         with PNCPExtractor(db_path, dataset) as extractor:
             day_to_pages: dict[datetime.date, int] = {}
@@ -671,8 +676,6 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
             def handle_completed_task(f, task_type, t_date, w_idx):
                 try:
                     res = f.result()
-                    # Mark worker as idle in UI
-                    progress.update(worker_tasks[w_idx], description=f"[dim]Worker {w_idx+1:02d}: Idle[/dim]", completed=0)
                     available_workers.append(w_idx)
 
                     if task_type == "probe":
@@ -680,39 +683,63 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                         day_to_pages[t_date] = tp
                         day_to_extracted[t_date] = 0
                         progress.update(probe_task, advance=1)
+                        
                         if tp == 0:
                             progress.update(upload_task, advance=1)
                             return False
-                        progress.update(fetch_task, total=progress.tasks[fetch_task].total + tp)
+                        
+                        # Show progress bar for this day if it has more than 1 page (or even if it has 1)
+                        if tp > 0:
+                            day_tasks[t_date] = progress.add_task(
+                                f"[yellow]Day {t_date}[/yellow]", 
+                                total=tp, 
+                                completed=1 # Page 1 already done by probe!
+                            )
+                            
+                        progress.update(fetch_task, total=progress.tasks[fetch_task].total + max(0, tp - 1))
+                        # If only 1 page, it's already done by probe!
+                        if tp == 1:
+                            finish_day(t_date)
+                            
                         return True
                     else:
                         day_to_extracted[t_date] += res
                         day_to_pages[t_date] -= 1
                         progress.update(fetch_task, advance=1)
-                        if day_to_pages[t_date] == 0:
-                            if not dry_run:
-                                # 1. Bulk Ingest JSONL to DuckDB (Sequentially handled here)
-                                ingested_count = extractor.ingest_day(datetime.combine(t_date, datetime.min.time()))
-                                progress.console.print(f"[blue]ℹ Ingested {ingested_count} records for {t_date}[/blue]")
-                                
-                                # 2. Upload to IA
-                                uploader.upload_day(t_date, Path("data/daily"), ia_access_key, ia_secret_key)
-                                extractor.cleanup_uploaded(datetime.combine(t_date, datetime.min.time()))
-                                
-                                # 3. Cleanup raw staging
-                                raw_dir = Path("data/raw") / t_date.strftime("%Y-%m-%d")
-                                if raw_dir.exists():
-                                    for f in raw_dir.glob("*"):
-                                        f.unlink()
-                                    raw_dir.rmdir()
-                                    
-                            progress.update(upload_task, advance=1, description=f"[bold green]Uploaded {t_date}[/bold green]")
+                        
+                        # Update day-specific bar
+                        if t_date in day_tasks:
+                            progress.update(day_tasks[t_date], advance=1)
+                            
+                        if day_to_pages[t_date] == 1: # Remember page 1 is implicit
+                            finish_day(t_date)
                         return True
                 except Exception as e:
                     progress.console.print(f"[red]✗ Task {task_type} failed for {t_date}: {e}[/red]")
                     if w_idx in range(workers):
                         available_workers.append(w_idx)
                     return False
+
+            def finish_day(t_date):
+                if not dry_run:
+                    # 1. Bulk Ingest JSONL to DuckDB
+                    ingested_count = extractor.ingest_day(datetime.combine(t_date, datetime.min.time()))
+                    # 2. Upload to IA
+                    uploader.upload_day(t_date, Path("data/daily"), ia_access_key, ia_secret_key)
+                    extractor.cleanup_uploaded(datetime.combine(t_date, datetime.min.time()))
+                    # 3. Cleanup raw staging
+                    raw_dir = Path("data/raw") / t_date.strftime("%Y-%m-%d")
+                    if raw_dir.exists():
+                        for f in raw_dir.glob("*"):
+                            f.unlink()
+                        raw_dir.rmdir()
+                
+                # Cleanup UI
+                if t_date in day_tasks:
+                    progress.remove_task(day_tasks[t_date])
+                    del day_tasks[t_date]
+                
+                progress.update(upload_task, advance=1, description=f"[bold green]Uploaded {t_date}[/bold green]")
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
                 # To manage page tasks
@@ -747,7 +774,6 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                     while page_tasks_queue and available_workers:
                         w_idx_p = available_workers.pop(0)
                         p_date, p_num = page_tasks_queue.pop(0)
-                        progress.update(worker_tasks[w_idx_p], description=f"[magenta]Worker {w_idx_p+1:02d}: Fetching {p_date} p{p_num}[/magenta]", completed=20)
                         pf = executor.submit(extractor.fetch_page, "contratos", datetime.combine(p_date, datetime.min.time()), p_num)
                         futures[pf] = (("fetch", p_date, p_num), w_idx_p)
 
@@ -755,7 +781,6 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                     if available_workers:
                         w_idx = available_workers.pop(0)
                         dt = datetime.combine(target_date, datetime.min.time())
-                        progress.update(worker_tasks[w_idx], description=f"[cyan]Worker {w_idx+1:02d}: Probing {target_date}[/cyan]", completed=50)
                         time.sleep(2.0) # Stagger more to avoid 429
                         f = executor.submit(extractor.probe_date, "contratos", dt)
                         futures[f] = (("probe", target_date, 0), w_idx)
