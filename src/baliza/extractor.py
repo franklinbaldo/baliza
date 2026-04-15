@@ -309,12 +309,16 @@ class PNCPExtractor:
 
         # Add User-Agent and security headers
         headers = {
-            "User-Agent": "baliza/0.1.0 (+https://github.com/franklinbaldo/baliza)",
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
             **security_headers,
         }
         self.client = httpx.Client(
             timeout=httpx.Timeout(180.0, connect=30.0), 
-            headers=headers
+            headers=headers,
+            http2=True,  # Match curl's performance
+            limits=httpx.Limits(max_connections=100, max_keepalive_connections=50)
         )
 
         # Pre-compute SQL queries to avoid reconstruction in loops
