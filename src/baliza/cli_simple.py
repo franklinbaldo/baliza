@@ -128,6 +128,30 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
         probe_task = progress.add_task("[bold cyan]Probing Dates[/bold cyan]", total=len(batch))
         fetch_task = progress.add_task("[bold magenta]Global Fetch Queue[/bold magenta]", total=0)
 
+    # 3. Micro-metrics
+    total_records = 0
+    quarantine_count = 0
+    error_count = 0
+
+    # 3. Orchestration logic
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[bold blue]{task.description}"),
+        BarColumn(bar_width=None, pulse_style="bright_black"),
+        TaskProgressColumn(),
+        MofNCompleteColumn(),
+        TimeElapsedColumn(),
+        console=console,
+        refresh_per_second=10,
+        expand=True,
+    ) as progress:
+        overall_task = progress.add_task(
+            "Overall Sync Progress", total=len(batch)
+        )
+        
+        # We'll use a local dict to map workers to their current date task
+        # But even better: just add/remove tasks dynamically.
+        # Since Workers=N, only N day_tasks will be active at once.
         day_tasks: dict[date, TaskID] = {}
 
         with PNCPExtractor(engine, use_curl=not no_curl) as extractor:
@@ -135,161 +159,89 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
             with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
                 futures: dict[concurrent.futures.Future[Any], tuple[str, date, int]] = {}
 
-                def finish_day(t_date: date):
+                def process_day_full(t_date: date, total_pages: int):
+                    nonlocal total_records, quarantine_count, error_count
+                    
+                    tid = progress.add_task(f"Day {t_date} [Fetching]", total=total_pages, completed=1)
+                    day_tasks[t_date] = tid
+                    
                     try:
-                        # Ensure task exists and update status
-                        if t_date not in day_tasks:
-                            day_tasks[t_date] = progress.add_task(
-                                f"[dim]Day {t_date}[/dim] [magenta][Ingesting][/magenta]", total=1, completed=0
-                            )
-                        else:
-                            progress.update(day_tasks[t_date], description=f"[dim]Day {t_date}[/dim] [magenta][Ingesting][/magenta]")
+                        # 1. Fetch remaining pages if any
+                        if total_pages > 1:
+                            for p in range(2, total_pages + 1):
+                                extractor.fetch_page("contratos", datetime.combine(t_date, datetime.min.time()), p)
+                                progress.update(tid, advance=1)
 
-                        # 1. Ingest (Stateless Pydantic + Shared Ibis Engine)
+                        # 2. Ingest
+                        progress.update(tid, description=f"Day {t_date} [Ingesting]")
                         stats = extractor.ingest_day(datetime.combine(t_date, datetime.min.time()))
+                        total_records += stats.get("valid", 0)
+                        quarantine_count += stats.get("quarantine", 0)
 
-                        # 2. Export Quarantine to local CSV if any
+                        # 3. Export & Upload
                         q_csv = Path(f"data/quarentena-{t_date.isoformat()}.csv")
-                        has_q = extractor.export_quarantine(
-                            datetime.combine(t_date, datetime.min.time()), q_csv
-                        )
+                        has_q = extractor.export_quarantine(datetime.combine(t_date, datetime.min.time()), q_csv)
 
                         if not dry_run:
-                            progress.update(day_tasks[t_date], description=f"[dim]Day {t_date}[/dim] [cyan][Uploading][/cyan]")
-                            # 3. Upload Parquet + Raw Zip + Quarantine CSV
-                            if not ia_access_key or not ia_secret_key:
-                                raise ValueError("Missing IA credentials for upload")
-
-                            uploader.upload_day(
-                                t_date,
-                                Path("data/daily"),
-                                ia_access_key,
-                                ia_secret_key,
-                                quarantine_stats=stats,
-                                quarantine_csv=q_csv if has_q else None,
-                            )
+                            progress.update(tid, description=f"Day {t_date} [Uploading]")
+                            if  ia_access_key and ia_secret_key:
+                                uploader.upload_day(
+                                    t_date, Path("data/daily"), ia_access_key, ia_secret_key,
+                                    quarantine_stats=stats, quarantine_csv=q_csv if has_q else None
+                                )
                         else:
-                            console.print(
-                                f"[yellow]Dry-run: would upload {t_date} (stats: {stats})[/yellow]"
-                            )
+                            progress.console.log(f"[yellow]Dry-run: {t_date} verified ({stats['valid']} records)[/yellow]")
 
                         if q_csv.exists():
                             q_csv.unlink()
-
-                        if t_date in day_tasks:
-                            # Mark as finished and remove
-                            progress.remove_task(day_tasks[t_date])
-                            del day_tasks[t_date]
+                            
                         progress.update(overall_task, advance=1)
                     except Exception as e:
-                        console.print(
-                            f"[bold red]✗ Fatal error processing {t_date}: {e}[/bold red]"
-                        )
+                        error_count += 1
+                        progress.console.log(f"[bold red]✗ Error {t_date}: {e}[/bold red]")
+                    finally:
+                        progress.remove_task(tid)
                         if t_date in day_tasks:
-                            progress.remove_task(day_tasks[t_date])
                             del day_tasks[t_date]
 
-                # DISPATCH LOOP
+                # DISPATCHER
                 for target_date in batch:
                     # Time check
                     elapsed = (datetime.now() - start_time_exec).total_seconds() / 60
                     if limit_minutes and elapsed >= limit_minutes:
-                        console.print(
-                            f"\n[yellow]⚠ Time limit ({limit_minutes}m). Stopping.[/yellow]"
-                        )
+                        progress.console.log(f"[yellow]⚠ Time limit ({limit_minutes}m) reached.[/yellow]")
                         break
 
-                    # Dispatch Probes
-                    # UI: Create task for probing
-                    day_tasks[target_date] = progress.add_task(
-                        f"[dim]Day {target_date}[/dim] [yellow][Probing][/yellow]", total=1, completed=0
-                    )
-                    
-                    f = executor.submit(
-                        extractor.probe_date,
-                        "contratos",
-                        datetime.combine(target_date, datetime.min.time()),
-                    )
-                    futures[f] = ("probe", target_date, 0)
-
-                    # Monitor futures and dispatch new ones
+                    # Wait if too many futures (worker limiting)
+                    # We want to maintain N active days
                     while len(futures) >= workers:
                         done, _ = concurrent.futures.wait(
-                            futures.keys(),
-                            timeout=0.1,
-                            return_when=concurrent.futures.FIRST_COMPLETED,
+                            futures.keys(), timeout=0.1, return_when=concurrent.futures.FIRST_COMPLETED
                         )
                         for f in done:
-                            task_type, t_date, _ = futures.pop(f)
-                            try:
-                                res = f.result()
-                                if task_type == "probe":
-                                    tp = res["total_pages"]
-                                    progress.update(probe_task, advance=1)
-                                    if tp <= 1:  # Done or 1 page (probe already saved p1)
-                                        # Keep the task for Ingesting/Uploading phase
-                                        finish_day(t_date)
-                                    else:
-                                        # Update task for Fetching phase
-                                        progress.update(
-                                            day_tasks[t_date],
-                                            description=f"[dim]Day {t_date}[/dim] [blue][Fetching][/blue]",
-                                            total=tp,
-                                            completed=1
-                                        )
-                                        progress.update(
-                                            fetch_task,
-                                            total=progress.tasks[fetch_task].total + (tp - 1),
-                                        )
-                                        for p in range(2, tp + 1):
-                                            pf = executor.submit(
-                                                extractor.fetch_page,
-                                                "contratos",
-                                                datetime.combine(t_date, datetime.min.time()),
-                                                p,
-                                            )
-                                            futures[pf] = ("fetch", t_date, p)
-                            except Exception as e:
-                                console.print(f"[red]✗ {task_type} {t_date} failed: {e}[/red]")
-                                if t_date in day_tasks:
-                                    progress.remove_task(day_tasks[t_date])
-                                    del day_tasks[t_date]
+                            futures.pop(f)
+
+                    # Submit next day
+                    def daily_workflow(d: date):
+                        res = extractor.probe_date("contratos", datetime.combine(d, datetime.min.time()))
+                        process_day_full(d, res["total_pages"])
+
+                    f = executor.submit(daily_workflow, target_date)
+                    futures[f] = ("workflow", target_date, 0)
 
                 # Final drain
-                for f in concurrent.futures.as_completed(futures):
-                    task_type, t_date, _ = futures[f]
-                    try:
-                        res = f.result()
-                        if task_type == "fetch":
-                            progress.update(fetch_task, advance=1)
-                            if t_date in day_tasks:
-                                progress.update(day_tasks[t_date], advance=1)
-                                # Check if day is complete
-                                if progress.tasks[day_tasks[t_date]].finished:
-                                    finish_day(t_date)
-                        elif task_type == "probe":
-                            progress.update(probe_task, advance=1)
-                            tp = res["total_pages"]
-                            if tp <= 1:
-                                finish_day(t_date)
-                            else:
-                                # This rarely happens in the drain phase unless workers=1 and only 1 day
-                                progress.update(
-                                    day_tasks[t_date],
-                                    description=f"[dim]Day {t_date}[/dim] [blue][Fetching][/blue]",
-                                    total=tp,
-                                    completed=1
-                                )
-                                finish_day(t_date)  # Fallback
-                    except Exception as e:
-                        console.print(f"[red]✗ {t_date} drain error: {e}[/red]")
-                        if t_date in day_tasks:
-                            progress.remove_task(day_tasks[t_date])
-                            del day_tasks[t_date]
+                concurrent.futures.wait(futures.keys())
 
-        console.print(Panel("[bold green]✓ Sync Cycle Complete[/bold green]", expand=False))
-
-    console.print(Panel("[bold green]✓ Sync Cycle Complete[/bold green]", expand=False))
+    # 4. FINAL SUMMARY PANEL
+    duration = datetime.now() - start_time_exec
+    summary = (
+        f"• [bold white]Total Data points:[/] {total_records:,}\n"
+        f"• [bold yellow]Quarantine:[/] {quarantine_count:,}\n"
+        f"• [bold red]Errors:[/] {error_count}\n"
+        f"• [bold cyan]Duration:[/] {duration.total_seconds():.1f}s"
+    )
+    console.print("\n")
+    console.print(Panel(summary, title="[bold green]✓ Sync Results[/]", expand=False))
 
 
 @app.command("verify")
