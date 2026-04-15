@@ -579,23 +579,22 @@ def status(
 
 
 @app.command("sync")
-def sync(
+def sync(  # noqa: PLR0913, PLR0915, PLR0912
     batch_size: int | None = typer.Option(None, "--batch-size", "-n", help="Max days to sync (None for all)"),
     start_date: str = typer.Option("2023-01-01", "--start-date", help="Oldest date to backfill"),
     db_path: Path = typer.Option(Path("baliza.duckdb"), "--duckdb", help="DuckDB file"),
     dataset: str = typer.Option("baliza_raw", "--dataset", help="Dataset name"),
     force_date: str | None = typer.Option(None, "--force-date", help="Target a specific date regardless of manifest"),
     limit_minutes: int = typer.Option(330, "--limit-minutes", help="Gracefully stop after N minutes"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done without uploading"),
+    workers: int = typer.Option(4, "--workers", "-w", help="Parallel workers for page extraction"),
 ) -> None:
     """Unified sync: extracts missing dates and uploads to IA (greedy backwards sweep)."""
-    import os
-    from datetime import datetime
-    
     start_time = datetime.now()
     ia_access_key = os.environ.get("IA_ACCESS_KEY")
     ia_secret_key = os.environ.get("IA_SECRET_KEY")
 
-    if not ia_access_key or not ia_secret_key:
+    if not dry_run and (not ia_access_key or not ia_secret_key):
         console.print("[red]✗ Missing IA_ACCESS_KEY or IA_SECRET_KEY in environment.[/red]")
         raise typer.Exit(1)
 
@@ -652,13 +651,17 @@ def sync(
             try:
                 # Per-day deadline: avoid hanging
                 day_deadline = datetime.now() + timedelta(minutes=15)
-                extractor.extract(dt_start, dt_start, "contratos", workers=4, deadline=day_deadline)
+                extractor.extract(dt_start, dt_start, "contratos", workers=workers, deadline=day_deadline)
             except Exception as e:
                 console.print(f"[red]✗ Extraction failed for {target_date}: {e}[/red]")
                 # We continue to next date if one fails
                 continue
 
             # Upload
+            if dry_run:
+                console.print(f"[yellow]⚠ Dry run: skipping upload of {target_date}[/yellow]")
+                continue
+
             try:
                 uploader.upload_day(target_date, Path("data/daily"), ia_access_key, ia_secret_key)
             except Exception as e:
