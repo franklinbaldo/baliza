@@ -312,7 +312,10 @@ class PNCPExtractor:
             "User-Agent": "baliza/0.1.0 (+https://github.com/franklinbaldo/baliza)",
             **security_headers,
         }
-        self.client = httpx.Client(timeout=60.0, headers=headers)
+        self.client = httpx.Client(
+            timeout=httpx.Timeout(180.0, connect=30.0), 
+            headers=headers
+        )
 
         # Pre-compute SQL queries to avoid reconstruction in loops
         # Optimization: Hoist invariant SQL construction out of the loop
