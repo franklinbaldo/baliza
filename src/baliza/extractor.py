@@ -303,19 +303,20 @@ class PNCPExtractor:
         # Validate dataset name to prevent SQL injection
         self.dataset = validate_identifier(dataset)
         self._db_lock = threading.Lock()
+        self.con: duckdb.DuckDBPyConnection | None = None
+        self.base_url = "https://pncp.gov.br/api/pncp/v1"
 
-        # Resolve URL and get security headers to prevent DNS Rebinding (SSRF)
-        self.base_url, security_headers = secure_url_connection_params(base_url)
-
-        # Add User-Agent and security headers
-        headers = {
+        # Identity 'Stealth' Headers
+        self.headers = {
             "User-Agent": "curl/8.14.1",
             "Accept": "*/*",
-            **security_headers,
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive"
         }
+
         self.client = httpx.Client(
             timeout=httpx.Timeout(180.0, connect=30.0),
-            headers=headers,
+            headers=self.headers,
             http2=True,  # Match curl's performance
             limits=httpx.Limits(max_connections=100, max_keepalive_connections=50),
         )
@@ -1181,7 +1182,8 @@ class PNCPExtractor:
 
         total_ingested = 0
         with self._db_lock:
-            with duckdb.connect(str(self.db_path), config={"access_mode": "READ_WRITE"}) as con:
+            con = self.con if self.con else duckdb.connect(str(self.db_path), config={"access_mode": "READ_WRITE"})
+            try:
                 self._ensure_schema(con)
 
                 # Combine all rows from all pages
@@ -1193,6 +1195,9 @@ class PNCPExtractor:
 
                 if all_rows:
                     total_ingested = self._insert_page(con, all_rows)
+            finally:
+                if not self.con:
+                    con.close()
 
         return total_ingested
 
@@ -1311,139 +1316,104 @@ class PNCPExtractor:
         }
 
     def cleanup_uploaded(self, extraction_date: datetime) -> int:
-        """Remove data from buffer after successful IA upload.
+        """Remove data from buffer after successful IA upload."""
+        with self._db_lock:
+            con = self.con if self.con else duckdb.connect(str(self.db_path), config={"access_mode": "READ_WRITE"})
+            try:
+                self._ensure_schema(con)
+                next_day = extraction_date + timedelta(days=1)
 
-        Keeps state tables intact, only removes raw contract data.
-
-        Args:
-            extraction_date: Date to clean up
-
-        Returns:
-            Number of rows deleted
-        """
-        with duckdb.connect(str(self.db_path)) as con:
-            self._ensure_schema(con)
-
-            # Calculate next day for range query to optimize index usage
-            next_day = extraction_date + timedelta(days=1)
-
-            # Count rows before deletion
-            result = con.execute(
-                f"""
-                SELECT COUNT(*) FROM {self.dataset}.contratos
-                WHERE data_publicacao >= ? AND data_publicacao < ?
-            """,
-                [extraction_date.date(), next_day.date()],
-            ).fetchone()
-            row_count = result[0] if result else 0
-
-            if row_count > 0:
-                con.execute(
-                    f"""
-                    DELETE FROM {self.dataset}.contratos
-                    WHERE data_publicacao >= ? AND data_publicacao < ?
-                """,
+                result = con.execute(
+                    f"SELECT COUNT(*) FROM {self.dataset}.contratos WHERE data_publicacao >= ? AND data_publicacao < ?",
                     [extraction_date.date(), next_day.date()],
-                )
+                ).fetchone()
+                row_count = result[0] if result else 0
 
-                console.print(f"[green]✓ Cleaned up {row_count} rows for {extraction_date.date()}")
+                if row_count > 0:
+                    con.execute(
+                        f"DELETE FROM {self.dataset}.contratos WHERE data_publicacao >= ? AND data_publicacao < ?",
+                        [extraction_date.date(), next_day.date()],
+                    )
+                return int(row_count)
+            finally:
+                if not self.con:
+                    con.close()
 
-            return row_count
-
-    def record_ia_upload(
-        self,
-        item_id: str,
-        extraction_date: datetime,
-        file_count: int,
-        total_rows: int,
-    ) -> None:
+    def record_ia_upload(self, item_id: str, extraction_date: datetime, file_count: int, total_rows: int) -> None:
         """Record successful Internet Archive upload."""
-        with duckdb.connect(str(self.db_path)) as con:
-            self._ensure_schema(con)
-            con.execute(
-                """
-                INSERT OR REPLACE INTO baliza_state.uploaded_to_ia
-                VALUES (?, ?, NOW(), ?, ?)
-            """,
-                [item_id, extraction_date.date(), file_count, total_rows],
-            )
+        with self._db_lock:
+            con = self.con if self.con else duckdb.connect(str(self.db_path), config={"access_mode": "READ_WRITE"})
+            try:
+                self._ensure_schema(con)
+                con.execute(
+                    "INSERT OR REPLACE INTO baliza_state.uploaded_to_ia VALUES (?, ?, NOW(), ?, ?)",
+                    [item_id, extraction_date.date(), file_count, total_rows],
+                )
+            finally:
+                if not self.con:
+                    con.close()
 
     def get_dates_ready_for_export(self, stability_days: int = 7) -> list[datetime]:
-        """Get dates that are complete and old enough for export.
-
-        Args:
-            stability_days: Days to wait before considering data stable
-
-        Returns:
-            List of dates ready for export
-        """
+        """Get dates that are complete and old enough for export."""
         cutoff = datetime.now() - timedelta(days=stability_days)
-
-        with duckdb.connect(str(self.db_path)) as con:
-            self._ensure_schema(con)
-
-            # Find dates that:
-            # 1. Have data in contratos
-            # 2. Are older than stability window
-            # 3. Haven't been uploaded to IA yet
-            result = con.execute(
-                f"""
-                SELECT DISTINCT CAST(data_publicacao AS DATE) as dt
-                FROM {self.dataset}.contratos
-                WHERE data_publicacao < ?
-                  AND CAST(data_publicacao AS DATE) NOT IN (
-                      SELECT extraction_date FROM baliza_state.uploaded_to_ia
-                  )
-                ORDER BY dt
-            """,
-                [cutoff.date()],
-            ).fetchall()
-
-            return [datetime.combine(row[0], datetime.min.time()) for row in result]
+        with self._db_lock:
+            con = self.con if self.con else duckdb.connect(str(self.db_path), config={"access_mode": "READ_ONLY"})
+            try:
+                self._ensure_schema(con)
+                result = con.execute(
+                    f"""
+                    SELECT DISTINCT CAST(data_publicacao AS DATE) as dt
+                    FROM {self.dataset}.contratos
+                    WHERE data_publicacao < ?
+                      AND CAST(data_publicacao AS DATE) NOT IN (
+                          SELECT extraction_date FROM baliza_state.uploaded_to_ia
+                      )
+                    ORDER BY dt
+                """,
+                    [cutoff.date()],
+                ).fetchall()
+                return [datetime.combine(row[0], datetime.min.time()) for row in result]
+            finally:
+                if not self.con:
+                    con.close()
 
     def get_buffer_stats(self) -> dict[str, Any]:
         """Get statistics about the current buffer."""
-        with duckdb.connect(str(self.db_path)) as con:
-            self._ensure_schema(con)
-
-            # Total rows in buffer
-            res_total = con.execute(f"SELECT COUNT(*) FROM {self.dataset}.contratos").fetchone()
-            total_rows = int(res_total[0]) if res_total else 0
-
-            # Rows by date
-            by_date = con.execute(
-                f"""
-                SELECT CAST(data_publicacao AS DATE) as dt, COUNT(*) as cnt
-                FROM {self.dataset}.contratos
-                GROUP BY dt
-                ORDER BY dt
-            """
-            ).fetchall()
-
-            # Uploaded dates
-            res_uploaded = con.execute("SELECT COUNT(*) FROM baliza_state.uploaded_to_ia").fetchone()
-            uploaded = int(res_uploaded[0]) if res_uploaded else 0
-
-            # Pending checkpoints
-            res_checkpoints = con.execute(
-                "SELECT COUNT(*) FROM baliza_state.extraction_checkpoint"
-            ).fetchone()
-            pending = int(res_checkpoints[0]) if res_checkpoints else 0
-
-            return {
-                "total_rows": total_rows,
-                "dates_in_buffer": len(by_date),
-                "rows_by_date": {str(row[0]): row[1] for row in by_date},
-                "dates_uploaded_to_ia": uploaded,
-                "pending_checkpoints": pending,
-            }
-
-    def close(self) -> None:
-        """Close HTTP client."""
-        self.client.close()
+        with self._db_lock:
+            con = self.con if self.con else duckdb.connect(str(self.db_path), config={"access_mode": "READ_ONLY"})
+            try:
+                self._ensure_schema(con)
+                res_total = con.execute(f"SELECT COUNT(*) FROM {self.dataset}.contratos").fetchone()
+                total_rows = int(res_total[0]) if res_total else 0
+                by_date = con.execute(
+                    f"SELECT CAST(data_publicacao AS DATE) as dt, COUNT(*) as cnt FROM {self.dataset}.contratos GROUP BY dt ORDER BY dt"
+                ).fetchall()
+                res_uploaded = con.execute("SELECT COUNT(*) FROM baliza_state.uploaded_to_ia").fetchone()
+                uploaded = int(res_uploaded[0]) if res_uploaded else 0
+                res_checkpoints = con.execute("SELECT COUNT(*) FROM baliza_state.extraction_checkpoint").fetchone()
+                pending = int(res_checkpoints[0]) if res_checkpoints else 0
+                return {
+                    "total_rows": total_rows,
+                    "dates_in_buffer": len(by_date),
+                    "rows_by_date": {str(row[0]): row[1] for row in by_date},
+                    "dates_uploaded_to_ia": uploaded,
+                    "pending_checkpoints": pending,
+                }
+            finally:
+                if not self.con:
+                    con.close()
 
     def __enter__(self) -> PNCPExtractor:
+        # Open persistent connection for the context duration
+        self.con = duckdb.connect(str(self.db_path), config={"access_mode": "READ_WRITE"})
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         self.close()
+
+    def close(self) -> None:
+        """Close connections."""
+        if self.con:
+            self.con.close()
+            self.con = None
+        self.client.close()
