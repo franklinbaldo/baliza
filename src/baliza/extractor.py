@@ -1109,8 +1109,8 @@ class PNCPExtractor:
 
     def probe_date(self, resource: str, extraction_date: datetime) -> dict[str, Any]:
         """Probe a date to find out how many pages/records it has."""
-        data_inicial = extraction_date.strftime("%Y-%m-%d")
-        data_final = extraction_date.strftime("%Y-%m-%d")
+        data_inicial = extraction_date.strftime("%Y%m%d")
+        data_final = extraction_date.strftime("%Y%m%d")
         url = f"{self.base_url}/{resource}"
         params = {
             "dataInicial": data_inicial,
