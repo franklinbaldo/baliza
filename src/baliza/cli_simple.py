@@ -736,9 +736,10 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                                 handle_completed_task(f, t_type, t_date, w_idx)
                                 
                                 # If it was a probe that succeeded, queue its pages
+                                # Page 1 is already saved by the probe itself!
                                 if t_type == "probe" and t_date in day_to_pages:
                                     tp = day_to_pages[t_date]
-                                    for p in range(1, tp + 1):
+                                    for p in range(2, tp + 1):
                                         page_tasks_queue.append((t_date, p))
 
                     # Interleaved: If we have pages in queue and workers available, dispatch them
@@ -776,7 +777,7 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                             handle_completed_task(f, t_type, t_date, w_idx)
                             if t_type == "probe" and t_date in day_to_pages:
                                 tp = day_to_pages[t_date]
-                                for p in range(1, tp + 1):
+                                for p in range(2, tp + 1):
                                     page_tasks_queue.append((t_date, p))
 
 

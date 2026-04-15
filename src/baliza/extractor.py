@@ -1114,21 +1114,23 @@ class PNCPExtractor:
         }
 
     def probe_date(self, resource: str, extraction_date: datetime) -> dict[str, Any]:
-        """Probe a date to find out how many pages/records it has."""
-        data_inicial = extraction_date.strftime("%Y%m%d")
-        data_final = extraction_date.strftime("%Y%m%d")
+        """Probe a date with size 500 and save page 1 if data exists."""
+        data_str = extraction_date.strftime("%Y%m%d")
         url = f"{self.base_url}/{resource}"
         params = {
-            "dataInicial": data_inicial,
-            "dataFinal": data_final,
-            "tamanhoPagina": 500,
+            "dataInicial": data_str,
+            "dataFinal": data_str,
+            "tamanhoPagina": 500, # Maximize first request
             "pagina": 1,
         }
         res = _fetch_page(self.client, url, params)
-        return {
-            "total_pages": res.get("totalPaginas", 0),
-            "expected_rows": res.get("totalRegistros", 0),
-        }
+        rows = res.get("data", [])
+        
+        # Optimization: Use the probe as Page 1
+        if rows:
+            self._save_raw_page(extraction_date, 1, rows)
+            
+        return {"total_pages": res.get("totalPaginas", 0), "total_records": res.get("totalRegistros", 0)}
 
     def fetch_page(self, resource: str, extraction_date: datetime, page: int) -> int:
         """Fetch a specific page and save to raw JSONL file."""
@@ -1146,15 +1148,6 @@ class PNCPExtractor:
         if not rows:
             return 0
             
-        # Save to raw staging area
-        day_str = extraction_date.strftime("%Y-%m-%d")
-        raw_dir = Path("data/raw") / day_str
-        raw_dir.mkdir(parents=True, exist_ok=True)
-        
-        raw_file = raw_dir / f"page_{page:04d}.jsonl"
-        with raw_file.open("w", encoding="utf-8") as f:
-            for row in rows:
-                f.write(json.dumps(row, ensure_ascii=False) + "\n")
         
         return len(rows)
 
