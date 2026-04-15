@@ -1,0 +1,11 @@
+---
+import Layout from '../layouts/Layout.astro';
+import CityDetailView from '../components/CityDetailView.svelte';
+---
+
+<Layout 
+  title="Painel do Município" 
+  description="Consulte o histórico de contratações e o volume de dados preservados para este município."
+>
+  <CityDetailView client:only="svelte" />
+</Layout>

@@ -1,0 +1,116 @@
+/* ═══════════════════════════════════════════
+   Baliza Dashboard — Global Styles
+   No CSS framework. Design tokens + vanilla CSS.
+   ═══════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; }
+* { margin: 0; }
+body { line-height: 1.6; -webkit-font-smoothing: antialiased; }
+img, picture, video, canvas, svg { display: block; max-width: 100%; }
+
+:root {
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-serif: 'DM Serif Display', serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.25rem;
+  --font-size-xl: 1.563rem;
+  --font-size-2xl: 1.953rem;
+  --font-size-3xl: 2.441rem;
+
+  --space-xs: 0.5rem;
+  --space-sm: 1rem;
+  --space-md: 1.5rem;
+  --space-lg: 2.5rem;
+  --transition-base: 0.2s ease;
+  --radius-sm: 4px;
+  --radius-box: 12px;
+  --radius-full: 9999px;
+
+  /* Skeletons & Shimmer */
+  --shimmer-gradient: linear-gradient(90deg, 
+      rgba(255, 255, 255, 0.05) 0%, 
+      rgba(255, 255, 255, 0.1) 50%, 
+      rgba(255, 255, 255, 0.05) 100%);
+
+  /* Basic Light Theme (Brazilian Modernism - CausaGanha baseline) */
+  --color-base-100: #FAFAF5;
+  --color-base-200: #F2EFE8;
+  --color-base-300: #E0DDD4;
+  --color-base-content: #1C1C1C;
+
+  --color-primary: #1A6B3C;
+  --color-secondary: #5C5C52;
+  --color-accent: #C5972C;
+  
+  --color-info: #1A6B5C;
+  --color-success: #1A6B3C;
+  --color-warning: #C5972C;
+  --color-error: #C53030;
+}
+
+[data-theme="dark"] {
+  --color-base-100: #0F1A14;
+  --color-base-200: #1A2E1F;
+  --color-base-300: #2A3E2F;
+  --color-base-content: #F2EFE8;
+
+  --color-primary: #3DA568;
+  --color-secondary: #A8A89E;
+  --color-accent: #D4A843;
+
+  --color-info: #4DA58E;
+  --color-success: #3DA568;
+  --color-warning: #D4A843;
+  --color-error: #E05555;
+}
+
+html {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-base);
+  color: var(--color-base-content);
+  background: var(--color-base-100);
+}
+
+h1, h2 { font-family: var(--font-serif); font-weight: 400; }
+h3, h4, h5, h6 { font-family: var(--font-sans); }
+
+h1 { font-size: var(--font-size-3xl); }
+h2 { font-size: var(--font-size-2xl); }
+h3 { font-size: var(--font-size-xl); }
+
+.card {
+  background: var(--color-base-100);
+  border: 1px solid var(--color-base-300);
+  border-radius: var(--radius-box);
+  padding: var(--space-md);
+}
+
+.stat-value {
+  font-size: 2.5rem;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  color: var(--color-base-content);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  color: var(--color-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.container {
+  width: 100%;
+  max-width: 1280px;
+  margin-inline: auto;
+  padding-inline: var(--space-sm);
+}

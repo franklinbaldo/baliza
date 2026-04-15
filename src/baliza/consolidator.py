@@ -5,22 +5,24 @@ Strategy:
 - Current year (hot): rebuilt weekly, replacing the existing IA file each time.
 
 Reading is done via DuckDB httpfs directly from IA URLs (no local download).
-Writing produces a single Parquet with large row groups optimised for predicate pushdown.
 """
 
 from __future__ import annotations
 
+import csv
 import datetime
+import io
 import tempfile
 from pathlib import Path
 
 import duckdb
+import httpx
 import internetarchive as ia
 from rich.console import Console
 
 CONSOLIDATED_IA_ITEM = "baliza-pncp-consolidated"
 MANIFEST_IA_ITEM = "baliza-pncp-manifest"
-MANIFEST_URL = f"https://archive.org/download/{MANIFEST_IA_ITEM}/manifest.parquet"
+MANIFEST_URL = f"https://archive.org/download/{MANIFEST_IA_ITEM}/manifest.csv"
 
 # A past year is considered frozen 60 days after year-end
 GRACE_DAYS = 60
@@ -45,20 +47,24 @@ class IAConsolidator:
         pass
 
     def _get_daily_urls_for_year(self, year: int) -> list[str]:
-        """Query the manifest on IA to get all daily contratos file URLs for the year."""
-        with duckdb.connect(":memory:") as con:
-            con.execute("INSTALL httpfs; LOAD httpfs;")
-            rows = con.execute(
-                f"""
-                SELECT file_url
-                FROM read_parquet('{MANIFEST_URL}')
-                WHERE table_name = 'contratos'
-                  AND ano = ?
-                ORDER BY data_particao
-                """,
-                [year],
-            ).fetchall()
-        return [r[0] for r in rows]
+        """Read the manifest.csv on IA and get all daily contratos file URLs for the year."""
+        urls = []
+        try:
+            with httpx.Client(follow_redirects=True) as client:
+                resp = client.get(MANIFEST_URL)
+                if resp.status_code == 200:
+                    f = io.StringIO(resp.text)
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        # Extract year from data_particao (YYYY-MM-DD)
+                        p_date = row.get("data_particao", "")
+                        if p_date.startswith(str(year)) and row.get("table_name") == "contratos":
+                            url = row.get("parquet_url") or row.get("file_url")
+                            if url:
+                                urls.append(url)
+        except Exception as e:
+            console.print(f"[red]Error reading manifest for consolidation: {e}[/red]")
+        return urls
 
     def _check_consolidated_exists_on_ia(self, year: int) -> bool:
         """Check if the consolidated annual file already exists in the IA item."""
@@ -76,35 +82,20 @@ class IAConsolidator:
         ia_secret_key: str,
         force: bool = False,
     ) -> bool:
-        """Build and upload annual consolidated Parquet for the given year.
-
-        Args:
-            year: Year to consolidate (e.g. 2024).
-            ia_access_key: IA S3-like access key.
-            ia_secret_key: IA S3-like secret key.
-            force: Re-build even if the year is frozen and file already exists.
-
-        Returns:
-            True if uploaded, False if skipped.
-        """
+        """Build and upload annual consolidated Parquet for the given year."""
         frozen = _is_frozen(year)
         filename = _consolidated_file_name(year)
 
-        # Skip frozen years that already have a consolidated file
         if frozen and not force:
             if self._check_consolidated_exists_on_ia(year):
                 console.print(
                     f"[dim]Skipping {year}: frozen year, consolidated file already on IA.[/dim]"
                 )
                 return False
-            console.print(
-                f"[yellow]{year}: frozen but missing consolidated file — building.[/yellow]"
-            )
-        else:
-            label = "frozen (forced)" if frozen else "hot (current/recent year)"
-            console.print(f"[cyan]Consolidating {year} ({label})...[/cyan]")
 
-        # 1. Get daily file URLs from manifest
+        console.print(f"[cyan]Consolidating {year}...[/cyan]")
+
+        # 1. Get daily file URLs from manifest.csv
         daily_urls = self._get_daily_urls_for_year(year)
         if not daily_urls:
             console.print(f"[yellow]No daily files found in manifest for {year}.[/yellow]")
@@ -115,11 +106,11 @@ class IAConsolidator:
         # 2. Use DuckDB httpfs to read all and write one consolidated Parquet
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = Path(tmpdir) / filename
-
             url_list = ", ".join(f"'{u}'" for u in daily_urls)
+
             with duckdb.connect(":memory:") as con:
                 con.execute("INSTALL httpfs; LOAD httpfs;")
-                console.print(f"  Reading {len(daily_urls)} files via httpfs...")
+                console.print(f"  Merging {len(daily_urls)} files via httpfs...")
                 con.execute(f"""
                     COPY (
                         SELECT *
@@ -142,13 +133,11 @@ class IAConsolidator:
                     "title": "Baliza PNCP Consolidated Data",
                     "mediatype": "data",
                     "collection": "opensource_media",
-                    "creator": "Baliza PNCP Pipeline",
                 },
                 retries=3,
-                retries_sleep=10,
             )
 
-        console.print(f"[green]✓ {year} consolidated file uploaded ({size_mb:.1f} MB).[/green]")
+        console.print(f"[green]✓ {year} consolidated uploaded ({size_mb:.1f} MB).[/green]")
         return True
 
     def consolidate_all(
@@ -158,10 +147,7 @@ class IAConsolidator:
         ia_secret_key: str,
         force: bool = False,
     ) -> dict[int, bool]:
-        """Consolidate from start_year through the current year.
-
-        Returns a dict of {year: was_uploaded}.
-        """
+        """Consolidate from start_year through the current year."""
         current_year = datetime.date.today().year
         results: dict[int, bool] = {}
         for year in range(start_year, current_year + 1):

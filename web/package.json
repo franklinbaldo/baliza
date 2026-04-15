@@ -1,0 +1,44 @@
+{
+  "name": "baliza-web",
+  "version": "1.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/build-data.mjs && astro dev",
+    "build": "node scripts/build-data.mjs && astro check && astro build",
+    "preview": "astro preview",
+    "astro": "astro",
+    "lint": "eslint . --fix",
+    "check:full": "astro check && svelte-check --tsconfig ./tsconfig.json"
+  },
+  "dependencies": {
+    "@astrojs/check": "^0.9.8",
+    "@astrojs/sitemap": "^3.7.2",
+    "@astrojs/svelte": "^8.0.5",
+    "@duckdb/duckdb-wasm": "^1.33.1-dev45.0",
+    "@observablehq/plot": "^0.6.0",
+    "@tanstack/svelte-query": "^6.1.14",
+    "astro": "^6.1.7",
+    "lucide-svelte": "^1.0.1",
+    "papaparse": "^5.4.1",
+    "svelte": "^5.55.2",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@typescript-eslint/eslint-plugin": "^8.58.2",
+    "@typescript-eslint/parser": "^8.58.2",
+    "astro-eslint-parser": "^1.4.0",
+    "duckdb": "^1.2.0",
+    "eslint": "^10.2.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-astro": "^1.7.0",
+    "eslint-plugin-prettier": "^5.5.5",
+    "eslint-plugin-svelte": "^3.17.0",
+    "globals": "^17.5.0",
+    "prettier": "^3.8.3",
+    "svelte-check": "^4.4.6",
+    "svelte-eslint-parser": "^1.6.0",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.58.2"
+  }
+}

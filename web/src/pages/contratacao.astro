@@ -1,0 +1,11 @@
+---
+import Layout from '../layouts/Layout.astro';
+import ContractDetailView from '../components/ContractDetailView.svelte';
+---
+
+<Layout 
+  title="Detalhamento de Contratação" 
+  description="Veja todos os detalhes interessantes desta contratação pública registrada no PNCP e preservada pelo Baliza."
+>
+  <ContractDetailView client:only="svelte" />
+</Layout>

@@ -1,26 +1,31 @@
-# DuckDB database
+# IA & Data
 data/*
+*.duckdb*
+!data/README.md
 
-# Python virtual environment
-.venv/
+# Web Portal
+web/node_modules/
+web/dist/
+web/.astro/
+web/.env
 
-# Python bytecode
+# Python
 __pycache__/
 *.pyc
+.venv/
+.pytest_cache/
+.eggs/
+*.egg-info/
+uv.lock
 
-# Build artifacts (not needed for uvx)
+# Build & Tooling
 dist/
 build/
-*.egg-info/
-
-# IDE-specific files
-.idea/
-.vscode/
-uv.lock
 repomix-output.*
-data/catalog.yml
-baliza.duckdb
-
-# Gemini CLI
 .gemini/
 gha-creds-*.json
+
+# IDEs
+.idea/
+.vscode/
+.DS_Store
