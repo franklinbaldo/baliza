@@ -644,79 +644,122 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
         TaskProgressColumn(),
         TimeElapsedColumn(),
         console=console,
+        refresh_per_second=4, # Smoother UI
     ) as progress:
-        probe_task = progress.add_task("Probing Dates...", total=len(batch))
-        fetch_task = progress.add_task("Fetching Pages...", total=0)
-        upload_task = progress.add_task("Uploading Days...", total=len(batch))
+        # Global Summary Tasks
+        probe_task = progress.add_task("[bold cyan]Probing Dates[/bold cyan]", total=len(batch))
+        fetch_task = progress.add_task("[bold magenta]Global Fetch Queue[/bold magenta]", total=0)
+        upload_task = progress.add_task("[bold green]IA Upload Progress[/bold green]", total=len(batch))
+        
+        # Worker Status Slots (Fixed number based on --workers)
+        worker_tasks = [
+            progress.add_task(f"[dim]Worker {i+1:02d}: Idle[/dim]", total=100, completed=0)
+            for i in range(workers)
+        ]
 
         with PNCPExtractor(db_path, dataset) as extractor:
             day_to_pages: dict[datetime.date, int] = {}
             day_to_extracted: dict[datetime.date, int] = {}
             uploader = IAUploader(db_path)
             
+            # Map futures to (task_info, worker_index)
             futures = {}
+            
+            # Use a semaphore or simple counter to assign workers
+            available_workers = list(range(workers))
+
+            def handle_completed_task(f, task_type, t_date, w_idx):
+                try:
+                    res = f.result()
+                    # Mark worker as idle in UI
+                    progress.update(worker_tasks[w_idx], description=f"[dim]Worker {w_idx+1:02d}: Idle[/dim]", completed=0)
+                    available_workers.append(w_idx)
+
+                    if task_type == "probe":
+                        tp = res["total_pages"]
+                        day_to_pages[t_date] = tp
+                        day_to_extracted[t_date] = 0
+                        progress.update(probe_task, advance=1)
+                        if tp == 0:
+                            progress.update(upload_task, advance=1)
+                            return False
+                        progress.update(fetch_task, total=progress.tasks[fetch_task].total + tp)
+                        return True
+                    else:
+                        day_to_extracted[t_date] += res
+                        day_to_pages[t_date] -= 1
+                        progress.update(fetch_task, advance=1)
+                        if day_to_pages[t_date] == 0:
+                            if not dry_run:
+                                uploader.upload_day(t_date, Path("data/daily"), ia_access_key, ia_secret_key)
+                                extractor.cleanup_uploaded(datetime.combine(t_date, datetime.min.time()))
+                            progress.update(upload_task, advance=1, description=f"[bold green]Uploaded {t_date}[/bold green]")
+                        return True
+                except Exception as e:
+                    progress.console.print(f"[red]✗ Task {task_type} failed for {t_date}: {e}[/red]")
+                    if w_idx in range(workers):
+                        available_workers.append(w_idx)
+                    return False
+
             with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
-                def handle_completed_task(f, task_type, t_date):
-                    try:
-                        res = f.result()
-                        if task_type == "probe":
-                            tp = res["total_pages"]
-                            day_to_pages[t_date] = tp
-                            day_to_extracted[t_date] = 0
-                            progress.update(probe_task, advance=1)
-                            
-                            if tp == 0:
-                                progress.update(upload_task, advance=1)
-                                return False
-                                
-                            # Update global page count
-                            progress.update(fetch_task, total=progress.tasks[fetch_task].total + tp)
-                            
-                            for p in range(1, tp + 1):
-                                pf = executor.submit(extractor.fetch_page, "contratos", datetime.combine(t_date, datetime.min.time()), p)
-                                futures[pf] = ("fetch", t_date, p)
-                            return True
-                        else:
-                            day_to_extracted[t_date] += res
-                            day_to_pages[t_date] -= 1
-                            progress.update(fetch_task, advance=1)
-                            
-                            if day_to_pages[t_date] == 0:
-                                if not dry_run:
-                                    uploader.upload_day(t_date, Path("data/daily"), ia_access_key, ia_secret_key)
-                                    extractor.cleanup_uploaded(datetime.combine(t_date, datetime.min.time()))
-                                progress.update(upload_task, advance=1, description=f"Uploaded {t_date}")
-                            return True
-                    except Exception as e:
-                        # Log error without breaking progress bar
-                        progress.console.print(f"[red]✗ {task_type} failed for {t_date}: {e}[/red]")
-                        return False
+                # To manage page tasks
+                page_tasks_queue = []
 
-                # 1. Start submitting and interleaved processing
+                # 1. Main loop: Probing and Queueing
                 for target_date in batch:
-                    time.sleep(1.0)
-                    dt = datetime.combine(target_date, datetime.min.time())
-                    f = executor.submit(extractor.probe_date, "contratos", dt)
-                    futures[f] = ("probe", target_date, 0)
-                    
-                    # Check for completed tasks while submitting
-                    done, _ = concurrent.futures.wait(futures.keys(), timeout=0.01, return_when=concurrent.futures.FIRST_COMPLETED)
-                    for f in list(done):
-                        if f in futures:
-                            t_type, t_date, _ = futures.pop(f)
-                            handle_completed_task(f, t_type, t_date)
-
+                    # Time check
                     elapsed = (datetime.now() - start_time).total_seconds() / 60
                     if limit_minutes and elapsed >= limit_minutes:
                         progress.console.print(f"\n[yellow]⚠ Time limit reached ({limit_minutes}m). Stopping gracefully.[/yellow]")
                         break
-                
+
+                    # Wait for a worker to probe
+                    while not available_workers:
+                        done, _ = concurrent.futures.wait(futures.keys(), timeout=0.1, return_when=concurrent.futures.FIRST_COMPLETED)
+                        for f in list(done):
+                            if f in futures:
+                                (t_type, t_date, _), w_idx = futures.pop(f)
+                                if t_type == "probe" and f.result():
+                                    # Add extracted pages to the internal queue
+                                    tp = day_to_pages[t_date]
+                                    for p in range(1, tp + 1):
+                                        page_tasks_queue.append((t_date, p))
+                                handle_completed_task(f, t_type, t_date, w_idx)
+
+                    # Dispatch Probe
+                    w_idx = available_workers.pop(0)
+                    dt = datetime.combine(target_date, datetime.min.time())
+                    progress.update(worker_tasks[w_idx], description=f"[cyan]Worker {w_idx+1:02d}: Probing {target_date}[/cyan]", completed=50)
+                    time.sleep(1.0) # Stagger
+                    f = executor.submit(extractor.probe_date, "contratos", dt)
+                    futures[f] = (("probe", target_date, 0), w_idx)
+
+                    # Interleaved: If we have pages in queue and workers available, dispatch them
+                    while page_tasks_queue and available_workers:
+                        w_idx_p = available_workers.pop(0)
+                        p_date, p_num = page_tasks_queue.pop(0)
+                        progress.update(worker_tasks[w_idx_p], description=f"[magenta]Worker {w_idx_p+1:02d}: Fetching {p_date} p{p_num}[/magenta]", completed=20)
+                        pf = executor.submit(extractor.fetch_page, "contratos", datetime.combine(p_date, datetime.min.time()), p_num)
+                        futures[pf] = (("fetch", p_date, p_num), w_idx_p)
+
                 # 2. Final drain
-                while futures:
-                    done, _ = concurrent.futures.wait(futures.keys(), timeout=1.0, return_when=concurrent.futures.FIRST_COMPLETED)
+                while futures or page_tasks_queue:
+                    while page_tasks_queue and available_workers:
+                        w_idx_p = available_workers.pop(0)
+                        p_date, p_num = page_tasks_queue.pop(0)
+                        progress.update(worker_tasks[w_idx_p], description=f"[magenta]Worker {w_idx_p+1:02d}: Fetching {p_date} p{p_num}[/magenta]", completed=20)
+                        pf = executor.submit(extractor.fetch_page, "contratos", datetime.combine(p_date, datetime.min.time()), p_num)
+                        futures[pf] = (("fetch", p_date, p_num), w_idx_p)
+
+                    done, _ = concurrent.futures.wait(futures.keys(), timeout=0.5, return_when=concurrent.futures.FIRST_COMPLETED)
                     for f in done:
-                        t_type, t_date, _ = futures.pop(f)
-                        handle_completed_task(f, t_type, t_date)
+                        if f in futures:
+                            (t_type, t_date, _), w_idx = futures.pop(f)
+                            if t_type == "probe" and f.result():
+                                tp = day_to_pages[t_date]
+                                for p in range(1, tp + 1):
+                                    page_tasks_queue.append((t_date, p))
+                            handle_completed_task(f, t_type, t_date, w_idx)
 
 
 if __name__ == "__main__":
