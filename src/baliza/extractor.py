@@ -1141,9 +1141,10 @@ class PNCPExtractor:
         if not rows:
             return 0
             
-        with duckdb.connect(str(self.db_path)) as con:
-            self._ensure_schema(con)
-            return self._insert_page(con, rows)
+        with self._db_lock:
+            with duckdb.connect(str(self.db_path)) as con:
+                self._ensure_schema(con)
+                return self._insert_page(con, rows)
 
     def extract(
         self,
