@@ -27,7 +27,7 @@ class PNCPExtractor:
         self,
         engine: BalizaEngine,
         base_url: str = "https://pncp.gov.br/api/consulta/v1",
-        use_curl: bool = True,
+        use_curl: bool = False,
     ):
         self.engine = engine
         self.base_url = base_url
@@ -140,8 +140,8 @@ class PNCPExtractor:
             if not df.empty:
                 df.to_csv(output_path, index=False)
                 return True
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error("quarantine_export_failed", date=extraction_date.isoformat(), error=str(e))
         return False
 
     def __enter__(self):

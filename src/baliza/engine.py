@@ -4,6 +4,9 @@ from pathlib import Path
 from typing import Any
 
 import ibis
+import structlog
+
+logger = structlog.get_logger()
 
 
 class BalizaEngine:
@@ -34,20 +37,25 @@ class BalizaEngine:
     def _ensure_schema(self, schema_name: str = "baliza_state"):
         """Create a schema and necessary state tables if they don't exist."""
         try:
+            # DDL for schema still uses raw_sql as per Ibis standard for DuckDB
             self.con.raw_sql(f"CREATE SCHEMA IF NOT EXISTS {schema_name}")
             
             # Create quarantine table if it's the state schema
             if schema_name == "baliza_state":
-                self.con.raw_sql(
-                    "CREATE TABLE IF NOT EXISTS baliza_state.quarantine ("
-                    "  resource VARCHAR,"
-                    "  extraction_date TIMESTAMP,"
-                    "  error VARCHAR,"
-                    "  raw_json VARCHAR"
-                    ")"
-                )
-        except Exception:
-            pass
+                # Explicit Ibis schema definition
+                schema = ibis.schema({
+                    "resource": "string",
+                    "extraction_date": "timestamp",
+                    "error": "string",
+                    "raw_json": "string"
+                })
+                
+                tables = self.con.list_tables(database=schema_name)
+                if "quarantine" not in tables:
+                    self.con.create_table("quarantine", schema=schema, database=schema_name)
+        except Exception as e:
+            logger.error("schema_init_failed", schema=schema_name, error=str(e))
+            raise RuntimeError(f"Could not initialize schema {schema_name}") from e
 
     def ingest_jsonl(self, jsonl_path: Path, table_name: str, schema: str = "main") -> int:
         """Ingest a JSONL file into a table using Ibis."""
@@ -57,9 +65,9 @@ class BalizaEngine:
         # Read JSONL using Ibis/DuckDB
         t = self.con.read_json(str(jsonl_path))
         
-        # Simple table existence check in Ibis
-        # DuckDB/Ibis list_tables doesn't always take 'schema' in all versions
-        if table_name in self.con.list_tables():
+        # Schema-qualified table check
+        tables = self.con.list_tables(database=schema)
+        if table_name in tables:
             self.con.insert(table_name, t, database=schema)
         else:
             self.con.create_table(table_name, t, database=schema)
@@ -71,25 +79,24 @@ class BalizaEngine:
         return self.con.table(table_name, database=schema)
 
     def quarantine_record(self, resource: str, extraction_date: datetime, error: str, raw: dict[str, Any]):
-        """Save a failed record to the quarantine table for the current session."""
-        # Access the underlying DuckDB connection for parameterized execution
-        self.con.con.execute(
-            "INSERT INTO baliza_state.quarantine (resource, extraction_date, error, raw_json) "
-            "VALUES (?, ?, ?, ?)",
-            [resource, extraction_date, error, json.dumps(raw)],
-        )
-
-    def execute_sql(self, sql: str, params: list[Any] | None = None):
-        """Execute raw SQL with parameters."""
-        if params:
-            self.con.con.execute(sql, params)
-        else:
-            self.con.raw_sql(sql)
+        """Save a failed record to the quarantine table for the current session via native Ibis."""
+        row = {
+            "resource": [resource],
+            "extraction_date": [extraction_date],
+            "error": [error],
+            "raw_json": [json.dumps(raw)]
+        }
+        # Use memtable and insert (Native Ibis path)
+        t = ibis.memtable(row)
+        self.con.insert("quarantine", t, database="baliza_state")
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        # We don't close the connection here if it's shared, 
-        # but for standalone use it's fine.
-        pass
+        """Close the connection to prevent leaks."""
+        try:
+            if hasattr(self, 'con'):
+                self.con.disconnect()
+        except Exception:
+            pass

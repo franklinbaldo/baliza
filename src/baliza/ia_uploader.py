@@ -54,17 +54,35 @@ class IAUploader:
         self.manifest_item_id = "baliza-pncp-manifest"
 
     def _read_manifest_from_ia(self) -> list[dict[str, Any]]:
-        """Read existing manifest.csv from IA. Returns empty list if not found."""
-        url = f"https://archive.org/download/{self.manifest_item_id}/manifest.csv"
+        """Read existing manifest.csv from IA, with a fallback to legacy manifest.parquet."""
+        # 1. Try manifest.csv first (new standard)
+        url_csv = f"https://archive.org/download/{self.manifest_item_id}/manifest.csv"
         try:
             with httpx.Client(follow_redirects=True) as client:
-                resp = client.get(url)
+                resp = client.get(url_csv)
                 if resp.status_code == 200:
                     f = io.StringIO(resp.text)
                     reader = csv.DictReader(f)
                     return list(reader)
+        except Exception as e:
+            console.print(f"[dim]Note: manifest.csv not found or unreadable: {e}[/dim]")
+
+        # 2. Migration Fallback: Try manifest.parquet (legacy standard)
+        url_pq = f"https://archive.org/download/{self.manifest_item_id}/manifest.parquet"
+        try:
+            import duckdb
+            with duckdb.connect(":memory:") as con:
+                con.execute("INSTALL httpfs; LOAD httpfs;")
+                # Read remote parquet directly via httpfs
+                res = con.execute(f"SELECT * FROM read_parquet('{url_pq}')").fetchall()
+                cols = [d[0] for d in con.description]
+                manifest = [dict(zip(cols, row)) for row in res]
+                console.print(f"[green]✓ Migrated {len(manifest)} rows from legacy manifest.parquet.[/green]")
+                return manifest
         except Exception:
+            # If both fail, we start fresh
             pass
+            
         return []
 
     def get_uploaded_dates(self) -> set[date]:
@@ -138,25 +156,34 @@ class IAUploader:
             )
 
             # 5. Update remote manifest.csv
-            self._update_remote_manifest(
-                target_date, 
-                item_id, 
-                files_to_upload, 
-                ia_access_key, 
-                ia_secret_key,
-                quarantine_stats
-            )
+            success = False
+            try:
+                self._update_remote_manifest(
+                    target_date, 
+                    item_id, 
+                    files_to_upload, 
+                    ia_access_key, 
+                    ia_secret_key,
+                    quarantine_stats
+                )
+                success = True
+            except Exception as e:
+                console.print(f"[red]✗ Manifest update failed for {date_str}: {e}[/red]")
+                # We do NOT cleanup if manifest update failed, to allow retry
 
-            # 6. AUTOMATED CLEANUP
-            if raw_dir.exists():
-                shutil.rmtree(raw_dir)
-            
-            # Clean up the daily processed folder if it exists
-            daily_processed = Path("data/daily")
-            if daily_processed.exists():
-                shutil.rmtree(daily_processed)
+            # 6. AUTOMATED CLEANUP (Only on success)
+            if success:
+                if raw_dir.exists():
+                    shutil.rmtree(raw_dir)
+                
+                # Clean up the daily processed folder if it exists
+                daily_processed = Path("data/daily")
+                if daily_processed.exists():
+                    shutil.rmtree(daily_processed)
 
-            console.print(f"[green]✓ {date_str} synced and local data cleaned.[/green]")
+                console.print(f"[green]✓ {date_str} synced and local data cleaned.[/green]")
+            else:
+                console.print(f"[yellow]⚠ {date_str} uploaded but NOT cleaned due to manifest error.[/yellow]")
 
     def _update_remote_manifest(
         self,
@@ -190,7 +217,6 @@ class IAUploader:
         
         # Write back to CSV
         with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as tf:
-            writer = csv.DictReader(io.StringIO()) # just for fieldnames
             fieldnames = ["data_particao", "table_name", "row_count", "quarantine_count", "ia_item_id", "raw_zip_url", "parquet_url", "quarantine_url", "uploaded_at"]
             writer = csv.DictWriter(tf, fieldnames=fieldnames)
             writer.writeheader()

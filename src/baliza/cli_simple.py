@@ -37,7 +37,11 @@ console = Console()
 
 @app.callback()
 def main() -> None:
-    """Baliza - Simple PNCP extraction tool."""
+    """Baliza - Simple PNCP extraction tool. 
+    
+    CLEAN BREAK: This version (V2) unifies all backfill/export logic into 'sync'. 
+    Older legacy commands have been retired for architectural stability.
+    """
     configure_logging()
 
 @app.command("sync")
@@ -122,36 +126,41 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                 futures: dict[concurrent.futures.Future[Any], tuple[str, date, int]] = {}
 
                 def finish_day(t_date: date):
-                    # 1. Ingest (Stateless Pydantic + Shared Ibis Engine)
-                    stats = extractor.ingest_day(datetime.combine(t_date, datetime.min.time()))
-                    
-                    # 2. Export Quarantine to local CSV if any
-                    q_csv = Path(f"data/quarentena-{t_date.isoformat()}.csv")
-                    has_q = extractor.export_quarantine(datetime.combine(t_date, datetime.min.time()), q_csv)
-                    
-                    if not dry_run:
-                        # 3. Upload Parquet + Raw Zip + Quarantine CSV
-                        if not ia_access_key or not ia_secret_key:
-                            raise ValueError("Missing IA credentials for upload")
-                            
-                        uploader.upload_day(
-                            t_date, 
-                            Path("data/daily"), 
-                            ia_access_key, 
-                            ia_secret_key,
-                            quarantine_stats=stats,
-                            quarantine_csv=q_csv if has_q else None
-                        )
-                    else:
-                        console.print(f"[yellow]Dry-run: would upload {t_date} (stats: {stats})[/yellow]")
+                    try:
+                        # 1. Ingest (Stateless Pydantic + Shared Ibis Engine)
+                        stats = extractor.ingest_day(datetime.combine(t_date, datetime.min.time()))
+                        
+                        # 2. Export Quarantine to local CSV if any
+                        q_csv = Path(f"data/quarentena-{t_date.isoformat()}.csv")
+                        has_q = extractor.export_quarantine(datetime.combine(t_date, datetime.min.time()), q_csv)
+                        
+                        if not dry_run:
+                            # 3. Upload Parquet + Raw Zip + Quarantine CSV
+                            if not ia_access_key or not ia_secret_key:
+                                raise ValueError("Missing IA credentials for upload")
+                                
+                            uploader.upload_day(
+                                t_date, 
+                                Path("data/daily"), 
+                                ia_access_key, 
+                                ia_secret_key,
+                                quarantine_stats=stats,
+                                quarantine_csv=q_csv if has_q else None
+                            )
+                        else:
+                            console.print(f"[yellow]Dry-run: would upload {t_date} (stats: {stats})[/yellow]")
 
-                    if q_csv.exists():
-                        q_csv.unlink()
+                        if q_csv.exists():
+                            q_csv.unlink()
 
-                    if t_date in day_tasks:
-                        progress.remove_task(day_tasks[t_date])
-                        del day_tasks[t_date]
-                    progress.update(overall_task, advance=1)
+                        if t_date in day_tasks:
+                            progress.remove_task(day_tasks[t_date])
+                            del day_tasks[t_date]
+                        progress.update(overall_task, advance=1)
+                    except Exception as e:
+                        console.print(f"[bold red]✗ Fatal error processing {t_date}: {e}[/bold red]")
+                        # We don't re-raise here to avoid killing the entire worker pool, 
+                        # but the overall task will show it didn't complete.
 
                 # DISPATCH LOOP
                 for target_date in batch:
