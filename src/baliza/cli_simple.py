@@ -13,6 +13,7 @@ import typer
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+from rich.progress import Progress, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn, SpinnerColumn
 
 from .consolidator import IAConsolidator
 from .daily_exporter import DailyExporter
@@ -636,66 +637,86 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
     console.print(f"Syncing up to {len(batch)} dates" + (f" (timeout: {limit_minutes}m)" if limit_minutes else ""))
 
     # 2. Orchestration logic
-    with PNCPExtractor(db_path, dataset) as extractor:
-        day_to_pages: dict[datetime.date, int] = {}
-        day_to_extracted: dict[datetime.date, int] = {}
-        uploader = IAUploader(db_path)
-        
-        futures = {}
-        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
-            def handle_completed_task(f, task_type, t_date):
-                try:
-                    res = f.result()
-                    if task_type == "probe":
-                        tp = res["total_pages"]
-                        day_to_pages[t_date] = tp
-                        day_to_extracted[t_date] = 0
-                        if tp == 0:
-                            console.print(f"[dim]Empty day: {t_date}[/dim]")
-                            return False
-                        for p in range(1, tp + 1):
-                            pf = executor.submit(extractor.fetch_page, "contratos", datetime.combine(t_date, datetime.min.time()), p)
-                            futures[pf] = ("fetch", t_date, p)
-                        return True
-                    else:
-                        day_to_extracted[t_date] += res
-                        day_to_pages[t_date] -= 1
-                        if day_to_pages[t_date] == 0:
-                            console.print(f"\n[green]★ Day complete: {t_date} ({day_to_extracted[t_date]} rows)[/green]")
-                            if not dry_run:
-                                uploader.upload_day(t_date, Path("data/daily"), ia_access_key, ia_secret_key)
-                                extractor.cleanup_uploaded(datetime.combine(t_date, datetime.min.time()))
-                        return True
-                except Exception as e:
-                    console.print(f"[red]✗ Task {task_type} failed for {t_date}: {e}[/red]")
-                    return False
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        TimeElapsedColumn(),
+        console=console,
+    ) as progress:
+        probe_task = progress.add_task("Probing Dates...", total=len(batch))
+        fetch_task = progress.add_task("Fetching Pages...", total=0)
+        upload_task = progress.add_task("Uploading Days...", total=len(batch))
 
-            # 1. Start submitting and interleaved processing
-            for target_date in batch:
-                time.sleep(1.0)
-                dt = datetime.combine(target_date, datetime.min.time())
-                f = executor.submit(extractor.probe_date, "contratos", dt)
-                futures[f] = ("probe", target_date, 0)
+        with PNCPExtractor(db_path, dataset) as extractor:
+            day_to_pages: dict[datetime.date, int] = {}
+            day_to_extracted: dict[datetime.date, int] = {}
+            uploader = IAUploader(db_path)
+            
+            futures = {}
+            with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+                def handle_completed_task(f, task_type, t_date):
+                    try:
+                        res = f.result()
+                        if task_type == "probe":
+                            tp = res["total_pages"]
+                            day_to_pages[t_date] = tp
+                            day_to_extracted[t_date] = 0
+                            progress.update(probe_task, advance=1)
+                            
+                            if tp == 0:
+                                progress.update(upload_task, advance=1)
+                                return False
+                                
+                            # Update global page count
+                            progress.update(fetch_task, total=progress.tasks[fetch_task].total + tp)
+                            
+                            for p in range(1, tp + 1):
+                                pf = executor.submit(extractor.fetch_page, "contratos", datetime.combine(t_date, datetime.min.time()), p)
+                                futures[pf] = ("fetch", t_date, p)
+                            return True
+                        else:
+                            day_to_extracted[t_date] += res
+                            day_to_pages[t_date] -= 1
+                            progress.update(fetch_task, advance=1)
+                            
+                            if day_to_pages[t_date] == 0:
+                                if not dry_run:
+                                    uploader.upload_day(t_date, Path("data/daily"), ia_access_key, ia_secret_key)
+                                    extractor.cleanup_uploaded(datetime.combine(t_date, datetime.min.time()))
+                                progress.update(upload_task, advance=1, description=f"Uploaded {t_date}")
+                            return True
+                    except Exception as e:
+                        # Log error without breaking progress bar
+                        progress.console.print(f"[red]✗ {task_type} failed for {t_date}: {e}[/red]")
+                        return False
+
+                # 1. Start submitting and interleaved processing
+                for target_date in batch:
+                    time.sleep(1.0)
+                    dt = datetime.combine(target_date, datetime.min.time())
+                    f = executor.submit(extractor.probe_date, "contratos", dt)
+                    futures[f] = ("probe", target_date, 0)
+                    
+                    # Check for completed tasks while submitting
+                    done, _ = concurrent.futures.wait(futures.keys(), timeout=0.01, return_when=concurrent.futures.FIRST_COMPLETED)
+                    for f in list(done):
+                        if f in futures:
+                            t_type, t_date, _ = futures.pop(f)
+                            handle_completed_task(f, t_type, t_date)
+
+                    elapsed = (datetime.now() - start_time).total_seconds() / 60
+                    if limit_minutes and elapsed >= limit_minutes:
+                        progress.console.print(f"\n[yellow]⚠ Time limit reached ({limit_minutes}m). Stopping gracefully.[/yellow]")
+                        break
                 
-                # Check for completed tasks while submitting
-                done, _ = concurrent.futures.wait(futures.keys(), timeout=0.01, return_when=concurrent.futures.FIRST_COMPLETED)
-                for f in list(done):
-                    if f in futures:
+                # 2. Final drain
+                while futures:
+                    done, _ = concurrent.futures.wait(futures.keys(), timeout=1.0, return_when=concurrent.futures.FIRST_COMPLETED)
+                    for f in done:
                         t_type, t_date, _ = futures.pop(f)
                         handle_completed_task(f, t_type, t_date)
-
-                elapsed = (datetime.now() - start_time).total_seconds() / 60
-                if limit_minutes and elapsed >= limit_minutes:
-                    console.print(f"\n[yellow]⚠ Time limit reached ({limit_minutes}m). Stopping gracefully.[/yellow]")
-                    break
-            
-            # 2. Final drain
-            console.print("[dim]Draining remaining tasks...[/dim]")
-            while futures:
-                done, _ = concurrent.futures.wait(futures.keys(), timeout=1.0, return_when=concurrent.futures.FIRST_COMPLETED)
-                for f in done:
-                    t_type, t_date, _ = futures.pop(f)
-                    handle_completed_task(f, t_type, t_date)
 
 
 if __name__ == "__main__":
