@@ -1,5 +1,4 @@
 <script lang="ts">
-  import * as duckdb from '@duckdb/duckdb-wasm';
   import { fade } from 'svelte/transition';
   import { getDuckDB } from '../lib/duckdb';
 
@@ -14,6 +13,7 @@
     try {
       const { conn } = await getDuckDB();
       const res = await conn.query(query);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       results = res.toArray().map((r: any) => r.toJSON());
     } catch (err: unknown) {
       console.error(err);

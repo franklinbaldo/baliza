@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createQuery, setQueryClientContext } from '@tanstack/svelte-query';
   import { getQueryClient } from '../lib/queryClient';
-  import type { PNCPContract, PNCPAgency } from '../lib/types';
+  import type { PNCPContract } from '../lib/types';
   import EntityNotFound from './EntityNotFound.svelte';
 
   setQueryClientContext(getQueryClient());

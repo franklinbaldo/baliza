@@ -86,7 +86,11 @@
 <style>
   .hero-section {
     padding: var(--space-3xl) 0 var(--space-xl);
-    background: radial-gradient(circle at top right, var(--color-base-200), transparent);
+    background:
+      radial-gradient(circle at top right, var(--color-base-200), transparent),
+      linear-gradient(to right, rgba(255,255,255,0.02) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255,255,255,0.02) 1px, transparent 1px);
+    background-size: 100% 100%, 20px 20px, 20px 20px;
   }
   .hero-inner {
     max-width: 800px;
@@ -127,6 +131,7 @@
   }
   input:focus {
     border-color: var(--color-primary);
+    box-shadow: var(--shadow-glow);
   }
   .search-btn {
     background: var(--color-primary);
