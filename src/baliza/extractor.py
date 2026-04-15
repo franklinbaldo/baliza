@@ -1104,7 +1104,46 @@ class PNCPExtractor:
             "pages": page,
             "start_date": start_date,
             "end_date": end_date,
+            "failed_dates": [d.date() for d in failed_dates] if 'failed_dates' in locals() else [],
         }
+
+    def probe_date(self, resource: str, extraction_date: datetime) -> dict[str, Any]:
+        """Probe a date to find out how many pages/records it has."""
+        data_inicial = extraction_date.strftime("%Y%m%d")
+        data_final = extraction_date.strftime("%Y%m%d")
+        url = f"{self.base_url}/{resource}"
+        params = {
+            "dataInicial": data_inicial,
+            "dataFinal": data_final,
+            "tamanhoPagina": 1,  # Minimum to get header
+            "pagina": 1,
+        }
+        res = _fetch_page(self.client, url, params)
+        return {
+            "total_pages": res.get("totalPaginas", 0),
+            "expected_rows": res.get("totalRegistros", 0),
+        }
+
+    def fetch_page(self, resource: str, extraction_date: datetime, page: int) -> int:
+        """Fetch a specific page and insert into DuckDB."""
+        data_inicial = extraction_date.strftime("%Y%m%d")
+        data_final = extraction_date.strftime("%Y%m%d")
+        url = f"{self.base_url}/{resource}"
+        params = {
+            "dataInicial": data_inicial,
+            "dataFinal": data_final,
+            "tamanhoPagina": 500,
+            "pagina": page,
+        }
+        
+        data = _fetch_page(self.client, url, params)
+        rows = data.get("data", [])
+        if not rows:
+            return 0
+            
+        with duckdb.connect(str(self.db_path)) as con:
+            self._ensure_schema(con)
+            return self._insert_page(con, rows)
 
     def extract(
         self,

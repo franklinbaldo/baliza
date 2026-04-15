@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import time
+import concurrent.futures
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -634,39 +635,67 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
 
     console.print(f"Syncing up to {len(batch)} dates" + (f" (timeout: {limit_minutes}m)" if limit_minutes else ""))
 
-    # 2. Process batch
+    # 2. Orchestration logic
     with PNCPExtractor(db_path, dataset) as extractor:
-        for target_date in batch:
-            # Time check
-            elapsed = (datetime.now() - start_time).total_seconds() / 60
-            if limit_minutes and elapsed >= limit_minutes:
-                console.print(f"\n[yellow]⚠ Time limit reached ({limit_minutes}m). Stopping gracefully.[/yellow]")
-                break
+        day_to_pages: dict[datetime.date, int] = {}
+        day_to_extracted: dict[datetime.date, int] = {}
+        uploader = IAUploader(db_path)
+        
+        futures = {}
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+            def handle_completed_task(f, task_type, t_date):
+                try:
+                    res = f.result()
+                    if task_type == "probe":
+                        tp = res["total_pages"]
+                        day_to_pages[t_date] = tp
+                        day_to_extracted[t_date] = 0
+                        if tp == 0:
+                            console.print(f"[dim]Empty day: {t_date}[/dim]")
+                            return False
+                        for p in range(1, tp + 1):
+                            pf = executor.submit(extractor.fetch_page, "contratos", datetime.combine(t_date, datetime.min.time()), p)
+                            futures[pf] = ("fetch", t_date, p)
+                        return True
+                    else:
+                        day_to_extracted[t_date] += res
+                        day_to_pages[t_date] -= 1
+                        if day_to_pages[t_date] == 0:
+                            console.print(f"\n[green]★ Day complete: {t_date} ({day_to_extracted[t_date]} rows)[/green]")
+                            if not dry_run:
+                                uploader.upload_day(t_date, Path("data/daily"), ia_access_key, ia_secret_key)
+                                extractor.cleanup_uploaded(datetime.combine(t_date, datetime.min.time()))
+                        return True
+                except Exception as e:
+                    console.print(f"[red]✗ Task {task_type} failed for {t_date}: {e}[/red]")
+                    return False
 
-            dt_start = datetime.combine(target_date, datetime.min.time())
+            # 1. Start submitting and interleaved processing
+            for target_date in batch:
+                time.sleep(1.0)
+                dt = datetime.combine(target_date, datetime.min.time())
+                f = executor.submit(extractor.probe_date, "contratos", dt)
+                futures[f] = ("probe", target_date, 0)
+                
+                # Check for completed tasks while submitting
+                done, _ = concurrent.futures.wait(futures.keys(), timeout=0.01, return_when=concurrent.futures.FIRST_COMPLETED)
+                for f in list(done):
+                    if f in futures:
+                        t_type, t_date, _ = futures.pop(f)
+                        handle_completed_task(f, t_type, t_date)
 
-            console.print(f"\n━━━━━━━━━━━━━━━━━━━━━━━ {target_date} ({elapsed:.1f}m elapsed) ━━━━━━━━━━━━━━━━━━━━━━━")
-
-            # Extract
-            try:
-                # Per-day deadline: avoid hanging
-                day_deadline = datetime.now() + timedelta(minutes=15)
-                extractor.extract(dt_start, dt_start, "contratos", workers=workers, deadline=day_deadline)
-            except Exception as e:
-                console.print(f"[red]✗ Extraction failed for {target_date}: {e}[/red]")
-                # We continue to next date if one fails
-                continue
-
-            # Upload
-            if dry_run:
-                console.print(f"[yellow]⚠ Dry run: skipping upload of {target_date}[/yellow]")
-                continue
-
-            try:
-                uploader.upload_day(target_date, Path("data/daily"), ia_access_key, ia_secret_key)
-            except Exception as e:
-                console.print(f"[red]✗ Upload failed for {target_date}: {e}[/red]")
-                continue
+                elapsed = (datetime.now() - start_time).total_seconds() / 60
+                if limit_minutes and elapsed >= limit_minutes:
+                    console.print(f"\n[yellow]⚠ Time limit reached ({limit_minutes}m). Stopping gracefully.[/yellow]")
+                    break
+            
+            # 2. Final drain
+            console.print("[dim]Draining remaining tasks...[/dim]")
+            while futures:
+                done, _ = concurrent.futures.wait(futures.keys(), timeout=1.0, return_when=concurrent.futures.FIRST_COMPLETED)
+                for f in done:
+                    t_type, t_date, _ = futures.pop(f)
+                    handle_completed_task(f, t_type, t_date)
 
 
 if __name__ == "__main__":
