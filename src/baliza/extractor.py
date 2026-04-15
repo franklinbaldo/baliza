@@ -1404,8 +1404,25 @@ class PNCPExtractor:
                     con.close()
 
     def __enter__(self) -> PNCPExtractor:
-        # Open persistent connection for the context duration
-        self.con = duckdb.connect(str(self.db_path), config={"access_mode": "READ_WRITE"})
+        # Open persistent connection for the context duration with retry logic
+        from tenacity import retry, wait_fixed, stop_after_attempt, retry_if_exception_type
+
+        @retry(
+            retry=retry_if_exception_type(duckdb.IOException),
+            wait=wait_fixed(2),
+            stop=stop_after_attempt(10),
+            reraise=True
+        )
+        def connect_with_retry() -> duckdb.DuckDBPyConnection:
+            return duckdb.connect(str(self.db_path), config={"access_mode": "READ_WRITE"})
+
+        try:
+            self.con = connect_with_retry()
+        except duckdb.IOException as e:
+            if "Could not set lock" in str(e):
+                console.print("[red]❌ Error: DuckDB is locked by another process.[/red]")
+                console.print("[yellow]💡 Try running: [bold]pkill -f baliza[/bold] to clear zombie processes.[/yellow]")
+            raise
         return self
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
