@@ -70,27 +70,47 @@ class IAUploader:
                     con.execute("LOAD httpfs;")
                 except Exception:
                     con.execute("INSTALL httpfs; LOAD httpfs;")
-                # Read only guaranteed columns; be tolerant of schema evolution
-                rows = con.execute(f"""
-                    SELECT file_url, table_name, data_particao
-                    FROM read_parquet('{MANIFEST_URL}')
-                """).fetchall()
-                if not rows:
-                    return pa.table({col.name: pa.array([], type=col.type)
-                                     for col in _MANIFEST_SCHEMA})
-                # Rebuild minimal table for dedup use
-                file_urls, table_names, dates = zip(*rows)
-                return pa.table({
-                    "file_url":      pa.array(file_urls,      type=pa.string()),
-                    "table_name":    pa.array(table_names,    type=pa.string()),
-                    "data_particao": pa.array(list(dates),    type=pa.date32()),
-                })
+
+                # Try to read all columns
+                try:
+                    df = con.execute(f"SELECT * FROM read_parquet('{MANIFEST_URL}')").arrow()
+                    
+                    # Ensure all columns from _MANIFEST_SCHEMA are present
+                    missing_fields = []
+                    for field in _MANIFEST_SCHEMA:
+                        if field.name not in df.column_names:
+                            # Add missing column as nulls
+                            null_array = pa.array([None] * df.num_rows, type=field.type)
+                            df = df.append_column(field, null_array)
+                    
+                    # Reorder/select to match schema exactly
+                    return df.select(_MANIFEST_SCHEMA.names)
+                except Exception as e:
+                    # Fallback to manual selection if SELECT * fails
+                    console.print(f"[dim]Note: Manifest schema check fallback: {e}[/dim]")
+                    rows = con.execute(f"""
+                        SELECT file_url, table_name, data_particao
+                        FROM read_parquet('{MANIFEST_URL}')
+                    """).fetchall()
+                    if not rows:
+                        return pa.Table.from_batches([], schema=_MANIFEST_SCHEMA)
+                    
+                    file_urls, table_names, dates = zip(*rows)
+                    data = {
+                        "file_url": pa.array(file_urls, type=pa.string()),
+                        "table_name": pa.array(table_names, type=pa.string()),
+                        "data_particao": pa.array(list(dates), type=pa.date32()),
+                    }
+                    # Add others as null
+                    for field in _MANIFEST_SCHEMA:
+                        if field.name not in data:
+                            data[field.name] = pa.array([None] * len(rows), type=field.type)
+                    
+                    return pa.table(data).select(_MANIFEST_SCHEMA.names)
+
         except Exception:
-            return pa.table({
-                "file_url":      pa.array([], type=pa.string()),
-                "table_name":    pa.array([], type=pa.string()),
-                "data_particao": pa.array([], type=pa.date32()),
-            })
+            return pa.Table.from_batches([], schema=_MANIFEST_SCHEMA)
+
 
     def get_uploaded_dates(self) -> set[datetime.date]:
         """Return the set of dates already in the manifest (contratos table)."""
