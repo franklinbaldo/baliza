@@ -718,29 +718,33 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                         done, _ = concurrent.futures.wait(futures.keys(), timeout=0.1, return_when=concurrent.futures.FIRST_COMPLETED)
                         for f in list(done):
                             if f in futures:
-                                (t_type, t_date, _), w_idx = futures.pop(f)
-                                if t_type == "probe" and f.result():
-                                    # Add extracted pages to the internal queue
+                                (t_info, w_idx) = futures.pop(f)
+                                t_type, t_date, _ = t_info
+                                handle_completed_task(f, t_type, t_date, w_idx)
+                                
+                                # If it was a probe that succeeded, queue its pages
+                                if t_type == "probe" and t_date in day_to_pages:
                                     tp = day_to_pages[t_date]
                                     for p in range(1, tp + 1):
                                         page_tasks_queue.append((t_date, p))
-                                handle_completed_task(f, t_type, t_date, w_idx)
-
-                    # Dispatch Probe
-                    w_idx = available_workers.pop(0)
-                    dt = datetime.combine(target_date, datetime.min.time())
-                    progress.update(worker_tasks[w_idx], description=f"[cyan]Worker {w_idx+1:02d}: Probing {target_date}[/cyan]", completed=50)
-                    time.sleep(1.0) # Stagger
-                    f = executor.submit(extractor.probe_date, "contratos", dt)
-                    futures[f] = (("probe", target_date, 0), w_idx)
 
                     # Interleaved: If we have pages in queue and workers available, dispatch them
+                    # PRIORITIZE FETCHING OVER PROBING
                     while page_tasks_queue and available_workers:
                         w_idx_p = available_workers.pop(0)
                         p_date, p_num = page_tasks_queue.pop(0)
                         progress.update(worker_tasks[w_idx_p], description=f"[magenta]Worker {w_idx_p+1:02d}: Fetching {p_date} p{p_num}[/magenta]", completed=20)
                         pf = executor.submit(extractor.fetch_page, "contratos", datetime.combine(p_date, datetime.min.time()), p_num)
                         futures[pf] = (("fetch", p_date, p_num), w_idx_p)
+
+                    # Only if we still have available workers, dispatch a Probe
+                    if available_workers:
+                        w_idx = available_workers.pop(0)
+                        dt = datetime.combine(target_date, datetime.min.time())
+                        progress.update(worker_tasks[w_idx], description=f"[cyan]Worker {w_idx+1:02d}: Probing {target_date}[/cyan]", completed=50)
+                        time.sleep(2.0) # Stagger more to avoid 429
+                        f = executor.submit(extractor.probe_date, "contratos", dt)
+                        futures[f] = (("probe", target_date, 0), w_idx)
 
                 # 2. Final drain
                 while futures or page_tasks_queue:
@@ -754,12 +758,13 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                     done, _ = concurrent.futures.wait(futures.keys(), timeout=0.5, return_when=concurrent.futures.FIRST_COMPLETED)
                     for f in done:
                         if f in futures:
-                            (t_type, t_date, _), w_idx = futures.pop(f)
-                            if t_type == "probe" and f.result():
+                            (t_info, w_idx) = futures.pop(f)
+                            t_type, t_date, _ = t_info
+                            handle_completed_task(f, t_type, t_date, w_idx)
+                            if t_type == "probe" and t_date in day_to_pages:
                                 tp = day_to_pages[t_date]
                                 for p in range(1, tp + 1):
                                     page_tasks_queue.append((t_date, p))
-                            handle_completed_task(f, t_type, t_date, w_idx)
 
 
 if __name__ == "__main__":
