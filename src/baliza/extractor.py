@@ -312,7 +312,7 @@ class PNCPExtractor:
             "User-Agent": "baliza/0.1.0 (+https://github.com/franklinbaldo/baliza)",
             **security_headers,
         }
-        self.client = httpx.Client(timeout=30.0, headers=headers)
+        self.client = httpx.Client(timeout=60.0, headers=headers)
 
         # Pre-compute SQL queries to avoid reconstruction in loops
         # Optimization: Hoist invariant SQL construction out of the loop
@@ -1179,7 +1179,7 @@ class PNCPExtractor:
                     futures = {}
                     # Calculate delay to hit target requests per second (1.0 default)
                     # This ensures we don't 'burst' all workers at once
-                    delay = 0.5  # 2 requests per second cadence for submission
+                    delay = 1.0  # 1 request per second cadence for submission
                     
                     for date in dates:
                         f = executor.submit(
