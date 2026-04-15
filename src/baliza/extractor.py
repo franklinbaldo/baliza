@@ -309,9 +309,8 @@ class PNCPExtractor:
 
         # Add User-Agent and security headers
         headers = {
-            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-            "Accept": "application/json, text/plain, */*",
-            "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+            "User-Agent": "curl/8.14.1",
+            "Accept": "*/*",
             **security_headers,
         }
         self.client = httpx.Client(
