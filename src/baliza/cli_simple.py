@@ -49,14 +49,14 @@ def main() -> None:
 @app.command("sync")
 def sync(  # noqa: PLR0913, PLR0915, PLR0912
     batch_size: int | None = typer.Option(
-        None, "--batch-size", "-n", help="Max days to sync (None for all)"
+        None, "--batch-size", "-n", help="Max months to sync (None for all)"
     ),
     start_date: str = typer.Option("2023-01-01", "--start-date", help="Oldest date to backfill"),
     db_path: Path | None = typer.Option(
         None, "--duckdb", help="DuckDB file (optional, defaults to :memory:)"
     ),
-    force_date: str | None = typer.Option(
-        None, "--force-date", help="Target a specific date regardless of manifest"
+    force_month: str | None = typer.Option(
+        None, "--force-month", help="Target a specific month (YYYY-MM) regardless of manifest"
     ),
     limit_minutes: int = typer.Option(
         0, "--limit-minutes", help="Stop after this many minutes (0 = no limit)"
@@ -80,13 +80,15 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
     engine = BalizaEngine(db_path)
     uploader = IAUploader(engine)
 
-    # 2. Determine dates to process using REMOTE manifest
-    if force_date:
-        batch = [datetime.strptime(force_date, "%Y-%m-%d").date()]
+    # 2. Determine months to process using REMOTE manifest
+    if force_month:
+        batch = [datetime.strptime(force_month, "%Y-%m").date()]
     else:
-        with console.status("[bold green]Checking IA manifest for pending dates...[/bold green]"):
+        with console.status("[bold green]Checking IA manifest for pending months...[/bold green]"):
             try:
-                uploaded = uploader.get_uploaded_dates()
+                # manifest dates in monthly strategy are strings "YYYY-MM"
+                raw_manifest = uploader._read_manifest_from_ia()
+                uploaded = {row["data_particao"] for row in raw_manifest if row.get("data_particao")}
             except Exception as e:
                 console.print(
                     f"[yellow]⚠ Could not read IA manifest (starting fresh): {e}[/yellow]"
@@ -94,17 +96,28 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                 uploaded = set()
 
             start = datetime.strptime(start_date, "%Y-%m-%d").date()
-            yesterday = date.today() - timedelta(days=1)
+            # Month-based start (first day of its month)
+            start = start.replace(day=1)
+            
+            today = date.today()
+            # End is the previous month
+            last_month_end = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
 
-            all_dates = []
+            pending_months = []
             curr = start
-            while curr <= yesterday:
-                all_dates.append(curr)
-                curr += timedelta(days=1)
+            while curr <= last_month_end:
+                month_key = curr.strftime("%Y-%m")
+                if month_key not in uploaded:
+                    pending_months.append(curr)
+                
+                # Advance to next month
+                if curr.month == 12:
+                    curr = curr.replace(year=curr.year + 1, month=1)
+                else:
+                    curr = curr.replace(month=curr.month + 1)
 
-            pending = [d for d in all_dates if d not in uploaded]
-            pending.sort(reverse=True)  # BACKWARDS IN TIME
-            batch = pending[:batch_size] if batch_size else pending
+            pending_months.sort(reverse=True)  # BACKWARDS IN TIME
+            batch = pending_months[:batch_size] if batch_size else pending_months
 
     if not batch:
         console.print("[green]✓ Everything up to date.[/green]")
@@ -125,8 +138,6 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
         overall_task = progress.add_task(
             "[bold white]Overall Progress[/bold white]", total=len(batch)
         )
-        probe_task = progress.add_task("[bold cyan]Probing Dates[/bold cyan]", total=len(batch))
-        fetch_task = progress.add_task("[bold magenta]Global Fetch Queue[/bold magenta]", total=0)
 
     # 3. Micro-metrics
     total_records = 0
@@ -146,102 +157,127 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
         expand=True,
     ) as progress:
         overall_task = progress.add_task(
-            "Overall Sync Progress", total=len(batch)
+            "[bold white]Overall Sync Progress (Months)[/bold white]", total=len(batch)
         )
         
-        # We'll use a local dict to map workers to their current date task
-        # But even better: just add/remove tasks dynamically.
-        # Since Workers=N, only N day_tasks will be active at once.
-        day_tasks: dict[date, TaskID] = {}
+        month_tasks: dict[str, TaskID] = {}
 
-        with PNCPExtractor(engine, use_curl=not no_curl) as extractor:
-            # Use pool for parallel scraping
-            with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
-                futures: dict[concurrent.futures.Future[Any], tuple[str, date, int]] = {}
+        # Use pool for parallel scraping
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+            futures: dict[concurrent.futures.Future[Any], date] = {}
 
-                def process_day_full(t_date: date, total_pages: int):
-                    nonlocal total_records, quarantine_count, error_count
-                    
-                    tid = progress.add_task(f"Day {t_date} [Fetching]", total=total_pages, completed=1)
-                    day_tasks[t_date] = tid
-                    
-                    try:
-                        # 1. Fetch remaining pages if any
+            def process_month_full(start_of_month: date):
+                nonlocal total_records, quarantine_count, error_count
+                
+                month_str = start_of_month.strftime("%Y-%m")
+                # Calculate end of month
+                if start_of_month.month == 12:
+                    next_month = start_of_month.replace(year=start_of_month.year + 1, month=1)
+                else:
+                    next_month = start_of_month.replace(month=start_of_month.month + 1)
+                end_of_month = next_month - timedelta(days=1)
+
+                # THREAD-SAFE ENGINE: Each worker gets its own connection
+                thread_engine = engine.connect_thread_safe()
+                
+                # 1. Lifecycle Progress Bar Start
+                tid = progress.add_task(f"Month {month_str} [Probing]", total=3, completed=0)
+                month_tasks[month_str] = tid
+                
+                try:
+                    with PNCPExtractor(thread_engine, use_curl=not no_curl) as extractor:
+                        # 2. Probe (Page 1)
+                        res = extractor.probe_range(
+                            "contratos", 
+                            datetime.combine(start_of_month, datetime.min.time()),
+                            datetime.combine(end_of_month, datetime.min.time())
+                        )
+                        total_pages = res["total_pages"]
+                        
+                        # Update progress bar total and description
+                        # Total = pages + 1 (ingest) + 1 (upload)
+                        progress.update(tid, total=total_pages + 2, advance=1, description=f"Month {month_str} [Pages 1/{total_pages}]")
+                        
+                        # 3. Fetch remaining pages
                         if total_pages > 1:
                             for p in range(2, total_pages + 1):
-                                extractor.fetch_page("contratos", datetime.combine(t_date, datetime.min.time()), p)
+                                progress.update(tid, description=f"Month {month_str} [Pages {p}/{total_pages}]")
+                                extractor.fetch_page(
+                                    "contratos", 
+                                    datetime.combine(start_of_month, datetime.min.time()),
+                                    datetime.combine(end_of_month, datetime.min.time()),
+                                    p
+                                )
                                 progress.update(tid, advance=1)
 
-                        # 2. Ingest
-                        progress.update(tid, description=f"Day {t_date} [Ingesting]")
-                        stats = extractor.ingest_day(datetime.combine(t_date, datetime.min.time()))
+                        # 4. Ingest
+                        progress.update(tid, description=f"Month {month_str} [Ingesting]")
+                        stats = extractor.ingest_range(datetime.combine(start_of_month, datetime.min.time()))
                         total_records += stats.get("valid", 0)
                         quarantine_count += stats.get("quarantine", 0)
+                        progress.update(tid, advance=1)
 
-                        # 3. Export & Upload
-                        q_csv = Path(f"data/quarentena-{t_date.isoformat()}.csv")
-                        has_q = extractor.export_quarantine(datetime.combine(t_date, datetime.min.time()), q_csv)
+                        # 5. Export & Upload
+                        q_csv = Path(f"data/quarentena-{month_str}.csv")
+                        has_q = extractor.export_quarantine(datetime.combine(start_of_month, datetime.min.time()), q_csv)
 
                         if not dry_run:
-                            progress.update(tid, description=f"Day {t_date} [Uploading]")
-                            if  ia_access_key and ia_secret_key:
-                                uploader.upload_day(
-                                    t_date, Path("data/daily"), ia_access_key, ia_secret_key,
+                            progress.update(tid, description=f"Month {month_str} [Uploading]")
+                            if ia_access_key and ia_secret_key:
+                                uploader.upload_month(
+                                    start_of_month, Path("data/processed"), ia_access_key, ia_secret_key,
                                     quarantine_stats=stats, quarantine_csv=q_csv if has_q else None
                                 )
                         else:
-                            progress.console.log(f"[yellow]Dry-run: {t_date} verified ({stats['valid']} records)[/yellow]")
+                            progress.console.log(f"[yellow]Dry-run: {month_str} verified ({stats['valid']} records)[/yellow]")
+                        
+                        # Step complete
+                        progress.update(tid, advance=1)
 
                         if q_csv.exists():
                             q_csv.unlink()
                             
-                        progress.update(overall_task, advance=1)
-                    except Exception as e:
-                        error_count += 1
-                        progress.console.log(f"[bold red]✗ Error {t_date}: {e}[/bold red]")
-                    finally:
-                        progress.remove_task(tid)
-                        if t_date in day_tasks:
-                            del day_tasks[t_date]
+                    progress.update(overall_task, advance=1)
+                except Exception as e:
+                    error_count += 1
+                    progress.console.log(f"[bold red]✗ Error {month_str}: {e}[/bold red]")
+                finally:
+                    progress.remove_task(tid)
+                    if month_str in month_tasks:
+                        del month_tasks[month_str]
 
-                # DISPATCHER
-                for target_date in batch:
-                    # Time check
-                    elapsed = (datetime.now() - start_time_exec).total_seconds() / 60
-                    if limit_minutes and elapsed >= limit_minutes:
-                        progress.console.log(f"[yellow]⚠ Time limit ({limit_minutes}m) reached.[/yellow]")
-                        break
+            # DISPATCHER
+            for target_month in batch:
+                # Time limit check
+                elapsed = (datetime.now() - start_time_exec).total_seconds() / 60
+                if limit_minutes and elapsed >= limit_minutes:
+                    progress.console.log(f"[yellow]⚠ Time limit ({limit_minutes}m) reached.[/yellow]")
+                    break
 
-                    # Wait if too many futures (worker limiting)
-                    # We want to maintain N active days
-                    while len(futures) >= workers:
-                        done, _ = concurrent.futures.wait(
-                            futures.keys(), timeout=0.1, return_when=concurrent.futures.FIRST_COMPLETED
-                        )
-                        for f in done:
-                            futures.pop(f)
+                # Maintain worker pool
+                while len(futures) >= workers:
+                    done, _ = concurrent.futures.wait(
+                        futures.keys(), timeout=0.1, return_when=concurrent.futures.FIRST_COMPLETED
+                    )
+                    for f in done:
+                        futures.pop(f)
 
-                    # Submit next day
-                    def daily_workflow(d: date):
-                        res = extractor.probe_date("contratos", datetime.combine(d, datetime.min.time()))
-                        process_day_full(d, res["total_pages"])
+                f = executor.submit(process_month_full, target_month)
+                futures[f] = target_month
 
-                    f = executor.submit(daily_workflow, target_date)
-                    futures[f] = ("workflow", target_date, 0)
-
-                # Final drain
-                concurrent.futures.wait(futures.keys())
+            # Final drain
+            concurrent.futures.wait(futures.keys())
 
     # 4. FINAL SUMMARY PANEL
     duration = datetime.now() - start_time_exec
     summary = (
-        f"• [bold white]Total Data points:[/] {total_records:,}\n"
+        f"• [bold white]Total Records:[/] {total_records:,}\n"
         f"• [bold yellow]Quarantine:[/] {quarantine_count:,}\n"
         f"• [bold red]Errors:[/] {error_count}\n"
         f"• [bold cyan]Duration:[/] {duration.total_seconds():.1f}s"
     )
     console.print("\n")
-    console.print(Panel(summary, title="[bold green]✓ Sync Results[/]", expand=False))
+    console.print(Panel(summary, title="[bold green]✓ Sincronização Finalizada[/]", expand=False))
 
 
 @app.command("verify")
@@ -259,24 +295,34 @@ def verify(
         engine = BalizaEngine()
         uploader = IAUploader(engine)
         with console.status("[bold green]Checking remote manifest...[/bold green]"):
-            uploaded = uploader.get_uploaded_dates()
+            raw_manifest = uploader._read_manifest_from_ia()
+            uploaded_months = {row["data_particao"] for row in raw_manifest if row.get("data_particao")}
 
         gaps = []
-        curr = start_date
-        while curr <= end_date:
-            if curr not in uploaded:
-                gaps.append(curr)
-            curr += timedelta(days=1)
+        curr = start_date.replace(day=1)
+        # Verify months up to previous month
+        today = date.today()
+        last_month_end = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
+
+        while curr <= last_month_end:
+            month_key = curr.strftime("%Y-%m")
+            if month_key not in uploaded_months:
+                gaps.append(month_key)
+            
+            # Next month
+            if curr.month == 12:
+                curr = curr.replace(year=curr.year + 1, month=1)
+            else:
+                curr = curr.replace(month=curr.month + 1)
 
         if not gaps:
-            console.print(f"[green]✓ Complete coverage from {start} to {end} on Internet Archive.")
+            console.print(f"[green]✓ Complete month coverage from {start} to {last_month_end.strftime('%Y-%m')} on Internet Archive.")
         else:
-            console.print(f"[yellow]⚠ Found {len(gaps)} missing day(s) on IA:")
-            # Group gaps for readability
-            for d in gaps[:20]:
-                console.print(f"  • {d}")
-            if len(gaps) > 20:
-                console.print(f"  ... and {len(gaps) - 20} more.")
+            console.print(f"[yellow]⚠ Found {len(gaps)} missing month(s) on IA:")
+            for m in gaps[:12]:
+                console.print(f"  • {m}")
+            if len(gaps) > 12:
+                console.print(f"  ... and {len(gaps) - 12} more.")
 
     except Exception as e:
         console.print(f"[red]✗ Verify failed: {e}")

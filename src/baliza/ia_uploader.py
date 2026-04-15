@@ -18,33 +18,32 @@ from .engine import BalizaEngine
 console = Console()
 
 
-class DailyExporter:
-    """Exports daily data from the engine to Parquet/JSON for upload."""
+class MonthlyExporter:
+    """Exports monthly data from the engine to Parquet/JSON for upload."""
 
     def __init__(self, engine: BalizaEngine):
         self.engine = engine
 
-    def export_day(self, target_date: date, output_dir: Path) -> dict[str, Path]:
-        """Export all tables for a given day to Parquet in output_dir."""
+    def export_month(self, start_date: date, output_dir: Path) -> dict[str, Path]:
+        """Export all tables for a given month to Parquet in output_dir."""
         output_dir.mkdir(parents=True, exist_ok=True)
         files = {}
 
-        # In our simplified stateless model, we mainly care about 'contratos'
+        # Mofified to monthly filename
+        month_str = start_date.strftime("%Y-%m")
         table_name = "contratos"
-        filename = f"{table_name}-{target_date.isoformat()}.parquet"
+        filename = f"{table_name}-{month_str}.parquet"
         out_path = output_dir / filename
 
         try:
             # Query the in-memory engine
             t = self.engine.get_table(table_name, schema="main")
-            # Filter by data_publicacao if available, or just take what's in the session
-            # Since the session is ephemeral per day in our sync loop, we can just take all
             t.to_parquet(out_path)
             if out_path.exists():
                 files[table_name] = out_path
         except Exception as e:
             console.print(
-                f"[yellow]⚠ No data found for {table_name} on {target_date}: {e}[/yellow]"
+                f"[yellow]⚠ No data found for {table_name} on {month_str}: {e}[/yellow]"
             )
 
         return files
@@ -55,7 +54,7 @@ class IAUploader:
 
     def __init__(self, engine: BalizaEngine) -> None:
         self.engine = engine
-        self.exporter = DailyExporter(engine)
+        self.exporter = MonthlyExporter(engine)
         self.manifest_item_id = "baliza-pncp-manifest"
 
     def _read_manifest_from_ia(self) -> list[dict[str, Any]]:
@@ -72,22 +71,7 @@ class IAUploader:
         except Exception as e:
             console.print(f"[dim]Note: manifest.csv not found or unreadable: {e}[/dim]")
 
-        # 2. Migration Fallback: Try manifest.parquet (legacy standard)
-        url_pq = f"https://archive.org/download/{self.manifest_item_id}/manifest.parquet"
-        try:
-            with duckdb.connect(":memory:") as con:
-                con.execute("INSTALL httpfs; LOAD httpfs;")
-                # Read remote parquet directly via httpfs
-                res = con.execute(f"SELECT * FROM read_parquet('{url_pq}')").fetchall()
-                cols = [d[0] for d in con.description]
-                manifest = [dict(zip(cols, row, strict=True)) for row in res]
-                console.print(
-                    f"[green]✓ Migrated {len(manifest)} rows from legacy manifest.parquet.[/green]"
-                )
-                return manifest
-        except Exception:
-            # If both fail, we start fresh
-            pass
+        return []
 
         return []
 
@@ -104,30 +88,30 @@ class IAUploader:
                     continue
         return dates
 
-    def upload_day(  # noqa: PLR0913
+    def upload_month(  # noqa: PLR0913
         self,
-        target_date: date,
+        start_date: date,
         output_dir: Path,
         ia_access_key: str,
         ia_secret_key: str,
         quarantine_stats: dict[str, int] | None = None,
         quarantine_csv: Path | None = None,
     ) -> None:
-        """Export, Zip, and Upload daily data to Internet Archive, then cleanup."""
-        item_id = f"baliza-pncp-{target_date.year}"
-        date_str = target_date.isoformat()
+        """Export, Zip, and Upload monthly consolidated data to Internet Archive, then cleanup."""
+        month_str = start_date.strftime("%Y-%m")
+        item_id = f"baliza-pncp-{month_str}"
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             temp_path = Path(tmp_dir)
 
             # 1. Export Parquet from shared engine
-            exported_files = self.exporter.export_day(target_date, temp_path)
+            exported_files = self.exporter.export_month(start_date, temp_path)
 
             # 2. Zip raw JSON files
-            raw_dir = Path("data/raw") / date_str
+            raw_dir = Path("data/raw") / month_str
             zip_path = None
             if raw_dir.exists():
-                zip_path = temp_path / f"raw-{date_str}.zip"
+                zip_path = temp_path / f"raw-{month_str}.zip"
                 shutil.make_archive(str(zip_path.with_suffix("")), "zip", raw_dir)
                 zip_path = zip_path.with_suffix(".zip")
 
@@ -143,7 +127,7 @@ class IAUploader:
                 files_to_upload[path.name] = str(path)
 
             if not files_to_upload:
-                console.print(f"[yellow]⚠ Nothing to upload for {date_str}[/yellow]")
+                console.print(f"[yellow]⚠ Nothing to upload for {month_str}[/yellow]")
                 return
 
             # 4. Perform Upload
@@ -154,7 +138,8 @@ class IAUploader:
                 access_key=ia_access_key,
                 secret_key=ia_secret_key,
                 metadata={
-                    "title": f"Baliza PNCP Data {target_date.year}",
+                    "title": f"Baliza PNCP Data {month_str}",
+                    "description": f"Consolidated monthly data for PNCP contracts - {month_str}",
                     "mediatype": "data",
                     "collection": "opensource_media",
                 },
@@ -165,7 +150,7 @@ class IAUploader:
             success = False
             try:
                 self._update_remote_manifest(
-                    target_date,
+                    start_date,
                     item_id,
                     files_to_upload,
                     ia_access_key,
@@ -174,7 +159,7 @@ class IAUploader:
                 )
                 success = True
             except Exception as e:
-                console.print(f"[red]✗ Manifest update failed for {date_str}: {e}[/red]")
+                console.print(f"[red]✗ Manifest update failed for {month_str}: {e}[/red]")
                 # We do NOT cleanup if manifest update failed, to allow retry
 
             # 6. AUTOMATED CLEANUP (Only on success)
@@ -187,15 +172,15 @@ class IAUploader:
                 if daily_processed.exists():
                     shutil.rmtree(daily_processed)
 
-                console.print(f"[green]✓ {date_str} synced and local data cleaned.[/green]")
+                console.print(f"[green]✓ {month_str} synced and local data cleaned.[/green]")
             else:
                 console.print(
-                    f"[yellow]⚠ {date_str} uploaded but NOT cleaned due to manifest error.[/yellow]"
+                    f"[yellow]⚠ {month_str} uploaded but NOT cleaned due to manifest error.[/yellow]"
                 )
 
     def _update_remote_manifest(  # noqa: PLR0913
         self,
-        target_date: date,
+        start_date: date,
         item_id: str,
         uploaded_files: dict[str, str],
         access_key: str,
@@ -206,26 +191,26 @@ class IAUploader:
         manifest = self._read_manifest_from_ia()
 
         # Build new row
-        date_str = target_date.isoformat()
+        month_str = start_date.strftime("%Y-%m")
         new_row = {
-            "data_particao": date_str,
+            "data_particao": month_str,
             "table_name": "contratos",
             "row_count": q_stats.get("valid", 0) if q_stats else 0,
             "quarantine_count": q_stats.get("quarantine", 0) if q_stats else 0,
             "ia_item_id": item_id,
-            "raw_zip_url": f"https://archive.org/download/{item_id}/raw-{date_str}.zip",
-            "parquet_url": f"https://archive.org/download/{item_id}/contratos-{date_str}.parquet",
-            "quarantine_url": f"https://archive.org/download/{item_id}/quarentena-{date_str}.csv"
+            "raw_zip_url": f"https://archive.org/download/{item_id}/raw-{month_str}.zip",
+            "parquet_url": f"https://archive.org/download/{item_id}/contratos-{month_str}.parquet",
+            "quarantine_url": f"https://archive.org/download/{item_id}/quarentena-{month_str}.csv"
             if q_stats and q_stats.get("quarantine", 0) > 0
             else "",
             "uploaded_at": datetime.now().isoformat(),
         }
 
-        # Simple deduplication: remove old row for same date/table
+        # Simple deduplication: remove old row for same partition/table
         manifest = [
             r
             for r in manifest
-            if not (r["data_particao"] == date_str and r["table_name"] == "contratos")
+            if not (r["data_particao"] == month_str and r["table_name"] == "contratos")
         ]
         manifest.append(new_row)
 
