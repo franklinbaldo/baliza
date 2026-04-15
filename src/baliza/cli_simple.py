@@ -605,13 +605,12 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
     force_date: str | None = typer.Option(
         None, "--force-date", help="Target a specific date regardless of manifest"
     ),
-    limit_minutes: int | None = typer.Option(
-        None, "--limit-minutes", help="Gracefully stop after N minutes"
-    ),
+    limit_minutes: int = typer.Option(0, "--limit-minutes", help="Stop after this many minutes (0 = no limit)"),
     dry_run: bool = typer.Option(
         False, "--dry-run", help="Show what would be done without uploading"
     ),
     workers: int = typer.Option(4, "--workers", "-w", help="Parallel workers for page extraction"),
+    use_curl: bool = typer.Option(False, "--use-curl", help="Use system cURL instead of httpx"),
 ) -> None:
     """Unified sync: extracts missing dates and uploads to IA (greedy backwards sweep)."""
     start_time = datetime.now()
@@ -685,7 +684,7 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
         # Track active progress bars for specific days
         day_tasks: dict[date, TaskID] = {}
 
-        with PNCPExtractor(db_path, dataset) as extractor:
+        with PNCPExtractor(db_path, dataset, use_curl=use_curl) as extractor:
             day_to_pages: dict[date, int] = {}
             day_to_extracted: dict[date, int] = {}
             uploader = IAUploader(db_path)

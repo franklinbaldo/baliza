@@ -8,11 +8,13 @@ from __future__ import annotations
 
 import concurrent.futures
 import json
+import subprocess
 import threading
 import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, TypedDict
+from urllib.parse import urlencode
 
 import duckdb
 import httpx
@@ -25,13 +27,14 @@ from tenacity import (
     RetryCallState,
     retry,
     retry_if_exception,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
+    wait_fixed,
 )
 
 from .utils import (
     scrub_url_params,
-    secure_url_connection_params,
     validate_identifier,
     validate_resource_path,
 )
@@ -249,38 +252,53 @@ def _log_retry(retry_state: RetryCallState) -> None:
     before_sleep=_log_retry,
     reraise=True,
 )
-def _fetch_page(
+def _fetch_page_curl(url: str, params: dict, headers: dict) -> dict:
+    """Fallback: Fetch a single page using system cURL."""
+    full_url = f"{url}?{urlencode(params)}"
+
+    cmd = ["curl", "-s", "-L", "--compressed"]
+    for k, v in headers.items():
+        cmd.extend(["-H", f"{k}: {v}"])
+    cmd.append(full_url)
+
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        raise RuntimeError(f"cURL failed with code {result.returncode}: {result.stderr}")
+
+    try:
+        return json.loads(result.stdout)
+    except json.JSONDecodeError as e:
+        # Check if it was a 404 disguised as HTML
+        if "404" in result.stdout:
+            return {"data": [], "totalPaginas": 0, "totalRegistros": 0}
+        raise RuntimeError(
+            f"Failed to parse cURL JSON output: {e}\nOutput head: {result.stdout[:200]}"
+        ) from e
+
+
+@retry(
+    retry=retry_if_exception(lambda e: isinstance(e, (httpx.HTTPError, RuntimeError))),
+    wait=wait_exponential(multiplier=1, min=4, max=60),
+    stop=stop_after_attempt(5),
+    reraise=True,
+)
+def _fetch_page(  # noqa: PLR0913
     client: httpx.Client,
     url: str,
     params: dict,
     max_size: int = DEFAULT_MAX_RESPONSE_SIZE,
+    use_curl: bool = False,
+    headers: dict | None = None,
 ) -> dict:
-    """Fetch a single page from PNCP API with retry logic and size limit.
+    """Fetch a single page from PNCP API."""
+    if use_curl:
+        return _fetch_page_curl(url, params, headers or {})
 
-    Uses exponential backoff with retries on:
-    - HTTP 429 (rate limit)
-    - HTTP 5xx (server errors)
-    - Connection errors
-    - Timeouts
-
-    Args:
-        client: HTTP client to use
-        url: API endpoint URL
-        params: Query parameters
-        max_size: Maximum response size in bytes
-
-    Returns:
-        Parsed JSON response
-
-    Raises:
-        httpx.HTTPStatusError: On non-retryable HTTP errors or after max retries
-        ValueError: If response exceeds max_size
-    """
     with client.stream("GET", url, params=params) as response:
         if response.status_code == 404:
             # PNCP returns 404 if no records found for the date/filters
             return {"data": [], "totalPaginas": 0, "totalRegistros": 0}
-            
+
         response.raise_for_status()
 
         chunks = []
@@ -302,8 +320,10 @@ class PNCPExtractor:
         db_path: Path,
         dataset: str = "baliza_raw",
         base_url: str = "https://pncp.gov.br/api/consulta/v1",
+        use_curl: bool = False,
     ):
         self.db_path = db_path
+        self.use_curl = use_curl
         # Validate dataset name to prevent SQL injection
         self.dataset = validate_identifier(dataset)
         self._db_lock = threading.Lock()
@@ -1143,7 +1163,7 @@ class PNCPExtractor:
             "tamanhoPagina": 500,  # Maximize first request
             "pagina": 1,
         }
-        res = _fetch_page(self.client, url, params)
+        res = _fetch_page(self.client, url, params, use_curl=self.use_curl, headers=self.headers)
         rows = res.get("data", [])
 
         # Optimization: Use the probe as Page 1
@@ -1166,7 +1186,7 @@ class PNCPExtractor:
             "tamanhoPagina": 500,
             "pagina": page,
         }
-        res = _fetch_page(self.client, url, params)
+        res = _fetch_page(self.client, url, params, use_curl=self.use_curl, headers=self.headers)
         rows = res.get("data", [])
         if not rows:
             return 0
@@ -1409,8 +1429,6 @@ class PNCPExtractor:
 
     def __enter__(self) -> PNCPExtractor:
         # Open persistent connection for the context duration with retry logic
-        from tenacity import retry, wait_fixed, stop_after_attempt, retry_if_exception_type
-
         @retry(
             retry=retry_if_exception_type(duckdb.IOException),
             wait=wait_fixed(2),
