@@ -16,7 +16,7 @@ import { HOW_IT_WORKS_CARDS } from '../lib/homepage-content';
       <div class="cards-grid">
         {HOW_IT_WORKS_CARDS.map(card => (
           <div class="anatomy-card">
-            <span class="card-icon">{card.icon}</span>
+            <span class="card-icon" set:html={card.icon} />
             <h3 class="card-title">{card.title}</h3>
             <p class="card-text">{card.description}</p>
           </div>
@@ -59,8 +59,9 @@ import { HOW_IT_WORKS_CARDS } from '../lib/homepage-content';
   .anatomy-card {
     padding: var(--space-md);
     background: var(--color-base-200);
-    border-radius: var(--radius-box);
+    border-radius: var(--radius-sm);
     border: 1px solid var(--color-base-300);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.02);
     transition: transform 0.2s;
   }
   .anatomy-card:hover {
