@@ -1,6 +1,8 @@
 <script lang="ts">
-  import { getDuckDB } from '../lib/duckdb';
+  import { onMount, onDestroy } from 'svelte';
+  import * as duckdb from '@duckdb/duckdb-wasm';
   import { fade } from 'svelte/transition';
+  import { getDuckDB } from '../lib/duckdb';
 
   let query = $state("SELECT * FROM contracts LIMIT 10");
   let results = $state<Record<string, unknown>[]>([]);

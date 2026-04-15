@@ -5,6 +5,7 @@
 
   setQueryClientContext(getQueryClient());
 
+
   const { ibge = "" } = $props();
 
   const cityQuery = createQuery(() => ({
@@ -30,8 +31,9 @@
           ibge,
           contracts: data.data || [] 
         };
-      } catch (err: any) {
-        throw new Error(err.message || "Erro ao consultar o município.", { cause: err });
+      } catch (err: unknown) {
+        const error = err as Error;
+        throw new Error(error.message || "Erro ao consultar o município.", { cause: err });
       }
     },
     enabled: !!ibge
@@ -64,7 +66,7 @@
 
     <div class="stats-row">
       <div class="stat-mini">
-        <label>Contratações Recentes</label>
+        <span class="stat-mini-label">Contratações Recentes</span>
         <strong>{data.contracts.length}</strong>
       </div>
     </div>
@@ -96,7 +98,7 @@
   
   .stats-row { display: flex; gap: var(--space-md); margin-bottom: var(--space-xl); }
   .stat-mini { background: var(--color-base-200); padding: var(--space-sm) var(--space-md); border-radius: var(--radius-sm); border: 1px solid var(--color-base-300); min-width: 150px; }
-  .stat-mini label { display: block; font-size: 0.65rem; color: var(--color-secondary); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; }
+  .stat-mini-label { display: block; font-size: 0.65rem; color: var(--color-secondary); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; }
   .stat-mini strong { font-size: var(--font-size-xl); color: var(--color-primary); }
 
   .recent-list { display: grid; gap: var(--space-md); }

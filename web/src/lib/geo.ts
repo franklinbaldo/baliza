@@ -50,7 +50,7 @@ export async function getIBGECode(cityName: string, stateName: string): Promise<
   const results = await res.json();
   if (!Array.isArray(results) || results.length === 0) return null;
 
-  const match = results.find((m: any) => 
+  const match = (results as IBGEResult[]).find((m) => 
     m.nome.toLowerCase() === cityName.toLowerCase() &&
     (stateName === "" || m.microrregiao.mesorregiao.UF.nome.toLowerCase() === stateName.toLowerCase())
   );

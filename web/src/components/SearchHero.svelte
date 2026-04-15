@@ -1,9 +1,10 @@
 <script lang="ts">
   import { fade } from 'svelte/transition';
   import { PROJECT_MISSION, SEARCH_HINTS } from '../lib/homepage-content';
+  import type { SearchResult } from '../lib/types';
   
   let query = $state("");
-  let results = $state<any[]>([]);
+  let results = $state<SearchResult[]>([]);
   let loading = $state(false);
 
   // Pattern detection for "Direct Jump"

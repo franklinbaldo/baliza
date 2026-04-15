@@ -1,10 +1,11 @@
 <script lang="ts">
   import { getUserCoordinates, getCityFromCoords, getIBGECode } from '../lib/geo';
   import { fade } from 'svelte/transition';
+  import type { PNCPContract } from '../lib/types';
 
   let locationStatus = $state<'idle' | 'locating' | 'loading_data' | 'ready' | 'error' | 'denied'>('idle');
   let cityInfo = $state<{ name: string; ibge: string } | null>(null);
-  let bids = $state<any[]>([]);
+  let bids = $state<PNCPContract[]>([]);
 
   async function handleFindLocal() {
     locationStatus = 'locating';

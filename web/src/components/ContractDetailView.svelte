@@ -1,6 +1,7 @@
 <script lang="ts">
   import { createQuery, setQueryClientContext } from '@tanstack/svelte-query';
   import { getQueryClient } from '../lib/queryClient';
+  import type { PNCPContract } from '../lib/types';
   import EntityNotFound from './EntityNotFound.svelte';
 
   setQueryClientContext(getQueryClient());
@@ -21,9 +22,10 @@
         const url = `https://pncp.gov.br/api/consulta/v1/orgaos/${cnpj}/contratacoes/${ano}/${sequencial}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error("Contratação não localizada no PNCP.");
-        return await res.json();
-      } catch (err: any) {
-        throw new Error(err.message || "Erro ao consultar contrato.", { cause: err });
+        return (await res.json()) as PNCPContract;
+      } catch (err: unknown) {
+        const error = err as Error;
+        throw new Error(error.message || "Erro ao consultar contrato.", { cause: err });
       }
     },
     enabled: !!id
@@ -58,8 +60,8 @@
       <section class="card">
         <h3>Resumo Executivo</h3>
         <dl class="data-list">
-          <div role="listitem"><dt>Modalidade</dt><dd>{data.modalidadeNome}</dd></div>
-          <div role="listitem"><dt>Situação</dt><dd>{data.situacaoNome}</dd></div>
+          <div role="listitem"><dt>Modalidade</dt><dd>{data.modalidadeNome || 'Não informada'}</dd></div>
+          <div role="listitem"><dt>Situação</dt><dd>{data.situacaoNome || 'Desconhecida'}</dd></div>
           <div role="listitem"><dt>CNPJ Comprador</dt><dd>{data.orgaoEntidade?.cnpj}</dd></div>
         </dl>
       </section>
@@ -67,7 +69,7 @@
       <section class="card">
         <h3>Itens da Licitação</h3>
         <ul class="item-list">
-          {#each data.itens || [] as item (item.sequencialItem)}
+          {#each (data as any).itens || [] as item (item.sequencialItem)}
             <li>{item.descricao}</li>
           {/each}
         </ul>
