@@ -1,6 +1,8 @@
-import httpx
 import time
 from datetime import datetime
+
+import httpx
+
 
 def debug_probe():
     url = "https://pncp.gov.br/api/consulta/v1/contratos"
@@ -18,7 +20,7 @@ def debug_probe():
 
     print(f"[{datetime.now()}] Starting probe (HTTP/2 + Browser UA)...")
     start = time.time()
-    
+
     with httpx.Client(http2=True, timeout=180.0) as client:
         try:
             print(f"[{datetime.now()}] Sending GET {url} with params {params}...")
@@ -35,6 +37,7 @@ def debug_probe():
                 print(f"Error Body: {response.text}")
         except Exception as e:
             print(f"[{datetime.now()}] Request failed: {type(e).__name__}: {e}")
+
 
 if __name__ == "__main__":
     debug_probe()

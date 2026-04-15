@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import concurrent.futures
 import os
 import time
-import concurrent.futures
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -12,16 +12,16 @@ import duckdb
 import typer
 from rich.console import Console
 from rich.panel import Panel
-from rich.table import Table
 from rich.progress import (
-    BarColumn, 
-    Progress, 
-    SpinnerColumn, 
-    TaskProgressColumn, 
-    TimeElapsedColumn,
+    BarColumn,
+    Progress,
+    SpinnerColumn,
     TaskID,
-    TextColumn
+    TaskProgressColumn,
+    TextColumn,
+    TimeElapsedColumn,
 )
+from rich.table import Table
 
 from .consolidator import IAConsolidator
 from .daily_exporter import DailyExporter
@@ -590,13 +590,21 @@ def status(
 
 @app.command("sync")
 def sync(  # noqa: PLR0913, PLR0915, PLR0912
-    batch_size: int | None = typer.Option(None, "--batch-size", "-n", help="Max days to sync (None for all)"),
+    batch_size: int | None = typer.Option(
+        None, "--batch-size", "-n", help="Max days to sync (None for all)"
+    ),
     start_date: str = typer.Option("2023-01-01", "--start-date", help="Oldest date to backfill"),
     db_path: Path = typer.Option(Path("baliza.duckdb"), "--duckdb", help="DuckDB file"),
     dataset: str = typer.Option("baliza_raw", "--dataset", help="Dataset name"),
-    force_date: str | None = typer.Option(None, "--force-date", help="Target a specific date regardless of manifest"),
-    limit_minutes: int | None = typer.Option(None, "--limit-minutes", help="Gracefully stop after N minutes"),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done without uploading"),
+    force_date: str | None = typer.Option(
+        None, "--force-date", help="Target a specific date regardless of manifest"
+    ),
+    limit_minutes: int | None = typer.Option(
+        None, "--limit-minutes", help="Gracefully stop after N minutes"
+    ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Show what would be done without uploading"
+    ),
     workers: int = typer.Option(4, "--workers", "-w", help="Parallel workers for page extraction"),
 ) -> None:
     """Unified sync: extracts missing dates and uploads to IA (greedy backwards sweep)."""
@@ -605,7 +613,9 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
     ia_secret_key = os.environ.get("IA_SECRET_KEY") or os.environ.get("IAS3_SECRET_KEY")
 
     if not dry_run and (not ia_access_key or not ia_secret_key):
-        console.print("[red]✗ Missing IA_ACCESS_KEY/IAS3_ACCESS_KEY or IA_SECRET_KEY/IAS3_SECRET_KEY in environment.[/red]")
+        console.print(
+            "[red]✗ Missing IA_ACCESS_KEY/IAS3_ACCESS_KEY or IA_SECRET_KEY/IAS3_SECRET_KEY in environment.[/red]"
+        )
         raise typer.Exit(1)
 
     uploader = IAUploader(db_path)
@@ -618,7 +628,9 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
             try:
                 uploaded = uploader.get_uploaded_dates()
             except Exception as e:
-                console.print(f"[yellow]⚠ Could not read IA manifest (starting fresh): {e}[/yellow]")
+                console.print(
+                    f"[yellow]⚠ Could not read IA manifest (starting fresh): {e}[/yellow]"
+                )
                 uploaded = set()
 
             start = datetime.strptime(start_date, "%Y-%m-%d").date()
@@ -642,7 +654,10 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
         console.print("[green]✓ Everything up to date.[/green]")
         return
 
-    console.print(f"Syncing up to {len(batch)} dates" + (f" (timeout: {limit_minutes}m)" if limit_minutes else ""))
+    console.print(
+        f"Syncing up to {len(batch)} dates"
+        + (f" (timeout: {limit_minutes}m)" if limit_minutes else "")
+    )
 
     # 2. Orchestration logic
     with Progress(
@@ -652,13 +667,15 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
         TaskProgressColumn(),
         TimeElapsedColumn(),
         console=console,
-        refresh_per_second=4, # Smoother UI
+        refresh_per_second=4,  # Smoother UI
     ) as progress:
         # Global Summary Tasks
         probe_task = progress.add_task("[bold cyan]Probing Dates[/bold cyan]", total=len(batch))
         fetch_task = progress.add_task("[bold magenta]Global Fetch Queue[/bold magenta]", total=0)
-        upload_task = progress.add_task("[bold green]IA Upload Progress[/bold green]", total=len(batch))
-        
+        upload_task = progress.add_task(
+            "[bold green]IA Upload Progress[/bold green]", total=len(batch)
+        )
+
         # Track active progress bars for specific days
         day_tasks: dict[datetime.date, TaskID] = {}
 
@@ -666,10 +683,10 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
             day_to_pages: dict[datetime.date, int] = {}
             day_to_extracted: dict[datetime.date, int] = {}
             uploader = IAUploader(db_path)
-            
+
             # Map futures to (task_info, worker_index)
             futures = {}
-            
+
             # Use a semaphore or simple counter to assign workers
             available_workers = list(range(workers))
 
@@ -683,39 +700,43 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                         day_to_pages[t_date] = tp
                         day_to_extracted[t_date] = 0
                         progress.update(probe_task, advance=1)
-                        
+
                         if tp == 0:
                             progress.update(upload_task, advance=1)
                             return False
-                        
+
                         # Show progress bar for this day if it has more than 1 page (or even if it has 1)
                         if tp > 0:
                             day_tasks[t_date] = progress.add_task(
-                                f"[yellow]Day {t_date}[/yellow]", 
-                                total=tp, 
-                                completed=1 # Page 1 already done by probe!
+                                f"[yellow]Day {t_date}[/yellow]",
+                                total=tp,
+                                completed=1,  # Page 1 already done by probe!
                             )
-                            
-                        progress.update(fetch_task, total=progress.tasks[fetch_task].total + max(0, tp - 1))
+
+                        progress.update(
+                            fetch_task, total=progress.tasks[fetch_task].total + max(0, tp - 1)
+                        )
                         # If only 1 page, it's already done by probe!
                         if tp == 1:
                             finish_day(t_date)
-                            
+
                         return True
                     else:
                         day_to_extracted[t_date] += res
                         day_to_pages[t_date] -= 1
                         progress.update(fetch_task, advance=1)
-                        
+
                         # Update day-specific bar
                         if t_date in day_tasks:
                             progress.update(day_tasks[t_date], advance=1)
-                            
-                        if day_to_pages[t_date] == 1: # Remember page 1 is implicit
+
+                        if day_to_pages[t_date] == 1:  # Remember page 1 is implicit
                             finish_day(t_date)
                         return True
                 except Exception as e:
-                    progress.console.print(f"[red]✗ Task {task_type} failed for {t_date}: {e}[/red]")
+                    progress.console.print(
+                        f"[red]✗ Task {task_type} failed for {t_date}: {e}[/red]"
+                    )
                     if w_idx in range(workers):
                         available_workers.append(w_idx)
                     return False
@@ -723,7 +744,12 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
             def finish_day(t_date):
                 if not dry_run:
                     # 1. Bulk Ingest JSONL to DuckDB
-                    ingested_count = extractor.ingest_day(datetime.combine(t_date, datetime.min.time()))
+                    ingested_count = extractor.ingest_day(
+                        datetime.combine(t_date, datetime.min.time())
+                    )
+                    progress.console.print(
+                        f"[blue]ℹ Ingested {ingested_count} records for {t_date}[/blue]"
+                    )
                     # 2. Upload to IA
                     uploader.upload_day(t_date, Path("data/daily"), ia_access_key, ia_secret_key)
                     extractor.cleanup_uploaded(datetime.combine(t_date, datetime.min.time()))
@@ -733,13 +759,17 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                         for f in raw_dir.glob("*"):
                             f.unlink()
                         raw_dir.rmdir()
-                
+
                 # Cleanup UI
                 if t_date in day_tasks:
                     progress.remove_task(day_tasks[t_date])
                     del day_tasks[t_date]
-                
-                progress.update(upload_task, advance=1, description=f"[bold green]Uploaded {t_date}[/bold green]")
+
+                progress.update(
+                    upload_task,
+                    advance=1,
+                    description=f"[bold green]Uploaded {t_date}[/bold green]",
+                )
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
                 # To manage page tasks
@@ -750,18 +780,24 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                     # Time check
                     elapsed = (datetime.now() - start_time).total_seconds() / 60
                     if limit_minutes and elapsed >= limit_minutes:
-                        progress.console.print(f"\n[yellow]⚠ Time limit reached ({limit_minutes}m). Stopping gracefully.[/yellow]")
+                        progress.console.print(
+                            f"\n[yellow]⚠ Time limit reached ({limit_minutes}m). Stopping gracefully.[/yellow]"
+                        )
                         break
 
                     # Wait for a worker to probe
                     while not available_workers:
-                        done, _ = concurrent.futures.wait(futures.keys(), timeout=0.1, return_when=concurrent.futures.FIRST_COMPLETED)
+                        done, _ = concurrent.futures.wait(
+                            futures.keys(),
+                            timeout=0.1,
+                            return_when=concurrent.futures.FIRST_COMPLETED,
+                        )
                         for f in list(done):
                             if f in futures:
                                 (t_info, w_idx) = futures.pop(f)
                                 t_type, t_date, _ = t_info
                                 handle_completed_task(f, t_type, t_date, w_idx)
-                                
+
                                 # If it was a probe that succeeded, queue its pages
                                 # Page 1 is already saved by the probe itself!
                                 if t_type == "probe" and t_date in day_to_pages:
@@ -774,14 +810,19 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                     while page_tasks_queue and available_workers:
                         w_idx_p = available_workers.pop(0)
                         p_date, p_num = page_tasks_queue.pop(0)
-                        pf = executor.submit(extractor.fetch_page, "contratos", datetime.combine(p_date, datetime.min.time()), p_num)
+                        pf = executor.submit(
+                            extractor.fetch_page,
+                            "contratos",
+                            datetime.combine(p_date, datetime.min.time()),
+                            p_num,
+                        )
                         futures[pf] = (("fetch", p_date, p_num), w_idx_p)
 
                     # Only if we still have available workers, dispatch a Probe
                     if available_workers:
                         w_idx = available_workers.pop(0)
                         dt = datetime.combine(target_date, datetime.min.time())
-                        time.sleep(2.0) # Stagger more to avoid 429
+                        time.sleep(2.0)  # Stagger more to avoid 429
                         f = executor.submit(extractor.probe_date, "contratos", dt)
                         futures[f] = (("probe", target_date, 0), w_idx)
 
@@ -790,11 +831,17 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                     while page_tasks_queue and available_workers:
                         w_idx_p = available_workers.pop(0)
                         p_date, p_num = page_tasks_queue.pop(0)
-                        progress.update(worker_tasks[w_idx_p], description=f"[magenta]Worker {w_idx_p+1:02d}: Fetching {p_date} p{p_num}[/magenta]", completed=20)
-                        pf = executor.submit(extractor.fetch_page, "contratos", datetime.combine(p_date, datetime.min.time()), p_num)
+                        pf = executor.submit(
+                            extractor.fetch_page,
+                            "contratos",
+                            datetime.combine(p_date, datetime.min.time()),
+                            p_num,
+                        )
                         futures[pf] = (("fetch", p_date, p_num), w_idx_p)
 
-                    done, _ = concurrent.futures.wait(futures.keys(), timeout=0.5, return_when=concurrent.futures.FIRST_COMPLETED)
+                    done, _ = concurrent.futures.wait(
+                        futures.keys(), timeout=0.5, return_when=concurrent.futures.FIRST_COMPLETED
+                    )
                     for f in done:
                         if f in futures:
                             (t_info, w_idx) = futures.pop(f)

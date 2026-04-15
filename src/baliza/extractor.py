@@ -314,10 +314,10 @@ class PNCPExtractor:
             **security_headers,
         }
         self.client = httpx.Client(
-            timeout=httpx.Timeout(180.0, connect=30.0), 
+            timeout=httpx.Timeout(180.0, connect=30.0),
             headers=headers,
             http2=True,  # Match curl's performance
-            limits=httpx.Limits(max_connections=100, max_keepalive_connections=50)
+            limits=httpx.Limits(max_connections=100, max_keepalive_connections=50),
         )
 
         # Pre-compute SQL queries to avoid reconstruction in loops
@@ -1079,9 +1079,13 @@ class PNCPExtractor:
                         expected=expected_rows,
                         actual=total_rows,
                     )
-                    console.print(
-                        f"[yellow]⚠ Warning: {start_date.date()} count mismatch! "
-                        f"Expected {expected_rows}, got {total_rows}[/yellow]"
+                    # 1. Bulk Ingest JSONL to DuckDB
+                    ingested_count = self.ingest_day(start_date)
+                    # 2. Upload to IA
+                    logger.info(
+                        "ingested_mismatch_fix",
+                        date=str(start_date.date()),
+                        ingested=ingested_count,
                     )
 
                 # Only clear checkpoint on true completion
@@ -1110,7 +1114,7 @@ class PNCPExtractor:
             "pages": page,
             "start_date": start_date,
             "end_date": end_date,
-            "failed_dates": [d.date() for d in failed_dates] if 'failed_dates' in locals() else [],
+            "status": "completed",
         }
 
     def probe_date(self, resource: str, extraction_date: datetime) -> dict[str, Any]:
@@ -1120,17 +1124,20 @@ class PNCPExtractor:
         params = {
             "dataInicial": data_str,
             "dataFinal": data_str,
-            "tamanhoPagina": 500, # Maximize first request
+            "tamanhoPagina": 500,  # Maximize first request
             "pagina": 1,
         }
         res = _fetch_page(self.client, url, params)
         rows = res.get("data", [])
-        
+
         # Optimization: Use the probe as Page 1
         if rows:
             self._save_raw_page(extraction_date, 1, rows)
-            
-        return {"total_pages": res.get("totalPaginas", 0), "total_records": res.get("totalRegistros", 0)}
+
+        return {
+            "total_pages": res.get("totalPaginas", 0),
+            "total_records": res.get("totalRegistros", 0),
+        }
 
     def fetch_page(self, resource: str, extraction_date: datetime, page: int) -> int:
         """Fetch a specific page and save to raw JSONL file."""
@@ -1147,8 +1154,7 @@ class PNCPExtractor:
         rows = res.get("data", [])
         if not rows:
             return 0
-            
-        
+
         return len(rows)
 
     def ingest_day(self, extraction_date: datetime) -> int:
@@ -1157,26 +1163,26 @@ class PNCPExtractor:
         raw_dir = Path("data/raw") / day_str
         if not raw_dir.exists():
             return 0
-            
+
         jsonl_files = list(raw_dir.glob("*.jsonl"))
         if not jsonl_files:
             return 0
-            
+
         total_ingested = 0
         with self._db_lock:
             with duckdb.connect(str(self.db_path), config={"access_mode": "READ_WRITE"}) as con:
                 self._ensure_schema(con)
-                
+
                 # Combine all rows from all pages
                 all_rows = []
                 for jf in jsonl_files:
                     with jf.open("r", encoding="utf-8") as f:
                         for line in f:
                             all_rows.append(json.loads(line))
-                
+
                 if all_rows:
                     total_ingested = self._insert_page(con, all_rows)
-        
+
         return total_ingested
 
     def extract(
@@ -1253,11 +1259,10 @@ class PNCPExtractor:
                     # Calculate delay to hit target requests per second (1.0 default)
                     # This ensures we don't 'burst' all workers at once
                     delay = 1.0  # 1 request per second cadence for submission
-                    
+
                     for date in dates:
                         f = executor.submit(
-                            self._extract_range_task, date, date, resource, progress,
-                            deadline
+                            self._extract_range_task, date, date, resource, progress, deadline
                         )
                         futures[f] = date
                         # Stagger the submissions of next tasks

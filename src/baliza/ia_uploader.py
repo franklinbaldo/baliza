@@ -75,7 +75,9 @@ class IAUploader:
                 # Try to read all columns
                 try:
                     # Use fetch_arrow_table() to get a Table instead of a RecordBatchReader
-                    df = con.execute(f"SELECT * FROM read_parquet('{MANIFEST_URL}')").fetch_arrow_table()
+                    df = con.execute(
+                        f"SELECT * FROM read_parquet('{MANIFEST_URL}')"
+                    ).fetch_arrow_table()
 
                     # Ensure all columns from _MANIFEST_SCHEMA are present
                     for field in _MANIFEST_SCHEMA:
