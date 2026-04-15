@@ -7,6 +7,7 @@ import os
 import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import duckdb
 import typer
@@ -509,33 +510,38 @@ def status(
 
         with duckdb.connect(str(db_path), read_only=True) as con:
             # Total contracts
-            total = con.execute(f"SELECT COUNT(*) FROM {dataset}.contratos").fetchone()[0]
+            res_total = con.execute(f"SELECT COUNT(*) FROM {dataset}.contratos").fetchone()
+            total = res_total[0] if res_total else 0
 
             # Date range
             date_range = con.execute(f"""
                 SELECT MIN(CAST(data_publicacao AS DATE)), MAX(CAST(data_publicacao AS DATE))
                 FROM {dataset}.contratos
             """).fetchone()
+            dr_min, dr_max = date_range if date_range else (None, None)
 
             # Days with data
-            days_count = con.execute(f"""
+            res_days = con.execute(f"""
                 SELECT COUNT(DISTINCT CAST(data_publicacao AS DATE))
                 FROM {dataset}.contratos
-            """).fetchone()[0]
+            """).fetchone()
+            days_count = res_days[0] if res_days else 0
 
             # Uploaded to IA
             try:
-                uploaded = con.execute(
+                res_up = con.execute(
                     "SELECT COUNT(*) FROM baliza_state.uploaded_to_ia"
-                ).fetchone()[0]
+                ).fetchone()
+                uploaded = res_up[0] if res_up else 0
             except Exception:
                 uploaded = 0
 
             # Pending checkpoints
             try:
-                checkpoints = con.execute(
+                res_cp = con.execute(
                     "SELECT COUNT(*) FROM baliza_state.extraction_checkpoint"
-                ).fetchone()[0]
+                ).fetchone()
+                checkpoints = res_cp[0] if res_cp else 0
             except Exception:
                 checkpoints = 0
 
@@ -557,7 +563,7 @@ def status(
         table.add_column("Value", style="cyan")
 
         table.add_row("Total contracts", f"{total:,}")
-        table.add_row("Date range", f"{date_range[0]} to {date_range[1]}" if date_range[0] else "-")
+        table.add_row("Date range", f"{dr_min} to {dr_max}" if dr_min else "-")
         table.add_row("Days with data", str(days_count))
         table.add_row("Days on Internet Archive", str(uploaded))
         table.add_row("Pending extractions", str(checkpoints))
@@ -677,20 +683,20 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
         )
 
         # Track active progress bars for specific days
-        day_tasks: dict[datetime.date, TaskID] = {}
+        day_tasks: dict[date, TaskID] = {}
 
         with PNCPExtractor(db_path, dataset) as extractor:
-            day_to_pages: dict[datetime.date, int] = {}
-            day_to_extracted: dict[datetime.date, int] = {}
+            day_to_pages: dict[date, int] = {}
+            day_to_extracted: dict[date, int] = {}
             uploader = IAUploader(db_path)
 
             # Map futures to (task_info, worker_index)
-            futures = {}
+            futures: dict[concurrent.futures.Future[Any], tuple[tuple[str, date, int], int]] = {}
 
             # Use a semaphore or simple counter to assign workers
             available_workers = list(range(workers))
 
-            def handle_completed_task(f, task_type, t_date, w_idx):
+            def handle_completed_task(f: concurrent.futures.Future[Any], task_type: str, t_date: date, w_idx: int) -> bool:
                 try:
                     res = f.result()
                     available_workers.append(w_idx)

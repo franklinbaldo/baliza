@@ -1117,6 +1117,17 @@ class PNCPExtractor:
             "status": "completed",
         }
 
+    def _save_raw_page(self, extraction_date: datetime, page: int, rows: list[dict[str, Any]]) -> None:
+        """Helper to save rows to a raw JSONL file."""
+        day_str = extraction_date.strftime("%Y-%m-%d")
+        raw_dir = Path("data/raw") / day_str
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        
+        raw_file = raw_dir / f"page_{page:04d}.jsonl"
+        with raw_file.open("w", encoding="utf-8") as f:
+            for row in rows:
+                f.write(json.dumps(row, ensure_ascii=False) + "\n")
+
     def probe_date(self, resource: str, extraction_date: datetime) -> dict[str, Any]:
         """Probe a date with size 500 and save page 1 if data exists."""
         data_str = extraction_date.strftime("%Y%m%d")
@@ -1396,7 +1407,8 @@ class PNCPExtractor:
             self._ensure_schema(con)
 
             # Total rows in buffer
-            total_rows = con.execute(f"SELECT COUNT(*) FROM {self.dataset}.contratos").fetchone()[0]
+            res_total = con.execute(f"SELECT COUNT(*) FROM {self.dataset}.contratos").fetchone()
+            total_rows = int(res_total[0]) if res_total else 0
 
             # Rows by date
             by_date = con.execute(
@@ -1409,19 +1421,21 @@ class PNCPExtractor:
             ).fetchall()
 
             # Uploaded dates
-            uploaded = con.execute("SELECT COUNT(*) FROM baliza_state.uploaded_to_ia").fetchone()[0]
+            res_uploaded = con.execute("SELECT COUNT(*) FROM baliza_state.uploaded_to_ia").fetchone()
+            uploaded = int(res_uploaded[0]) if res_uploaded else 0
 
             # Pending checkpoints
-            checkpoints = con.execute(
+            res_checkpoints = con.execute(
                 "SELECT COUNT(*) FROM baliza_state.extraction_checkpoint"
-            ).fetchone()[0]
+            ).fetchone()
+            pending = int(res_checkpoints[0]) if res_checkpoints else 0
 
             return {
                 "total_rows": total_rows,
                 "dates_in_buffer": len(by_date),
                 "rows_by_date": {str(row[0]): row[1] for row in by_date},
                 "dates_uploaded_to_ia": uploaded,
-                "pending_checkpoints": checkpoints,
+                "pending_checkpoints": pending,
             }
 
     def close(self) -> None:
