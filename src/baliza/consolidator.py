@@ -29,13 +29,16 @@ GRACE_DAYS = 60
 
 console = Console()
 
+
 def _is_frozen(year: int) -> bool:
     """A past year is frozen once we're >60 days past January 1 of the next year."""
     freeze_date = datetime.date(year + 1, 1, 1) + datetime.timedelta(days=GRACE_DAYS)
     return datetime.date.today() >= freeze_date
 
+
 def _consolidated_file_name(year: int) -> str:
     return f"contratos-{year}.parquet"
+
 
 class IAConsolidator:
     """Reads daily Parquet files from IA (via manifest) and builds annual consolidated files."""
@@ -84,9 +87,11 @@ class IAConsolidator:
 
         if frozen and not force:
             if self._check_consolidated_exists_on_ia(year):
-                console.print(f"[dim]Skipping {year}: frozen year, consolidated file already on IA.[/dim]")
+                console.print(
+                    f"[dim]Skipping {year}: frozen year, consolidated file already on IA.[/dim]"
+                )
                 return False
-        
+
         console.print(f"[cyan]Consolidating {year}...[/cyan]")
 
         # 1. Get daily file URLs from manifest.csv
@@ -101,7 +106,7 @@ class IAConsolidator:
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = Path(tmpdir) / filename
             url_list = ", ".join(f"'{u}'" for u in daily_urls)
-            
+
             with duckdb.connect(":memory:") as con:
                 con.execute("INSTALL httpfs; LOAD httpfs;")
                 console.print(f"  Merging {len(daily_urls)} files via httpfs...")

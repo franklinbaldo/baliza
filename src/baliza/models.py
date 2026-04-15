@@ -24,11 +24,9 @@ class PlanoContratacaoItemDTO(BaseModel):
     quantidadeEstimada: float | None = None
     descricaoItem: str | None = None
     pdmCodigo: str | None = None
-    dataInclusao: AwareDatetime | None = Field(None, examples=['2025-07-11T13:08:48'])
+    dataInclusao: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
     numeroItem: int | None = None
-    dataAtualizacao: AwareDatetime | None = Field(
-        None, examples=['2025-07-11T13:08:48']
-    )
+    dataAtualizacao: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
     valorTotal: float | None = None
     pdmDescricao: str | None = None
     codigoItem: str | None = None
@@ -49,7 +47,7 @@ class ContratacaoFonteOrcamentariaDTO(BaseModel):
     codigo: int | None = None
     nome: str | None = None
     descricao: str | None = None
-    dataInclusao: AwareDatetime | None = Field(None, examples=['2025-07-11T13:08:48'])
+    dataInclusao: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
 
 
 class RecuperarAmparoLegalDTO(BaseModel):
@@ -59,16 +57,16 @@ class RecuperarAmparoLegalDTO(BaseModel):
 
 
 class IndicadorOrcamentoSigiloso(StrEnum):
-    COMPRA_SEM_SIGILO = 'COMPRA_SEM_SIGILO'
-    COMPRA_PARCIALMENTE_SIGILOSA = 'COMPRA_PARCIALMENTE_SIGILOSA'
-    COMPRA_TOTALMENTE_SIGILOSA = 'COMPRA_TOTALMENTE_SIGILOSA'
+    COMPRA_SEM_SIGILO = "COMPRA_SEM_SIGILO"
+    COMPRA_PARCIALMENTE_SIGILOSA = "COMPRA_PARCIALMENTE_SIGILOSA"
+    COMPRA_TOTALMENTE_SIGILOSA = "COMPRA_TOTALMENTE_SIGILOSA"
 
 
 class SituacaoCompraId(StrEnum):
-    field_1 = '1'
-    field_2 = '2'
-    field_3 = '3'
-    field_4 = '4'
+    field_1 = "1"
+    field_2 = "2"
+    field_3 = "3"
+    field_4 = "4"
 
 
 class RecuperarOrgaoEntidadeDTO(BaseModel):
@@ -128,24 +126,22 @@ class NotaFiscalEletronicaConsultaDTO(BaseModel):
     valorNotaFiscal: str | None = None
     tipoEventoMaisRecente: str | None = None
     dataTipoEventoMaisRecente: str | None = None
-    dataInclusao: AwareDatetime | None = Field(None, examples=['2025-07-11T13:08:48'])
-    dataAtualizacao: AwareDatetime | None = Field(
-        None, examples=['2025-07-11T13:08:48']
-    )
+    dataInclusao: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
+    dataAtualizacao: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
     itens: list[ItemNotaFiscalConsultaDTO] | None = None
     eventos: list[EventoNotaFiscalConsultaDTO] | None = None
 
 
 class TipoPessoa(StrEnum):
-    PJ = 'PJ'
-    PF = 'PF'
-    PE = 'PE'
+    PJ = "PJ"
+    PF = "PF"
+    PE = "PE"
 
 
 class TipoPessoaSubContratada(StrEnum):
-    PJ = 'PJ'
-    PF = 'PF'
-    PE = 'PE'
+    PJ = "PJ"
+    PF = "PF"
+    PE = "PE"
 
 
 class TipoContrato(BaseModel):
@@ -157,10 +153,8 @@ class TipoInstrumentoCobrancaDTO(BaseModel):
     id: int | None = None
     nome: str | None = None
     descricao: str | None = None
-    dataInclusao: AwareDatetime | None = Field(None, examples=['2025-07-11T13:08:48'])
-    dataAtualizacao: AwareDatetime | None = Field(
-        None, examples=['2025-07-11T13:08:48']
-    )
+    dataInclusao: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
+    dataAtualizacao: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
     statusAtivo: bool | None = None
 
 
@@ -169,22 +163,14 @@ class RecuperarCompraPublicacaoDTO(BaseModel):
     orgaoEntidade: RecuperarOrgaoEntidadeDTO | None = None
     anoCompra: int | None = None
     sequencialCompra: int | None = None
-    dataInclusao: AwareDatetime | None = Field(None, examples=['2025-07-11T13:08:48'])
-    dataPublicacaoPncp: AwareDatetime | None = Field(
-        None, examples=['2025-07-11T13:08:48']
-    )
-    dataAtualizacao: AwareDatetime | None = Field(
-        None, examples=['2025-07-11T13:08:48']
-    )
+    dataInclusao: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
+    dataPublicacaoPncp: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
+    dataAtualizacao: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
     numeroCompra: str | None = None
     unidadeOrgao: RecuperarUnidadeOrgaoDTO | None = None
     amparoLegal: RecuperarAmparoLegalDTO | None = None
-    dataAberturaProposta: AwareDatetime | None = Field(
-        None, examples=['2025-07-11T13:08:48']
-    )
-    dataEncerramentoProposta: AwareDatetime | None = Field(
-        None, examples=['2025-07-11T13:08:48']
-    )
+    dataAberturaProposta: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
+    dataEncerramentoProposta: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
     informacaoComplementar: str | None = None
     processo: str | None = None
     objetoCompra: str | None = None
@@ -196,9 +182,7 @@ class RecuperarCompraPublicacaoDTO(BaseModel):
     linkProcessoEletronico: str | None = None
     numeroControlePNCP: str | None = None
     modalidadeId: int | None = None
-    dataAtualizacaoGlobal: AwareDatetime | None = Field(
-        None, examples=['2025-07-11T13:08:48']
-    )
+    dataAtualizacaoGlobal: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
     modoDisputaId: int | None = None
     valorTotalEstimado: float | None = None
     modalidadeNome: str | None = None
@@ -217,22 +201,14 @@ class AtaRegistroPrecoPeriodoDTO(BaseModel):
     anoAta: int | None = None
     numeroControlePNCPCompra: str | None = None
     cancelado: bool | None = None
-    dataCancelamento: AwareDatetime | None = Field(
-        None, examples=['2025-07-11T13:08:48']
-    )
-    dataAssinatura: AwareDatetime | None = Field(None, examples=['2025-07-11T13:08:48'])
-    vigenciaInicio: AwareDatetime | None = Field(None, examples=['2025-07-11T13:08:48'])
-    vigenciaFim: AwareDatetime | None = Field(None, examples=['2025-07-11T13:08:48'])
-    dataPublicacaoPncp: AwareDatetime | None = Field(
-        None, examples=['2025-07-11T13:08:48']
-    )
-    dataInclusao: AwareDatetime | None = Field(None, examples=['2025-07-11T13:08:48'])
-    dataAtualizacao: AwareDatetime | None = Field(
-        None, examples=['2025-07-11T13:08:48']
-    )
-    dataAtualizacaoGlobal: AwareDatetime | None = Field(
-        None, examples=['2025-07-11T13:08:48']
-    )
+    dataCancelamento: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
+    dataAssinatura: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
+    vigenciaInicio: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
+    vigenciaFim: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
+    dataPublicacaoPncp: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
+    dataInclusao: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
+    dataAtualizacao: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
+    dataAtualizacaoGlobal: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
     usuario: str | None = None
     objetoContratacao: str | None = None
     cnpjOrgao: str | None = None
@@ -261,12 +237,8 @@ class PlanoContratacaoComItensDoUsuarioDTO(BaseModel):
     anoPca: int | None = None
     orgaoEntidadeRazaoSocial: str | None = None
     orgaoEntidadeCnpj: str | None = None
-    dataPublicacaoPNCP: AwareDatetime | None = Field(
-        None, examples=['2025-07-11T13:08:48']
-    )
-    dataAtualizacaoGlobalPCA: AwareDatetime | None = Field(
-        None, examples=['2025-07-11T13:08:48']
-    )
+    dataPublicacaoPNCP: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
+    dataAtualizacaoGlobalPCA: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
     idPcaPncp: str | None = None
 
 
@@ -299,25 +271,15 @@ class RecuperarCompraDTO(BaseModel):
     informacaoComplementar: str | None = None
     srp: bool | None = None
     fontesOrcamentarias: list[ContratacaoFonteOrcamentariaDTO] | None = None
-    dataPublicacaoPncp: AwareDatetime | None = Field(
-        None, examples=['2025-07-11T13:08:48']
-    )
-    dataAberturaProposta: AwareDatetime | None = Field(
-        None, examples=['2025-07-11T13:08:48']
-    )
-    dataEncerramentoProposta: AwareDatetime | None = Field(
-        None, examples=['2025-07-11T13:08:48']
-    )
+    dataPublicacaoPncp: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
+    dataAberturaProposta: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
+    dataEncerramentoProposta: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
     situacaoCompraId: SituacaoCompraId | None = None
     situacaoCompraNome: str | None = None
     existeResultado: bool | None = None
-    dataInclusao: AwareDatetime | None = Field(None, examples=['2025-07-11T13:08:48'])
-    dataAtualizacao: AwareDatetime | None = Field(
-        None, examples=['2025-07-11T13:08:48']
-    )
-    dataAtualizacaoGlobal: AwareDatetime | None = Field(
-        None, examples=['2025-07-11T13:08:48']
-    )
+    dataInclusao: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
+    dataAtualizacao: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
+    dataAtualizacaoGlobal: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
     usuarioNome: str | None = None
 
 
@@ -334,12 +296,8 @@ class RecuperarContratoDTO(BaseModel):
     tipoPessoa: TipoPessoa | None = None
     orgaoEntidade: RecuperarOrgaoEntidadeDTO | None = None
     categoriaProcesso: Categoria | None = None
-    dataPublicacaoPncp: AwareDatetime | None = Field(
-        None, examples=['2025-07-11T13:08:48']
-    )
-    dataAtualizacao: AwareDatetime | None = Field(
-        None, examples=['2025-07-11T13:08:48']
-    )
+    dataPublicacaoPncp: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
+    dataAtualizacao: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
     sequencialContrato: int | None = None
     unidadeOrgao: RecuperarUnidadeOrgaoDTO | None = None
     informacaoComplementar: str | None = None
@@ -359,9 +317,7 @@ class RecuperarContratoDTO(BaseModel):
     valorParcela: float | None = None
     valorGlobal: float | None = None
     valorAcumulado: float | None = None
-    dataAtualizacaoGlobal: AwareDatetime | None = Field(
-        None, examples=['2025-07-11T13:08:48']
-    )
+    dataAtualizacaoGlobal: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
     identificadorCipi: str | None = None
     urlCipi: str | None = None
     usuarioNome: str | None = None
@@ -405,16 +361,12 @@ class ConsultarInstrumentoCobrancaDTO(BaseModel):
     observacao: str | None = None
     chaveNFe: str | None = None
     fonteNFe: int | None = None
-    dataConsultaNFe: AwareDatetime | None = Field(
-        None, examples=['2025-07-11T13:08:48']
-    )
+    dataConsultaNFe: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
     statusResponseNFe: str | None = None
     jsonResponseNFe: str | None = None
     notaFiscalEletronica: NotaFiscalEletronicaConsultaDTO | None = None
-    dataInclusao: AwareDatetime | None = Field(None, examples=['2025-07-11T13:08:48'])
-    dataAtualizacao: AwareDatetime | None = Field(
-        None, examples=['2025-07-11T13:08:48']
-    )
+    dataInclusao: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
+    dataAtualizacao: AwareDatetime | None = Field(None, examples=["2025-07-11T13:08:48"])
     recuperarContratoDTO: RecuperarContratoDTO | None = None
 
 

@@ -20,6 +20,7 @@ from .models import RecuperarContratoDTO as Contrato
 logger = structlog.get_logger()
 console = Console()
 
+
 class PNCPExtractor:
     """Extracts data from PNCP API and ingests into DuckDB via Ibis."""
 
@@ -45,12 +46,22 @@ class PNCPExtractor:
         """Fetch a single page from the PNCP API using a date range."""
         date_str = extraction_date.strftime("%Y%m%d")
         # PNCP API now requires dataInicial and dataFinal for range searches
-        url = f"{self.base_url}/{resource}?dataInicial={date_str}&dataFinal={date_str}&pagina={page}"
+        url = (
+            f"{self.base_url}/{resource}?dataInicial={date_str}&dataFinal={date_str}&pagina={page}"
+        )
 
         if self.use_curl:
             try:
                 result = subprocess.run(
-                    ["curl", "-s", "-H", "accept: */*", "-H", f"User-Agent: {self.headers['User-Agent']}", url],
+                    [
+                        "curl",
+                        "-s",
+                        "-H",
+                        "accept: */*",
+                        "-H",
+                        f"User-Agent: {self.headers['User-Agent']}",
+                        url,
+                    ],
                     capture_output=True,
                     text=True,
                     check=True,
@@ -73,7 +84,7 @@ class PNCPExtractor:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         folder = Path("data/raw") / date_iso
         folder.mkdir(parents=True, exist_ok=True)
-        
+
         filename = f"{resource}_{date_iso}_p{page}_{ts}.json"
         with open(folder / filename, "w") as f:
             json.dump(data, f, ensure_ascii=False)
@@ -90,19 +101,19 @@ class PNCPExtractor:
         """Validate and ingest all raw JSON files for a specific day into the shared engine."""
         date_iso = extraction_date.date().isoformat()
         raw_dir = Path("data/raw") / date_iso
-        
+
         stats = {"valid": 0, "quarantine": 0}
-        
+
         if not raw_dir.exists():
             return stats
 
         for json_file in raw_dir.glob("*.json"):
             with open(json_file) as f:
                 data = json.load(f)
-                
+
             entries = data.get("data", [])
             valid_rows = []
-            
+
             for entry in entries:
                 try:
                     # Validate with Pydantic
@@ -127,14 +138,14 @@ class PNCPExtractor:
                 finally:
                     if temp_path.exists():
                         temp_path.unlink()
-                        
+
         return stats
 
     def export_quarantine(self, extraction_date: datetime, output_path: Path) -> bool:
         """Export session quarantine to CSV if not empty."""
         try:
             q_table = self.engine.get_table("quarantine", schema="baliza_state")
-            # Filter for current date if possible, but in stateless per-day loop, 
+            # Filter for current date if possible, but in stateless per-day loop,
             # the quarantine table is fresh for this run.
             df = q_table.execute()
             if not df.empty:

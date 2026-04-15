@@ -30,11 +30,6 @@ test = [
     "pytest-vcr>=1.0.2",
     "pytest-bdd>=7.0.0"
 ]
-dev = [
-    "ruff>=0.1.0",
-    "mypy>=1.8.0",
-    "pre-commit>=3.6.0"
-]
 
 [project.scripts]
 baliza = "baliza.cli_simple:app"
@@ -97,5 +92,8 @@ warn_unused_configs = true
 
 [dependency-groups]
 dev = [
+    "ruff>=0.1.0",
+    "mypy>=1.8.0",
+    "pre-commit>=3.6.0",
     "types-requests>=2.33.0.20260408",
 ]
