@@ -11,9 +11,11 @@ from baliza.extractor import PNCPExtractor
 def temp_db(tmp_path):
     return tmp_path / "test.duckdb"
 
+
 @pytest.fixture
 def extractor(temp_db):
     return PNCPExtractor(db_path=temp_db)
+
 
 def populate_db(extractor):
     # Insert some dummy data directly using the normalized schema
@@ -21,7 +23,8 @@ def populate_db(extractor):
         extractor._ensure_schema(con)
 
         def insert_row(id, date_str):
-            con.execute(f"""
+            con.execute(
+                f"""
                 INSERT INTO {extractor.dataset}.contratos (
                     numero_controle_pncp,
                     data_publicacao,
@@ -31,7 +34,9 @@ def populate_db(extractor):
                 ) VALUES (
                     ?, CAST(? AS TIMESTAMP), '12345678000199', '001', 100.00
                 )
-            """, [id, date_str])
+            """,
+                [id, date_str],
+            )
 
         # Date 1: 2023-01-01
         insert_row("1", "2023-01-01 10:00:00")
@@ -42,6 +47,7 @@ def populate_db(extractor):
 
         # Date 3: 2023-01-03
         insert_row("4", "2023-01-03 12:00:00")
+
 
 def test_cleanup_uploaded(extractor, temp_db):
     populate_db(extractor)
@@ -61,6 +67,7 @@ def test_cleanup_uploaded(extractor, temp_db):
             f"SELECT numero_controle_pncp FROM {extractor.dataset}.contratos ORDER BY numero_controle_pncp"
         ).fetchall()
         assert [r[0] for r in ids] == ["3", "4"]
+
 
 def test_get_dates_ready_for_export(extractor, temp_db):
     populate_db(extractor)

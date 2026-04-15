@@ -26,7 +26,7 @@ def test_parallel_extraction_requests(tmp_path):
             "data": [],
             "totalPaginas": 1,
             "totalRegistros": 0,
-            "numeroPagina": 1
+            "numeroPagina": 1,
         }
 
         with PNCPExtractor(db_path) as extractor:
@@ -68,11 +68,7 @@ def test_worker_failure_handling(tmp_path):
         def side_effect(client, url, params):
             if params["dataInicial"] == "20230102":
                 raise Exception("Simulated API Error")
-            return {
-                "data": [],
-                "totalPaginas": 1,
-                "totalRegistros": 0
-            }
+            return {"data": [], "totalPaginas": 1, "totalRegistros": 0}
 
         mock_fetch.side_effect = side_effect
 

@@ -14,6 +14,7 @@ def test_configure_logging_console(monkeypatch):
     # We just ensure it doesn't crash
     logger.info("Test message console")
 
+
 def test_configure_logging_json(monkeypatch, capsys):
     monkeypatch.setenv("BALIZA_LOG_FORMAT", "json")
     configure_logging()
@@ -22,7 +23,7 @@ def test_configure_logging_json(monkeypatch, capsys):
     logger.info("test_event", custom_key="custom_value")
 
     captured = capsys.readouterr()
-    output_lines = [line for line in captured.out.split('\n') if line]
+    output_lines = [line for line in captured.out.split("\n") if line]
 
     # Check that at least one output line is valid JSON with expected keys
     found_valid_json = False

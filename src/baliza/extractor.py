@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import json
+import threading
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, TypedDict
@@ -54,61 +55,69 @@ PNCP_ARROW_SCHEMA = pa.schema(
     [
         # --- Identity ---
         ("numeroControlePNCP", pa.string()),
-        ("numeroControlePncpCompra", pa.string()),   # FK → contratacoes
+        ("numeroControlePncpCompra", pa.string()),  # FK → contratacoes
         ("anoContrato", pa.int64()),
         ("sequencialContrato", pa.int64()),
-        ("anoCompra", pa.int64()),                   # legacy field, kept for compat
+        ("anoCompra", pa.int64()),  # legacy field, kept for compat
         ("sequencialCompra", pa.int64()),
         ("numeroContratoEmpenho", pa.string()),
-        ("numeroRetificacao", pa.int64()),            # 0=original, >0=amendment
+        ("numeroRetificacao", pa.int64()),  # 0=original, >0=amendment
         ("processo", pa.string()),
         # --- Órgão contratante ---
         (
             "orgaoEntidade",
-            pa.struct([
-                ("cnpj", pa.string()),
-                ("razaoSocial", pa.string()),
-                ("poderId", pa.string()),             # E/L/J
-                ("esferaId", pa.string()),            # F/E/M/D
-            ]),
+            pa.struct(
+                [
+                    ("cnpj", pa.string()),
+                    ("razaoSocial", pa.string()),
+                    ("poderId", pa.string()),  # E/L/J
+                    ("esferaId", pa.string()),  # F/E/M/D
+                ]
+            ),
         ),
         (
             "unidadeOrgao",
-            pa.struct([
-                ("codigoUnidade", pa.string()),
-                ("nomeUnidade", pa.string()),
-                ("ufSigla", pa.string()),
-                ("ufNome", pa.string()),
-                ("municipioNome", pa.string()),
-                ("codigoIbge", pa.string()),
-            ]),
+            pa.struct(
+                [
+                    ("codigoUnidade", pa.string()),
+                    ("nomeUnidade", pa.string()),
+                    ("ufSigla", pa.string()),
+                    ("ufNome", pa.string()),
+                    ("municipioNome", pa.string()),
+                    ("codigoIbge", pa.string()),
+                ]
+            ),
         ),
         # --- Órgão sub-rogado (proxy agency, nullable) ---
         (
             "orgaoSubRogado",
-            pa.struct([
-                ("cnpj", pa.string()),
-                ("razaoSocial", pa.string()),
-                ("poderId", pa.string()),
-                ("esferaId", pa.string()),
-            ]),
+            pa.struct(
+                [
+                    ("cnpj", pa.string()),
+                    ("razaoSocial", pa.string()),
+                    ("poderId", pa.string()),
+                    ("esferaId", pa.string()),
+                ]
+            ),
         ),
         (
             "unidadeSubRogada",
-            pa.struct([
-                ("codigoUnidade", pa.string()),
-                ("nomeUnidade", pa.string()),
-                ("ufSigla", pa.string()),
-                ("ufNome", pa.string()),
-                ("municipioNome", pa.string()),
-                ("codigoIbge", pa.string()),
-            ]),
+            pa.struct(
+                [
+                    ("codigoUnidade", pa.string()),
+                    ("nomeUnidade", pa.string()),
+                    ("ufSigla", pa.string()),
+                    ("ufNome", pa.string()),
+                    ("municipioNome", pa.string()),
+                    ("codigoIbge", pa.string()),
+                ]
+            ),
         ),
         # --- Fornecedor (supplier) ---
-        ("niFornecedor", pa.string()),               # CNPJ or CPF — the WHO got paid
-        ("tipoPessoa", pa.string()),                 # PJ / PF / PE
+        ("niFornecedor", pa.string()),  # CNPJ or CPF — the WHO got paid
+        ("tipoPessoa", pa.string()),  # PJ / PF / PE
         ("nomeRazaoSocialFornecedor", pa.string()),
-        ("codigoPaisFornecedor", pa.string()),        # for PE (foreign entities)
+        ("codigoPaisFornecedor", pa.string()),  # for PE (foreign entities)
         ("niFornecedorSubContratado", pa.string()),
         ("nomeFornecedorSubContratado", pa.string()),
         ("tipoPessoaSubContratada", pa.string()),
@@ -123,15 +132,15 @@ PNCP_ARROW_SCHEMA = pa.schema(
             "categoriaProcesso",
             pa.struct([("id", pa.int64()), ("nome", pa.string())]),
         ),
-        ("receita", pa.bool_()),                     # TRUE = revenue contract
+        ("receita", pa.bool_()),  # TRUE = revenue contract
         # --- Financial ---
         ("valorInicial", pa.float64()),
         ("valorParcela", pa.float64()),
-        ("valorGlobal", pa.float64()),               # total value including amendments
-        ("valorAcumulado", pa.float64()),            # accumulated payments so far
+        ("valorGlobal", pa.float64()),  # total value including amendments
+        ("valorAcumulado", pa.float64()),  # accumulated payments so far
         ("numeroParcelas", pa.int64()),
         # --- Dates ---
-        ("dataPublicacao", pa.string()),             # ← primary partition key
+        ("dataPublicacao", pa.string()),  # ← primary partition key
         ("dataPublicacaoPncp", pa.string()),
         ("dataAssinatura", pa.string()),
         ("dataVigenciaInicio", pa.string()),
@@ -142,7 +151,7 @@ PNCP_ARROW_SCHEMA = pa.schema(
         # --- Text / links ---
         ("objetoContrato", pa.string()),
         ("informacaoComplementar", pa.string()),
-        ("linkSistemaOrigem", pa.string()),         # kept from old schema
+        ("linkSistemaOrigem", pa.string()),  # kept from old schema
         ("identificadorCipi", pa.string()),
         ("urlCipi", pa.string()),
         # --- Audit ---
@@ -292,6 +301,7 @@ class PNCPExtractor:
         self.db_path = db_path
         # Validate dataset name to prevent SQL injection
         self.dataset = validate_identifier(dataset)
+        self._db_lock = threading.Lock()
 
         # Resolve URL and get security headers to prevent DNS Rebinding (SSRF)
         self.base_url, security_headers = secure_url_connection_params(base_url)
@@ -299,7 +309,7 @@ class PNCPExtractor:
         # Add User-Agent and security headers
         headers = {
             "User-Agent": "baliza/0.1.0 (+https://github.com/franklinbaldo/baliza)",
-            **security_headers
+            **security_headers,
         }
         self.client = httpx.Client(timeout=30.0, headers=headers)
 
@@ -425,7 +435,6 @@ class PNCPExtractor:
                 usuarioNome
             FROM arrow_table
         """
-
 
         # Dimension upsert SQLs — populated on each page insert
         self._upsert_orgao_sql = f"""
@@ -669,32 +678,34 @@ class PNCPExtractor:
         started_at: datetime,
     ) -> None:
         """Save extraction checkpoint."""
-        con.execute(
-            """
-            INSERT OR REPLACE INTO baliza_state.extraction_checkpoint
-            VALUES (?, ?, ?, ?, ?, ?, NOW())
-        """,
-            [
-                resource,
-                extraction_date.date(),
-                stats["current_page"],
-                stats["total_pages"],
-                stats["rows_extracted"],
-                started_at,
-            ],
-        )
+        with self._db_lock:
+            con.execute(
+                """
+                INSERT OR REPLACE INTO baliza_state.extraction_checkpoint
+                VALUES (?, ?, ?, ?, ?, ?, NOW())
+            """,
+                [
+                    resource,
+                    extraction_date.date(),
+                    stats["current_page"],
+                    stats["total_pages"],
+                    stats["rows_extracted"],
+                    started_at,
+                ],
+            )
 
     def _clear_checkpoint(
         self, con: duckdb.DuckDBPyConnection, resource: str, extraction_date: datetime
     ) -> None:
         """Clear checkpoint after successful completion."""
-        con.execute(
-            """
-            DELETE FROM baliza_state.extraction_checkpoint
-            WHERE resource = ? AND extraction_date = ?
-        """,
-            [resource, extraction_date.date()],
-        )
+        with self._db_lock:
+            con.execute(
+                """
+                DELETE FROM baliza_state.extraction_checkpoint
+                WHERE resource = ? AND extraction_date = ?
+            """,
+                [resource, extraction_date.date()],
+            )
 
     # -- Circuit breaker / resource health tracking --
 
@@ -730,11 +741,12 @@ class PNCPExtractor:
             ).fetchone()
             last_nonempty_date = last_nonempty[0] if last_nonempty else None
 
-            con.execute(
-                """INSERT OR REPLACE INTO baliza_state.resource_health
-                VALUES (?, ?, ?, ?, ?, NOW())""",
-                [resource, new_count, last_nonempty_date, checked_date, new_status],
-            )
+            with self._db_lock:
+                con.execute(
+                    """INSERT OR REPLACE INTO baliza_state.resource_health
+                    VALUES (?, ?, ?, ?, ?, NOW())""",
+                    [resource, new_count, last_nonempty_date, checked_date, new_status],
+                )
 
             if new_status != "healthy":
                 logger.warning(
@@ -744,11 +756,12 @@ class PNCPExtractor:
                     status=new_status,
                 )
         else:
-            con.execute(
-                """INSERT OR REPLACE INTO baliza_state.resource_health
-                VALUES (?, 0, ?, ?, 'healthy', NOW())""",
-                [resource, checked_date, checked_date],
-            )
+            with self._db_lock:
+                con.execute(
+                    """INSERT OR REPLACE INTO baliza_state.resource_health
+                    VALUES (?, 0, ?, ?, 'healthy', NOW())""",
+                    [resource, checked_date, checked_date],
+                )
 
     def _insert_page(self, con: duckdb.DuckDBPyConnection, rows: list[dict[str, Any]]) -> int:
         """Insert a single page of results, updating dimension tables."""
@@ -794,53 +807,68 @@ class PNCPExtractor:
 
                 # Primary agency
                 if orgao.get("cnpj"):
-                    con.execute(self._upsert_orgao_sql, [
-                        orgao["cnpj"],
-                        orgao.get("razaoSocial"),
-                        orgao.get("poderId"),
-                        orgao.get("esferaId"),
-                    ])
+                    con.execute(
+                        self._upsert_orgao_sql,
+                        [
+                            orgao["cnpj"],
+                            orgao.get("razaoSocial"),
+                            orgao.get("poderId"),
+                            orgao.get("esferaId"),
+                        ],
+                    )
 
                 # Administrative unit
                 if unidade.get("codigoUnidade") and orgao.get("cnpj"):
-                    con.execute(self._upsert_unidade_sql, [
-                        unidade["codigoUnidade"],
-                        orgao["cnpj"],
-                        unidade.get("nomeUnidade"),
-                        unidade.get("ufSigla"),
-                        unidade.get("ufNome"),
-                        unidade.get("municipioNome"),
-                        unidade.get("codigoIbge"),
-                    ])
+                    con.execute(
+                        self._upsert_unidade_sql,
+                        [
+                            unidade["codigoUnidade"],
+                            orgao["cnpj"],
+                            unidade.get("nomeUnidade"),
+                            unidade.get("ufSigla"),
+                            unidade.get("ufNome"),
+                            unidade.get("municipioNome"),
+                            unidade.get("codigoIbge"),
+                        ],
+                    )
 
                 # Sub-rogated agency (proxy)
                 if orgao_sub.get("cnpj"):
-                    con.execute(self._upsert_orgao_sql, [
-                        orgao_sub["cnpj"],
-                        orgao_sub.get("razaoSocial"),
-                        orgao_sub.get("poderId"),
-                        orgao_sub.get("esferaId"),
-                    ])
+                    con.execute(
+                        self._upsert_orgao_sql,
+                        [
+                            orgao_sub["cnpj"],
+                            orgao_sub.get("razaoSocial"),
+                            orgao_sub.get("poderId"),
+                            orgao_sub.get("esferaId"),
+                        ],
+                    )
                 if unidade_sub.get("codigoUnidade") and orgao_sub.get("cnpj"):
-                    con.execute(self._upsert_unidade_sql, [
-                        unidade_sub["codigoUnidade"],
-                        orgao_sub["cnpj"],
-                        unidade_sub.get("nomeUnidade"),
-                        unidade_sub.get("ufSigla"),
-                        unidade_sub.get("ufNome"),
-                        unidade_sub.get("municipioNome"),
-                        unidade_sub.get("codigoIbge"),
-                    ])
+                    con.execute(
+                        self._upsert_unidade_sql,
+                        [
+                            unidade_sub["codigoUnidade"],
+                            orgao_sub["cnpj"],
+                            unidade_sub.get("nomeUnidade"),
+                            unidade_sub.get("ufSigla"),
+                            unidade_sub.get("ufNome"),
+                            unidade_sub.get("municipioNome"),
+                            unidade_sub.get("codigoIbge"),
+                        ],
+                    )
 
                 # Supplier
                 ni = row.get("niFornecedor")
                 if ni:
-                    con.execute(self._upsert_fornecedor_sql, [
-                        ni,
-                        row.get("tipoPessoa"),
-                        row.get("nomeRazaoSocialFornecedor"),
-                        row.get("codigoPaisFornecedor"),
-                    ])
+                    con.execute(
+                        self._upsert_fornecedor_sql,
+                        [
+                            ni,
+                            row.get("tipoPessoa"),
+                            row.get("nomeRazaoSocialFornecedor"),
+                            row.get("codigoPaisFornecedor"),
+                        ],
+                    )
 
         except Exception as dim_err:
             msg = scrub_url_params(str(dim_err))
@@ -943,6 +971,7 @@ class PNCPExtractor:
         total_rows = 0
         page = 1
         total_pages = None
+        expected_rows = 0
 
         # Add transient task for this range if progress bar provided
         task_id = None
@@ -1007,6 +1036,7 @@ class PNCPExtractor:
                     # Update total_pages on first response
                     if total_pages is None:
                         total_pages = data.get("totalPaginas", 1)
+                        expected_rows = data.get("totalRegistros", 0)
                         if progress and task_id:
                             progress.update(task_id, total=total_pages)
 
@@ -1031,29 +1061,39 @@ class PNCPExtractor:
                     page += 1
 
                 # Determine completion status
-                stopped_by_deadline = (
-                    deadline is not None and datetime.now() >= deadline
-                )
+                stopped_by_deadline = deadline is not None and datetime.now() >= deadline
                 status = "deadline" if stopped_by_deadline else "complete"
+
+                # Data integrity check
+                if status == "complete" and total_rows != expected_rows:
+                    logger.warning(
+                        "extraction_count_mismatch",
+                        date=str(start_date.date()),
+                        expected=expected_rows,
+                        actual=total_rows,
+                    )
+                    console.print(
+                        f"[yellow]⚠ Warning: {start_date.date()} count mismatch! "
+                        f"Expected {expected_rows}, got {total_rows}[/yellow]"
+                    )
 
                 # Only clear checkpoint on true completion
                 if not stopped_by_deadline:
                     self._clear_checkpoint(con, resource, start_date)
 
                 # Record coverage for this range
-                con.execute(
-                    """
-                    INSERT OR REPLACE INTO baliza_state.coverage
-                    VALUES (?, ?, ?, ?, ?, ?, NOW())
-                """,
-                    [resource, start_date, end_date, status, page, total_rows],
-                )
+                with self._db_lock:
+                    con.execute(
+                        """
+                        INSERT OR REPLACE INTO baliza_state.coverage
+                        VALUES (?, ?, ?, ?, ?, ?, NOW())
+                    """,
+                        [resource, start_date, end_date, status, page, total_rows],
+                    )
 
                 # Update resource health (circuit breaker) for single-day extractions
                 if start_date.date() == end_date.date() and status == "complete":
-                    self._update_resource_health(
-                        con, resource, start_date.date(), total_rows
-                    )
+                    self._update_resource_health(con, resource, start_date.date(), total_rows)
         finally:
             if progress and task_id:
                 progress.remove_task(task_id)
@@ -1137,8 +1177,7 @@ class PNCPExtractor:
                 with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
                     futures = {
                         executor.submit(
-                            self._extract_range_task, date, date, resource, progress,
-                            deadline
+                            self._extract_range_task, date, date, resource, progress, deadline
                         ): date
                         for date in dates
                     }

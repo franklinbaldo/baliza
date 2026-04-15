@@ -145,14 +145,16 @@ def _rewrite_url_with_ip(
 
     final_netloc = f"{user_info}{new_netloc}"
 
-    new_url = urlunparse((
-        parsed.scheme,
-        final_netloc,
-        parsed.path,
-        parsed.params,
-        parsed.query,
-        parsed.fragment,
-    ))
+    new_url = urlunparse(
+        (
+            parsed.scheme,
+            final_netloc,
+            parsed.path,
+            parsed.params,
+            parsed.query,
+            parsed.fragment,
+        )
+    )
 
     # Host header should be the original hostname (and port if non-standard)
     original_host_header = parsed.hostname
@@ -231,10 +233,14 @@ def validate_identifier(name: str, max_length: int = 64) -> str:
         ValueError: If the identifier is invalid or too long.
     """
     if len(name) > max_length:
-        raise ValueError(f"Invalid identifier: '{name}'. Length {len(name)} exceeds limit of {max_length}.")
+        raise ValueError(
+            f"Invalid identifier: '{name}'. Length {len(name)} exceeds limit of {max_length}."
+        )
 
     if not re.match(r"^[a-zA-Z0-9_]+$", name):
-        raise ValueError(f"Invalid identifier: '{name}'. Must be alphanumeric with underscores only.")
+        raise ValueError(
+            f"Invalid identifier: '{name}'. Must be alphanumeric with underscores only."
+        )
     return name
 
 
@@ -252,10 +258,14 @@ def validate_resource_path(path: str, max_length: int = 255) -> str:
         ValueError: If the path contains invalid characters, traversal attempts, or is too long.
     """
     if len(path) > max_length:
-        raise ValueError(f"Invalid resource path: '{path}'. Length {len(path)} exceeds limit of {max_length}.")
+        raise ValueError(
+            f"Invalid resource path: '{path}'. Length {len(path)} exceeds limit of {max_length}."
+        )
 
     if not re.match(r"^[a-zA-Z0-9_\-/]+$", path):
-        raise ValueError(f"Invalid resource path: '{path}'. Must be alphanumeric with '-', '_', or '/'.")
+        raise ValueError(
+            f"Invalid resource path: '{path}'. Must be alphanumeric with '-', '_', or '/'."
+        )
 
     if ".." in path:
         raise ValueError(f"Invalid resource path: '{path}'. Path traversal ('..') is not allowed.")
@@ -288,15 +298,11 @@ def scrub_url_params(text: str) -> str:
     # ([a-zA-Z][a-zA-Z0-9+.-]*://) : Group 1 - Scheme + ://
     # ([^/@\s'\"]+)                : Group 2 - User:pass (no slash, at, space, quotes)
     # (@)                          : Group 3 - @ separator
-    text = re.sub(
-        r"([a-zA-Z][a-zA-Z0-9+.-]*://)([^/@\s'\"]+)(@)", r"\1***\3", text
-    )
+    text = re.sub(r"([a-zA-Z][a-zA-Z0-9+.-]*://)([^/@\s'\"]+)(@)", r"\1***\3", text)
 
     # 2. Scrub query parameters: scheme://path?query
     # ([a-zA-Z][a-zA-Z0-9+.-]*://[^\s'\"?]+) : Group 1 - Scheme + path (no space, quote, ?)
     # (\?[^\s'\"]*)                          : Group 2 - Query string (starts with ?, no space, quote)
-    text = re.sub(
-        r"([a-zA-Z][a-zA-Z0-9+.-]*://[^\s'\"?]+)(\?[^\s'\"]*)", r"\1?***", text
-    )
+    text = re.sub(r"([a-zA-Z][a-zA-Z0-9+.-]*://[^\s'\"?]+)(\?[^\s'\"]*)", r"\1?***", text)
 
     return text

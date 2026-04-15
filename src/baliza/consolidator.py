@@ -97,7 +97,9 @@ class IAConsolidator:
                     f"[dim]Skipping {year}: frozen year, consolidated file already on IA.[/dim]"
                 )
                 return False
-            console.print(f"[yellow]{year}: frozen but missing consolidated file — building.[/yellow]")
+            console.print(
+                f"[yellow]{year}: frozen but missing consolidated file — building.[/yellow]"
+            )
         else:
             label = "frozen (forced)" if frozen else "hot (current/recent year)"
             console.print(f"[cyan]Consolidating {year} ({label})...[/cyan]")

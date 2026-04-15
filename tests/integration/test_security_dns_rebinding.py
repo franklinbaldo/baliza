@@ -45,7 +45,13 @@ def test_secure_url_connection_params_ipv6():
     with patch("socket.getaddrinfo") as mock_getaddrinfo:
         # Mock resolving to a public IPv6
         mock_getaddrinfo.return_value = [
-            (socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("2606:2800:220:1:248:1893:25c8:1946", 80, 0, 0))
+            (
+                socket.AF_INET6,
+                socket.SOCK_STREAM,
+                6,
+                "",
+                ("2606:2800:220:1:248:1893:25c8:1946", 80, 0, 0),
+            )
         ]
         url = "http://example.com/api"
         safe_url, headers = secure_url_connection_params(url)

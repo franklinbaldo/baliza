@@ -21,7 +21,7 @@ def test_dns_rebinding_mixed_ips_public_first(monkeypatch):
         # The public IP is first, so a naive check would pass it
         mock_getaddrinfo.return_value = [
             (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 80)),
-            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("192.168.1.1", 80))
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("192.168.1.1", 80)),
         ]
 
         # This SHOULD fail because one of the IPs is private
@@ -40,7 +40,7 @@ def test_dns_rebinding_mixed_ips_private_first(monkeypatch):
         # Private IP first
         mock_getaddrinfo.return_value = [
             (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("192.168.1.1", 80)),
-            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 80))
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 80)),
         ]
 
         # This should fail immediately on the first IP

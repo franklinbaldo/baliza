@@ -21,7 +21,7 @@ def configure_logging() -> None:
     log_format = os.environ.get("BALIZA_LOG_FORMAT", "console")
 
     if log_format == "json":
-        renderer = structlog.processors.JSONRenderer()
+        renderer: structlog.types.Processor = structlog.processors.JSONRenderer()
     else:
         renderer = structlog.dev.ConsoleRenderer()
 

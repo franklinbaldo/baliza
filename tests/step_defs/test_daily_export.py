@@ -29,7 +29,7 @@ def _make_db_with_contracts(tmp_path: Path, date_str: str, count: int = 50) -> d
             org_no = i % max(1, count // 5)
             cnpj = f"{org_no:014d}"
             con.execute(
-                f"""
+                """
                 INSERT OR IGNORE INTO baliza_raw.contratos (
                     numero_controle_pncp,
                     data_publicacao,
@@ -69,7 +69,10 @@ def test_daily_export_creates_files():
     pass
 
 
-@given(parsers.parse("a DuckDB database with contracts for {date_str}"), target_fixture="db_with_contracts")
+@given(
+    parsers.parse("a DuckDB database with contracts for {date_str}"),
+    target_fixture="db_with_contracts",
+)
 def db_with_contracts(tmp_path: Path, date_str: str) -> dict:
     """Create database with contracts for a specific date."""
     return _make_db_with_contracts(tmp_path, date_str, count=50)
@@ -103,7 +106,10 @@ def run_export_daily(db_with_contracts, date_str, output_path):
         print(f"Output:\n{result.stdout}")
         if result.exception:
             import traceback
-            traceback.print_exception(type(result.exception), result.exception, result.exception.__traceback__)
+
+            traceback.print_exception(
+                type(result.exception), result.exception, result.exception.__traceback__
+            )
 
     return {**db_with_contracts, "result": result}
 
@@ -200,7 +206,9 @@ def test_orgaos_deduplicated():
 
 
 @given(
-    parsers.parse("a DuckDB database with {contract_count:d} contracts from {org_count:d} unique orgs"),
+    parsers.parse(
+        "a DuckDB database with {contract_count:d} contracts from {org_count:d} unique orgs"
+    ),
     target_fixture="db_with_orgs",
 )
 def db_with_multiple_orgs(tmp_path: Path, contract_count: int, org_count: int) -> dict:
@@ -318,7 +326,9 @@ def test_metadata_contains_stats():
     pass
 
 
-@given(parsers.parse("a daily export with {count:d} contracts"), target_fixture="export_with_metadata")
+@given(
+    parsers.parse("a daily export with {count:d} contracts"), target_fixture="export_with_metadata"
+)
 def export_with_metadata(tmp_path: Path, count: int) -> dict:
     """Create daily export with N contracts."""
     ctx = _make_db_with_contracts(tmp_path, "2023-01-15", count=count)

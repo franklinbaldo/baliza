@@ -22,9 +22,9 @@ def fake_page_data():
                 "numeroControlePNCP": "123",
                 "anoCompra": 2023,
                 "sequencialCompra": 1,
-                "dataPublicacao": "2023-01-01T10:00:00"
+                "dataPublicacao": "2023-01-01T10:00:00",
             }
-        ]
+        ],
     }
 
 
@@ -43,13 +43,10 @@ def test_deadline_stops_extraction(temp_db, fake_page_data, monkeypatch):
 
     with patch("baliza.extractor._fetch_page", return_value=fake_page_data) as mock_fetch:
         result = extractor._extract_range_task(
-            start_date=start_date,
-            end_date=end_date,
-            resource="contratos",
-            deadline=deadline
+            start_date=start_date, end_date=end_date, resource="contratos", deadline=deadline
         )
 
-        assert result["pages"] == 1 # Initial value is 1, loop breaks before fetching page 1
+        assert result["pages"] == 1  # Initial value is 1, loop breaks before fetching page 1
         assert result["rows_extracted"] == 0
         mock_fetch.assert_not_called()
 
@@ -60,6 +57,7 @@ def test_deadline_stops_extraction(temp_db, fake_page_data, monkeypatch):
             ).fetchone()
             assert coverage is not None
             assert coverage[0] == "deadline"
+
 
 def test_no_deadline_completes_normally(temp_db, fake_page_data, monkeypatch):
     monkeypatch.setenv("BALIZA_ALLOW_PRIVATE_NETWORKS", "1")
@@ -75,10 +73,7 @@ def test_no_deadline_completes_normally(temp_db, fake_page_data, monkeypatch):
 
     with patch("baliza.extractor._fetch_page", side_effect=[fake_page_data, empty_page]):
         result = extractor._extract_range_task(
-            start_date=start_date,
-            end_date=end_date,
-            resource="contratos",
-            deadline=None
+            start_date=start_date, end_date=end_date, resource="contratos", deadline=None
         )
 
         assert result["pages"] >= 1
@@ -93,10 +88,9 @@ def test_no_deadline_completes_normally(temp_db, fake_page_data, monkeypatch):
             assert coverage[0] == "complete"
 
             # Verify checkpoint is cleared
-            checkpoint = con.execute(
-                "SELECT * FROM baliza_state.extraction_checkpoint"
-            ).fetchone()
+            checkpoint = con.execute("SELECT * FROM baliza_state.extraction_checkpoint").fetchone()
             assert checkpoint is None
+
 
 def test_deadline_preserves_checkpoint(temp_db, fake_page_data, monkeypatch):
     monkeypatch.setenv("BALIZA_ALLOW_PRIVATE_NETWORKS", "1")
@@ -125,10 +119,7 @@ def test_deadline_preserves_checkpoint(temp_db, fake_page_data, monkeypatch):
 
     with patch("baliza.extractor._fetch_page"):
         extractor._extract_range_task(
-            start_date=start_date,
-            end_date=end_date,
-            resource="contratos",
-            deadline=deadline
+            start_date=start_date, end_date=end_date, resource="contratos", deadline=deadline
         )
 
         with duckdb.connect(str(temp_db)) as con:

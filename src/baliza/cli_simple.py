@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -12,9 +13,9 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from .consolidator import IAConsolidator
 from .daily_exporter import DailyExporter
 from .extractor import PNCPExtractor
-from .consolidator import IAConsolidator
 from .ia_uploader import IAUploader
 from .logging import configure_logging
 from .utils import (
@@ -354,29 +355,28 @@ def upload_daily(
     ),
 ) -> None:
     """Export daily parquet package and upload to Internet Archive.
-    
+
     This command combines export-daily with pushing to archive.org,
-    creating manifest updates and handling dedup tracking. 
+    creating manifest updates and handling dedup tracking.
     Requires IA_ACCESS_KEY and IA_SECRET_KEY environment variables.
     """
-    import os
     try:
         target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-        
+
         ia_access_key = os.environ.get("IA_ACCESS_KEY")
         ia_secret_key = os.environ.get("IA_SECRET_KEY")
         if not ia_access_key or not ia_secret_key:
             console.print("[red]✗ Missing IA_ACCESS_KEY or IA_SECRET_KEY in environment.[/red]")
             raise typer.Exit(1)
-            
+
         uploader = IAUploader(db_path)
-        
+
         success = uploader.upload_day(target_date, output, ia_access_key, ia_secret_key)
-            
+
         if not success:
             console.print(f"[dim]{date_str}: already uploaded or no data — skipped.[/dim]")
             raise typer.Exit(0)
-            
+
     except Exception as e:
         msg = scrub_url_params(str(e))
         console.print(f"[red]✗ Upload failed: {msg}")
@@ -407,8 +407,6 @@ def consolidate(
 
     Requires IA_ACCESS_KEY and IA_SECRET_KEY environment variables.
     """
-    import os
-
     try:
         ia_access_key = os.environ.get("IA_ACCESS_KEY")
         ia_secret_key = os.environ.get("IA_SECRET_KEY")
@@ -417,11 +415,15 @@ def consolidate(
             raise typer.Exit(1)
 
         consolidator = IAConsolidator()
-        results = consolidator.consolidate_all(start_year, ia_access_key, ia_secret_key, force=force)
+        results = consolidator.consolidate_all(
+            start_year, ia_access_key, ia_secret_key, force=force
+        )
 
         uploaded = sum(1 for v in results.values() if v)
         skipped = sum(1 for v in results.values() if not v)
-        console.print(f"\n[green]✓ Consolidation complete: {uploaded} uploaded, {skipped} skipped.[/green]")
+        console.print(
+            f"\n[green]✓ Consolidation complete: {uploaded} uploaded, {skipped} skipped.[/green]"
+        )
 
     except Exception as e:
         msg = scrub_url_params(str(e))
@@ -430,7 +432,6 @@ def consolidate(
 
 
 @app.command("buffer-stats")
-
 def buffer_stats(
     db_path: Path = typer.Option(
         Path("baliza.duckdb"),
@@ -583,11 +584,12 @@ def sync(
     start_date: str = typer.Option("2023-01-01", "--start-date", help="Oldest date to backfill"),
     db_path: Path = typer.Option(Path("baliza.duckdb"), "--duckdb", help="DuckDB file"),
     dataset: str = typer.Option("baliza_raw", "--dataset", help="Dataset name"),
-    force_date: str | None = typer.Option(None, "--force-date", help="Target a specific date regardless of manifest"),
+    force_date: str | None = typer.Option(
+        None, "--force-date", help="Target a specific date regardless of manifest"
+    ),
 ) -> None:
     """Unified sync: extracts missing dates and uploads to IA (most recent first)."""
-    import os
-
+    uploader = IAUploader(db_path)
     ia_access_key = os.environ.get("IA_ACCESS_KEY")
     ia_secret_key = os.environ.get("IA_SECRET_KEY")
 
@@ -605,7 +607,9 @@ def sync(
             try:
                 uploaded = uploader.get_uploaded_dates()
             except Exception as e:
-                console.print(f"[yellow]⚠ Could not read IA manifest (starting fresh): {e}[/yellow]")
+                console.print(
+                    f"[yellow]⚠ Could not read IA manifest (starting fresh): {e}[/yellow]"
+                )
                 uploaded = set()
 
             start = datetime.strptime(start_date, "%Y-%m-%d").date()

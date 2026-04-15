@@ -29,104 +29,112 @@ SCHEMA_VERSION = "2.0.0"
 # ── Parquet schemas ───────────────────────────────────────────────────────────
 # All column names are snake_case matching the normalized DuckDB schema.
 
-CONTRATOS_SCHEMA = pa.schema([
-    # Identity
-    pa.field("numero_controle_pncp",            pa.string(),        nullable=False),
-    pa.field("numero_controle_pncp_compra",     pa.string(),        nullable=True),
-    pa.field("ano_contrato",                    pa.int32(),         nullable=True),
-    pa.field("sequencial_contrato",             pa.int32(),         nullable=True),
-    pa.field("ano_compra",                      pa.int32(),         nullable=True),
-    pa.field("sequencial_compra",               pa.int32(),         nullable=True),
-    pa.field("numero_contrato_empenho",         pa.string(),        nullable=True),
-    pa.field("numero_retificacao",              pa.int32(),         nullable=True),
-    pa.field("processo",                        pa.string(),        nullable=True),
-    # Órgão contratante
-    pa.field("cnpj_orgao",                      pa.string(),        nullable=False),
-    pa.field("razao_social_orgao",              pa.string(),        nullable=True),
-    pa.field("poder_id",                        pa.string(),        nullable=True),   # E/L/J
-    pa.field("esfera_id",                       pa.string(),        nullable=True),   # F/E/M/D
-    pa.field("codigo_unidade",                  pa.string(),        nullable=True),
-    pa.field("nome_unidade",                    pa.string(),        nullable=True),
-    pa.field("uf_sigla",                        pa.string(),        nullable=True),
-    pa.field("uf_nome",                         pa.string(),        nullable=True),
-    pa.field("municipio_nome",                  pa.string(),        nullable=True),
-    pa.field("codigo_ibge",                     pa.string(),        nullable=True),
-    # Órgão sub-rogado (proxy agency — nullable)
-    pa.field("cnpj_orgao_subrogado",            pa.string(),        nullable=True),
-    pa.field("razao_social_orgao_subrogado",    pa.string(),        nullable=True),
-    pa.field("codigo_unidade_subrogada",        pa.string(),        nullable=True),
-    pa.field("nome_unidade_subrogada",          pa.string(),        nullable=True),
-    pa.field("uf_sigla_subrogada",              pa.string(),        nullable=True),
-    # Fornecedor (supplier — the WHO got paid)
-    pa.field("ni_fornecedor",                   pa.string(),        nullable=True),
-    pa.field("tipo_pessoa",                     pa.string(),        nullable=True),   # PJ/PF/PE
-    pa.field("nome_razao_social_fornecedor",    pa.string(),        nullable=True),
-    pa.field("codigo_pais_fornecedor",          pa.string(),        nullable=True),
-    pa.field("ni_fornecedor_subcontratado",     pa.string(),        nullable=True),
-    pa.field("nome_fornecedor_subcontratado",   pa.string(),        nullable=True),
-    pa.field("tipo_pessoa_subcontratada",       pa.string(),        nullable=True),
-    # Classification
-    pa.field("modalidade_id",                   pa.int32(),         nullable=True),
-    pa.field("modalidade_nome",                 pa.string(),        nullable=True),
-    pa.field("tipo_contrato_id",                pa.int32(),         nullable=True),
-    pa.field("tipo_contrato_nome",              pa.string(),        nullable=True),
-    pa.field("categoria_processo_id",           pa.int32(),         nullable=True),
-    pa.field("categoria_processo_nome",         pa.string(),        nullable=True),
-    pa.field("receita",                         pa.bool_(),         nullable=True),
-    # Financial
-    pa.field("valor_inicial",                   pa.float64(),       nullable=True),
-    pa.field("valor_parcela",                   pa.float64(),       nullable=True),
-    pa.field("valor_global",                    pa.float64(),       nullable=True),
-    pa.field("valor_acumulado",                 pa.float64(),       nullable=True),
-    pa.field("numero_parcelas",                 pa.int32(),         nullable=True),
-    # Dates
-    pa.field("data_publicacao",                 pa.timestamp("us"), nullable=True),
-    pa.field("data_publicacao_pncp",            pa.timestamp("us"), nullable=True),
-    pa.field("data_assinatura",                 pa.date32(),        nullable=True),
-    pa.field("data_vigencia_inicio",            pa.date32(),        nullable=True),
-    pa.field("data_vigencia_fim",               pa.date32(),        nullable=True),
-    pa.field("data_inclusao",                   pa.timestamp("us"), nullable=True),
-    pa.field("data_atualizacao",                pa.timestamp("us"), nullable=True),
-    pa.field("data_atualizacao_global",         pa.timestamp("us"), nullable=True),
-    # Text / links
-    pa.field("objeto_contrato",                 pa.string(),        nullable=True),
-    pa.field("informacao_complementar",         pa.string(),        nullable=True),
-    pa.field("link_sistema_origem",             pa.string(),        nullable=True),
-    pa.field("identificador_cipi",              pa.string(),        nullable=True),
-    pa.field("url_cipi",                        pa.string(),        nullable=True),
-    # Audit
-    pa.field("usuario_nome",                    pa.string(),        nullable=True),
-    # Pipeline metadata (not from API)
-    pa.field("data_particao",                   pa.date32(),        nullable=False),
-])
+CONTRATOS_SCHEMA = pa.schema(
+    [
+        # Identity
+        pa.field("numero_controle_pncp", pa.string(), nullable=False),
+        pa.field("numero_controle_pncp_compra", pa.string(), nullable=True),
+        pa.field("ano_contrato", pa.int32(), nullable=True),
+        pa.field("sequencial_contrato", pa.int32(), nullable=True),
+        pa.field("ano_compra", pa.int32(), nullable=True),
+        pa.field("sequencial_compra", pa.int32(), nullable=True),
+        pa.field("numero_contrato_empenho", pa.string(), nullable=True),
+        pa.field("numero_retificacao", pa.int32(), nullable=True),
+        pa.field("processo", pa.string(), nullable=True),
+        # Órgão contratante
+        pa.field("cnpj_orgao", pa.string(), nullable=False),
+        pa.field("razao_social_orgao", pa.string(), nullable=True),
+        pa.field("poder_id", pa.string(), nullable=True),  # E/L/J
+        pa.field("esfera_id", pa.string(), nullable=True),  # F/E/M/D
+        pa.field("codigo_unidade", pa.string(), nullable=True),
+        pa.field("nome_unidade", pa.string(), nullable=True),
+        pa.field("uf_sigla", pa.string(), nullable=True),
+        pa.field("uf_nome", pa.string(), nullable=True),
+        pa.field("municipio_nome", pa.string(), nullable=True),
+        pa.field("codigo_ibge", pa.string(), nullable=True),
+        # Órgão sub-rogado (proxy agency — nullable)
+        pa.field("cnpj_orgao_subrogado", pa.string(), nullable=True),
+        pa.field("razao_social_orgao_subrogado", pa.string(), nullable=True),
+        pa.field("codigo_unidade_subrogada", pa.string(), nullable=True),
+        pa.field("nome_unidade_subrogada", pa.string(), nullable=True),
+        pa.field("uf_sigla_subrogada", pa.string(), nullable=True),
+        # Fornecedor (supplier — the WHO got paid)
+        pa.field("ni_fornecedor", pa.string(), nullable=True),
+        pa.field("tipo_pessoa", pa.string(), nullable=True),  # PJ/PF/PE
+        pa.field("nome_razao_social_fornecedor", pa.string(), nullable=True),
+        pa.field("codigo_pais_fornecedor", pa.string(), nullable=True),
+        pa.field("ni_fornecedor_subcontratado", pa.string(), nullable=True),
+        pa.field("nome_fornecedor_subcontratado", pa.string(), nullable=True),
+        pa.field("tipo_pessoa_subcontratada", pa.string(), nullable=True),
+        # Classification
+        pa.field("modalidade_id", pa.int32(), nullable=True),
+        pa.field("modalidade_nome", pa.string(), nullable=True),
+        pa.field("tipo_contrato_id", pa.int32(), nullable=True),
+        pa.field("tipo_contrato_nome", pa.string(), nullable=True),
+        pa.field("categoria_processo_id", pa.int32(), nullable=True),
+        pa.field("categoria_processo_nome", pa.string(), nullable=True),
+        pa.field("receita", pa.bool_(), nullable=True),
+        # Financial
+        pa.field("valor_inicial", pa.float64(), nullable=True),
+        pa.field("valor_parcela", pa.float64(), nullable=True),
+        pa.field("valor_global", pa.float64(), nullable=True),
+        pa.field("valor_acumulado", pa.float64(), nullable=True),
+        pa.field("numero_parcelas", pa.int32(), nullable=True),
+        # Dates
+        pa.field("data_publicacao", pa.timestamp("us"), nullable=True),
+        pa.field("data_publicacao_pncp", pa.timestamp("us"), nullable=True),
+        pa.field("data_assinatura", pa.date32(), nullable=True),
+        pa.field("data_vigencia_inicio", pa.date32(), nullable=True),
+        pa.field("data_vigencia_fim", pa.date32(), nullable=True),
+        pa.field("data_inclusao", pa.timestamp("us"), nullable=True),
+        pa.field("data_atualizacao", pa.timestamp("us"), nullable=True),
+        pa.field("data_atualizacao_global", pa.timestamp("us"), nullable=True),
+        # Text / links
+        pa.field("objeto_contrato", pa.string(), nullable=True),
+        pa.field("informacao_complementar", pa.string(), nullable=True),
+        pa.field("link_sistema_origem", pa.string(), nullable=True),
+        pa.field("identificador_cipi", pa.string(), nullable=True),
+        pa.field("url_cipi", pa.string(), nullable=True),
+        # Audit
+        pa.field("usuario_nome", pa.string(), nullable=True),
+        # Pipeline metadata (not from API)
+        pa.field("data_particao", pa.date32(), nullable=False),
+    ]
+)
 
-ORGAOS_SCHEMA = pa.schema([
-    pa.field("cnpj",                pa.string(),  nullable=False),
-    pa.field("razao_social",        pa.string(),  nullable=True),
-    pa.field("poder_id",            pa.string(),  nullable=True),   # E/L/J
-    pa.field("esfera_id",           pa.string(),  nullable=True),   # F/E/M/D
-    pa.field("contratos_no_dia",    pa.int32(),   nullable=True),
-    pa.field("valor_total_no_dia",  pa.float64(), nullable=True),
-])
+ORGAOS_SCHEMA = pa.schema(
+    [
+        pa.field("cnpj", pa.string(), nullable=False),
+        pa.field("razao_social", pa.string(), nullable=True),
+        pa.field("poder_id", pa.string(), nullable=True),  # E/L/J
+        pa.field("esfera_id", pa.string(), nullable=True),  # F/E/M/D
+        pa.field("contratos_no_dia", pa.int32(), nullable=True),
+        pa.field("valor_total_no_dia", pa.float64(), nullable=True),
+    ]
+)
 
-UNIDADES_SCHEMA = pa.schema([
-    pa.field("codigo_unidade",      pa.string(),  nullable=False),
-    pa.field("cnpj_orgao",          pa.string(),  nullable=False),
-    pa.field("nome_unidade",        pa.string(),  nullable=True),
-    pa.field("uf_sigla",            pa.string(),  nullable=True),
-    pa.field("municipio_nome",      pa.string(),  nullable=True),
-    pa.field("codigo_ibge",         pa.string(),  nullable=True),
-    pa.field("contratos_no_dia",    pa.int32(),   nullable=True),
-])
+UNIDADES_SCHEMA = pa.schema(
+    [
+        pa.field("codigo_unidade", pa.string(), nullable=False),
+        pa.field("cnpj_orgao", pa.string(), nullable=False),
+        pa.field("nome_unidade", pa.string(), nullable=True),
+        pa.field("uf_sigla", pa.string(), nullable=True),
+        pa.field("municipio_nome", pa.string(), nullable=True),
+        pa.field("codigo_ibge", pa.string(), nullable=True),
+        pa.field("contratos_no_dia", pa.int32(), nullable=True),
+    ]
+)
 
-FORNECEDORES_SCHEMA = pa.schema([
-    pa.field("ni_fornecedor",       pa.string(),  nullable=False),
-    pa.field("tipo_pessoa",         pa.string(),  nullable=True),   # PJ/PF/PE
-    pa.field("nome_razao_social",   pa.string(),  nullable=True),
-    pa.field("codigo_pais",         pa.string(),  nullable=True),
-    pa.field("contratos_no_dia",    pa.int32(),   nullable=True),
-    pa.field("valor_total_no_dia",  pa.float64(), nullable=True),
-])
+FORNECEDORES_SCHEMA = pa.schema(
+    [
+        pa.field("ni_fornecedor", pa.string(), nullable=False),
+        pa.field("tipo_pessoa", pa.string(), nullable=True),  # PJ/PF/PE
+        pa.field("nome_razao_social", pa.string(), nullable=True),
+        pa.field("codigo_pais", pa.string(), nullable=True),
+        pa.field("contratos_no_dia", pa.int32(), nullable=True),
+        pa.field("valor_total_no_dia", pa.float64(), nullable=True),
+    ]
+)
 
 
 class DailyExporter:
@@ -168,9 +176,9 @@ class DailyExporter:
         }
 
         with duckdb.connect(str(self.db_path), read_only=True) as con:
-            stats["tables"]["contratos"]    = self._export_contratos(con, target_date, day_dir)
-            stats["tables"]["orgaos"]       = self._export_orgaos(con, target_date, day_dir)
-            stats["tables"]["unidades"]     = self._export_unidades(con, target_date, day_dir)
+            stats["tables"]["contratos"] = self._export_contratos(con, target_date, day_dir)
+            stats["tables"]["orgaos"] = self._export_orgaos(con, target_date, day_dir)
+            stats["tables"]["unidades"] = self._export_unidades(con, target_date, day_dir)
             stats["tables"]["fornecedores"] = self._export_fornecedores(con, target_date, day_dir)
 
         metadata_path = day_dir / "_metadata.json"
@@ -377,7 +385,6 @@ class DailyExporter:
             write_statistics=True,
             version="2.6",
         ) as writer:
-
             if isinstance(data, pa.Table):
                 try:
                     table = data.cast(schema)
