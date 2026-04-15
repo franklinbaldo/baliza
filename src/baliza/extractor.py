@@ -27,7 +27,7 @@ class PNCPExtractor:
     def __init__(
         self,
         engine: BalizaEngine,
-        base_url: str = "https://pncp.gov.br/api/consulta/v1",
+        base_url: str = "https://pncp.gov.br/api/pncp/v1",
         use_curl: bool = False,
     ):
         self.engine = engine
@@ -44,11 +44,13 @@ class PNCPExtractor:
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def fetch_page(self, resource: str, extraction_date: datetime, page: int = 1) -> dict[str, Any]:
         """Fetch a single page from the PNCP API using a date range."""
-        date_str = extraction_date.strftime("%Y%m%d")
-        # PNCP API now requires dataInicial and dataFinal for range searches
-        url = (
-            f"{self.base_url}/{resource}?dataInicial={date_str}&dataFinal={date_str}&pagina={page}"
-        )
+        date_str = extraction_date.strftime("%Y-%m-%d")
+        url = f"{self.base_url}/{resource}"
+        params = {
+            "dataPublicacao": date_str,
+            "pagina": page,
+            "tamanhoPagina": 500,
+        }
 
         if self.use_curl:
             try:
@@ -60,7 +62,7 @@ class PNCPExtractor:
                         "accept: */*",
                         "-H",
                         f"User-Agent: {self.headers['User-Agent']}",
-                        url,
+                        f"{url}?dataPublicacao={date_str}&pagina={page}&tamanhoPagina=500",
                     ],
                     capture_output=True,
                     text=True,
@@ -72,7 +74,7 @@ class PNCPExtractor:
             except Exception:
                 raise
 
-        resp = self.client.get(url)
+        resp = self.client.get(url, params=params)
         resp.raise_for_status()
         data = resp.json()
         self._save_raw(resource, extraction_date, page, data)
@@ -81,12 +83,12 @@ class PNCPExtractor:
     def _save_raw(self, resource: str, extraction_date: datetime, page: int, data: dict[str, Any]):
         """Save raw JSON payload to disk (staging for ZIP upload)."""
         date_iso = extraction_date.date().isoformat()
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        folder = Path("data/raw") / date_iso
-        folder.mkdir(parents=True, exist_ok=True)
+        raw_dir = Path("data/raw") / date_iso
+        raw_dir.mkdir(parents=True, exist_ok=True)
 
-        filename = f"{resource}_{date_iso}_p{page}_{ts}.json"
-        with open(folder / filename, "w") as f:
+        timestamp = datetime.now().strftime("%H%M%S_%f")
+        filename = raw_dir / f"{resource}_{timestamp}.json"
+        with open(filename, "w") as f:
             json.dump(data, f, ensure_ascii=False)
 
     def probe_date(self, resource: str, extraction_date: datetime) -> dict[str, Any]:

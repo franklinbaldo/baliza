@@ -59,13 +59,13 @@ class BalizaEngine:
             logger.error("schema_init_failed", schema=schema_name, error=str(e))
             raise RuntimeError(f"Could not initialize schema {schema_name}") from e
 
-    def ingest_jsonl(self, jsonl_path: Path, table_name: str, schema: str = "main") -> int:
-        """Ingest a JSONL file into a table using Ibis."""
-        if not jsonl_path.exists():
+    def ingest_json(self, json_path: Path, table_name: str, schema: str = "main") -> int:
+        """Ingest a JSON file into a table using Ibis."""
+        if not Path(json_path).exists():
             return 0
 
-        # Read JSONL using Ibis/DuckDB
-        t = self.con.read_json(str(jsonl_path))
+        # Read JSON using Ibis/DuckDB
+        t = self.con.read_json(str(json_path))
 
         # Schema-qualified table check
         tables = self.con.list_tables(database=schema)

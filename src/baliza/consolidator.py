@@ -59,8 +59,9 @@ class IAConsolidator:
                         # Extract year from data_particao (YYYY-MM-DD)
                         p_date = row.get("data_particao", "")
                         if p_date.startswith(str(year)) and row.get("table_name") == "contratos":
-                            if row.get("parquet_url"):
-                                urls.append(row["parquet_url"])
+                            url = row.get("parquet_url") or row.get("file_url")
+                            if url:
+                                urls.append(url)
         except Exception as e:
             console.print(f"[red]Error reading manifest for consolidation: {e}[/red]")
         return urls
