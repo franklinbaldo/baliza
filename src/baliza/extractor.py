@@ -308,7 +308,7 @@ class PNCPExtractor:
         self.dataset = validate_identifier(dataset)
         self._db_lock = threading.Lock()
         self.con: duckdb.DuckDBPyConnection | None = None
-        self.base_url = "https://pncp.gov.br/api/pncp/v1"
+        self.base_url = "https://pncp.gov.br/api/consulta/v1"
 
         # Identity 'Stealth' Headers
         self.headers = {
