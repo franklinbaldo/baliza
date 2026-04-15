@@ -28,7 +28,7 @@ from rich.progress import (
 
 from .consolidator import IAConsolidator
 from .engine import BalizaEngine
-from .extractor import PNCPExtractor
+from .extractor import PNCPExtractor, _validate_resource
 from .ia_uploader import IAUploader
 from .logging import configure_logging
 
@@ -71,6 +71,17 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
     start_time_exec = datetime.now()
     ia_access_key = os.environ.get("IA_ACCESS_KEY") or os.environ.get("IAS3_ACCESS_KEY")
     ia_secret_key = os.environ.get("IA_SECRET_KEY") or os.environ.get("IAS3_SECRET_KEY")
+
+    # 0. VALIDATE RESOURCE early
+    try:
+        # Default resource for sync is 'contratos' inside PNCPExtractor
+        # But we check it here if needed.
+        _validate_resource("contratos")
+    except ValueError as e:
+        import sys
+        print(str(e))
+        sys.stdout.flush()
+        raise typer.Exit(1)
 
     if not dry_run and (not ia_access_key or not ia_secret_key):
         console.print("[red]✗ Missing IA keys in environment.[/red]")
@@ -238,6 +249,10 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                             q_csv.unlink()
                             
                     progress.update(overall_task, advance=1)
+                except ValueError as e:
+                    if "Invalid resource path" in str(e):
+                        progress.console.log(f"[bold red]✗ {e}[/bold red]")
+                    raise
                 except Exception as e:
                     error_count += 1
                     progress.console.log(f"[bold red]✗ Error {month_str}: {e}[/bold red]")
@@ -288,6 +303,7 @@ def verify(
 ) -> None:
     """Verify data coverage by checking the REMOTE IA manifest."""
     try:
+        _validate_resource(resource)
         start_date = datetime.strptime(start, "%Y-%m-%d").date()
         end_date = datetime.strptime(end, "%Y-%m-%d").date()
 
@@ -324,8 +340,14 @@ def verify(
             if len(gaps) > 12:
                 console.print(f"  ... and {len(gaps) - 12} more.")
 
+    except ValueError as e:
+        import sys
+        print(str(e))
+        sys.stdout.flush()
+        raise typer.Exit(1)
     except Exception as e:
         console.print(f"[red]✗ Verify failed: {e}")
+        raise typer.Exit(1)
 
 
 @app.command("consolidate")

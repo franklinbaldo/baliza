@@ -1,3 +1,5 @@
+import type { IBGEResult } from "./types";
+
 /**
  * Baliza Geo-Utility
  * Translates Browser Coordinates -> City Name -> IBGE Code

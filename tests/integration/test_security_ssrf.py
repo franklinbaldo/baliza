@@ -7,6 +7,7 @@ import pytest
 
 from baliza.extractor import PNCPExtractor
 from baliza.utils import validate_url
+from baliza.engine import BalizaEngine
 
 
 def test_validate_url_public_ip():
@@ -79,6 +80,7 @@ def test_extractor_enforces_ssrf(tmp_path, monkeypatch):
     """Test that PNCPExtractor enforces SSRF protection on init."""
     monkeypatch.delenv("BALIZA_ALLOW_PRIVATE_NETWORKS", raising=False)
     db_path = tmp_path / "test.duckdb"
+    engine = BalizaEngine(db_path)
 
     with patch("socket.getaddrinfo") as mock_getaddrinfo:
         mock_getaddrinfo.return_value = [
@@ -86,7 +88,7 @@ def test_extractor_enforces_ssrf(tmp_path, monkeypatch):
         ]
 
         with pytest.raises(ValueError, match="resolves to non-global or multicast IP"):
-            PNCPExtractor(db_path, base_url="https://internal-api")
+            PNCPExtractor(engine, base_url="https://internal-api")
 
 
 def test_extractor_allows_valid_url(tmp_path):
@@ -99,7 +101,8 @@ def test_extractor_allows_valid_url(tmp_path):
         ]
 
         # Should not raise
-        extractor = PNCPExtractor(db_path, base_url="https://public-api.com")
+        engine = BalizaEngine(db_path)
+        extractor = PNCPExtractor(engine, base_url="https://public-api.com")
         assert extractor.base_url == "https://public-api.com"
 
 

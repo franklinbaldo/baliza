@@ -1,40 +1,41 @@
-from unittest.mock import Mock
+import json
+from datetime import datetime
+from unittest.mock import MagicMock, Mock, patch
 
-import httpx
 import pytest
 
-from baliza.extractor import _fetch_page
+from baliza.engine import BalizaEngine
+from baliza.extractor import PNCPExtractor
 
+def test_fetch_page_size_limit(tmp_path):
+    """Test that fetch_page raises ValueError if response is too large (DoS protection)."""
+    db_path = tmp_path / "test_dos.duckdb"
+    engine = BalizaEngine(db_path)
+    extractor = PNCPExtractor(engine)
 
-def test_fetch_page_size_limit():
-    """Test that _fetch_page raises ValueError if response is too large."""
-    client = Mock(spec=httpx.Client)
+    # 1. Create a mock response that behaves like a real httpx.Response for streaming
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.raise_for_status = Mock()
+    
+    # iter_bytes should return an iterator of chunks
+    # 16 chunks of 1MB each = 16MB (Exceeds 15MB limit)
+    chunks = [b"a" * (1024 * 1024) for _ in range(16)]
+    mock_resp.iter_bytes.return_value = iter(chunks)
 
-    # Mock stream response
-    def mock_stream(*args, **kwargs):
-        response = Mock()
-        response.raise_for_status = Mock()
+    # 2. Mock the context manager returned by self.client.stream
+    mock_cm = MagicMock()
+    mock_cm.__enter__.return_value = mock_resp
+    mock_cm.__exit__.return_value = None
 
-        # Generator that yields chunks
-        def iter_bytes():
-            # Yield 11 chunks of 1MB each = 11MB
-            # Total size > 10MB default limit
-            for _ in range(11):
-                yield b"a" * (1024 * 1024)
+    # Patch the stream method AND ensure cache is skipped
+    with patch.object(extractor.client, "stream", return_value=mock_cm) as mock_stream:
+        with patch("baliza.extractor.Path.exists", return_value=False):
+            start_date = datetime(2024, 3, 1)
+            end_date = datetime(2024, 3, 31)
 
-        response.iter_bytes = iter_bytes
-
-        cm = Mock()
-        cm.__enter__ = Mock(return_value=response)
-        cm.__exit__ = Mock(return_value=None)
-        return cm
-
-    client.stream = Mock(side_effect=mock_stream)
-
-    # Mock client.get for the legacy path (to ensure test doesn't error out on attribute access)
-    client.get.return_value.status_code = 200
-    client.get.return_value.json.return_value = {"data": []}
-
-    # Expect ValueError due to size limit
-    with pytest.raises(ValueError, match="Response too large"):
-        _fetch_page(client, "http://example.com", {})
+            # Expect ValueError due to size limit
+            with pytest.raises(ValueError, match="Response too large"):
+                extractor.fetch_page("contratos", start_date, end_date, page=1)
+            
+            mock_stream.assert_called_once()

@@ -273,17 +273,6 @@ def validate_resource_path(path: str, max_length: int = 255) -> str:
     return path
 
 
-def escape_sql_literal(value: str) -> str:
-    """Escape a string for use in a SQL literal (doubling single quotes).
-
-    Args:
-        value: The string to escape.
-
-    Returns:
-        The escaped string.
-    """
-    return value.replace("'", "''")
-
 
 def scrub_url_params(text: str) -> str:
     """Mask credentials and query parameters in URLs found in text to prevent logging secrets.
