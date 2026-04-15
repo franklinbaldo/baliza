@@ -1126,8 +1126,8 @@ class PNCPExtractor:
 
     def fetch_page(self, resource: str, extraction_date: datetime, page: int) -> int:
         """Fetch a specific page and insert into DuckDB."""
-        data_inicial = extraction_date.strftime("%Y-%m-%d")
-        data_final = extraction_date.strftime("%Y-%m-%d")
+        data_inicial = extraction_date.strftime("%Y%m%d")
+        data_final = extraction_date.strftime("%Y%m%d")
         url = f"{self.base_url}/{resource}"
         params = {
             "dataInicial": data_inicial,
