@@ -21,6 +21,7 @@ export interface PNCPContract {
   situacaoNome?: string;
   anoCompra?: number;
   sequencialCompra?: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   itens?: any[]; 
 }
 
