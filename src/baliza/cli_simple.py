@@ -580,16 +580,18 @@ def status(
 
 @app.command("sync")
 def sync(
-    batch_size: int = typer.Option(5, "--batch-size", "-n", help="Number of days to sync per run"),
+    batch_size: int | None = typer.Option(None, "--batch-size", "-n", help="Max days to sync (None for all)"),
     start_date: str = typer.Option("2023-01-01", "--start-date", help="Oldest date to backfill"),
     db_path: Path = typer.Option(Path("baliza.duckdb"), "--duckdb", help="DuckDB file"),
     dataset: str = typer.Option("baliza_raw", "--dataset", help="Dataset name"),
-    force_date: str | None = typer.Option(
-        None, "--force-date", help="Target a specific date regardless of manifest"
-    ),
+    force_date: str | None = typer.Option(None, "--force-date", help="Target a specific date regardless of manifest"),
+    limit_minutes: int = typer.Option(330, "--limit-minutes", help="Gracefully stop after N minutes"),
 ) -> None:
-    """Unified sync: extracts missing dates and uploads to IA (most recent first)."""
-    uploader = IAUploader(db_path)
+    """Unified sync: extracts missing dates and uploads to IA (greedy backwards sweep)."""
+    import os
+    from datetime import datetime
+    
+    start_time = datetime.now()
     ia_access_key = os.environ.get("IA_ACCESS_KEY")
     ia_secret_key = os.environ.get("IA_SECRET_KEY")
 
@@ -607,9 +609,7 @@ def sync(
             try:
                 uploaded = uploader.get_uploaded_dates()
             except Exception as e:
-                console.print(
-                    f"[yellow]⚠ Could not read IA manifest (starting fresh): {e}[/yellow]"
-                )
+                console.print(f"[yellow]⚠ Could not read IA manifest (starting fresh): {e}[/yellow]")
                 uploaded = set()
 
             start = datetime.strptime(start_date, "%Y-%m-%d").date()
@@ -624,29 +624,38 @@ def sync(
             pending = [d for d in all_dates if d not in uploaded]
             pending.sort(reverse=True)  # BACKWARDS IN TIME
 
-            batch = pending[:batch_size]
+            if batch_size:
+                batch = pending[:batch_size]
+            else:
+                batch = pending
 
     if not batch:
         console.print("[green]✓ Everything up to date.[/green]")
         return
 
-    console.print(f"Syncing {len(batch)} dates (most recent first): {batch[0]} ... {batch[-1]}")
+    console.print(f"Syncing up to {len(batch)} dates (timeout: {limit_minutes}m)")
 
     # 2. Process batch
-    # We use a temp directory to avoid accumulation across runs
     with PNCPExtractor(db_path, dataset) as extractor:
         for target_date in batch:
+            # Time check
+            elapsed = (datetime.now() - start_time).total_seconds() / 60
+            if elapsed >= limit_minutes:
+                console.print(f"\n[yellow]⚠ Time limit reached ({limit_minutes}m). Stopping gracefully.[/yellow]")
+                break
+
             dt_start = datetime.combine(target_date, datetime.min.time())
 
-            console.print(f"\n━━━━━━━━━━━━━━━━━━━━━━━ {target_date} ━━━━━━━━━━━━━━━━━━━━━━━")
+            console.print(f"\n━━━━━━━━━━━━━━━━━━━━━━━ {target_date} ({elapsed:.1f}m elapsed) ━━━━━━━━━━━━━━━━━━━━━━━")
 
             # Extract
             try:
-                # Use a generous deadline per day
-                deadline = datetime.now() + timedelta(minutes=12)
-                extractor.extract(dt_start, dt_start, "contratos", workers=4, deadline=deadline)
+                # Per-day deadline: avoid hanging
+                day_deadline = datetime.now() + timedelta(minutes=15)
+                extractor.extract(dt_start, dt_start, "contratos", workers=4, deadline=day_deadline)
             except Exception as e:
                 console.print(f"[red]✗ Extraction failed for {target_date}: {e}[/red]")
+                # We continue to next date if one fails
                 continue
 
             # Upload

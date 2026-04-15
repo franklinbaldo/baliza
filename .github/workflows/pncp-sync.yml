@@ -9,10 +9,6 @@ on:
         description: 'Oldest date to backfill to (YYYY-MM-DD)'
         required: false
         default: '2023-01-01'
-      batch_size:
-        description: 'Number of dates to process per run'
-        required: false
-        default: '5'
 
 concurrency:
   group: pncp-sync
@@ -22,7 +18,7 @@ jobs:
   sync:
     name: Sync PNCP to Internet Archive
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 360
 
     steps:
       - name: Checkout repository
@@ -36,11 +32,12 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
-      - name: Run Sync
+      - name: Run Sync (Greedy Mode)
         env:
           IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
           IA_SECRET_KEY: ${{ secrets.IA_SECRET_KEY }}
         run: |
+          # We set a limit of 340 minutes (5h 40m) to stop just before GH kills the job
           uv run baliza sync \
             --start-date "${{ github.event.inputs.start_date || '2023-01-01' }}" \
-            --batch-size "${{ github.event.inputs.batch_size || '5' }}"
+            --limit-minutes 340
