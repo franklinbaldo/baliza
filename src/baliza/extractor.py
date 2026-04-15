@@ -1113,9 +1113,9 @@ class PNCPExtractor:
         data_final = extraction_date.strftime("%Y-%m-%d")
         url = f"{self.base_url}/{resource}"
         params = {
-            "dataInicial": data_inicial,
-            "dataFinal": data_final,
-            "tamanhoPagina": 1,  # Minimum to get header
+            "dataPublicacaoInicial": data_inicial,
+            "dataPublicacaoFinal": data_final,
+            "tamanhoPagina": 10,  # Minimum to get header safely
             "pagina": 1,
         }
         res = _fetch_page(self.client, url, params)
@@ -1130,8 +1130,8 @@ class PNCPExtractor:
         data_final = extraction_date.strftime("%Y-%m-%d")
         url = f"{self.base_url}/{resource}"
         params = {
-            "dataInicial": data_inicial,
-            "dataFinal": data_final,
+            "dataPublicacaoInicial": data_inicial,
+            "dataPublicacaoFinal": data_final,
             "tamanhoPagina": 500,
             "pagina": page,
         }
