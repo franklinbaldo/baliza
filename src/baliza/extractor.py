@@ -1381,7 +1381,7 @@ class PNCPExtractor:
         """Get dates that are complete and old enough for export."""
         cutoff = datetime.now() - timedelta(days=stability_days)
         with self._db_lock:
-            con = self.con if self.con else duckdb.connect(str(self.db_path), config={"access_mode": "READ_ONLY"})
+            con = self.con if self.con else duckdb.connect(str(self.db_path), config={"access_mode": "READ_WRITE"})
             try:
                 self._ensure_schema(con)
                 result = con.execute(
@@ -1404,7 +1404,7 @@ class PNCPExtractor:
     def get_buffer_stats(self) -> dict[str, Any]:
         """Get statistics about the current buffer."""
         with self._db_lock:
-            con = self.con if self.con else duckdb.connect(str(self.db_path), config={"access_mode": "READ_ONLY"})
+            con = self.con if self.con else duckdb.connect(str(self.db_path), config={"access_mode": "READ_WRITE"})
             try:
                 self._ensure_schema(con)
                 res_total = con.execute(f"SELECT COUNT(*) FROM {self.dataset}.contratos").fetchone()
