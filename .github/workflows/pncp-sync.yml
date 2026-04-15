@@ -1,11 +1,5 @@
 name: PNCP Sync
 
-# Unified pipeline: recent dates first, then fills history backward.
-# Uses the IA manifest as the single source of truth for what is already uploaded.
-# Runs every 30 minutes. Replaces daily-export.yml and historical-backfill.yml.
-#
-# Secrets required: IA_ACCESS_KEY, IA_SECRET_KEY
-
 on:
   schedule:
     - cron: '*/30 * * * *'
@@ -19,198 +13,34 @@ on:
         description: 'Number of dates to process per run'
         required: false
         default: '5'
-      force_date:
-        description: 'Force re-upload a specific date (YYYY-MM-DD), ignores manifest'
-        required: false
-        default: ''
 
 concurrency:
   group: pncp-sync
   cancel-in-progress: false
 
-permissions:
-  contents: read
-  issues: write
-
-env:
-  START_DATE: '2023-01-01'
-  BATCH_SIZE: '5'
-
 jobs:
   sync:
-    name: Sync PNCP data to Internet Archive
+    name: Sync PNCP to Internet Archive
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install uv
+      - name: Setup uv
         uses: astral-sh/setup-uv@v4
-
-      - name: Set up Python
-        run: uv python install 3.11
+        with:
+          version: "latest"
 
       - name: Install dependencies
         run: uv sync
 
-      - name: Find dates to process (manifest-driven, recent-first)
-        id: find
-        run: |
-          START="${{ inputs.start_date || env.START_DATE }}"
-          BATCH="${{ inputs.batch_size || env.BATCH_SIZE }}"
-          FORCE="${{ inputs.force_date }}"
-          TODAY=$(date +%Y-%m-%d)
-
-          uv run python - << 'PY'
-          import os, sys, datetime, duckdb
-          from pathlib import Path
-
-          start_date = datetime.date.fromisoformat(os.environ.get('START', '2023-01-01'))
-          today      = datetime.date.today()
-          batch_size = int(os.environ.get('BATCH', '5'))
-          force      = os.environ.get('FORCE', '').strip()
-
-          # If force_date is set, just process that one date
-          if force:
-              with open('batch_dates.txt', 'w') as f:
-                  f.write(f'{force}\n')
-              print(f'Force mode: processing {force}')
-              sys.exit(0)
-
-          # Read already-uploaded dates from IA manifest
-          uploaded = set()
-          try:
-              con = duckdb.connect(':memory:')
-              try:
-                  con.execute('LOAD httpfs;')
-              except Exception:
-                  con.execute('INSTALL httpfs; LOAD httpfs;')
-              rows = con.execute("""
-                  SELECT DISTINCT CAST(data_particao AS VARCHAR)
-                  FROM read_parquet('https://archive.org/download/baliza-pncp-manifest/manifest.parquet')
-                  WHERE table_name = 'contratos'
-              """).fetchall()
-              uploaded = {r[0] for r in rows}
-              print(f'Already on IA: {len(uploaded)} dates')
-          except Exception as e:
-              print(f'Could not read IA manifest (starting fresh): {e}')
-
-          # All dates from start_date to yesterday (today's data isn't fully published yet)
-          yesterday = today - datetime.timedelta(days=1)
-          all_dates = []
-          d = start_date
-          while d <= yesterday:
-              all_dates.append(d.isoformat())
-              d += datetime.timedelta(days=1)
-
-          # Pending = not yet uploaded, sorted MOST RECENT FIRST
-          pending = [d for d in all_dates if d not in uploaded]
-          pending.sort(reverse=True)
-
-          batch = pending[:batch_size]
-          print(f'Pending: {len(pending)} dates, processing: {len(batch)}')
-          if batch:
-              print(f'  Range (most recent first): {batch[0]} ... {batch[-1]}')
-
-          with open('batch_dates.txt', 'w') as f:
-              for d in batch:
-                  f.write(f'{d}\n')
-
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as gh:
-              gh.write(f'batch_size={len(batch)}\n')
-              gh.write(f'pending_count={len(pending)}\n')
-          PY
-
-        env:
-          START: ${{ inputs.start_date || env.START_DATE }}
-          BATCH: ${{ inputs.batch_size || env.BATCH_SIZE }}
-          FORCE: ${{ inputs.force_date }}
-
-      - name: Process batch (extract + upload to IA)
-        if: steps.find.outputs.batch_size != '0'
+      - name: Run Sync
         env:
           IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
           IA_SECRET_KEY: ${{ secrets.IA_SECRET_KEY }}
         run: |
-          mkdir -p data/daily
-
-          while read -r DATE; do
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo "📅 Processing: $DATE"
-
-            # Extract
-            if uv run baliza extract \
-                --start "$DATE" --end "$DATE" \
-                --duckdb baliza.duckdb \
-                --dataset baliza_raw \
-                --deadline-minutes 12; then
-              echo "✅ Extracted $DATE"
-            else
-              echo "⚠️ Extraction failed for $DATE — skipping upload"
-              continue
-            fi
-
-            # Upload to IA (idempotent — checks manifest before uploading)
-            if uv run baliza upload-daily \
-                --date "$DATE" \
-                --output data/daily \
-                --duckdb baliza.duckdb; then
-              echo "✅ $DATE uploaded to IA"
-            else
-              echo "⚠️ Upload skipped or failed for $DATE"
-            fi
-
-            sleep 2
-          done < batch_dates.txt
-
-      - name: Summary
-        if: always()
-        run: |
-          BATCH="${{ steps.find.outputs.batch_size }}"
-          PENDING="${{ steps.find.outputs.pending_count }}"
-          echo "## PNCP Sync Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Dates processed this run | $BATCH |" >> $GITHUB_STEP_SUMMARY
-          echo "| Dates still pending | $PENDING |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "$PENDING" -gt 0 ] 2>/dev/null; then
-            DAYS_LEFT=$(( PENDING / BATCH * 1 ))
-            echo "⏱️ At current rate, backfill completes in ~${DAYS_LEFT} runs (~$((DAYS_LEFT / 48)) days)" >> $GITHUB_STEP_SUMMARY
-          fi
-
-  report-failure:
-    name: Report workflow failure
-    if: ${{ failure() }}
-    needs: sync
-    runs-on: ubuntu-latest
-    steps:
-      - name: Open issue for failure
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const { owner, repo } = context.repo;
-            const runId = context.runId;
-            const runUrl = `${context.payload.repository.html_url}/actions/runs/${runId}`;
-            const identifier = `run_id:${runId}`;
-
-            const search = await github.rest.search.issuesAndPullRequests({
-              q: `repo:${owner}/${repo} "${identifier}" state:open type:issue`
-            });
-            if (search.data.total_count > 0) return;
-
-            await github.rest.issues.create({
-              owner, repo,
-              title: `🚨 PNCP Sync failed (run #${context.runNumber})`,
-              body: [
-                `@codex falha no workflow de sincronização PNCP.`,
-                '',
-                `- **Execução**: [#${context.runNumber}](${runUrl})`,
-                `- **Identificador**: ${identifier}`,
-              ].join('\n'),
-              labels: ['ci-failure']
-            });
+          uv run baliza sync \
+            --start-date "${{ github.event.inputs.start_date || '2023-01-01' }}" \
+            --batch-size "${{ github.event.inputs.batch_size || '5' }}"

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import duckdb
@@ -571,11 +571,86 @@ def status(
                     f"{empty_days} consecutive empty days "
                     f"(status: {health_status}, last data: {last})[/{style}]"
                 )
-
     except Exception as e:
         msg = scrub_url_params(str(e))
         console.print(f"[red]✗ Failed to get status: {msg}")
         raise typer.Exit(1) from None
+
+
+@app.command("sync")
+def sync(
+    batch_size: int = typer.Option(5, "--batch-size", "-n", help="Number of days to sync per run"),
+    start_date: str = typer.Option("2023-01-01", "--start-date", help="Oldest date to backfill"),
+    db_path: Path = typer.Option(Path("baliza.duckdb"), "--duckdb", help="DuckDB file"),
+    dataset: str = typer.Option("baliza_raw", "--dataset", help="Dataset name"),
+    force_date: str | None = typer.Option(None, "--force-date", help="Target a specific date regardless of manifest"),
+) -> None:
+    """Unified sync: extracts missing dates and uploads to IA (most recent first)."""
+    import os
+
+    ia_access_key = os.environ.get("IA_ACCESS_KEY")
+    ia_secret_key = os.environ.get("IA_SECRET_KEY")
+
+    if not ia_access_key or not ia_secret_key:
+        console.print("[red]✗ Missing IA_ACCESS_KEY or IA_SECRET_KEY in environment.[/red]")
+        raise typer.Exit(1)
+
+    uploader = IAUploader(db_path)
+
+    # 1. Determine dates to process
+    if force_date:
+        batch = [datetime.strptime(force_date, "%Y-%m-%d").date()]
+    else:
+        with console.status("[bold green]Checking IA manifest for pending dates...[/bold green]"):
+            try:
+                uploaded = uploader.get_uploaded_dates()
+            except Exception as e:
+                console.print(f"[yellow]⚠ Could not read IA manifest (starting fresh): {e}[/yellow]")
+                uploaded = set()
+
+            start = datetime.strptime(start_date, "%Y-%m-%d").date()
+            yesterday = date.today() - timedelta(days=1)
+
+            all_dates = []
+            curr = start
+            while curr <= yesterday:
+                all_dates.append(curr)
+                curr += timedelta(days=1)
+
+            pending = [d for d in all_dates if d not in uploaded]
+            pending.sort(reverse=True)  # BACKWARDS IN TIME
+
+            batch = pending[:batch_size]
+
+    if not batch:
+        console.print("[green]✓ Everything up to date.[/green]")
+        return
+
+    console.print(f"Syncing {len(batch)} dates (most recent first): {batch[0]} ... {batch[-1]}")
+
+    # 2. Process batch
+    # We use a temp directory to avoid accumulation across runs
+    with PNCPExtractor(db_path, dataset) as extractor:
+        for target_date in batch:
+            dt_start = datetime.combine(target_date, datetime.min.time())
+
+            console.print(f"\n━━━━━━━━━━━━━━━━━━━━━━━ {target_date} ━━━━━━━━━━━━━━━━━━━━━━━")
+
+            # Extract
+            try:
+                # Use a generous deadline per day
+                deadline = datetime.now() + timedelta(minutes=12)
+                extractor.extract(dt_start, dt_start, "contratos", workers=4, deadline=deadline)
+            except Exception as e:
+                console.print(f"[red]✗ Extraction failed for {target_date}: {e}[/red]")
+                continue
+
+            # Upload
+            try:
+                uploader.upload_day(target_date, Path("data/daily"), ia_access_key, ia_secret_key)
+            except Exception as e:
+                console.print(f"[red]✗ Upload failed for {target_date}: {e}[/red]")
+                continue
 
 
 if __name__ == "__main__":
