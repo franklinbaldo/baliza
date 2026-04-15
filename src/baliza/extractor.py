@@ -409,7 +409,7 @@ class PNCPExtractor:
                 valorGlobal,
                 valorAcumulado,
                 numeroParcelas,
-                dataPublicacao,
+                COALESCE(dataPublicacao, dataPublicacaoPncp) AS data_publicacao,
                 dataPublicacaoPncp,
                 TRY_CAST(dataAssinatura AS DATE),
                 TRY_CAST(dataVigenciaInicio AS DATE),
@@ -425,6 +425,7 @@ class PNCPExtractor:
                 usuarioNome
             FROM arrow_table
         """
+
 
         # Dimension upsert SQLs — populated on each page insert
         self._upsert_orgao_sql = f"""
