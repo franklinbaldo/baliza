@@ -8,11 +8,14 @@
 <section class="insights-row">
   <div class="container">
     {#if loading}
-      <div class="loading-state">
-        <div class="skeleton s-insights"></div>
+      <div class="insights-grid">
+        <div class="insight-card animate-shimmer" style="height: 90px;"></div>
+        <div class="insight-card animate-shimmer" style="height: 90px; animation-delay: 0.1s;"></div>
+        <div class="insight-card animate-shimmer" style="height: 90px; animation-delay: 0.2s;"></div>
+        <div class="insight-card animate-shimmer" style="height: 90px; animation-delay: 0.3s;"></div>
       </div>
     {:else}
-      <div class="insights-grid">
+      <div class="insights-grid animate-fade-in">
         {#each data as item (item.label)}
           <div class="insight-card">
             <span class="insight-label">{item.label}</span>
@@ -44,6 +47,17 @@
     flex-direction: column;
     gap: 4px;
     box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    transition: transform var(--transition-base), box-shadow var(--transition-base), border-color var(--transition-base);
+  }
+  .insight-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--color-primary);
+  }
+  :global([data-theme="dark"]) .insight-card {
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+  }
+  :global([data-theme="dark"]) .insight-card:hover {
+    box-shadow: 0 4px 12px rgba(69, 208, 129, 0.08);
   }
   .insight-label {
     font-size: var(--font-size-xs);
@@ -53,18 +67,10 @@
     font-weight: 700;
   }
   .insight-value {
+    font-family: var(--font-mono);
     font-size: var(--font-size-xl);
     font-weight: 900;
     color: var(--color-primary);
-  }
-  
-  .loading-state {
-    height: 100px;
-    display: flex;
-    align-items: center;
-  }
-  .s-insights {
-    width: 100%;
-    height: 60px;
+    text-shadow: 0 0 8px color-mix(in srgb, var(--color-primary) 20%, transparent);
   }
 </style>

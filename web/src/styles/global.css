@@ -34,40 +34,42 @@ img, picture, video, canvas, svg { display: block; max-width: 100%; }
 
   /* Skeletons & Shimmer */
   --shimmer-gradient: linear-gradient(90deg, 
-      rgba(255, 255, 255, 0.05) 0%, 
-      rgba(255, 255, 255, 0.1) 50%, 
-      rgba(255, 255, 255, 0.05) 100%);
+      rgba(255, 255, 255, 0.02) 0%,
+      rgba(255, 255, 255, 0.08) 50%,
+      rgba(255, 255, 255, 0.02) 100%);
 
   /* Basic Light Theme (Brazilian Modernism - CausaGanha baseline) */
   --color-base-100: #FAFAF5;
   --color-base-200: #F2EFE8;
   --color-base-300: #E0DDD4;
-  --color-base-content: #1C1C1C;
+  --color-base-content: #111111;
 
-  --color-primary: #1A6B3C;
+  --color-primary: #0F5A2C;
   --color-secondary: #5C5C52;
-  --color-accent: #C5972C;
+  --color-accent: #B28221;
   
-  --color-info: #1A6B5C;
-  --color-success: #1A6B3C;
-  --color-warning: #C5972C;
-  --color-error: #C53030;
+  --color-info: #0F5A4C;
+  --color-success: #0F5A2C;
+  --color-warning: #B28221;
+  --color-error: #B02020;
 }
 
 [data-theme="dark"] {
-  --color-base-100: #0F1A14;
-  --color-base-200: #1A2E1F;
-  --color-base-300: #2A3E2F;
-  --color-base-content: #F2EFE8;
+  /* Deeper, more terminal-like dark base */
+  --color-base-100: #0B0E0C;
+  --color-base-200: #131815;
+  --color-base-300: #202723;
+  --color-base-content: #F4F4F0;
 
-  --color-primary: #3DA568;
-  --color-secondary: #A8A89E;
-  --color-accent: #D4A843;
+  /* More 'electric' and vibrant accents for contrast */
+  --color-primary: #45D081;
+  --color-secondary: #9FA6A2;
+  --color-accent: #E8B945;
 
-  --color-info: #4DA58E;
-  --color-success: #3DA568;
-  --color-warning: #D4A843;
-  --color-error: #E05555;
+  --color-info: #45D0B5;
+  --color-success: #45D081;
+  --color-warning: #E8B945;
+  --color-error: #F25C5C;
 }
 
 html {
@@ -89,6 +91,17 @@ h3 { font-size: var(--font-size-xl); }
   border: 1px solid var(--color-base-300);
   border-radius: var(--radius-box);
   padding: var(--space-md);
+  transition: transform var(--transition-base), box-shadow var(--transition-base), border-color var(--transition-base);
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-primary);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="dark"] .card:hover {
+  box-shadow: 0 4px 12px rgba(69, 208, 129, 0.08);
 }
 
 .stat-value {
@@ -113,4 +126,25 @@ h3 { font-size: var(--font-size-xl); }
   max-width: 1280px;
   margin-inline: auto;
   padding-inline: var(--space-sm);
+}
+
+/* Animations */
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.animate-shimmer {
+  background-image: var(--shimmer-gradient);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite linear;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
 }

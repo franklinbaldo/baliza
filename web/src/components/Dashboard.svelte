@@ -24,9 +24,13 @@
     <strong>Erro de Leitura:</strong> {error}
   </div>
 {:else if !stats}
-  <div class="loading">Sincronizando fragmentos Parquet/JSON...</div>
-{:else}
   <div class="dashboard-grid">
+    <div class="card stat-card animate-shimmer" style="height: 120px;"></div>
+    <div class="card stat-card animate-shimmer" style="height: 120px; animation-delay: 0.1s;"></div>
+    <div class="card stat-card animate-shimmer" style="height: 120px; animation-delay: 0.2s;"></div>
+  </div>
+{:else}
+  <div class="dashboard-grid animate-fade-in">
     <StatCard title="Contratos Registrados" value={stats.total_contracts} />
     <StatCard title="Dias Preservados" value={stats.days_on_ia} />
     <StatCard title="Total em Quarentena" value={stats.total_quarantine} />
@@ -46,9 +50,8 @@
     padding: var(--space-sm);
     border-radius: var(--radius-sm);
   }
-  .loading {
-    color: var(--color-secondary);
-    font-size: var(--font-size-sm);
-    font-style: italic;
+  .stat-card {
+    flex: 1;
+    min-width: 250px;
   }
 </style>

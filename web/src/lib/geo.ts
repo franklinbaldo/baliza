@@ -42,6 +42,18 @@ export async function getCityFromCoords(lat: number, lng: number): Promise<CityR
   return { city, state };
 }
 
+interface IBGEResult {
+  id: number;
+  nome: string;
+  microrregiao: {
+    mesorregiao: {
+      UF: {
+        nome: string;
+      }
+    }
+  }
+}
+
 export async function getIBGECode(cityName: string, stateName: string): Promise<string | null> {
   const url = `https://servicodados.ibge.gov.br/api/v1/localidades/municipios?nome=${encodeURIComponent(cityName)}`;
   const res = await fetch(url);
