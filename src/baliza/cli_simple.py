@@ -223,11 +223,10 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
 
                         if not dry_run:
                             progress.update(tid, description=f"Month {month_str} [Uploading]")
-                            if ia_access_key and ia_secret_key:
-                                uploader.upload_month(
-                                    start_of_month, Path("data/processed"), ia_access_key, ia_secret_key,
-                                    quarantine_stats=stats, quarantine_csv=q_csv if has_q else None
-                                )
+                            uploader.upload_month(
+                                start_of_month, Path("data/processed"), ia_access_key, ia_secret_key,
+                                quarantine_stats=stats, quarantine_csv=q_csv if has_q else None
+                            )
                         else:
                             progress.console.log(f"[yellow]Dry-run: {month_str} verified ({stats['valid']} records)[/yellow]")
                         
@@ -260,13 +259,24 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                         futures.keys(), timeout=0.1, return_when=concurrent.futures.FIRST_COMPLETED
                     )
                     for f in done:
+                        try:
+                            f.result()
+                        except Exception as e:
+                            error_count += 1
+                            progress.console.log(f"[bold red]✗ Worker Error: {e}[/bold red]")
                         futures.pop(f)
 
                 f = executor.submit(process_month_full, target_month)
                 futures[f] = target_month
 
             # Final drain
-            concurrent.futures.wait(futures.keys())
+            done, _ = concurrent.futures.wait(futures.keys())
+            for f in done:
+                try:
+                    f.result()
+                except Exception as e:
+                    error_count += 1
+                    progress.console.log(f"[bold red]✗ Worker Error during drain: {e}[/bold red]")
 
     # 4. FINAL SUMMARY PANEL
     duration = datetime.now() - start_time_exec
