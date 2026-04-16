@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import threading
 from datetime import datetime
@@ -11,7 +12,7 @@ import httpx
 import structlog
 from pydantic import ValidationError
 from rich.console import Console
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from .engine import BalizaEngine
 from .models import RecuperarContratoDTO as Contrato
@@ -19,9 +20,6 @@ from .utils import validate_url
 
 logger = structlog.get_logger()
 console = Console()
-
-
-import re
 
 def _is_retryable_error(exc: Exception) -> bool:
     """Determine if an exception should trigger a retry."""

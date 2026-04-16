@@ -5,9 +5,9 @@ from unittest.mock import patch
 
 import pytest
 
+from baliza.engine import BalizaEngine
 from baliza.extractor import PNCPExtractor
 from baliza.utils import validate_url
-from baliza.engine import BalizaEngine
 
 
 def test_validate_url_public_ip():

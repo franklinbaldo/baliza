@@ -1,4 +1,3 @@
-import json
 from datetime import datetime
 from unittest.mock import MagicMock, Mock, patch
 
@@ -6,6 +5,7 @@ import pytest
 
 from baliza.engine import BalizaEngine
 from baliza.extractor import PNCPExtractor
+
 
 def test_fetch_page_size_limit(tmp_path):
     """Test that fetch_page raises ValueError if response is too large (DoS protection)."""

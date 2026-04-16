@@ -4,10 +4,11 @@ import tempfile
 import unittest
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import MagicMock, patch, Mock
+from unittest.mock import MagicMock, Mock, patch
 
 from baliza.engine import BalizaEngine
 from baliza.extractor import PNCPExtractor
+
 
 class TestPNCPExtractorV2(unittest.TestCase):
     """Unit tests for the modernized, stateless PNCPExtractor."""
