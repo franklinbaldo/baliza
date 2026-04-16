@@ -35,21 +35,25 @@
     <p class="hero-tagline">{PROJECT_MISSION.tagline}</p>
 
     <div class="search-box" class:detected={isCnpj || isIbge || isPncpId}>
-      <div class="input-group">
-        <input 
-          type="text" 
-          bind:value={query} 
-          placeholder="Busque por Órgão, CNPJ ou Objeto de compra..."
-          oninput={handleSearch}
-        />
-        {#if loading}
-          <div class="valid-indicator spinning">⏳</div>
-        {:else if isCnpj || isIbge || isPncpId}
-          <div class="valid-indicator" in:fade>✅</div>
-        {/if}
-        <button class="search-btn">
-          Buscar
-        </button>
+      <div class="input-wrapper">
+        <span class="terminal-prompt">$</span>
+        <div class="input-group">
+          <input
+            type="text"
+            bind:value={query}
+            placeholder="Busque por Órgão, CNPJ ou Objeto de compra..."
+            oninput={handleSearch}
+            class="terminal-input"
+          />
+          {#if loading}
+            <div class="valid-indicator spinning">⏳</div>
+          {:else if isCnpj || isIbge || isPncpId}
+            <div class="valid-indicator" in:fade>✅</div>
+          {/if}
+          <button class="search-btn">
+            Buscar
+          </button>
+        </div>
       </div>
 
       {#if isCnpj || isIbge || isPncpId}
@@ -90,6 +94,7 @@
   }
   .hero-inner {
     max-width: 800px;
+    margin: 0 auto;
     text-align: center;
   }
   .hero-title {
@@ -97,11 +102,13 @@
     margin-bottom: var(--space-xs);
     color: var(--color-base-content);
     line-height: 1.1;
+    font-weight: 800;
   }
   .hero-tagline {
     color: var(--color-secondary);
     font-size: var(--font-size-lg);
     margin-bottom: var(--space-lg);
+    font-weight: 400;
   }
   .search-box {
     background: var(--color-base-100);
@@ -109,33 +116,61 @@
     border: 1px solid var(--color-base-300);
     border-radius: var(--radius-box);
     box-shadow: 0 10px 30px -10px rgba(0,0,0,0.3);
+    text-align: left;
+  }
+  .input-wrapper {
+    display: flex;
+    align-items: center;
+    background: var(--color-base-200);
+    border: 1px solid var(--color-base-300);
+    border-radius: var(--radius-sm);
+    padding-left: var(--space-sm);
+    transition: border-color var(--transition-base), box-shadow var(--transition-base);
+  }
+  .input-wrapper:focus-within {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 20%, transparent);
+  }
+  .terminal-prompt {
+    font-family: var(--font-mono);
+    color: var(--color-primary);
+    font-weight: 700;
+    margin-right: var(--space-xs);
+    user-select: none;
   }
   .input-group {
     display: flex;
     gap: var(--space-xs);
     position: relative;
-  }
-  input {
     flex: 1;
-    padding: var(--space-sm);
-    border: 1px solid var(--color-base-300);
-    border-radius: var(--radius-sm);
-    background: var(--color-base-200);
+  }
+  .terminal-input {
+    flex: 1;
+    padding: var(--space-sm) 0;
+    border: none;
+    background: transparent;
     color: var(--color-base-content);
-    font-family: var(--font-sans);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-base);
     outline: none;
   }
-  input:focus {
-    border-color: var(--color-primary);
+  .terminal-input::placeholder {
+    font-family: var(--font-sans);
+    color: var(--color-secondary);
+    opacity: 0.7;
   }
   .search-btn {
     background: var(--color-primary);
-    color: white;
+    color: var(--color-base-100);
     padding: 0 var(--space-md);
     border: none;
-    border-radius: var(--radius-sm);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
     font-weight: 600;
     cursor: pointer;
+    transition: opacity var(--transition-base);
+  }
+  .search-btn:hover {
+    opacity: 0.9;
   }
   .search-box.detected .input-group {
     border-color: var(--color-primary);

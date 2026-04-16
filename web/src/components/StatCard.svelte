@@ -2,18 +2,18 @@
   let { title, value } = $props<{ title: string, value: number | string }>();
 </script>
 
-<div class="card">
+<div class="card stat-card">
   <h3 class="stat-label">{title}</h3>
   <p class="stat-value">{value}</p>
 </div>
 
 <style>
-  .card {
-    background: var(--color-base-100);
-    border: 1px solid var(--color-base-300);
-    border-radius: var(--radius-box);
-    padding: var(--space-md);
+  /* The global .card styles handle the background, border, and hover effects */
+  .stat-card {
     flex: 1;
     min-width: 250px;
+  }
+  .stat-value {
+    text-shadow: 0 0 12px color-mix(in srgb, var(--color-primary) 20%, transparent);
   }
 </style>
