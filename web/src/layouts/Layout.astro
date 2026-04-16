@@ -9,6 +9,7 @@ interface Props {
 }
 
 const { title, description } = Astro.props;
+const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
 ---
 
 <!DOCTYPE html>
@@ -25,11 +26,15 @@ const { title, description } = Astro.props;
 
     <footer class="portal-footer">
       <div class="container footer-content">
-        <p>Baliza: Arquivo público e imutável das contratações nacionais.</p>
+        <p>Baliza: Arquivo público das contratações nacionais.</p>
         <div class="footer-links">
           <a href="https://github.com/franklinbaldo" target="_blank">Codificado por Franklin Baldo</a>
           <span>·</span>
           <span>Fonte: PNCP & Internet Archive</span>
+          <span>·</span>
+          <a href={BASE + 'explorador'}>Explorador SQL (Beta)</a>
+          <span>·</span>
+          <a href={BASE + 'status'}>Status</a>
         </div>
       </div>
     </footer>
@@ -57,6 +62,8 @@ const { title, description } = Astro.props;
   }
   .footer-links {
     display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
     gap: var(--space-xs);
     align-items: center;
   }

@@ -15,6 +15,17 @@ export interface CityResult {
   state: string;
 }
 
+interface LocalIBGEResult {
+  id: number;
+  nome: string;
+  microrregiao: {
+    mesorregiao: {
+      UF: {
+        nome: string;
+      }
+    }
+  }
+}
 
 export async function getUserCoordinates(): Promise<GeoLocation> {
   return new Promise((resolve, reject) => {
