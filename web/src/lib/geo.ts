@@ -15,7 +15,7 @@ export interface CityResult {
   state: string;
 }
 
-interface IBGEResult {
+interface LocalIBGEResult {
   id: number;
   nome: string;
   microrregiao: {

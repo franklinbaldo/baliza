@@ -1,50 +1,35 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import SearchHero from '../components/SearchHero.svelte';
-import LiveInsights from '../components/LiveInsights.svelte';
-import ProjectAnatomy from '../components/ProjectAnatomy.astro';
 import Dashboard from '../components/Dashboard.svelte';
+import ProjectAnatomy from '../components/ProjectAnatomy.astro';
 import LocalBids from '../components/LocalBids.svelte';
 ---
 
 <Layout 
   title="Home" 
-  description="Baliza Monitor: Preservando e auditando contratações públicas via PNCP."
+  description="Baliza Monitor: Monitoramento das contratações públicas brasileiras."
 >
   <!-- 1. Hero UI (Utility Focus) -->
   <SearchHero client:load />
 
-  <!-- 2. Instant Results (Minimal Friction) -->
-  <LiveInsights client:load />
+  <!-- 2. The Integrity Monitor (The original heatmap, now above the fold) -->
+  <section class="monitor-section container">
+    <Dashboard client:visible />
+  </section>
 
   <!-- 3. Local Utility (Hyper-local Bids) -->
   <LocalBids client:idle />
 
   <!-- 4. Orientation Section (Trust Building) -->
   <ProjectAnatomy />
-
-  <!-- 5. The Integrity Monitor (The original heatmap) -->
-  <section class="monitor-section container">
-    <h2 class="section-title">Monitor de Integridade</h2>
-    <p class="section-desc">Estatísticas de sincronismo com o Internet Archive (Histórico de 365 dias).</p>
-    <Dashboard client:visible />
-  </section>
 </Layout>
 
 <style>
   .monitor-section {
-    padding: var(--space-2xl) 0;
-    border-top: 1px dashed var(--color-base-300);
-    margin-top: var(--space-xl);
-  }
-  .section-title {
-    font-size: var(--font-size-xl);
-    margin-bottom: var(--space-xs);
-    color: var(--color-base-content);
-  }
-  .section-desc {
-    color: var(--color-secondary);
-    font-size: var(--font-size-sm);
-    margin-bottom: var(--space-md);
+    padding: var(--space-md) 0 var(--space-xl);
+    position: relative;
+    z-index: 20;
+    margin-top: calc(var(--space-md) * -1);
   }
 </style>
