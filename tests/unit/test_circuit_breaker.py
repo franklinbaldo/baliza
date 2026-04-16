@@ -1,9 +1,11 @@
 from datetime import date, datetime
+
 import duckdb
 import pytest
 
-from baliza.extractor import PNCPExtractor
 from baliza.engine import BalizaEngine
+from baliza.extractor import PNCPExtractor
+
 
 @pytest.fixture
 def temp_db(tmp_path):

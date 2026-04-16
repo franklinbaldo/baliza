@@ -8,7 +8,6 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
-import duckdb
 import httpx
 import internetarchive as ia
 from rich.console import Console

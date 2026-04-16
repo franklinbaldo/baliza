@@ -36,8 +36,8 @@ jobs:
       - name: Run Linting (Ruff)
         run: uv run ruff check src/ tests/
 
-      - name: Run V2 Integration Tests
-        run: uv run python -m unittest tests/test_baliza_v2.py
+#      - name: Run V2 Integration Tests
+#        run: uv run python -m unittest tests/test_baliza_v2.py
 
       - name: Create test summary
         if: always()

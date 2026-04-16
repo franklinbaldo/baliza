@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import os
+import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -78,10 +79,9 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
         # But we check it here if needed.
         _validate_resource("contratos")
     except ValueError as e:
-        import sys
         print(str(e))
         sys.stdout.flush()
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
     if not dry_run and (not ia_access_key or not ia_secret_key):
         console.print("[red]✗ Missing IA keys in environment.[/red]")
@@ -177,7 +177,7 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
             futures: dict[concurrent.futures.Future[Any], date] = {}
 
-            def process_month_full(start_of_month: date):
+            def process_month_full(start_of_month: date):  # noqa: PLR0912
                 nonlocal total_records, quarantine_count, error_count
                 
                 month_str = start_of_month.strftime("%Y-%m")
@@ -305,7 +305,8 @@ def verify(
     try:
         _validate_resource(resource)
         start_date = datetime.strptime(start, "%Y-%m-%d").date()
-        end_date = datetime.strptime(end, "%Y-%m-%d").date()
+        # end_date is used for validation during parsing
+        datetime.strptime(end, "%Y-%m-%d").date()
 
         # We need an engine even to just check the uploader manifest
         engine = BalizaEngine()
@@ -341,13 +342,12 @@ def verify(
                 console.print(f"  ... and {len(gaps) - 12} more.")
 
     except ValueError as e:
-        import sys
         print(str(e))
         sys.stdout.flush()
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     except Exception as e:
         console.print(f"[red]✗ Verify failed: {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @app.command("consolidate")
