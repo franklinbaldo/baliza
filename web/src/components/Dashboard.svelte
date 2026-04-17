@@ -44,7 +44,7 @@
   <div class="dashboard-grid">
     <StatCard title="Contratos Registrados" value={stats.total_contracts} />
     <StatCard title="Dias Preservados" value={stats.days_on_ia} />
-    <StatCard title="Total em Quarentena" value={stats.total_quarantine} />
+    <StatCard title="Total em Quarentena" value={stats.total_quarantine} tone="warning" />
   </div>
 {/if}
 
