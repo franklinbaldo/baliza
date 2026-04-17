@@ -163,4 +163,42 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       });
     },
   );
+
+  Scenario(
+    'Single quotes in resolved URL are escaped to prevent SQL injection',
+    ({ Given, When, And, Then }) => {
+      const maliciousUrl = "https://example.com/evil'; DROP TABLE x; --";
+
+      Given('the IA manifest resolves to a URL containing a single quote', () => {
+        vi.spyOn(iaManifestModule, 'getLatestParquetUrl').mockResolvedValue(
+          maliciousUrl,
+        );
+      });
+
+      When('the explorer mounts', async () => {
+        render(DuckDBExplorer);
+        await tick();
+      });
+
+      And('the user clicks a featured query chip', async () => {
+        const fq = FEATURED_QUERIES.find((q) => q.sql.includes("'IA_URL'"));
+        if (!fq) throw new Error('No featured query contains IA_URL');
+        await waitFor(() => screen.getByText(fq.label));
+        await fireEvent.click(screen.getByText(fq.label));
+        await tick();
+      });
+
+      Then(
+        'the SQL textarea should contain the URL with doubled single quotes',
+        async () => {
+          await waitFor(() => {
+            expect(getTextarea().value).toContain(
+              maliciousUrl.replace(/'/g, "''"),
+            );
+            expect(getTextarea().value).not.toContain(`'${maliciousUrl}'`);
+          });
+        },
+      );
+    },
+  );
 });

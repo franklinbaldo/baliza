@@ -29,3 +29,9 @@ Feature: DuckDB SQL Explorer
     And the user clicks a featured query chip
     Then the SQL textarea should contain the resolved parquet URL
     And the SQL textarea should not contain "IA_URL"
+
+  Scenario: Single quotes in resolved URL are escaped to prevent SQL injection
+    Given the IA manifest resolves to a URL containing a single quote
+    When the explorer mounts
+    And the user clicks a featured query chip
+    Then the SQL textarea should contain the URL with doubled single quotes
