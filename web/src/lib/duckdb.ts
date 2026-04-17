@@ -31,7 +31,11 @@ export async function getDuckDB(): Promise<{ db: AsyncDuckDB; conn: AsyncDuckDBC
       let bundle: Awaited<ReturnType<typeof duckdb.selectBundle>>;
       try {
         bundle = await duckdb.selectBundle(getBundledBundles());
-      } catch {
+      } catch (err) {
+        console.warn(
+          '[duckdb] bundled WASM selection failed, falling back to jsDelivr CDN:',
+          err,
+        );
         bundle = await duckdb.selectBundle(duckdb.getJsDelivrBundles());
       }
 

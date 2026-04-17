@@ -15,7 +15,10 @@
     FEATURED_QUERIES.map((fq) => ({
       ...fq,
       sql: resolvedParquetUrl
-        ? fq.sql.replaceAll("'IA_URL'", `'${resolvedParquetUrl}'`)
+        ? fq.sql.replaceAll(
+            "'IA_URL'",
+            `'${resolvedParquetUrl.replace(/'/g, "''")}'`,
+          )
         : fq.sql,
     })),
   );
