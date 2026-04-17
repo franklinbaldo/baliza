@@ -1,18 +1,44 @@
-import * as duckdb from '@duckdb/duckdb-wasm';
-import duckdb_wasm from '@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url';
-import mvp_worker from '@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js?url';
+import type { AsyncDuckDB, AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
 
-let db: duckdb.AsyncDuckDB | null = null;
-let conn: duckdb.AsyncDuckDBConnection | null = null;
+export let dbInstance: AsyncDuckDB | null = null;
+export let connInstance: AsyncDuckDBConnection | null = null;
+let initializationPromise: Promise<{ db: AsyncDuckDB; conn: AsyncDuckDBConnection }> | null = null;
 
-export async function getDuckDB() {
-  if (db && conn) return { db, conn };
+export async function getDuckDB(): Promise<{ db: AsyncDuckDB; conn: AsyncDuckDBConnection }> {
+  if (dbInstance && connInstance) return { db: dbInstance, conn: connInstance };
+  if (initializationPromise) return initializationPromise;
 
-  const logger = new duckdb.ConsoleLogger();
-  const worker = new Worker(mvp_worker);
-  db = new duckdb.AsyncDuckDB(logger, worker);
-  await db.instantiate(duckdb_wasm);
-  
-  conn = await db.connect();
-  return { db, conn };
+  initializationPromise = (async () => {
+    try {
+      const duckdb = await import('@duckdb/duckdb-wasm');
+      const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
+      const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
+
+      if (!bundle.mainWorker) throw new Error('DuckDB bundle selection failed');
+
+      let worker: Worker;
+      try {
+        worker = new Worker(bundle.mainWorker);
+      } catch {
+        const resp = await fetch(bundle.mainWorker);
+        const blob = new Blob([await resp.text()], { type: 'application/javascript' });
+        worker = new Worker(URL.createObjectURL(blob));
+      }
+
+      const logger = new duckdb.ConsoleLogger();
+      dbInstance = new duckdb.AsyncDuckDB(logger, worker);
+      await dbInstance.instantiate(bundle.mainModule, bundle.pthreadWorker);
+      connInstance = await dbInstance.connect();
+
+      await connInstance.query('INSTALL httpfs; LOAD httpfs;');
+      await connInstance.query('SET enable_http_metadata_cache=true;');
+
+      return { db: dbInstance, conn: connInstance };
+    } catch (err) {
+      initializationPromise = null;
+      throw err;
+    }
+  })();
+
+  return initializationPromise;
 }

@@ -27,15 +27,25 @@ img, picture, video, canvas, svg { display: block; max-width: 100%; }
   --space-sm: 1rem;
   --space-md: 1.5rem;
   --space-lg: 2.5rem;
+  --space-xl: 4rem;
+  --space-2xl: 6rem;
+  --space-3xl: 8rem;
   --transition-base: 0.2s ease;
   --radius-sm: 4px;
   --radius-box: 12px;
+  --radius-btn: 2rem;
   --radius-full: 9999px;
 
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --shadow-glow: 0 0 10px rgba(26, 107, 60, 0.2);
+  --shadow-glow-strong: 0 0 15px rgba(26, 107, 60, 0.35);
+  --shadow-glow-error: 0 0 10px rgba(197, 48, 48, 0.3);
+
   /* Skeletons & Shimmer */
-  --shimmer-gradient: linear-gradient(90deg, 
-      rgba(255, 255, 255, 0.05) 0%, 
-      rgba(255, 255, 255, 0.1) 50%, 
+  --shimmer-gradient: linear-gradient(90deg,
+      rgba(255, 255, 255, 0.05) 0%,
+      rgba(255, 255, 255, 0.1) 50%,
       rgba(255, 255, 255, 0.05) 100%);
 
   /* Basic Light Theme (Brazilian Modernism - CausaGanha baseline) */
@@ -72,6 +82,11 @@ img, picture, video, canvas, svg { display: block; max-width: 100%; }
   --shadow-glow: 0 0 10px rgba(61, 165, 104, 0.4);
   --shadow-glow-strong: 0 0 15px rgba(61, 165, 104, 0.6);
   --shadow-glow-error: 0 0 10px rgba(224, 85, 85, 0.4);
+
+  --shimmer-gradient: linear-gradient(90deg,
+      rgba(255, 255, 255, 0.04) 0%,
+      rgba(255, 255, 255, 0.08) 50%,
+      rgba(255, 255, 255, 0.04) 100%);
 }
 
 html {
@@ -129,4 +144,158 @@ h3 { font-size: var(--font-size-xl); }
   max-width: 1280px;
   margin-inline: auto;
   padding-inline: var(--space-sm);
+}
+
+/* ── Animations ─────────────────────────────── */
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.cg-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* ── Skeleton loader ─────────────────────────── */
+
+.skeleton {
+  background: var(--color-base-300);
+  background-image: var(--shimmer-gradient);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite linear;
+  border-radius: var(--radius-sm);
+}
+
+/* ── Accessibility ───────────────────────────── */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+.sr-only:focus-visible {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: var(--space-xs) var(--space-sm);
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+  background: var(--color-primary);
+  color: white;
+  border-radius: var(--radius-sm);
+  z-index: 9999;
+}
+
+/* ── Buttons ─────────────────────────────────── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1.25rem;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  font-family: var(--font-sans);
+  border-radius: var(--radius-btn);
+  cursor: pointer;
+  border: 1px solid transparent;
+  text-decoration: none;
+  transition: all var(--transition-base);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+}
+
+.btn-primary:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-glow);
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.btn-outline:hover {
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+
+.btn-outline-secondary {
+  background: transparent;
+  color: var(--color-secondary);
+  border-color: var(--color-base-300);
+}
+
+.btn-outline-secondary:hover {
+  border-color: var(--color-secondary);
+}
+
+/* ── Badges ──────────────────────────────────── */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.6rem;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  border-radius: var(--radius-full);
+  border: 1px solid currentColor;
+  line-height: 1.4;
+}
+
+.badge-sm {
+  padding: 0.1rem 0.4rem;
+  font-size: 0.65rem;
+}
+
+.badge-info    { color: var(--color-info);    background: color-mix(in srgb, var(--color-info)    15%, transparent); }
+.badge-success { color: var(--color-success); background: color-mix(in srgb, var(--color-success) 15%, transparent); }
+.badge-warning { color: var(--color-warning); background: color-mix(in srgb, var(--color-warning) 15%, transparent); }
+.badge-error   { color: var(--color-error);   background: color-mix(in srgb, var(--color-error)   15%, transparent); }
+
+/* ── Empty state ─────────────────────────────── */
+
+.empty-state {
+  text-align: center;
+  padding: var(--space-xl) var(--space-md);
+  color: var(--color-secondary);
+}
+
+.empty-state h3 {
+  margin-bottom: var(--space-xs);
+  color: var(--color-base-content);
+}
+
+/* ── Touch target minimum ────────────────────── */
+
+@media (pointer: coarse) {
+  .btn, .hint-chip {
+    min-height: 44px;
+  }
 }

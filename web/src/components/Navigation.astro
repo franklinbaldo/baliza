@@ -16,8 +16,8 @@ const isActive = (path: string) => {
     </a>
     
     <ul class="nav-links">
-      <li><a href={BASE} class={isActive(BASE) ? 'active' : ''}>Início</a></li>
-      <li><a href={BASE + 'sobre'} class={isActive(BASE + 'sobre') ? 'active' : ''}>Sobre</a></li>
+      <li><a href={BASE} class={isActive(BASE) ? 'active' : ''} aria-current={isActive(BASE) ? 'page' : undefined}>Início</a></li>
+      <li><a href={BASE + 'sobre'} class={isActive(BASE + 'sobre') ? 'active' : ''} aria-current={isActive(BASE + 'sobre') ? 'page' : undefined}>Sobre</a></li>
     </ul>
   </div>
 </nav>
