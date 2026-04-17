@@ -1,8 +1,18 @@
 <script lang="ts">
-  let { title, value } = $props<{ title: string, value: number | string }>();
+  type Tone = 'default' | 'success' | 'warning' | 'danger';
+
+  let { title, value, tone = 'default' }: { title: string; value: number | string; tone?: Tone } = $props();
+
+  const accentVar: Record<Tone, string> = {
+    default: 'var(--color-primary)',
+    success: 'var(--color-success)',
+    warning: 'var(--color-warning)',
+    danger:  'var(--color-error)',
+  };
+  const accent = $derived(accentVar[tone]);
 </script>
 
-<div class="card">
+<div class="card" style="--accent: {accent}">
   <h3 class="stat-label">{title}</h3>
   <p class="stat-value">{value}</p>
 </div>
@@ -25,7 +35,7 @@
     left: 0;
     width: 4px;
     height: 100%;
-    background: var(--color-primary);
+    background: var(--accent);
     opacity: 0.5;
     transition: opacity var(--transition-base);
   }
@@ -33,7 +43,7 @@
     opacity: 1;
   }
   .stat-value {
-    color: var(--color-primary);
-    text-shadow: 0 0 10px rgba(61, 165, 104, 0.2);
+    color: var(--accent);
+    text-shadow: none;
   }
 </style>
