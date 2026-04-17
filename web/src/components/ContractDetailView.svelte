@@ -8,7 +8,14 @@
 
   setQueryClientContext(getQueryClient());
 
-  const { id = "" } = $props();
+  const { id: idProp = "" }: { id?: string } = $props();
+
+  const id = $derived(
+    idProp ||
+      (typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('id') ?? ''
+        : ''),
+  );
 
   const contractQuery = createQuery(() => ({
     queryKey: QUERY_KEYS.contratacao(id),

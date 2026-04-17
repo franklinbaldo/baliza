@@ -1,11 +1,13 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import ContractDetailView from '../components/ContractDetailView.svelte';
+
+const id = Astro.url.searchParams.get('id') ?? '';
 ---
 
-<Layout 
-  title="Detalhamento de Contratação" 
+<Layout
+  title="Detalhamento de Contratação"
   description="Veja todos os detalhes interessantes desta contratação pública registrada no PNCP e preservada pelo Baliza."
 >
-  <ContractDetailView client:only="svelte" />
+  <ContractDetailView client:only="svelte" id={id} />
 </Layout>

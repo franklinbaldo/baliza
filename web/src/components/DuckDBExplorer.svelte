@@ -1,14 +1,30 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { getDuckDB } from '../lib/duckdb';
   import { FEATURED_QUERIES } from '../lib/homepage-content';
+  import { getLatestParquetUrl } from '../lib/ia-manifest';
   import AlertBanner from './AlertBanner.svelte';
 
   let query = $state("SELECT * FROM contracts LIMIT 10");
   let results = $state<Record<string, unknown>[]>([]);
   let loading = $state(false);
   let error = $state<string | null>(null);
+  let resolvedParquetUrl = $state<string | null>(null);
+
+  const featuredQueries = $derived(
+    FEATURED_QUERIES.map((fq) => ({
+      ...fq,
+      sql: resolvedParquetUrl
+        ? fq.sql.replaceAll("'IA_URL'", `'${resolvedParquetUrl}'`)
+        : fq.sql,
+    })),
+  );
 
   const hasUnresolvedUrl = $derived(query.includes("'IA_URL'"));
+
+  onMount(async () => {
+    resolvedParquetUrl = await getLatestParquetUrl();
+  });
 
   async function runQuery() {
     loading = true;
@@ -38,7 +54,7 @@
 
   <div class="featured-queries" role="group" aria-label="Consultas prontas">
     <span class="featured-label">Consultas prontas:</span>
-    {#each FEATURED_QUERIES as fq (fq.label)}
+    {#each featuredQueries as fq (fq.label)}
       <button class="fq-chip" onclick={() => (query = fq.sql)}>
         {fq.label}
       </button>

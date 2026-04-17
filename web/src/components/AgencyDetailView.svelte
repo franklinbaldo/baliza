@@ -9,7 +9,14 @@
 
   setQueryClientContext(getQueryClient());
 
-  const { cnpj = "" } = $props();
+  const { cnpj: cnpjProp = "" }: { cnpj?: string } = $props();
+
+  const cnpj = $derived(
+    cnpjProp ||
+      (typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('cnpj') ?? ''
+        : ''),
+  );
 
   const agencyQuery = createQuery(() => ({
     queryKey: QUERY_KEYS.orgao(cnpj),

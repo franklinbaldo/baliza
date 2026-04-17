@@ -1,8 +1,24 @@
-import type { AsyncDuckDB, AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
+import type {
+  AsyncDuckDB,
+  AsyncDuckDBConnection,
+  DuckDBBundles,
+} from '@duckdb/duckdb-wasm';
+
+import duckdb_mvp_wasm from '@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url';
+import duckdb_mvp_worker from '@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js?url';
+import duckdb_eh_wasm from '@duckdb/duckdb-wasm/dist/duckdb-eh.wasm?url';
+import duckdb_eh_worker from '@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js?url';
 
 export let dbInstance: AsyncDuckDB | null = null;
 export let connInstance: AsyncDuckDBConnection | null = null;
 let initializationPromise: Promise<{ db: AsyncDuckDB; conn: AsyncDuckDBConnection }> | null = null;
+
+function getBundledBundles(): DuckDBBundles {
+  return {
+    mvp: { mainModule: duckdb_mvp_wasm, mainWorker: duckdb_mvp_worker },
+    eh: { mainModule: duckdb_eh_wasm, mainWorker: duckdb_eh_worker },
+  };
+}
 
 export async function getDuckDB(): Promise<{ db: AsyncDuckDB; conn: AsyncDuckDBConnection }> {
   if (dbInstance && connInstance) return { db: dbInstance, conn: connInstance };
@@ -11,8 +27,13 @@ export async function getDuckDB(): Promise<{ db: AsyncDuckDB; conn: AsyncDuckDBC
   initializationPromise = (async () => {
     try {
       const duckdb = await import('@duckdb/duckdb-wasm');
-      const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
-      const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
+
+      let bundle: Awaited<ReturnType<typeof duckdb.selectBundle>>;
+      try {
+        bundle = await duckdb.selectBundle(getBundledBundles());
+      } catch {
+        bundle = await duckdb.selectBundle(duckdb.getJsDelivrBundles());
+      }
 
       if (!bundle.mainWorker) throw new Error('DuckDB bundle selection failed');
 
