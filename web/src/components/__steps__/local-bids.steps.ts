@@ -105,9 +105,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     Given('geolocation succeeds with IBGE "1721000"', () => {
       mockGeolocationSuccess();
 
-      let callCount = 0;
       global.fetch = vi.fn().mockImplementation((url: string) => {
-        callCount++;
         if (typeof url === 'string' && url.includes('nominatim')) {
           return Promise.resolve(
             new Response(

@@ -30,8 +30,12 @@ export async function getDuckDB(): Promise<{ db: AsyncDuckDB; conn: AsyncDuckDBC
       await dbInstance.instantiate(bundle.mainModule, bundle.pthreadWorker);
       connInstance = await dbInstance.connect();
 
-      await connInstance.query('INSTALL httpfs; LOAD httpfs;');
-      await connInstance.query('SET enable_http_metadata_cache=true;');
+      try {
+        await connInstance.query('INSTALL httpfs; LOAD httpfs;');
+        await connInstance.query('SET enable_http_metadata_cache=true;');
+      } catch {
+        // httpfs extension unavailable — HTTP queries won't work but local SQL still functions
+      }
 
       return { db: dbInstance, conn: connInstance };
     } catch (err) {
