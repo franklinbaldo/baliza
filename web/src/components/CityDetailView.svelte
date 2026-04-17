@@ -9,7 +9,14 @@
 
   setQueryClientContext(getQueryClient());
 
-  const { ibge = "" } = $props();
+  const { ibge: ibgeProp = "" }: { ibge?: string } = $props();
+
+  const ibge = $derived(
+    ibgeProp ||
+      (typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('ibge') ?? ''
+        : ''),
+  );
 
   const cityQuery = createQuery(() => ({
     queryKey: QUERY_KEYS.municipio(ibge),

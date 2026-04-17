@@ -18,6 +18,12 @@ vi.mock('../../lib/duckdb', () => ({
   }),
 }));
 
+vi.mock('../../lib/ia-manifest', () => ({
+  getLatestParquetUrl: vi.fn().mockResolvedValue(null),
+  resetIaManifestCache: vi.fn(),
+  IA_MANIFEST_URL: 'https://archive.org/download/baliza-pncp-manifest/manifest.csv',
+}));
+
 export function render(
   component: Parameters<typeof tlRender>[0],
   props?: Parameters<typeof tlRender>[1],
