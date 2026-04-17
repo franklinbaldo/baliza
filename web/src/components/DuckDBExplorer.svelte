@@ -8,6 +8,8 @@
   let loading = $state(false);
   let error = $state<string | null>(null);
 
+  const hasUnresolvedUrl = $derived(query.includes("'IA_URL'"));
+
   async function runQuery() {
     loading = true;
     error = null;
@@ -45,7 +47,12 @@
 
   <div class="editor-zone">
     <textarea bind:value={query} spellcheck="false" aria-label="Consulta SQL"></textarea>
-    <button class="btn btn-primary" onclick={runQuery} disabled={loading}>
+    {#if hasUnresolvedUrl}
+      <div class="template-hint" role="note">
+        ⚠️ Substitua <code>'IA_URL'</code> pela URL real do arquivo Parquet no Internet Archive antes de executar.
+      </div>
+    {/if}
+    <button class="btn btn-primary" onclick={runQuery} disabled={loading || hasUnresolvedUrl}>
       {loading ? "Executando..." : "Explorar Dados"}
     </button>
   </div>
@@ -121,6 +128,17 @@
     outline: none;
   }
   textarea:focus { border-color: var(--color-primary); }
+
+  .template-hint {
+    font-size: var(--font-size-xs);
+    color: var(--color-warning, #b45309);
+    background: color-mix(in srgb, var(--color-warning, #b45309) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-warning, #b45309) 30%, transparent);
+    border-radius: var(--radius-sm);
+    padding: 6px 10px;
+    margin-bottom: var(--space-sm);
+  }
+  .template-hint code { font-family: var(--font-mono); font-weight: 700; }
 
   .error-wrap { margin-top: var(--space-md); }
 
