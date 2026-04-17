@@ -1,5 +1,6 @@
 ---
 import '../styles/global.css';
+import { ClientRouter } from 'astro:transitions';
 import Navigation from '../components/Navigation.astro';
 import Metadata from '../components/Metadata.astro';
 
@@ -15,12 +16,22 @@ const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
 <!DOCTYPE html>
 <html lang="pt-BR" data-theme="dark">
   <head>
+    <script is:inline>
+      (function () {
+        try {
+          var t = localStorage.getItem('baliza-theme');
+          if (t) document.documentElement.setAttribute('data-theme', t);
+        } catch (_) {}
+      })();
+    </script>
     <Metadata title={title} description={description} />
+    <ClientRouter />
   </head>
   <body>
+    <a href="#main-content" class="sr-only">Pular para o conteúdo principal</a>
     <Navigation />
-    
-    <main class="page-content">
+
+    <main id="main-content" class="page-content">
       <slot />
     </main>
 
@@ -28,7 +39,7 @@ const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
       <div class="container footer-content">
         <p>Baliza: Arquivo público das contratações nacionais.</p>
         <div class="footer-links">
-          <a href="https://github.com/franklinbaldo" target="_blank">Codificado por Franklin Baldo</a>
+          <a href="https://github.com/franklinbaldo" target="_blank" rel="noopener">Codificado por Franklin Baldo</a>
           <span>·</span>
           <span>Fonte: PNCP & Internet Archive</span>
           <span>·</span>
@@ -45,6 +56,7 @@ const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
   .page-content {
     min-height: calc(100vh - 4.5rem - 12rem);
   }
+
   .portal-footer {
     margin-top: var(--space-3xl);
     padding: var(--space-xl) 0;
@@ -53,6 +65,7 @@ const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
     color: var(--color-secondary);
     font-size: var(--font-size-xs);
   }
+
   .footer-content {
     display: flex;
     flex-direction: column;
@@ -60,6 +73,7 @@ const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
     gap: var(--space-sm);
     text-align: center;
   }
+
   .footer-links {
     display: flex;
     flex-wrap: wrap;
@@ -67,6 +81,7 @@ const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
     gap: var(--space-xs);
     align-items: center;
   }
+
   .footer-links a {
     color: var(--color-primary);
     text-decoration: none;
