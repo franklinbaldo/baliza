@@ -33,7 +33,7 @@
   </div>
 {:else if loading}
   <div class="dashboard-grid" aria-busy="true" aria-label="Carregando estatísticas">
-    {#each [1, 2, 3] as _}
+    {#each [1, 2, 3] as _, i (i)}
       <div class="card skeleton-card">
         <div class="skeleton skeleton-label"></div>
         <div class="skeleton skeleton-value"></div>

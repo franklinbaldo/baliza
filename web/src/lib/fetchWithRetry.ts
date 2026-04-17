@@ -32,5 +32,5 @@ export async function fetchWithRetry(
   }
 
   window.dispatchEvent(new CustomEvent('baliza-network-error'));
-  throw lastError ?? new Error('Fetch failed');
+  throw lastError ?? new Error(`Failed to fetch ${url} after ${maxRetries} attempts`);
 }

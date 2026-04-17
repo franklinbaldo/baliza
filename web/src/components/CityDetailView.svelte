@@ -40,7 +40,7 @@
       <div class="skeleton skeleton-title"></div>
       <div class="skeleton skeleton-meta"></div>
       <div class="skeleton skeleton-stat"></div>
-      {#each [1, 2, 3] as _}
+      {#each [1, 2, 3] as _, i (i)}
         <div class="skeleton skeleton-bid"></div>
       {/each}
     </div>
