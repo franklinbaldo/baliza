@@ -2,27 +2,43 @@
  * Baliza Core Types
  */
 
+export interface PNCPContractItem {
+  sequencialItem: number;
+  descricao: string;
+  quantidade?: number;
+  unidadeMedida?: string;
+  valorUnitarioEstimado?: number;
+}
+
 export interface PNCPContract {
   numeroControlePNCP: string;
   dataPublicacaoPncp: string;
+  dataAberturaProposta?: string;
+  dataEncerramentoProposta?: string;
   objetoContratacao: string;
   valorTotalEstimado: number;
+  valorTotalHomologado?: number;
   orgaoEntidade: {
     razaoSocial: string;
     cnpj: string;
   };
   unidadeOrgao: {
     nomeUnidade: string;
+    municipioNome?: string;
+    ufSigla?: string;
+    codigoMunicipioIbge?: string;
   };
   municipio?: {
     nomeMunicipio: string;
   };
   modalidadeNome?: string;
+  modoDisputaNome?: string;
   situacaoNome?: string;
   anoCompra?: number;
   sequencialCompra?: number;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  itens?: any[]; 
+  linkSistemaOrigem?: string;
+  usuarioNome?: string;
+  itens?: PNCPContractItem[];
 }
 
 export interface PNCPAgency {

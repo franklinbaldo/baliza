@@ -18,9 +18,21 @@ Feature: Contract Detail View
     When the contract detail view mounts
     Then I should see an alert banner with the error message
 
-  Scenario: Successful fetch renders both summary cards
+  Scenario: Successful fetch renders all detail blocks
     Given the URL has id "00000000000191-1-000001-1"
     And the PNCP API returns a valid contract payload
     When the contract detail view mounts
-    Then I should see "Resumo Executivo"
-    And I should see "Itens da Licitação"
+    Then I should see the "Detalhes da Contratação" block
+    And I should see the "Órgão Responsável" block
+    And I should see the "Valores" block
+    And I should see the "Itens" block
+    And I should see the "Fontes e Metadados" block
+
+  Scenario: Successful fetch renders formatted currency and links
+    Given the URL has id "00000000000191-1-000001-1"
+    And the PNCP API returns a valid contract payload
+    When the contract detail view mounts
+    Then I should see the BRL-formatted valor "R$ 1.500,00"
+    And I should see a link to the agency page with cnpj "00000000000191"
+    And I should see a link to the municipality page with ibge "3550308"
+    And I should see an external link to the origin system
