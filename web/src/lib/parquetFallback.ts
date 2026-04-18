@@ -70,14 +70,15 @@ function logFallbackFailed(
   console.info('[archive] fallback failed', { table, column, reason });
 }
 
-// Warm the manifest lookup and DuckDB runtime in parallel so that when a
-// detail view's PNCP fetch fails, the fallback can resolve without eating
-// the cold-start latency.
+// Warm the manifest lookup so that when a detail view's PNCP fetch fails,
+// the archive layer can resolve the snapshot URL without paying a cold
+// network roundtrip. DuckDB is intentionally NOT instantiated here — the
+// WASM runtime is heavy (several MB + a Web Worker) and must only load when
+// a query actually runs.
 export function prefetchArchive(
   tableName: ArchivedTable = 'contratos',
 ): void {
   void getLatestParquetInfo(tableName).catch(() => null);
-  void getDuckDB().catch(() => null);
 }
 
 export async function queryArchivedTable<K extends ArchivedTable>(
