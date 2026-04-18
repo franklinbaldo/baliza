@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/build-data.mjs && astro dev",
-    "build": "node scripts/build-data.mjs && astro check && astro build",
+    "build": "node scripts/build-data.mjs && astro check && astro build && node scripts/check-bundle-size.mjs",
     "preview": "astro preview",
     "astro": "astro",
     "lint": "eslint . --fix",
