@@ -275,6 +275,117 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     });
   });
 
+  Scenario('Agency view falls through to Parquet when PNCP returns malformed JSON', ({ Given, And, When, Then }) => {
+    Given('the PNCP API returns malformed JSON for cnpj "00000000000191"', () => {
+      // Missing `data` field entirely — trips PNCPPublicacaoListSchema.
+      global.fetch = vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ unexpected: true }), { status: 200 }),
+      );
+    });
+
+    And('the Parquet fallback returns one contract row for cnpj "00000000000191"', () => {
+      fallbackMock.mockResolvedValue({
+        ok: true,
+        rows: [ARCHIVED_AGENCY_ROW],
+        dataParticao: '2024-12-01',
+      });
+    });
+
+    When('the agency detail view mounts for cnpj "00000000000191"', async () => {
+      setUrlQuery('cnpj=00000000000191');
+      render(AgencyDetailView);
+      await tick();
+    });
+
+    Then('I should see an info banner about PNCP indisponível', async () => {
+      await waitFor(
+        () => {
+          const alert = screen.getByRole('alert');
+          expect(alert.textContent).toMatch(/PNCP indisponível/i);
+        },
+        { timeout: 2000 },
+      );
+    });
+
+    And('I should see the archived contract from the Parquet snapshot', () => {
+      expect(screen.getByText(/Aquisição arquivada – órgão/)).toBeTruthy();
+    });
+  });
+
+  Scenario('City view falls through to Parquet when PNCP returns malformed JSON', ({ Given, And, When, Then }) => {
+    Given('the PNCP API returns malformed JSON for ibge "3550308"', () => {
+      global.fetch = vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ unexpected: true }), { status: 200 }),
+      );
+    });
+
+    And('the Parquet fallback returns one contract row for ibge "3550308"', () => {
+      fallbackMock.mockResolvedValue({
+        ok: true,
+        rows: [ARCHIVED_CITY_ROW],
+        dataParticao: '2024-12-01',
+      });
+    });
+
+    When('the city detail view mounts for ibge "3550308"', async () => {
+      setUrlQuery('ibge=3550308');
+      render(CityDetailView);
+      await tick();
+    });
+
+    Then('I should see an info banner about PNCP indisponível', async () => {
+      await waitFor(
+        () => {
+          const alert = screen.getByRole('alert');
+          expect(alert.textContent).toMatch(/PNCP indisponível/i);
+        },
+        { timeout: 2000 },
+      );
+    });
+
+    And('I should see the archived contract from the Parquet snapshot', () => {
+      expect(screen.getByText(/Aquisição arquivada – município/)).toBeTruthy();
+    });
+  });
+
+  Scenario('Contract view falls through to Parquet when PNCP returns malformed JSON', ({ Given, And, When, Then }) => {
+    Given('the PNCP API returns malformed JSON for id "00000000000191-1-000001/2024"', () => {
+      // Missing required fields like numeroControlePNCP — trips the single-item schema.
+      global.fetch = vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ foo: 'bar' }), { status: 200 }),
+      );
+    });
+
+    And('the Parquet fallback returns one row for id "00000000000191-1-000001/2024"', () => {
+      fallbackMock.mockResolvedValue({
+        ok: true,
+        rows: [ARCHIVED_CONTRACT_ROW],
+        dataParticao: '2024-12-01',
+      });
+    });
+
+    When('the contract detail view mounts for id "00000000000191-1-000001/2024"', async () => {
+      setUrlQuery('id=00000000000191-1-000001/2024');
+      render(ContractDetailView);
+      await tick();
+    });
+
+    Then('I should see an info banner about PNCP indisponível', async () => {
+      await waitFor(
+        () => {
+          const alert = screen.getByRole('alert');
+          expect(alert.textContent).toMatch(/PNCP indisponível/i);
+        },
+        { timeout: 2000 },
+      );
+    });
+
+    And('I should see the archived contract objeto', () => {
+      const matches = screen.getAllByText(/Aquisição arquivada – contratação/);
+      expect(matches.length).toBeGreaterThan(0);
+    });
+  });
+
   Scenario('Agency fallback uses the exported cnpj_orgao column and orders by recency', ({ Given, When, Then }) => {
     Given('the PNCP API is unavailable for cnpj "00000000000191"', () => {
       global.fetch = vi.fn().mockResolvedValue(new Response('boom', { status: 503 }));

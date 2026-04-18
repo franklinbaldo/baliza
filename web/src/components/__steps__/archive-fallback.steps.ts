@@ -86,7 +86,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     table: 'contratos' | 'orgaos' | 'unidades' | 'fornecedores' | string,
     column: string,
     value = 'xyz',
-    opts: { limit?: number; orderByColumn?: string } = {},
+    opts: { limit?: number; orderByColumn?: string; timeoutMs?: number } = {},
   ) {
     const { queryArchivedTable } = await import('../../lib/parquetFallback');
     return queryArchivedTable(
@@ -180,7 +180,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       result = await callArchive('contratos', 'cnpj_orgao');
     });
     Then('console.info should log "[archive] fallback served" with rowCount 2', () => {
-      const served = infoSpy.mock.calls.find((c) => c[0] === '[archive] fallback served');
+      const served = (infoSpy.mock.calls as unknown[][]).find((c) => c[0] === '[archive] fallback served');
       expect(served).toBeDefined();
       expect(served?.[1]).toEqual({
         table: 'contratos',
@@ -189,7 +189,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       });
     });
     And('console.info should not log "[archive] fallback failed"', () => {
-      const failed = infoSpy.mock.calls.find((c) => c[0] === '[archive] fallback failed');
+      const failed = (infoSpy.mock.calls as unknown[][]).find((c) => c[0] === '[archive] fallback failed');
       expect(failed).toBeUndefined();
     });
   });
@@ -207,7 +207,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       result = await callArchive('contratos', 'cnpj_orgao');
     });
     Then('console.info should log "[archive] fallback failed" with reason "empty"', () => {
-      const failed = infoSpy.mock.calls.find((c) => c[0] === '[archive] fallback failed');
+      const failed = (infoSpy.mock.calls as unknown[][]).find((c) => c[0] === '[archive] fallback failed');
       expect(failed).toBeDefined();
       expect(failed?.[1]).toEqual({
         table: 'contratos',
