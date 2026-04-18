@@ -315,7 +315,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     });
   });
 
-  Scenario('prefetchArchive warms manifest and DuckDB before a query runs', ({ Given, When, Then, And }) => {
+  Scenario('prefetchArchive warms the manifest without booting DuckDB', ({ Given, When, Then, And }) => {
     Given('prefetchArchive was called for "contratos"', async () => {
       fetchSpy = installManifestFetch(200, manifestCsvAllTables());
       queryMock.mockResolvedValue({
@@ -323,9 +323,13 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       });
       const { prefetchArchive } = await import('../../lib/parquetFallback');
       prefetchArchive('contratos');
-      // Let the fire-and-forget promises settle before the "later" query runs.
+      // Let the fire-and-forget manifest fetch settle before the "later" query.
       await new Promise((r) => setTimeout(r, 0));
       await new Promise((r) => setTimeout(r, 0));
+    });
+    Then('DuckDB should not have been initialized yet', () => {
+      expect(duckdbInitCount).toBe(0);
+      expect(getDuckDBSpy).not.toHaveBeenCalled();
     });
     When('the caller later invokes queryArchivedTable for "contratos" filtered by "cnpj_orgao"', async () => {
       result = await callArchive('contratos', 'cnpj_orgao');

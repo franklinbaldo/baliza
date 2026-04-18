@@ -67,8 +67,9 @@ Feature: Archive fallback hardening
     When queryArchivedTable is called for "not_a_table" filtered by "cnpj_orgao"
     Then the result should be a failure with reason "sql_error"
 
-  Scenario: prefetchArchive warms manifest and DuckDB before a query runs
+  Scenario: prefetchArchive warms the manifest without booting DuckDB
     Given prefetchArchive was called for "contratos"
+    Then DuckDB should not have been initialized yet
     When the caller later invokes queryArchivedTable for "contratos" filtered by "cnpj_orgao"
     Then the IA manifest should have been fetched exactly once
     And DuckDB should have been initialized exactly once
