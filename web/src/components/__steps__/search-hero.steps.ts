@@ -1,6 +1,6 @@
 import { loadFeature, describeFeature } from '@amiceli/vitest-cucumber';
 import { screen, cleanup, fireEvent, waitFor } from '@testing-library/svelte/pure';
-import { expect } from 'vitest';
+import { vi, expect } from 'vitest';
 import { tick } from 'svelte';
 import { render } from './shared';
 import SearchHeroRaw from '../SearchHero.svelte';
@@ -15,9 +15,20 @@ async function typeInSearch(value: string) {
   return input;
 }
 
+function stubLocationAssign() {
+  const assign = vi.fn();
+  Object.defineProperty(window, 'location', {
+    configurable: true,
+    value: { ...window.location, assign },
+  });
+  return assign;
+}
+
 describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   BeforeEachScenario(async () => {
     cleanup();
+    vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   Scenario('Detect CNPJ pattern and show correct jump link', ({ Given, Then, And }) => {
@@ -108,6 +119,169 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
 
     Then('the input should have an accessible label', () => {
       expect(screen.getByLabelText('Buscar contratos públicos')).toBeTruthy();
+    });
+  });
+
+  Scenario('Submitting a CNPJ navigates to the agency page', ({ Given, When, Then }) => {
+    let assign: ReturnType<typeof vi.fn>;
+
+    Given('the user types "12345678000195" into the search box', async () => {
+      assign = stubLocationAssign();
+      render(SearchHero);
+      await tick();
+      await typeInSearch('12345678000195');
+    });
+
+    When('the user submits the search form', async () => {
+      const form = document.querySelector('form.search-form') as HTMLFormElement;
+      await fireEvent.submit(form);
+      await tick();
+    });
+
+    Then('the browser should navigate to "/baliza/orgao?cnpj=12345678000195"', () => {
+      expect(assign).toHaveBeenCalledWith('/baliza/orgao?cnpj=12345678000195');
+    });
+  });
+
+  Scenario('Submitting an IBGE code navigates to the municipality page', ({ Given, When, Then }) => {
+    let assign: ReturnType<typeof vi.fn>;
+
+    Given('the user types "3550308" into the search box', async () => {
+      assign = stubLocationAssign();
+      render(SearchHero);
+      await tick();
+      await typeInSearch('3550308');
+    });
+
+    When('the user submits the search form', async () => {
+      const form = document.querySelector('form.search-form') as HTMLFormElement;
+      await fireEvent.submit(form);
+      await tick();
+    });
+
+    Then('the browser should navigate to "/baliza/municipio?ibge=3550308"', () => {
+      expect(assign).toHaveBeenCalledWith('/baliza/municipio?ibge=3550308');
+    });
+  });
+
+  Scenario('Submitting a PNCP contract ID navigates to the contract page', ({ Given, When, Then }) => {
+    let assign: ReturnType<typeof vi.fn>;
+
+    Given('the user types "12345678000195-1-000001-1" into the search box', async () => {
+      assign = stubLocationAssign();
+      render(SearchHero);
+      await tick();
+      await typeInSearch('12345678000195-1-000001-1');
+    });
+
+    When('the user submits the search form', async () => {
+      const form = document.querySelector('form.search-form') as HTMLFormElement;
+      await fireEvent.submit(form);
+      await tick();
+    });
+
+    Then('the browser should navigate to "/baliza/contratacao?id=12345678000195-1-000001-1"', () => {
+      expect(assign).toHaveBeenCalledWith('/baliza/contratacao?id=12345678000195-1-000001-1');
+    });
+  });
+
+  Scenario('Free text triggers a PNCP search and renders results listbox', ({ Given, When, Then, And }) => {
+    Given('the PNCP search API returns two results for "hospital"', () => {
+      const payload = {
+        items: [
+          {
+            numero_controle_pncp: '00000000000191-1-000001/2024',
+            title: 'Edital nº 001/2024',
+            description: 'Aquisição de materiais hospitalares para atendimento emergencial',
+            orgao_nome: 'Secretaria Municipal de Saúde',
+            data_publicacao_pncp: '2024-05-01T00:00:00',
+            valor_global: 150000,
+          },
+          {
+            numero_controle_pncp: '00000000000191-1-000002/2024',
+            title: 'Edital nº 002/2024',
+            description: 'Contrato de manutenção de equipamento hospitalar',
+            orgao_nome: 'Fundo de Saúde',
+            data_publicacao_pncp: '2024-04-12T00:00:00',
+            valor_global: 50000,
+          },
+        ],
+        total: 2,
+      };
+      global.fetch = vi
+        .fn()
+        .mockImplementation(async () => new Response(JSON.stringify(payload), { status: 200 }));
+    });
+
+    When('the user types "hospital" into the search box', async () => {
+      render(SearchHero);
+      await tick();
+      await typeInSearch('hospital');
+    });
+
+    Then('I should see a results listbox with at least one link', async () => {
+      await waitFor(
+        () => {
+          const listbox = screen.getByRole('listbox');
+          expect(listbox).toBeTruthy();
+          expect(listbox.querySelectorAll('a').length).toBeGreaterThan(0);
+        },
+        { timeout: 2000 },
+      );
+    });
+
+    And('the first result should link to a contratação page', () => {
+      const firstLink = screen.getByRole('listbox').querySelector('a') as HTMLAnchorElement;
+      expect(firstLink.getAttribute('href')).toMatch(/\/baliza\/contratacao\?id=/);
+    });
+  });
+
+  Scenario('PNCP search failure shows an alert banner', ({ Given, When, Then }) => {
+    Given('the PNCP search API fails for "hospital"', () => {
+      global.fetch = vi
+        .fn()
+        .mockImplementation(async () => new Response('boom', { status: 500 }));
+    });
+
+    When('the user types "hospital" into the search box', async () => {
+      render(SearchHero);
+      await tick();
+      await typeInSearch('hospital');
+    });
+
+    Then('I should see an alert banner about the search error', async () => {
+      await waitFor(
+        () => {
+          const alert = screen.getByRole('alert');
+          expect(alert.textContent).toMatch(/busca|PNCP/i);
+        },
+        { timeout: 2000 },
+      );
+    });
+  });
+
+  Scenario('PNCP search zero results shows an empty state', ({ Given, When, Then }) => {
+    Given('the PNCP search API returns zero results for "xyzneverexists"', () => {
+      global.fetch = vi
+        .fn()
+        .mockImplementation(
+          async () => new Response(JSON.stringify({ items: [], total: 0 }), { status: 200 }),
+        );
+    });
+
+    When('the user types "xyzneverexists" into the search box', async () => {
+      render(SearchHero);
+      await tick();
+      await typeInSearch('xyzneverexists');
+    });
+
+    Then('I should see an empty state for the search', async () => {
+      await waitFor(
+        () => {
+          expect(screen.getByText(/Nenhum resultado/i)).toBeTruthy();
+        },
+        { timeout: 2000 },
+      );
     });
   });
 });
