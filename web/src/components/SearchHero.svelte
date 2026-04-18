@@ -1,21 +1,129 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import { PROJECT_MISSION, SEARCH_HINTS } from '../lib/homepage-content';
   import EmptyState from './EmptyState.svelte';
+  import AlertBanner from './AlertBanner.svelte';
+
+  // PNCP's public consulta API (Swagger: https://pncp.gov.br/api/consulta/swagger-ui/index.html)
+  // has no free-text parameter for /v1/contratacoes/publicacao. The portal's user-facing
+  // search is backed by /api/search which does support keyword queries, so we use it here.
+  // Endpoint: https://pncp.gov.br/api/search?q=<query>&tipos_documento=edital&pagina=1
+  // Response envelope: { items: [...], total: number }
+  const SEARCH_ENDPOINT = 'https://pncp.gov.br/api/search';
+  const DEBOUNCE_MS = 300;
+
+  interface SearchItem {
+    numero_controle_pncp?: string;
+    title?: string;
+    description?: string;
+    orgao_nome?: string;
+    data_publicacao_pncp?: string;
+    valor_global?: number | null;
+  }
 
   let query = $state('');
-  let loading = $state(false);
-
   const cleanQuery = $derived(query.trim());
-  const isCnpj    = $derived(/^\d{14}$/.test(cleanQuery.replace(/\D/g, '')));
-  const isIbge    = $derived(/^\d{7}$/.test(cleanQuery));
-  const isPncpId  = $derived(/\d{14}[-/]\d{1}[-/]\d{6}[-/]\d{4}/.test(cleanQuery));
-  const hasPattern = $derived(isCnpj || isIbge || isPncpId);
-  const showEmpty  = $derived(cleanQuery.length >= 3 && !loading && !hasPattern);
+  const digitsOnly = $derived(cleanQuery.replace(/\D/g, ''));
+  const isCnpj   = $derived(/^\d{14}$/.test(digitsOnly) && /^\d{14}$/.test(cleanQuery));
+  const isIbge   = $derived(/^\d{7}$/.test(cleanQuery));
+  const isPncpId = $derived(/^\d{14}-\d+-\d{6}-\d+$/.test(cleanQuery));
+  const isPncpIdLoose = $derived(/\d{14}[-/]\d+[-/]\d{6}[-/]\d+/.test(cleanQuery));
+  const hasPattern = $derived(isCnpj || isIbge || isPncpIdLoose);
 
-  function handleSearch() {
-    if (cleanQuery.length < 3) return;
-    loading = true;
-    setTimeout(() => { loading = false; }, 200);
+  function navigateFor(value: string): string | null {
+    if (/^\d{14}$/.test(value)) return `/baliza/orgao?cnpj=${value}`;
+    if (/^\d{7}$/.test(value))  return `/baliza/municipio?ibge=${value}`;
+    if (/^\d{14}-\d+-\d{6}-\d+$/.test(value)) return `/baliza/contratacao?id=${value}`;
+    return null;
+  }
+
+  let results = $state<SearchItem[]>([]);
+  let searching = $state(false);
+  let searchError = $state<string | null>(null);
+  let didSearch = $state(false);
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  let searchToken = 0;
+
+  function truncate(s: string, n: number) {
+    if (!s) return '';
+    return s.length > n ? s.slice(0, n - 1) + '…' : s;
+  }
+
+  function formatBRL(v: number | null | undefined) {
+    if (v == null) return '—';
+    return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  function formatDate(iso: string | undefined) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? '' : d.toLocaleDateString('pt-BR');
+  }
+
+  async function runSearch(term: string) {
+    const token = ++searchToken;
+    searching = true;
+    searchError = null;
+    try {
+      const url = `${SEARCH_ENDPOINT}?q=${encodeURIComponent(term)}&tipos_documento=edital&pagina=1`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Falha ao consultar o PNCP. Tente novamente em instantes.');
+      const json = (await res.json()) as { items?: SearchItem[] };
+      if (token !== searchToken) return;
+      results = (json.items || []).slice(0, 10);
+      didSearch = true;
+    } catch (err) {
+      if (token !== searchToken) return;
+      results = [];
+      didSearch = true;
+      searchError = err instanceof Error ? err.message : 'Erro na busca PNCP.';
+    } finally {
+      if (token === searchToken) searching = false;
+    }
+  }
+
+  function isShapeMatch(term: string) {
+    return (
+      /^\d{14}$/.test(term) ||
+      /^\d{7}$/.test(term) ||
+      /\d{14}[-/]\d+[-/]\d{6}[-/]\d+/.test(term)
+    );
+  }
+
+  function scheduleSearch(term: string) {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    if (term.length < 3 || isShapeMatch(term)) {
+      results = [];
+      searchError = null;
+      didSearch = false;
+      searching = false;
+      return;
+    }
+    debounceTimer = setTimeout(() => runSearch(term), DEBOUNCE_MS);
+  }
+
+  onDestroy(() => {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    searchToken++;
+  });
+
+  function handleInput(e: Event) {
+    const term = (e.target as HTMLInputElement).value.trim();
+    query = (e.target as HTMLInputElement).value;
+    scheduleSearch(term);
+  }
+
+  function handleSubmit(e: Event) {
+    e.preventDefault();
+    const target = navigateFor(cleanQuery);
+    if (target && typeof window !== 'undefined') {
+      window.location.assign(target);
+      return;
+    }
+    if (cleanQuery.length >= 3 && !hasPattern) {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      runSearch(cleanQuery);
+    }
   }
 </script>
 
@@ -24,7 +132,7 @@
     <h1 class="hero-title">{PROJECT_MISSION.title}</h1>
     <p class="hero-tagline">{PROJECT_MISSION.tagline}</p>
 
-    <div class="search-box" class:detected={hasPattern}>
+    <form class="search-form search-box" class:detected={hasPattern} onsubmit={handleSubmit}>
       <div class="input-wrapper">
         <label class="input-label" for="search-input">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="search-icon" aria-hidden="true">
@@ -35,23 +143,23 @@
             type="text"
             bind:value={query}
             placeholder="CNPJ, código IBGE, ID PNCP ou objeto..."
-            oninput={handleSearch}
+            oninput={handleInput}
             autocomplete="off"
             spellcheck={false}
             aria-label="Buscar contratos públicos"
           />
           {#if query}
-            <button type="button" class="clear-btn" onclick={() => (query = '')} aria-label="Limpar busca">×</button>
+            <button type="button" class="clear-btn" onclick={() => { query = ''; scheduleSearch(''); }} aria-label="Limpar busca">×</button>
           {/if}
         </label>
 
-        {#if loading}
+        {#if searching}
           <div class="valid-indicator cg-pulse" aria-hidden="true">⏳</div>
         {:else if hasPattern}
           <div class="valid-indicator" aria-hidden="true">✅</div>
         {/if}
 
-        <button class="search-btn btn btn-primary" disabled={loading}>Buscar</button>
+        <button type="submit" class="search-btn btn btn-primary" disabled={searching}>Buscar</button>
       </div>
 
       {#if hasPattern}
@@ -65,30 +173,53 @@
             <a href={`/baliza/municipio?ibge=${cleanQuery}`} class="jump-link">
               Explorar Município <span class="badge badge-sm badge-info">{cleanQuery}</span>
             </a>
-          {:else if isPncpId}
+          {:else if isPncpIdLoose}
             <a href={`/baliza/contratacao?id=${cleanQuery}`} class="jump-link">
               Ver Contratação <span class="badge badge-sm badge-info">#{cleanQuery}</span>
             </a>
           {/if}
         </div>
-      {:else if showEmpty}
-        <div>
+      {:else if cleanQuery.length >= 3}
+        {#if searching}
+          <ul class="results-list skeleton-results" aria-busy="true" aria-label="Carregando resultados">
+            {#each [1, 2, 3] as _, i (i)}
+              <li class="skeleton skeleton-row"></li>
+            {/each}
+          </ul>
+        {:else if searchError}
+          <AlertBanner title="Busca PNCP indisponível" message={searchError} level="error" />
+        {:else if didSearch && results.length === 0}
           <EmptyState
-            title="Nenhum padrão detectado"
-            message="Use um CNPJ (14 dígitos), código IBGE (7 dígitos) ou identificador PNCP para ir direto ao resultado."
+            title="Nenhum resultado"
+            message="A busca PNCP não encontrou contratações para este termo."
           />
-        </div>
+        {:else if results.length > 0}
+          <ul class="results-list" role="listbox" aria-label="Resultados da busca PNCP">
+            {#each results as item (item.numero_controle_pncp)}
+              <li role="option" aria-selected="false">
+                <a href={`/baliza/contratacao?id=${item.numero_controle_pncp}`} class="result-link">
+                  <div class="result-objeto">{truncate(item.description || item.title || '', 120)}</div>
+                  <div class="result-meta">
+                    <span class="result-orgao">{item.orgao_nome || ''}</span>
+                    <span class="result-date">{formatDate(item.data_publicacao_pncp)}</span>
+                    <span class="result-valor">{formatBRL(item.valor_global)}</span>
+                  </div>
+                </a>
+              </li>
+            {/each}
+          </ul>
+        {/if}
       {/if}
 
       <div class="hints" role="status" aria-live="polite">
         <span class="hints-label">Sugestões:</span>
         {#each SEARCH_HINTS as hint (hint)}
-          <button class="hint-chip" onclick={() => (query = hint)}>
+          <button type="button" class="hint-chip" onclick={() => { query = hint; scheduleSearch(hint); }}>
             {hint}
           </button>
         {/each}
       </div>
-    </div>
+    </form>
   </div>
 </section>
 
@@ -127,6 +258,8 @@
     border-radius: var(--radius-box);
     box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.3);
   }
+
+  .search-form { display: block; }
 
   .input-wrapper {
     display: flex;
@@ -229,6 +362,47 @@
   }
 
   .jump-link:hover { text-decoration: underline; }
+
+  .results-list {
+    list-style: none;
+    padding: 0;
+    margin: var(--space-md) 0 0;
+    display: grid;
+    gap: var(--space-xs);
+    text-align: left;
+  }
+
+  .result-link {
+    display: block;
+    padding: var(--space-sm);
+    background: var(--color-base-200);
+    border: 1px solid var(--color-base-300);
+    border-radius: var(--radius-sm);
+    color: inherit;
+    text-decoration: none;
+    transition: border-color var(--transition-base);
+  }
+
+  .result-link:hover { border-color: var(--color-primary); }
+
+  .result-objeto {
+    font-size: var(--font-size-sm);
+    color: var(--color-base-content);
+    margin-bottom: 4px;
+  }
+
+  .result-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    font-size: var(--font-size-xs);
+    font-family: var(--font-mono);
+    color: var(--color-secondary);
+  }
+
+  .result-valor { color: var(--color-primary); font-weight: 700; }
+
+  .skeleton-row { height: 3.5rem; border-radius: var(--radius-sm); }
 
   .hints {
     margin-top: var(--space-sm);
