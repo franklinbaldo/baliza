@@ -70,6 +70,7 @@
         if (!archived || archived.rows.length === 0) {
           throw new Error(
             "PNCP indisponível e arquivo histórico sem registro para este identificador.",
+            { cause: pncpErr },
           );
         }
         const view = archivedRowToContract(archived.rows[0], id);

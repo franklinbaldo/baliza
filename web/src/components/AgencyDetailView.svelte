@@ -63,6 +63,7 @@
         if (!archived) {
           throw new Error(
             "PNCP indisponível e arquivo histórico sem registro para este identificador.",
+            { cause: pncpErr },
           );
         }
         const contracts = archived.rows.map(archivedRowToContract);

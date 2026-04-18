@@ -60,7 +60,7 @@
         const cityName = contracts[0]?.municipio?.nomeMunicipio || contracts[0]?.unidadeOrgao?.municipioNome || "Município";
         const uf = contracts[0]?.unidadeOrgao?.ufSigla || "";
         return { name: cityName, uf, ibge, contracts };
-      } catch {
+      } catch (pncpErr) {
         const archived = await queryParquetFallback<Record<string, unknown>>(
           'codigo_municipio_ibge',
           ibge,
@@ -69,6 +69,7 @@
         if (!archived) {
           throw new Error(
             "PNCP indisponível e arquivo histórico sem registro para este identificador.",
+            { cause: pncpErr },
           );
         }
         const contracts = archived.rows.map(archivedRowToContract);

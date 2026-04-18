@@ -44,6 +44,11 @@ Feature: Search Hero
     When the user submits the search form
     Then the browser should navigate to "/baliza/contratacao?id=12345678000195-1-000001-1"
 
+  Scenario: Submitting a slash-separated PNCP contract ID also navigates
+    Given the user types "12345678000195-1-000001/2024" into the search box
+    When the user submits the search form
+    Then the browser should navigate to "/baliza/contratacao?id=12345678000195-1-000001/2024"
+
   Scenario: Free text triggers a PNCP search and renders results listbox
     Given the PNCP search API returns two results for "hospital"
     When the user types "hospital" into the search box

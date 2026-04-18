@@ -26,14 +26,15 @@
   const digitsOnly = $derived(cleanQuery.replace(/\D/g, ''));
   const isCnpj   = $derived(/^\d{14}$/.test(digitsOnly) && /^\d{14}$/.test(cleanQuery));
   const isIbge   = $derived(/^\d{7}$/.test(cleanQuery));
-  const isPncpId = $derived(/^\d{14}-\d+-\d{6}-\d+$/.test(cleanQuery));
   const isPncpIdLoose = $derived(/\d{14}[-/]\d+[-/]\d{6}[-/]\d+/.test(cleanQuery));
   const hasPattern = $derived(isCnpj || isIbge || isPncpIdLoose);
 
   function navigateFor(value: string): string | null {
     if (/^\d{14}$/.test(value)) return `/baliza/orgao?cnpj=${value}`;
     if (/^\d{7}$/.test(value))  return `/baliza/municipio?ibge=${value}`;
-    if (/^\d{14}-\d+-\d{6}-\d+$/.test(value)) return `/baliza/contratacao?id=${value}`;
+    // Accept both separators used in the wild — PNCP URLs canonically use
+    // "<cnpj>-<seq>-<ano>/<num>" but the textual ID form uses hyphens only.
+    if (/^\d{14}[-/]\d+[-/]\d{6}[-/]\d+$/.test(value)) return `/baliza/contratacao?id=${value}`;
     return null;
   }
 
