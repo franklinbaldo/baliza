@@ -18,14 +18,17 @@ export async function queryParquetFallback<T = Record<string, unknown>>(
   column: string,
   value: string,
   limit = 10,
+  orderByColumn?: string,
 ): Promise<ParquetFallback<T> | null> {
   if (!SAFE_IDENT.test(column)) return null;
+  if (orderByColumn !== undefined && !SAFE_IDENT.test(orderByColumn)) return null;
   const info = await getLatestParquetInfo();
   if (!info) return null;
   const safeUrl = escapeSqlLiteral(info.url);
   const safeValue = escapeSqlLiteral(value);
   const safeLimit = Math.max(1, Math.min(200, Math.floor(limit)));
-  const sql = `SELECT * FROM read_parquet('${safeUrl}') WHERE ${column} = '${safeValue}' LIMIT ${safeLimit}`;
+  const orderBy = orderByColumn ? ` ORDER BY ${orderByColumn} DESC NULLS LAST` : '';
+  const sql = `SELECT * FROM read_parquet('${safeUrl}') WHERE ${column} = '${safeValue}'${orderBy} LIMIT ${safeLimit}`;
   try {
     const { conn } = await getDuckDB();
     const res = await conn.query(sql);
