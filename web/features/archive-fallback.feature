@@ -26,6 +26,17 @@ Feature: Archive fallback hardening
     When queryArchivedTable is called for "contratos" filtered by "cnpj_orgao"
     Then the result should be a failure with reason "sql_error"
 
+  Scenario: Manifest 503 then 200 recovers via one retry
+    Given the IA manifest endpoint returns 503 on the first call and 200 on the second
+    When queryArchivedTable is called for "contratos" filtered by "cnpj_orgao"
+    Then the manifest endpoint should have been fetched twice
+    And the result should succeed
+
+  Scenario: Manifest 404 is terminal and does not retry
+    Given the IA manifest endpoint returns 404
+    When queryArchivedTable is called for "contratos" filtered by "cnpj_orgao"
+    Then the manifest endpoint should have been fetched once
+
   Scenario: SQL exceeding the timeout yields reason "timeout"
     Given the IA manifest resolves to a parquet url
     And DuckDB query never resolves
