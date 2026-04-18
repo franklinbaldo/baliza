@@ -2,6 +2,7 @@
   import { onDestroy } from 'svelte';
   import { PROJECT_MISSION, SEARCH_HINTS } from '../lib/homepage-content';
   import { isPncpId, parsePncpId } from '../lib/pncpId';
+  import { normalizeSearchInput } from '../lib/normalizeSearchInput';
   import EmptyState from './EmptyState.svelte';
   import AlertBanner from './AlertBanner.svelte';
 
@@ -23,7 +24,7 @@
   }
 
   let query = $state('');
-  const cleanQuery = $derived(query.trim());
+  const cleanQuery = $derived(normalizeSearchInput(query));
   const digitsOnly = $derived(cleanQuery.replace(/\D/g, ''));
   const isCnpj     = $derived(/^\d{14}$/.test(digitsOnly) && /^\d{14}$/.test(cleanQuery));
   const isIbge     = $derived(/^\d{7}$/.test(cleanQuery));
@@ -104,9 +105,9 @@
   });
 
   function handleInput(e: Event) {
-    const term = (e.target as HTMLInputElement).value.trim();
-    query = (e.target as HTMLInputElement).value;
-    scheduleSearch(term);
+    const raw = (e.target as HTMLInputElement).value;
+    query = raw;
+    scheduleSearch(normalizeSearchInput(raw));
   }
 
   function handleSubmit(e: Event) {

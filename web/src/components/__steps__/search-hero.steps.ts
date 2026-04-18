@@ -48,6 +48,25 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     });
   });
 
+  Scenario('CNPJ pasted with a trailing zero-width space still matches', ({ Given, Then, And }) => {
+    Given('the user pastes "12345678000195" with a trailing zero-width space', async () => {
+      render(SearchHero);
+      await tick();
+      // U+200B is a zero-width space — invisible to users but a non-whitespace
+      // character that String#trim does not remove.
+      await typeInSearch('12345678000195\u200B');
+    });
+
+    Then('I should see "Explorar Órgão" as a jump suggestion', async () => {
+      await waitFor(() => expect(screen.getByText(/Explorar Órgão/)).toBeTruthy());
+    });
+
+    And('the link should point to "/baliza/orgao?cnpj=12345678000195"', () => {
+      const link = screen.getByRole('link', { name: /Explorar Órgão/ });
+      expect(link.getAttribute('href')).toBe('/baliza/orgao?cnpj=12345678000195');
+    });
+  });
+
   Scenario('Detect IBGE code and show correct jump link', ({ Given, Then, And }) => {
     Given('the user types "3550308" into the search box', async () => {
       render(SearchHero);
