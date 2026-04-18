@@ -272,4 +272,41 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       );
     });
   });
+
+  Scenario('Contract view accepts slash-separated PNCP IDs and reaches the fallback', ({ Given, And, When, Then }) => {
+    const slashId = '00000000000191-1-000001/2024';
+    const slashRow = { ...ARCHIVED_CONTRACT_ROW, numero_controle_pncp: slashId };
+
+    Given('the PNCP API is unavailable for id "00000000000191-1-000001/2024"', () => {
+      global.fetch = vi.fn().mockResolvedValue(new Response('boom', { status: 503 }));
+    });
+
+    And('the Parquet fallback returns one row for id "00000000000191-1-000001/2024"', () => {
+      fallbackMock.mockResolvedValue({
+        rows: [slashRow],
+        dataParticao: '2024-12-01',
+      });
+    });
+
+    When('the contract detail view mounts for id "00000000000191-1-000001/2024"', async () => {
+      setUrlQuery(`id=${encodeURIComponent(slashId)}`);
+      render(ContractDetailView);
+      await tick();
+    });
+
+    Then('I should see an info banner about PNCP indisponível', async () => {
+      await waitFor(
+        () => {
+          const alert = screen.getByRole('alert');
+          expect(alert.textContent).toMatch(/PNCP indisponível/i);
+        },
+        { timeout: 2000 },
+      );
+    });
+
+    And('I should see the archived contract objeto', () => {
+      const matches = screen.getAllByText(/Aquisição arquivada – contratação/);
+      expect(matches.length).toBeGreaterThan(0);
+    });
+  });
 });
