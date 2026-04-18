@@ -45,6 +45,27 @@ Feature: Detail view Parquet fallback
     When the contract detail view mounts for id "00000000000191-1-000001/2024"
     Then I should see an error banner about arquivo histórico
 
+  Scenario: Agency view falls through to Parquet when PNCP returns malformed JSON
+    Given the PNCP API returns malformed JSON for cnpj "00000000000191"
+    And the Parquet fallback returns one contract row for cnpj "00000000000191"
+    When the agency detail view mounts for cnpj "00000000000191"
+    Then I should see an info banner about PNCP indisponível
+    And I should see the archived contract from the Parquet snapshot
+
+  Scenario: City view falls through to Parquet when PNCP returns malformed JSON
+    Given the PNCP API returns malformed JSON for ibge "3550308"
+    And the Parquet fallback returns one contract row for ibge "3550308"
+    When the city detail view mounts for ibge "3550308"
+    Then I should see an info banner about PNCP indisponível
+    And I should see the archived contract from the Parquet snapshot
+
+  Scenario: Contract view falls through to Parquet when PNCP returns malformed JSON
+    Given the PNCP API returns malformed JSON for id "00000000000191-1-000001/2024"
+    And the Parquet fallback returns one row for id "00000000000191-1-000001/2024"
+    When the contract detail view mounts for id "00000000000191-1-000001/2024"
+    Then I should see an info banner about PNCP indisponível
+    And I should see the archived contract objeto
+
   Scenario: Agency fallback uses the exported cnpj_orgao column and orders by recency
     Given the PNCP API is unavailable for cnpj "00000000000191"
     When the agency detail view mounts for cnpj "00000000000191"

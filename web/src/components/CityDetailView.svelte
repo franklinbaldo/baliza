@@ -4,6 +4,7 @@
   import { QUERY_KEYS } from '../lib/queryKeys';
   import type { PNCPContract } from '../lib/types';
   import { queryParquetFallback, archiveErrorMessage, prefetchArchive } from '../lib/parquetFallback';
+  import { parsePncpPublicacaoList } from '../lib/pncp';
   import type { ArchivedContrato } from '../lib/archive/schema';
   import EntityNotFound from './EntityNotFound.svelte';
   import AlertBanner from './AlertBanner.svelte';
@@ -60,8 +61,7 @@
       try {
         const res = await fetch(url);
         if (!res.ok) throw new Error("Município não localizado ou sem publicações no PNCP.");
-        const json = await res.json();
-        const contracts = (json.data || []) as PNCPContract[];
+        const contracts = parsePncpPublicacaoList(await res.json());
         const cityName = contracts[0]?.municipio?.nomeMunicipio || contracts[0]?.unidadeOrgao?.municipioNome || "Município";
         const uf = contracts[0]?.unidadeOrgao?.ufSigla || "";
         return { name: cityName, uf, ibge, contracts };

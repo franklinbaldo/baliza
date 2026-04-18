@@ -4,6 +4,7 @@
   import { QUERY_KEYS } from '../lib/queryKeys';
   import type { PNCPContract } from '../lib/types';
   import { queryParquetFallback, archiveErrorMessage, prefetchArchive } from '../lib/parquetFallback';
+  import { parsePncpPublicacaoList } from '../lib/pncp';
   import type { ArchivedContrato } from '../lib/archive/schema';
   import EntityNotFound from './EntityNotFound.svelte';
   import AlertBanner from './AlertBanner.svelte';
@@ -55,8 +56,7 @@
       try {
         const res = await fetch(url);
         if (!res.ok) throw new Error("Órgão não localizado ou sem publicações no PNCP.");
-        const pncpData = (await res.json()) as { data: PNCPContract[] };
-        const contracts = pncpData.data || [];
+        const contracts = parsePncpPublicacaoList(await res.json());
         const agencyName = contracts[0]?.orgaoEntidade?.razaoSocial || "Órgão Público";
         return { name: agencyName, cnpj, contracts };
       } catch (pncpErr) {

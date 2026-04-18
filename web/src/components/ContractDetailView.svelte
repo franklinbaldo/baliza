@@ -4,6 +4,7 @@
   import { QUERY_KEYS } from '../lib/queryKeys';
   import type { PNCPContract } from '../lib/types';
   import { queryParquetFallback, archiveErrorMessage, prefetchArchive } from '../lib/parquetFallback';
+  import { parsePncpContract } from '../lib/pncp';
   import type { ArchivedContrato } from '../lib/archive/schema';
   import { parsePncpId, PNCP_ID_EXAMPLE } from '../lib/pncpId';
   import EntityNotFound from './EntityNotFound.svelte';
@@ -60,7 +61,7 @@
       try {
         const res = await fetch(url);
         if (!res.ok) throw new Error("Contratação não localizada no PNCP.");
-        return (await res.json()) as ContractView;
+        return parsePncpContract(await res.json()) as ContractView;
       } catch (pncpErr) {
         const archived = await queryParquetFallback(
           'numero_controle_pncp',
