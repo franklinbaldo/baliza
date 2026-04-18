@@ -54,12 +54,20 @@ export function archiveErrorMessage(reason: ArchiveFailureReason): string {
   }
 }
 
-function logFallback(
+function logFallbackServed(
   table: ArchivedTable,
   column: string,
-  outcome: 'ok' | ArchiveFailureReason,
+  rowCount: number,
 ): void {
-  console.info('[archive] fallback engaged', { table, column, reason: outcome });
+  console.info('[archive] fallback served', { table, column, rowCount });
+}
+
+function logFallbackFailed(
+  table: ArchivedTable,
+  column: string,
+  reason: ArchiveFailureReason,
+): void {
+  console.info('[archive] fallback failed', { table, column, reason });
 }
 
 // Warm the manifest lookup and DuckDB runtime in parallel so that when a
@@ -79,22 +87,22 @@ export async function queryArchivedTable<K extends ArchivedTable>(
   opts: QueryArchivedOpts = {},
 ): Promise<ArchiveResult<ArchivedTableRowMap[K]>> {
   if (!isArchivedTable(table)) {
-    logFallback(table as ArchivedTable, column, 'sql_error');
+    logFallbackFailed(table as ArchivedTable, column, 'sql_error');
     return { ok: false, reason: 'sql_error' };
   }
   if (!SAFE_IDENT.test(column)) {
-    logFallback(table, column, 'sql_error');
+    logFallbackFailed(table, column, 'sql_error');
     return { ok: false, reason: 'sql_error' };
   }
   const { limit = 10, orderByColumn, timeoutMs = DEFAULT_QUERY_TIMEOUT_MS } = opts;
   if (orderByColumn !== undefined && !SAFE_IDENT.test(orderByColumn)) {
-    logFallback(table, column, 'sql_error');
+    logFallbackFailed(table, column, 'sql_error');
     return { ok: false, reason: 'sql_error' };
   }
 
   const info = await getLatestParquetInfo(table);
   if (!info) {
-    logFallback(table, column, 'no_manifest');
+    logFallbackFailed(table, column, 'no_manifest');
     return { ok: false, reason: 'no_manifest' };
   }
 
@@ -102,7 +110,7 @@ export async function queryArchivedTable<K extends ArchivedTable>(
   try {
     ({ conn } = await getDuckDB());
   } catch {
-    logFallback(table, column, 'duckdb_init_failed');
+    logFallbackFailed(table, column, 'duckdb_init_failed');
     return { ok: false, reason: 'duckdb_init_failed' };
   }
 
@@ -124,7 +132,7 @@ export async function queryArchivedTable<K extends ArchivedTable>(
   try {
     const raced = await Promise.race([conn.query(sql), timeoutPromise]);
     if (raced === '__timeout__') {
-      logFallback(table, column, 'timeout');
+      logFallbackFailed(table, column, 'timeout');
       return { ok: false, reason: 'timeout' };
     }
     const rows = raced.toArray().map((r: unknown) => {
@@ -132,17 +140,17 @@ export async function queryArchivedTable<K extends ArchivedTable>(
       return (typeof anyRow.toJSON === 'function' ? anyRow.toJSON() : r) as ArchivedTableRowMap[K];
     });
     if (rows.length === 0) {
-      logFallback(table, column, 'empty');
+      logFallbackFailed(table, column, 'empty');
       return { ok: false, reason: 'empty' };
     }
-    logFallback(table, column, 'ok');
+    logFallbackServed(table, column, rows.length);
     return { ok: true, rows, dataParticao: info.dataParticao };
   } catch {
     if (controller.signal.aborted) {
-      logFallback(table, column, 'timeout');
+      logFallbackFailed(table, column, 'timeout');
       return { ok: false, reason: 'timeout' };
     }
-    logFallback(table, column, 'sql_error');
+    logFallbackFailed(table, column, 'sql_error');
     return { ok: false, reason: 'sql_error' };
   } finally {
     if (timeoutHandle !== null) clearTimeout(timeoutHandle);
