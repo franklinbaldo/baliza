@@ -162,6 +162,54 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     });
   });
 
+  Scenario('Manifest 503 then 200 recovers via one retry', ({ Given, When, Then, And }) => {
+    Given(
+      'the IA manifest endpoint returns 503 on the first call and 200 on the second',
+      () => {
+        let call = 0;
+        queryMock.mockResolvedValue({
+          toArray: () => [{ toJSON: () => ({ numero_controle_pncp: 'x' }) }],
+        });
+        const fn = vi.fn().mockImplementation(() => {
+          call += 1;
+          if (call === 1) {
+            return Promise.resolve(new Response('', { status: 503 }));
+          }
+          return Promise.resolve(
+            new Response(manifestCsvAllTables(), {
+              status: 200,
+              headers: { 'Content-Type': 'text/csv' },
+            }),
+          );
+        });
+        fetchSpy = fn;
+        global.fetch = fn as unknown as typeof fetch;
+      },
+    );
+    When('queryArchivedTable is called for "contratos" filtered by "cnpj_orgao"', async () => {
+      result = await callArchive('contratos', 'cnpj_orgao');
+    });
+    Then('the manifest endpoint should have been fetched twice', () => {
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
+    And('the result should succeed', () => {
+      expect(result?.ok).toBe(true);
+    });
+  });
+
+  Scenario('Manifest 404 is terminal and does not retry', ({ Given, When, Then }) => {
+    Given('the IA manifest endpoint returns 404', () => {
+      fetchSpy = installManifestFetch(404, '');
+    });
+    When('queryArchivedTable is called for "contratos" filtered by "cnpj_orgao"', async () => {
+      result = await callArchive('contratos', 'cnpj_orgao');
+    });
+    Then('the manifest endpoint should have been fetched once', () => {
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(result).toEqual({ ok: false, reason: 'no_manifest' });
+    });
+  });
+
   Scenario('SQL exceeding the timeout yields reason "timeout"', ({ Given, And, When, Then }) => {
     Given('the IA manifest resolves to a parquet url', () => {
       installManifestFetch(200, manifestCsvAllTables());

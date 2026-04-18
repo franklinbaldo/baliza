@@ -21,9 +21,25 @@ export function resetIaManifestCache() {
   cachedByTable.clear();
 }
 
+const MANIFEST_RETRY_BACKOFF_MS = 500;
+
+// One retry on network errors or 5xx. 4xx (including 404) is terminal and
+// returns [] so the archive layer can surface a `no_manifest` reason.
+async function fetchManifestOnce(): Promise<Response | null> {
+  try {
+    return await fetch(IA_MANIFEST_URL);
+  } catch {
+    return null;
+  }
+}
+
 async function fetchManifestRows(): Promise<ManifestRow[]> {
-  const res = await fetch(IA_MANIFEST_URL);
-  if (!res.ok) return [];
+  let res = await fetchManifestOnce();
+  if (res === null || res.status >= 500) {
+    await new Promise((r) => setTimeout(r, MANIFEST_RETRY_BACKOFF_MS));
+    res = await fetchManifestOnce();
+  }
+  if (!res || !res.ok) return [];
   const parsed = Papa.parse<ManifestRow>(await res.text(), {
     header: true,
     skipEmptyLines: true,
