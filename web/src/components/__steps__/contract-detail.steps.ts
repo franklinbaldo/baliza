@@ -215,4 +215,32 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       expect(link?.getAttribute('rel')).toMatch(/noopener/);
     });
   });
+
+  Scenario('Slash-form id uses the year segment when calling PNCP', ({ Given, And, When, Then }) => {
+    Given('the URL has id "00000000000191-1-000001/2024"', () => {
+      setUrlQuery('id=00000000000191-1-000001%2F2024');
+    });
+
+    And('the PNCP API returns a valid contract payload', () => {
+      global.fetch = vi.fn().mockImplementation(async () =>
+        new Response(JSON.stringify(RICH_PAYLOAD), { status: 200 }),
+      );
+    });
+
+    When('the contract detail view mounts', async () => {
+      render(ContractDetailView);
+      await tick();
+    });
+
+    Then('the PNCP consulta URL should contain "/contratacoes/2024/000001"', async () => {
+      await waitFor(
+        () => {
+          const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
+          const calls = fetchMock.mock.calls.map((args: unknown[]) => String(args[0]));
+          expect(calls.some((u: string) => u.includes('/contratacoes/2024/000001'))).toBe(true);
+        },
+        { timeout: 2000 },
+      );
+    });
+  });
 });

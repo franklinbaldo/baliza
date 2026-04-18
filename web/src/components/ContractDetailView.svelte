@@ -54,8 +54,8 @@
       const parts = id.split(/[-/]/);
       if (parts.length < 4) throw new Error("ID de contrato inválido. Formato esperado: CNPJ-ANO-SEQ-TIPO.");
       const cnpj = parts[0];
-      const ano = parts[1];
       const sequencial = parts[2];
+      const ano = parts[3];
       const url = `https://pncp.gov.br/api/consulta/v1/orgaos/${cnpj}/contratacoes/${ano}/${sequencial}`;
       try {
         const res = await fetch(url);

@@ -36,3 +36,9 @@ Feature: Contract Detail View
     And I should see a link to the agency page with cnpj "00000000000191"
     And I should see a link to the municipality page with ibge "3550308"
     And I should see an external link to the origin system
+
+  Scenario: Slash-form id uses the year segment when calling PNCP
+    Given the URL has id "00000000000191-1-000001/2024"
+    And the PNCP API returns a valid contract payload
+    When the contract detail view mounts
+    Then the PNCP consulta URL should contain "/contratacoes/2024/000001"
