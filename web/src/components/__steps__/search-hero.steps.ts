@@ -185,6 +185,27 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     });
   });
 
+  Scenario('Submitting a slash-separated PNCP contract ID also navigates', ({ Given, When, Then }) => {
+    let assign: ReturnType<typeof vi.fn>;
+
+    Given('the user types "12345678000195-1-000001/2024" into the search box', async () => {
+      assign = stubLocationAssign();
+      render(SearchHero);
+      await tick();
+      await typeInSearch('12345678000195-1-000001/2024');
+    });
+
+    When('the user submits the search form', async () => {
+      const form = document.querySelector('form.search-form') as HTMLFormElement;
+      await fireEvent.submit(form);
+      await tick();
+    });
+
+    Then('the browser should navigate to "/baliza/contratacao?id=12345678000195-1-000001/2024"', () => {
+      expect(assign).toHaveBeenCalledWith('/baliza/contratacao?id=12345678000195-1-000001/2024');
+    });
+  });
+
   Scenario('Free text triggers a PNCP search and renders results listbox', ({ Given, When, Then, And }) => {
     Given('the PNCP search API returns two results for "hospital"', () => {
       const payload = {
