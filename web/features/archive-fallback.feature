@@ -26,6 +26,19 @@ Feature: Archive fallback hardening
     When queryArchivedTable is called for "contratos" filtered by "cnpj_orgao"
     Then the result should be a failure with reason "sql_error"
 
+  Scenario: Served queries log "[archive] fallback served" with rowCount
+    Given the IA manifest resolves to a parquet url
+    And DuckDB returns two rows
+    When queryArchivedTable is called for "contratos" filtered by "cnpj_orgao"
+    Then console.info should log "[archive] fallback served" with rowCount 2
+    And console.info should not log "[archive] fallback failed"
+
+  Scenario: Failed queries log "[archive] fallback failed" with reason
+    Given the IA manifest resolves to a parquet url
+    And DuckDB returns no rows
+    When queryArchivedTable is called for "contratos" filtered by "cnpj_orgao"
+    Then console.info should log "[archive] fallback failed" with reason "empty"
+
   Scenario: Manifest 503 then 200 recovers via one retry
     Given the IA manifest endpoint returns 503 on the first call and 200 on the second
     When queryArchivedTable is called for "contratos" filtered by "cnpj_orgao"
