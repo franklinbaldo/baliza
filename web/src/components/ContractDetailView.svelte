@@ -51,7 +51,7 @@
     queryKey: QUERY_KEYS.contratacao(id),
     queryFn: async (): Promise<ContractView | null> => {
       if (!id) return null;
-      const parts = id.split("-");
+      const parts = id.split(/[-/]/);
       if (parts.length < 4) throw new Error("ID de contrato inválido. Formato esperado: CNPJ-ANO-SEQ-TIPO.");
       const cnpj = parts[0];
       const ano = parts[1];
