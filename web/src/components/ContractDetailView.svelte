@@ -4,6 +4,7 @@
   import { QUERY_KEYS } from '../lib/queryKeys';
   import type { PNCPContract } from '../lib/types';
   import { queryParquetFallback } from '../lib/parquetFallback';
+  import { parsePncpId, PNCP_ID_EXAMPLE } from '../lib/pncpId';
   import EntityNotFound from './EntityNotFound.svelte';
   import AlertBanner from './AlertBanner.svelte';
 
@@ -17,6 +18,7 @@
         ? new URLSearchParams(window.location.search).get('id') ?? ''
         : ''),
   );
+  const parsedId = $derived(id ? parsePncpId(id) : null);
 
   interface ContractView extends PNCPContract {
     archived?: { dataParticao: string | null };
@@ -47,12 +49,8 @@
   const contractQuery = createQuery(() => ({
     queryKey: QUERY_KEYS.contratacao(id),
     queryFn: async (): Promise<ContractView | null> => {
-      if (!id) return null;
-      const parts = id.split(/[-/]/);
-      if (parts.length < 4) throw new Error("ID de contrato inválido. Formato esperado: CNPJ-ANO-SEQ-TIPO.");
-      const cnpj = parts[0];
-      const sequencial = parts[2];
-      const ano = parts[3];
+      if (!parsedId) return null;
+      const { cnpj, sequencial, ano } = parsedId;
       const url = `https://pncp.gov.br/api/consulta/v1/orgaos/${cnpj}/contratacoes/${ano}/${sequencial}`;
       try {
         const res = await fetch(url);
@@ -75,7 +73,7 @@
         return view;
       }
     },
-    enabled: !!id,
+    enabled: !!parsedId,
   }));
 
   const data = $derived(contractQuery.data);
@@ -97,6 +95,12 @@
 <div class="contract-view container">
   {#if !id}
     <EntityNotFound id="ausente" type="contratação" />
+  {:else if !parsedId}
+    <EntityNotFound
+      id={id}
+      type="contratação"
+      error={`ID fora do padrão PNCP. Formato esperado: ${PNCP_ID_EXAMPLE}.`}
+    />
   {:else if loading}
     <div class="skeleton-wrap" aria-busy="true" aria-label="Carregando contratação">
       <div class="skeleton skeleton-title"></div>

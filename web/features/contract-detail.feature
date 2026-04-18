@@ -7,19 +7,19 @@ Feature: Contract Detail View
     Then I should see "CONTRATAÇÃO não encontrada"
 
   Scenario: Fetch pending shows skeleton
-    Given the URL has id "00000000000191-1-000001-1"
+    Given the URL has id "00000000000191-1-000001/2024"
     And the fetch is pending
     When the contract detail view mounts
     Then I should see an aria-busy element
 
   Scenario: Fetch error shows AlertBanner
-    Given the URL has id "00000000000191-1-000001-1"
+    Given the URL has id "00000000000191-1-000001/2024"
     And the fetch throws "Contratação não localizada"
     When the contract detail view mounts
     Then I should see an alert banner with the error message
 
   Scenario: Successful fetch renders all detail blocks
-    Given the URL has id "00000000000191-1-000001-1"
+    Given the URL has id "00000000000191-1-000001/2024"
     And the PNCP API returns a valid contract payload
     When the contract detail view mounts
     Then I should see the "Detalhes da Contratação" block
@@ -29,7 +29,7 @@ Feature: Contract Detail View
     And I should see the "Fontes e Metadados" block
 
   Scenario: Successful fetch renders formatted currency and links
-    Given the URL has id "00000000000191-1-000001-1"
+    Given the URL has id "00000000000191-1-000001/2024"
     And the PNCP API returns a valid contract payload
     When the contract detail view mounts
     Then I should see the BRL-formatted valor "R$ 1.500,00"

@@ -16,6 +16,18 @@ Feature: Search Hero
     Given the user types "12345678000195-1-000001/2024" into the search box
     Then I should see "Ver Contratação" as a jump suggestion
 
+  Scenario: Reject PNCP ID with missing year segment
+    Given the user types "12345678000195-1-000001" into the search box
+    Then I should not see any jump suggestion
+
+  Scenario: Reject PNCP ID with 3-digit year
+    Given the user types "12345678000195-1-000001/202" into the search box
+    Then I should not see any jump suggestion
+
+  Scenario: Reject hyphen-only PNCP ID
+    Given the user types "12345678000195-1-000001-1" into the search box
+    Then I should not see any jump suggestion
+
   Scenario: Short query shows no jump suggestion
     Given the user types "ab" into the search box
     Then I should not see any jump suggestion
@@ -39,12 +51,7 @@ Feature: Search Hero
     When the user submits the search form
     Then the browser should navigate to "/baliza/municipio?ibge=3550308"
 
-  Scenario: Submitting a PNCP contract ID navigates to the contract page
-    Given the user types "12345678000195-1-000001-1" into the search box
-    When the user submits the search form
-    Then the browser should navigate to "/baliza/contratacao?id=12345678000195-1-000001-1"
-
-  Scenario: Submitting a slash-separated PNCP contract ID also navigates
+  Scenario: Submitting a canonical PNCP contract ID navigates to the contract page
     Given the user types "12345678000195-1-000001/2024" into the search box
     When the user submits the search form
     Then the browser should navigate to "/baliza/contratacao?id=12345678000195-1-000001/2024"

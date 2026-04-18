@@ -26,6 +26,6 @@ Feature: Agency Detail View
 
   Scenario: Contracts render as links
     Given the URL has cnpj "00000000000191"
-    And the PNCP API returns a contract with id "00000000000191-1-000001-1"
+    And the PNCP API returns a contract with id "00000000000191-1-000001/2024"
     When the agency detail view mounts
     Then I should see a link to that contract

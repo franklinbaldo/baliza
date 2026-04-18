@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import { PROJECT_MISSION, SEARCH_HINTS } from '../lib/homepage-content';
+  import { isPncpId, parsePncpId } from '../lib/pncpId';
   import EmptyState from './EmptyState.svelte';
   import AlertBanner from './AlertBanner.svelte';
 
@@ -24,17 +25,15 @@
   let query = $state('');
   const cleanQuery = $derived(query.trim());
   const digitsOnly = $derived(cleanQuery.replace(/\D/g, ''));
-  const isCnpj   = $derived(/^\d{14}$/.test(digitsOnly) && /^\d{14}$/.test(cleanQuery));
-  const isIbge   = $derived(/^\d{7}$/.test(cleanQuery));
-  const isPncpIdLoose = $derived(/\d{14}[-/]\d+[-/]\d{6}[-/]\d+/.test(cleanQuery));
-  const hasPattern = $derived(isCnpj || isIbge || isPncpIdLoose);
+  const isCnpj     = $derived(/^\d{14}$/.test(digitsOnly) && /^\d{14}$/.test(cleanQuery));
+  const isIbge     = $derived(/^\d{7}$/.test(cleanQuery));
+  const isContract = $derived(isPncpId(cleanQuery));
+  const hasPattern = $derived(isCnpj || isIbge || isContract);
 
   function navigateFor(value: string): string | null {
     if (/^\d{14}$/.test(value)) return `/baliza/orgao?cnpj=${value}`;
     if (/^\d{7}$/.test(value))  return `/baliza/municipio?ibge=${value}`;
-    // Accept both separators used in the wild — PNCP URLs canonically use
-    // "<cnpj>-<seq>-<ano>/<num>" but the textual ID form uses hyphens only.
-    if (/^\d{14}[-/]\d+[-/]\d{6}[-/]\d+$/.test(value)) return `/baliza/contratacao?id=${value}`;
+    if (parsePncpId(value))     return `/baliza/contratacao?id=${value}`;
     return null;
   }
 
@@ -84,11 +83,7 @@
   }
 
   function isShapeMatch(term: string) {
-    return (
-      /^\d{14}$/.test(term) ||
-      /^\d{7}$/.test(term) ||
-      /\d{14}[-/]\d+[-/]\d{6}[-/]\d+/.test(term)
-    );
+    return /^\d{14}$/.test(term) || /^\d{7}$/.test(term) || isPncpId(term);
   }
 
   function scheduleSearch(term: string) {
@@ -174,7 +169,7 @@
             <a href={`/baliza/municipio?ibge=${cleanQuery}`} class="jump-link">
               Explorar Município <span class="badge badge-sm badge-info">{cleanQuery}</span>
             </a>
-          {:else if isPncpIdLoose}
+          {:else if isContract}
             <a href={`/baliza/contratacao?id=${cleanQuery}`} class="jump-link">
               Ver Contratação <span class="badge badge-sm badge-info">#{cleanQuery}</span>
             </a>

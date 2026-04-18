@@ -33,24 +33,17 @@ Feature: Detail view Parquet fallback
     Then I should see an error banner about arquivo histórico
 
   Scenario: Contract view falls back to Parquet when PNCP fails
-    Given the PNCP API is unavailable for id "00000000000191-1-000001-1"
-    And the Parquet fallback returns one row for id "00000000000191-1-000001-1"
-    When the contract detail view mounts for id "00000000000191-1-000001-1"
-    Then I should see an info banner about PNCP indisponível
-    And I should see the archived contract objeto
-
-  Scenario: Contract view shows combined error when both fail
-    Given the PNCP API is unavailable for id "00000000000191-1-000001-1"
-    And the Parquet fallback returns no rows for id "00000000000191-1-000001-1"
-    When the contract detail view mounts for id "00000000000191-1-000001-1"
-    Then I should see an error banner about arquivo histórico
-
-  Scenario: Contract view accepts slash-separated PNCP IDs and reaches the fallback
     Given the PNCP API is unavailable for id "00000000000191-1-000001/2024"
     And the Parquet fallback returns one row for id "00000000000191-1-000001/2024"
     When the contract detail view mounts for id "00000000000191-1-000001/2024"
     Then I should see an info banner about PNCP indisponível
     And I should see the archived contract objeto
+
+  Scenario: Contract view shows combined error when both fail
+    Given the PNCP API is unavailable for id "00000000000191-1-000001/2024"
+    And the Parquet fallback returns no rows for id "00000000000191-1-000001/2024"
+    When the contract detail view mounts for id "00000000000191-1-000001/2024"
+    Then I should see an error banner about arquivo histórico
 
   Scenario: Agency fallback uses the exported cnpj_orgao column and orders by recency
     Given the PNCP API is unavailable for cnpj "00000000000191"

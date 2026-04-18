@@ -13,7 +13,7 @@ function setUrlQuery(qs: string) {
 }
 
 const RICH_PAYLOAD = {
-  numeroControlePNCP: '00000000000191-1-000001-1',
+  numeroControlePNCP: '00000000000191-1-000001/2024',
   dataPublicacaoPncp: '2025-01-15T00:00:00',
   dataAberturaProposta: '2025-01-20T09:00:00',
   dataEncerramentoProposta: '2025-02-05T17:00:00',
@@ -78,8 +78,8 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   });
 
   Scenario('Fetch pending shows skeleton', ({ Given, And, When, Then }) => {
-    Given('the URL has id "00000000000191-1-000001-1"', () => {
-      setUrlQuery('id=00000000000191-1-000001-1');
+    Given('the URL has id "00000000000191-1-000001/2024"', () => {
+      setUrlQuery('id=00000000000191-1-000001/2024');
     });
 
     And('the fetch is pending', () => {
@@ -99,8 +99,8 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   });
 
   Scenario('Fetch error shows AlertBanner', ({ Given, And, When, Then }) => {
-    Given('the URL has id "00000000000191-1-000001-1"', () => {
-      setUrlQuery('id=00000000000191-1-000001-1');
+    Given('the URL has id "00000000000191-1-000001/2024"', () => {
+      setUrlQuery('id=00000000000191-1-000001/2024');
     });
 
     And('the fetch throws "Contratação não localizada"', () => {
@@ -126,8 +126,8 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   });
 
   Scenario('Successful fetch renders all detail blocks', ({ Given, And, When, Then }) => {
-    Given('the URL has id "00000000000191-1-000001-1"', () => {
-      setUrlQuery('id=00000000000191-1-000001-1');
+    Given('the URL has id "00000000000191-1-000001/2024"', () => {
+      setUrlQuery('id=00000000000191-1-000001/2024');
     });
 
     And('the PNCP API returns a valid contract payload', () => {
@@ -166,8 +166,8 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   });
 
   Scenario('Successful fetch renders formatted currency and links', ({ Given, And, When, Then }) => {
-    Given('the URL has id "00000000000191-1-000001-1"', () => {
-      setUrlQuery('id=00000000000191-1-000001-1');
+    Given('the URL has id "00000000000191-1-000001/2024"', () => {
+      setUrlQuery('id=00000000000191-1-000001/2024');
     });
 
     And('the PNCP API returns a valid contract payload', () => {
