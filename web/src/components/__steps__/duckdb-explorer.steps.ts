@@ -201,4 +201,59 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       );
     },
   );
+
+  Scenario(
+    'Active query is backfilled when IA URL resolves after a chip click',
+    ({ Given, When, And, Then }) => {
+      const resolvedUrl =
+        'https://archive.org/download/baliza-pncp-2025-01/contratos-2025-01.parquet';
+      let resolveManifest: (url: string | null) => void = () => {};
+
+      Given(
+        'the IA manifest is slow to resolve to "https://archive.org/download/baliza-pncp-2025-01/contratos-2025-01.parquet"',
+        () => {
+          vi.spyOn(iaManifestModule, 'getLatestParquetUrl').mockImplementation(
+            () =>
+              new Promise<string | null>((resolve) => {
+                resolveManifest = resolve;
+              }),
+          );
+        },
+      );
+
+      When('the explorer mounts', async () => {
+        render(DuckDBExplorer);
+        await tick();
+      });
+
+      And(
+        'the user clicks a featured query chip before the manifest resolves',
+        async () => {
+          const fq = FEATURED_QUERIES.find((q) => q.sql.includes("'IA_URL'"));
+          if (!fq) throw new Error('No featured query contains IA_URL');
+          await fireEvent.click(screen.getByText(fq.label));
+          await tick();
+          expect(getTextarea().value).toContain("'IA_URL'");
+        },
+      );
+
+      And('the manifest finishes resolving', async () => {
+        resolveManifest(resolvedUrl);
+        await tick();
+        await tick();
+      });
+
+      Then('the SQL textarea should contain the resolved parquet URL', async () => {
+        await waitFor(() => {
+          expect(getTextarea().value).toContain(resolvedUrl);
+          expect(getTextarea().value).not.toContain('IA_URL');
+        });
+      });
+
+      And('the explore button should be enabled', () => {
+        const btn = screen.getByText('Explorar Dados') as HTMLButtonElement;
+        expect(btn.disabled).toBe(false);
+      });
+    },
+  );
 });

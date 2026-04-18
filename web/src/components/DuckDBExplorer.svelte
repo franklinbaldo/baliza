@@ -29,6 +29,15 @@
     resolvedParquetUrl = await getLatestParquetUrl();
   });
 
+  $effect(() => {
+    if (resolvedParquetUrl && query.includes("'IA_URL'")) {
+      query = query.replaceAll(
+        "'IA_URL'",
+        `'${resolvedParquetUrl.replace(/'/g, "''")}'`,
+      );
+    }
+  });
+
   async function runQuery() {
     loading = true;
     error = null;
