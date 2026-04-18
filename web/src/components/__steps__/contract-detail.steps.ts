@@ -118,7 +118,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       await waitFor(
         () => {
           const alert = screen.getByRole('alert');
-          expect(alert.textContent).toMatch(/Contratação não localizada/);
+          expect(alert.textContent).toMatch(/PNCP indisponível/);
         },
         { timeout: 2000 },
       );

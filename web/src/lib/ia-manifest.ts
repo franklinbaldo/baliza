@@ -9,13 +9,18 @@ interface ManifestRow {
   parquet_url?: string;
 }
 
-let cached: Promise<string | null> | null = null;
+export interface ParquetInfo {
+  url: string;
+  dataParticao: string | null;
+}
+
+let cached: Promise<ParquetInfo | null> | null = null;
 
 export function resetIaManifestCache() {
   cached = null;
 }
 
-export async function getLatestParquetUrl(): Promise<string | null> {
+export async function getLatestParquetInfo(): Promise<ParquetInfo | null> {
   if (cached) return cached;
   cached = (async () => {
     try {
@@ -32,7 +37,10 @@ export async function getLatestParquetUrl(): Promise<string | null> {
       rows.sort((a, b) =>
         (b.data_particao ?? '').localeCompare(a.data_particao ?? ''),
       );
-      return rows[0].parquet_url ?? null;
+      const top = rows[0];
+      return top.parquet_url
+        ? { url: top.parquet_url, dataParticao: top.data_particao ?? null }
+        : null;
     } catch {
       return null;
     }
@@ -40,4 +48,9 @@ export async function getLatestParquetUrl(): Promise<string | null> {
   const result = await cached;
   if (result === null) cached = null;
   return result;
+}
+
+export async function getLatestParquetUrl(): Promise<string | null> {
+  const info = await getLatestParquetInfo();
+  return info?.url ?? null;
 }

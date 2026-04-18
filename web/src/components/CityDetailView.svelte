@@ -2,6 +2,8 @@
   import { createQuery, setQueryClientContext } from '@tanstack/svelte-query';
   import { getQueryClient } from '../lib/queryClient';
   import { QUERY_KEYS } from '../lib/queryKeys';
+  import type { PNCPContract } from '../lib/types';
+  import { queryParquetFallback } from '../lib/parquetFallback';
   import EntityNotFound from './EntityNotFound.svelte';
   import AlertBanner from './AlertBanner.svelte';
   import EmptyState from './EmptyState.svelte';
@@ -18,18 +20,69 @@
         : ''),
   );
 
+  interface CityView {
+    name: string;
+    uf: string;
+    ibge: string;
+    contracts: PNCPContract[];
+    archived?: { dataParticao: string | null };
+  }
+
+  function archivedRowToContract(row: Record<string, unknown>): PNCPContract {
+    return {
+      numeroControlePNCP: String(row.numero_controle_pncp ?? ''),
+      dataPublicacaoPncp: String(row.data_publicacao_pncp ?? ''),
+      objetoContratacao: String(row.objeto_contratacao ?? row.objeto_compra ?? ''),
+      valorTotalEstimado: Number(row.valor_total_estimado ?? 0),
+      orgaoEntidade: {
+        razaoSocial: String(row.orgao_razao_social ?? ''),
+        cnpj: String(row.orgao_cnpj ?? ''),
+      },
+      unidadeOrgao: {
+        nomeUnidade: String(row.unidade_nome_unidade ?? ''),
+        municipioNome: String(row.municipio_nome ?? ''),
+        ufSigla: String(row.uf_sigla ?? ''),
+        codigoMunicipioIbge: String(row.codigo_municipio_ibge ?? ''),
+      },
+    };
+  }
+
   const cityQuery = createQuery(() => ({
     queryKey: QUERY_KEYS.municipio(ibge),
-    queryFn: async () => {
+    queryFn: async (): Promise<CityView | null> => {
       if (!ibge) return null;
       const url = `https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?codigoMunicipioIbge=${ibge}&tamanhoPagina=10`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("Município não localizado ou sem publicações no PNCP.");
-      const json = await res.json();
-      const contracts = json.data || [];
-      const cityName = contracts[0]?.municipio?.nome || "Município";
-      const uf = contracts[0]?.municipio?.uf || "";
-      return { name: cityName, uf, ibge, contracts };
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Município não localizado ou sem publicações no PNCP.");
+        const json = await res.json();
+        const contracts = (json.data || []) as PNCPContract[];
+        const cityName = contracts[0]?.municipio?.nomeMunicipio || contracts[0]?.unidadeOrgao?.municipioNome || "Município";
+        const uf = contracts[0]?.unidadeOrgao?.ufSigla || "";
+        return { name: cityName, uf, ibge, contracts };
+      } catch {
+        const archived = await queryParquetFallback<Record<string, unknown>>(
+          'codigo_municipio_ibge',
+          ibge,
+          10,
+        );
+        if (!archived) {
+          throw new Error(
+            "PNCP indisponível e arquivo histórico sem registro para este identificador.",
+          );
+        }
+        const contracts = archived.rows.map(archivedRowToContract);
+        const first = archived.rows[0] as Record<string, unknown> | undefined;
+        const cityName = String(first?.municipio_nome ?? 'Município');
+        const uf = String(first?.uf_sigla ?? '');
+        return {
+          name: cityName,
+          uf,
+          ibge,
+          contracts,
+          archived: { dataParticao: archived.dataParticao },
+        };
+      }
     },
     enabled: !!ibge,
   }));
@@ -59,12 +112,19 @@
       </div>
     </div>
   {:else if data}
+    {#if data.archived}
+      <AlertBanner
+        title="Dados arquivados"
+        message={`PNCP indisponível — exibindo dados arquivados (última consolidação: ${data.archived.dataParticao ?? 'desconhecida'}).`}
+        level="info"
+      />
+    {/if}
     <header class="hub-header">
       <span class="type-badge">🏙️ MUNICÍPIO</span>
       <h1>{data.name} / {data.uf}</h1>
       <div class="meta-row">
         <span>Cód. IBGE: {data.ibge}</span>
-        <span>Fonte: PNCP V1</span>
+        <span>Fonte: {data.archived ? 'Arquivo Parquet (IA)' : 'PNCP V1'}</span>
       </div>
     </header>
 

@@ -3,6 +3,7 @@
   import { getQueryClient } from '../lib/queryClient';
   import { QUERY_KEYS } from '../lib/queryKeys';
   import type { PNCPContract } from '../lib/types';
+  import { queryParquetFallback } from '../lib/parquetFallback';
   import EntityNotFound from './EntityNotFound.svelte';
   import AlertBanner from './AlertBanner.svelte';
   import EmptyState from './EmptyState.svelte';
@@ -18,17 +19,61 @@
         : ''),
   );
 
+  interface AgencyView {
+    name: string;
+    cnpj: string;
+    contracts: PNCPContract[];
+    archived?: { dataParticao: string | null };
+  }
+
+  function archivedRowToContract(row: Record<string, unknown>): PNCPContract {
+    return {
+      numeroControlePNCP: String(row.numero_controle_pncp ?? ''),
+      dataPublicacaoPncp: String(row.data_publicacao_pncp ?? ''),
+      objetoContratacao: String(row.objeto_contratacao ?? row.objeto_compra ?? ''),
+      valorTotalEstimado: Number(row.valor_total_estimado ?? 0),
+      orgaoEntidade: {
+        razaoSocial: String(row.orgao_razao_social ?? 'Órgão Arquivado'),
+        cnpj: String(row.orgao_cnpj ?? ''),
+      },
+      unidadeOrgao: {
+        nomeUnidade: String(row.unidade_nome_unidade ?? ''),
+      },
+    };
+  }
+
   const agencyQuery = createQuery(() => ({
     queryKey: QUERY_KEYS.orgao(cnpj),
-    queryFn: async () => {
+    queryFn: async (): Promise<AgencyView | null> => {
       if (!cnpj) return null;
       const url = `https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?cnpjOrgao=${cnpj}&tamanhoPagina=10`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("Órgão não localizado ou sem publicações no PNCP.");
-      const pncpData = (await res.json()) as { data: PNCPContract[] };
-      const contracts = pncpData.data || [];
-      const agencyName = contracts[0]?.orgaoEntidade?.razaoSocial || "Órgão Público";
-      return { name: agencyName, cnpj, contracts };
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Órgão não localizado ou sem publicações no PNCP.");
+        const pncpData = (await res.json()) as { data: PNCPContract[] };
+        const contracts = pncpData.data || [];
+        const agencyName = contracts[0]?.orgaoEntidade?.razaoSocial || "Órgão Público";
+        return { name: agencyName, cnpj, contracts };
+      } catch (pncpErr) {
+        const archived = await queryParquetFallback<Record<string, unknown>>(
+          'orgao_cnpj',
+          cnpj,
+          10,
+        );
+        if (!archived) {
+          throw new Error(
+            "PNCP indisponível e arquivo histórico sem registro para este identificador.",
+          );
+        }
+        const contracts = archived.rows.map(archivedRowToContract);
+        const agencyName = contracts[0]?.orgaoEntidade?.razaoSocial || "Órgão Arquivado";
+        return {
+          name: agencyName,
+          cnpj,
+          contracts,
+          archived: { dataParticao: archived.dataParticao },
+        };
+      }
     },
     enabled: !!cnpj,
   }));
@@ -57,12 +102,19 @@
       </div>
     </div>
   {:else if data}
+    {#if data.archived}
+      <AlertBanner
+        title="Dados arquivados"
+        message={`PNCP indisponível — exibindo dados arquivados (última consolidação: ${data.archived.dataParticao ?? 'desconhecida'}).`}
+        level="info"
+      />
+    {/if}
     <header class="hub-header">
       <span class="type-badge">🏛️ ÓRGÃO / ENTIDADE</span>
       <h1>{data.name}</h1>
       <div class="meta-row">
         <span>CNPJ: {data.cnpj}</span>
-        <span>Fonte: PNCP V1</span>
+        <span>Fonte: {data.archived ? 'Arquivo Parquet (IA)' : 'PNCP V1'}</span>
       </div>
     </header>
 

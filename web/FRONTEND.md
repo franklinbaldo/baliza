@@ -72,3 +72,21 @@ All components must use scoped `<style>` blocks referencing global CSS variables
 
 - **Do not** write inline `style="..."` with hardcoded values.
 - **Do not** duplicate hex codes.
+
+---
+
+## PNCP API boundaries
+
+Two distinct PNCP surfaces are consumed by the client:
+
+- **Consulta API** (`https://pncp.gov.br/api/consulta/v1/...`) — the structured
+  endpoints for agency / city / contract detail reads. These do **not** accept a
+  free-text keyword parameter.
+- **Portal search** (`https://pncp.gov.br/api/search?q=<term>&tipos_documento=edital&pagina=1`)
+  — the keyword-backed index used by the public portal's own search bar; used
+  by `SearchHero` for free-text queries and returns `{ items, total }`.
+
+When any consulta read fails, detail views fall back to the latest Internet
+Archive Parquet snapshot via `queryParquetFallback()`. Column identifiers are
+validated against `^[A-Za-z_][A-Za-z0-9_]*$` and every literal is escaped with
+the `'` → `''` pattern before it is embedded in the SQL string.
