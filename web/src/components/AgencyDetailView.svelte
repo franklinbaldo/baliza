@@ -3,7 +3,7 @@
   import { getQueryClient } from '../lib/queryClient';
   import { QUERY_KEYS } from '../lib/queryKeys';
   import type { PNCPContract } from '../lib/types';
-  import { queryParquetFallback, archiveErrorMessage } from '../lib/parquetFallback';
+  import { queryParquetFallback, archiveErrorMessage, prefetchArchive } from '../lib/parquetFallback';
   import type { ArchivedContrato } from '../lib/archive/schema';
   import EntityNotFound from './EntityNotFound.svelte';
   import AlertBanner from './AlertBanner.svelte';
@@ -19,6 +19,10 @@
         ? new URLSearchParams(window.location.search).get('cnpj') ?? ''
         : ''),
   );
+
+  $effect(() => {
+    if (cnpj) prefetchArchive('contratos');
+  });
 
   interface AgencyView {
     name: string;
