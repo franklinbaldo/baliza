@@ -35,3 +35,11 @@ Feature: DuckDB SQL Explorer
     When the explorer mounts
     And the user clicks a featured query chip
     Then the SQL textarea should contain the URL with doubled single quotes
+
+  Scenario: Active query is backfilled when IA URL resolves after a chip click
+    Given the IA manifest is slow to resolve to "https://archive.org/download/baliza-pncp-2025-01/contratos-2025-01.parquet"
+    When the explorer mounts
+    And the user clicks a featured query chip before the manifest resolves
+    And the manifest finishes resolving
+    Then the SQL textarea should contain the resolved parquet URL
+    And the explore button should be enabled
