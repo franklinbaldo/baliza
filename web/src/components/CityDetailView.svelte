@@ -3,7 +3,8 @@
   import { getQueryClient } from '../lib/queryClient';
   import { QUERY_KEYS } from '../lib/queryKeys';
   import type { PNCPContract } from '../lib/types';
-  import { queryParquetFallback } from '../lib/parquetFallback';
+  import { queryParquetFallback, archiveErrorMessage } from '../lib/parquetFallback';
+  import type { ArchivedContrato } from '../lib/archive/schema';
   import EntityNotFound from './EntityNotFound.svelte';
   import AlertBanner from './AlertBanner.svelte';
   import EmptyState from './EmptyState.svelte';
@@ -28,21 +29,21 @@
     archived?: { dataParticao: string | null };
   }
 
-  function archivedRowToContract(row: Record<string, unknown>): PNCPContract {
+  function archivedRowToContract(row: ArchivedContrato): PNCPContract {
     return {
-      numeroControlePNCP: String(row.numero_controle_pncp ?? ''),
-      dataPublicacaoPncp: String(row.data_publicacao_pncp ?? ''),
-      objetoContratacao: String(row.objeto_contrato ?? ''),
-      valorTotalEstimado: Number(row.valor_global ?? row.valor_inicial ?? 0),
+      numeroControlePNCP: row.numero_controle_pncp ?? '',
+      dataPublicacaoPncp: row.data_publicacao_pncp ?? '',
+      objetoContratacao: row.objeto_contrato ?? '',
+      valorTotalEstimado: row.valor_global ?? row.valor_inicial ?? 0,
       orgaoEntidade: {
-        razaoSocial: String(row.razao_social_orgao ?? ''),
-        cnpj: String(row.cnpj_orgao ?? ''),
+        razaoSocial: row.razao_social_orgao ?? '',
+        cnpj: row.cnpj_orgao ?? '',
       },
       unidadeOrgao: {
-        nomeUnidade: String(row.nome_unidade ?? ''),
-        municipioNome: String(row.municipio_nome ?? ''),
-        ufSigla: String(row.uf_sigla ?? ''),
-        codigoMunicipioIbge: String(row.codigo_ibge ?? ''),
+        nomeUnidade: row.nome_unidade ?? '',
+        municipioNome: row.municipio_nome ?? '',
+        ufSigla: row.uf_sigla ?? '',
+        codigoMunicipioIbge: row.codigo_ibge ?? '',
       },
     };
   }
@@ -61,22 +62,19 @@
         const uf = contracts[0]?.unidadeOrgao?.ufSigla || "";
         return { name: cityName, uf, ibge, contracts };
       } catch (pncpErr) {
-        const archived = await queryParquetFallback<Record<string, unknown>>(
+        const archived = await queryParquetFallback(
           'codigo_ibge',
           ibge,
           10,
           'data_publicacao_pncp',
         );
-        if (!archived) {
-          throw new Error(
-            "PNCP indisponível e arquivo histórico sem registro para este identificador.",
-            { cause: pncpErr },
-          );
+        if (!archived.ok) {
+          throw new Error(archiveErrorMessage(archived.reason), { cause: pncpErr });
         }
         const contracts = archived.rows.map(archivedRowToContract);
-        const first = archived.rows[0] as Record<string, unknown> | undefined;
-        const cityName = String(first?.municipio_nome ?? 'Município');
-        const uf = String(first?.uf_sigla ?? '');
+        const first = archived.rows[0];
+        const cityName = first?.municipio_nome ?? 'Município';
+        const uf = first?.uf_sigla ?? '';
         return {
           name: cityName,
           uf,

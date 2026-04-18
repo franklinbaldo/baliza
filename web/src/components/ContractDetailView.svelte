@@ -3,7 +3,8 @@
   import { getQueryClient } from '../lib/queryClient';
   import { QUERY_KEYS } from '../lib/queryKeys';
   import type { PNCPContract } from '../lib/types';
-  import { queryParquetFallback } from '../lib/parquetFallback';
+  import { queryParquetFallback, archiveErrorMessage } from '../lib/parquetFallback';
+  import type { ArchivedContrato } from '../lib/archive/schema';
   import { parsePncpId, PNCP_ID_EXAMPLE } from '../lib/pncpId';
   import EntityNotFound from './EntityNotFound.svelte';
   import AlertBanner from './AlertBanner.svelte';
@@ -24,24 +25,24 @@
     archived?: { dataParticao: string | null };
   }
 
-  function archivedRowToContract(row: Record<string, unknown>, id: string): ContractView {
+  function archivedRowToContract(row: ArchivedContrato, id: string): ContractView {
     return {
-      numeroControlePNCP: String(row.numero_controle_pncp ?? id),
-      dataPublicacaoPncp: String(row.data_publicacao_pncp ?? ''),
-      objetoContratacao: String(row.objeto_contrato ?? ''),
-      valorTotalEstimado: Number(row.valor_global ?? row.valor_inicial ?? 0),
-      modalidadeNome: row.modalidade_nome ? String(row.modalidade_nome) : undefined,
-      linkSistemaOrigem: row.link_sistema_origem ? String(row.link_sistema_origem) : undefined,
-      usuarioNome: row.usuario_nome ? String(row.usuario_nome) : undefined,
+      numeroControlePNCP: row.numero_controle_pncp ?? id,
+      dataPublicacaoPncp: row.data_publicacao_pncp ?? '',
+      objetoContratacao: row.objeto_contrato ?? '',
+      valorTotalEstimado: row.valor_global ?? row.valor_inicial ?? 0,
+      modalidadeNome: row.modalidade_nome ?? undefined,
+      linkSistemaOrigem: row.link_sistema_origem ?? undefined,
+      usuarioNome: row.usuario_nome ?? undefined,
       orgaoEntidade: {
-        razaoSocial: String(row.razao_social_orgao ?? ''),
-        cnpj: String(row.cnpj_orgao ?? ''),
+        razaoSocial: row.razao_social_orgao ?? '',
+        cnpj: row.cnpj_orgao ?? '',
       },
       unidadeOrgao: {
-        nomeUnidade: String(row.nome_unidade ?? ''),
-        municipioNome: row.municipio_nome ? String(row.municipio_nome) : undefined,
-        ufSigla: row.uf_sigla ? String(row.uf_sigla) : undefined,
-        codigoMunicipioIbge: row.codigo_ibge ? String(row.codigo_ibge) : undefined,
+        nomeUnidade: row.nome_unidade ?? '',
+        municipioNome: row.municipio_nome ?? undefined,
+        ufSigla: row.uf_sigla ?? undefined,
+        codigoMunicipioIbge: row.codigo_ibge ?? undefined,
       },
     };
   }
@@ -57,16 +58,13 @@
         if (!res.ok) throw new Error("Contratação não localizada no PNCP.");
         return (await res.json()) as ContractView;
       } catch (pncpErr) {
-        const archived = await queryParquetFallback<Record<string, unknown>>(
+        const archived = await queryParquetFallback(
           'numero_controle_pncp',
           id,
           1,
         );
-        if (!archived || archived.rows.length === 0) {
-          throw new Error(
-            "PNCP indisponível e arquivo histórico sem registro para este identificador.",
-            { cause: pncpErr },
-          );
+        if (!archived.ok) {
+          throw new Error(archiveErrorMessage(archived.reason), { cause: pncpErr });
         }
         const view = archivedRowToContract(archived.rows[0], id);
         view.archived = { dataParticao: archived.dataParticao };
