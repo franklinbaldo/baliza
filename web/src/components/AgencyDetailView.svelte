@@ -3,7 +3,8 @@
   import { getQueryClient } from '../lib/queryClient';
   import { QUERY_KEYS } from '../lib/queryKeys';
   import type { PNCPContract } from '../lib/types';
-  import { queryParquetFallback } from '../lib/parquetFallback';
+  import { queryParquetFallback, archiveErrorMessage } from '../lib/parquetFallback';
+  import type { ArchivedContrato } from '../lib/archive/schema';
   import EntityNotFound from './EntityNotFound.svelte';
   import AlertBanner from './AlertBanner.svelte';
   import EmptyState from './EmptyState.svelte';
@@ -26,18 +27,18 @@
     archived?: { dataParticao: string | null };
   }
 
-  function archivedRowToContract(row: Record<string, unknown>): PNCPContract {
+  function archivedRowToContract(row: ArchivedContrato): PNCPContract {
     return {
-      numeroControlePNCP: String(row.numero_controle_pncp ?? ''),
-      dataPublicacaoPncp: String(row.data_publicacao_pncp ?? ''),
-      objetoContratacao: String(row.objeto_contrato ?? ''),
-      valorTotalEstimado: Number(row.valor_global ?? row.valor_inicial ?? 0),
+      numeroControlePNCP: row.numero_controle_pncp ?? '',
+      dataPublicacaoPncp: row.data_publicacao_pncp ?? '',
+      objetoContratacao: row.objeto_contrato ?? '',
+      valorTotalEstimado: row.valor_global ?? row.valor_inicial ?? 0,
       orgaoEntidade: {
-        razaoSocial: String(row.razao_social_orgao ?? 'Órgão Arquivado'),
-        cnpj: String(row.cnpj_orgao ?? ''),
+        razaoSocial: row.razao_social_orgao ?? 'Órgão Arquivado',
+        cnpj: row.cnpj_orgao ?? '',
       },
       unidadeOrgao: {
-        nomeUnidade: String(row.nome_unidade ?? ''),
+        nomeUnidade: row.nome_unidade ?? '',
       },
     };
   }
@@ -55,17 +56,14 @@
         const agencyName = contracts[0]?.orgaoEntidade?.razaoSocial || "Órgão Público";
         return { name: agencyName, cnpj, contracts };
       } catch (pncpErr) {
-        const archived = await queryParquetFallback<Record<string, unknown>>(
+        const archived = await queryParquetFallback(
           'cnpj_orgao',
           cnpj,
           10,
           'data_publicacao_pncp',
         );
-        if (!archived) {
-          throw new Error(
-            "PNCP indisponível e arquivo histórico sem registro para este identificador.",
-            { cause: pncpErr },
-          );
+        if (!archived.ok) {
+          throw new Error(archiveErrorMessage(archived.reason), { cause: pncpErr });
         }
         const contracts = archived.rows.map(archivedRowToContract);
         const agencyName = contracts[0]?.orgaoEntidade?.razaoSocial || "Órgão Arquivado";

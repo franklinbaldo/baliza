@@ -54,7 +54,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     cleanup();
     vi.restoreAllMocks();
     fallbackMock.mockReset();
-    fallbackMock.mockResolvedValue(null);
+    fallbackMock.mockResolvedValue({ ok: false, reason: 'empty' });
     setUrlQuery('');
   });
 
@@ -65,6 +65,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
 
     And('the Parquet fallback returns one contract row for cnpj "00000000000191"', () => {
       fallbackMock.mockResolvedValue({
+        ok: true,
         rows: [ARCHIVED_AGENCY_ROW],
         dataParticao: '2024-12-01',
       });
@@ -97,7 +98,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     });
 
     And('the Parquet fallback returns no rows for cnpj "00000000000191"', () => {
-      fallbackMock.mockResolvedValue(null);
+      fallbackMock.mockResolvedValue({ ok: false, reason: 'empty' });
     });
 
     When('the agency detail view mounts for cnpj "00000000000191"', async () => {
@@ -160,6 +161,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
 
     And('the Parquet fallback returns one contract row for ibge "3550308"', () => {
       fallbackMock.mockResolvedValue({
+        ok: true,
         rows: [ARCHIVED_CITY_ROW],
         dataParticao: '2024-12-01',
       });
@@ -192,7 +194,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     });
 
     And('the Parquet fallback returns no rows for ibge "3550308"', () => {
-      fallbackMock.mockResolvedValue(null);
+      fallbackMock.mockResolvedValue({ ok: false, reason: 'empty' });
     });
 
     When('the city detail view mounts for ibge "3550308"', async () => {
@@ -219,6 +221,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
 
     And('the Parquet fallback returns one row for id "00000000000191-1-000001/2024"', () => {
       fallbackMock.mockResolvedValue({
+        ok: true,
         rows: [ARCHIVED_CONTRACT_ROW],
         dataParticao: '2024-12-01',
       });
@@ -252,7 +255,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     });
 
     And('the Parquet fallback returns no rows for id "00000000000191-1-000001/2024"', () => {
-      fallbackMock.mockResolvedValue(null);
+      fallbackMock.mockResolvedValue({ ok: false, reason: 'empty' });
     });
 
     When('the contract detail view mounts for id "00000000000191-1-000001/2024"', async () => {

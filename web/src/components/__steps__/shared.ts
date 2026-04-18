@@ -25,9 +25,15 @@ vi.mock('../../lib/ia-manifest', () => ({
   IA_MANIFEST_URL: 'https://archive.org/download/baliza-pncp-manifest/manifest.csv',
 }));
 
-vi.mock('../../lib/parquetFallback', () => ({
-  queryParquetFallback: vi.fn().mockResolvedValue(null),
-}));
+vi.mock('../../lib/parquetFallback', async () => {
+  const actual = await vi.importActual<typeof import('../../lib/parquetFallback')>(
+    '../../lib/parquetFallback',
+  );
+  return {
+    ...actual,
+    queryParquetFallback: vi.fn().mockResolvedValue({ ok: false, reason: 'empty' }),
+  };
+});
 
 export function render(
   component: Parameters<typeof tlRender>[0],
