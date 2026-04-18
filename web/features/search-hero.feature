@@ -7,6 +7,11 @@ Feature: Search Hero
     Then I should see "Explorar Órgão" as a jump suggestion
     And the link should point to "/baliza/orgao?cnpj=12345678000195"
 
+  Scenario: CNPJ pasted with a trailing zero-width space still matches
+    Given the user pastes "12345678000195" with a trailing zero-width space
+    Then I should see "Explorar Órgão" as a jump suggestion
+    And the link should point to "/baliza/orgao?cnpj=12345678000195"
+
   Scenario: Detect IBGE code and show correct jump link
     Given the user types "3550308" into the search box
     Then I should see "Explorar Município" as a jump suggestion
