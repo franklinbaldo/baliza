@@ -164,28 +164,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     });
   });
 
-  Scenario('Submitting a PNCP contract ID navigates to the contract page', ({ Given, When, Then }) => {
-    let assign: ReturnType<typeof vi.fn>;
-
-    Given('the user types "12345678000195-1-000001-1" into the search box', async () => {
-      assign = stubLocationAssign();
-      render(SearchHero);
-      await tick();
-      await typeInSearch('12345678000195-1-000001-1');
-    });
-
-    When('the user submits the search form', async () => {
-      const form = document.querySelector('form.search-form') as HTMLFormElement;
-      await fireEvent.submit(form);
-      await tick();
-    });
-
-    Then('the browser should navigate to "/baliza/contratacao?id=12345678000195-1-000001-1"', () => {
-      expect(assign).toHaveBeenCalledWith('/baliza/contratacao?id=12345678000195-1-000001-1');
-    });
-  });
-
-  Scenario('Submitting a slash-separated PNCP contract ID also navigates', ({ Given, When, Then }) => {
+  Scenario('Submitting a canonical PNCP contract ID navigates to the contract page', ({ Given, When, Then }) => {
     let assign: ReturnType<typeof vi.fn>;
 
     Given('the user types "12345678000195-1-000001/2024" into the search box', async () => {
@@ -203,6 +182,42 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
 
     Then('the browser should navigate to "/baliza/contratacao?id=12345678000195-1-000001/2024"', () => {
       expect(assign).toHaveBeenCalledWith('/baliza/contratacao?id=12345678000195-1-000001/2024');
+    });
+  });
+
+  Scenario('Reject PNCP ID with missing year segment', ({ Given, Then }) => {
+    Given('the user types "12345678000195-1-000001" into the search box', async () => {
+      render(SearchHero);
+      await tick();
+      await typeInSearch('12345678000195-1-000001');
+    });
+
+    Then('I should not see any jump suggestion', () => {
+      expect(screen.queryByText(/Ver Contratação/)).toBeNull();
+    });
+  });
+
+  Scenario('Reject PNCP ID with 3-digit year', ({ Given, Then }) => {
+    Given('the user types "12345678000195-1-000001/202" into the search box', async () => {
+      render(SearchHero);
+      await tick();
+      await typeInSearch('12345678000195-1-000001/202');
+    });
+
+    Then('I should not see any jump suggestion', () => {
+      expect(screen.queryByText(/Ver Contratação/)).toBeNull();
+    });
+  });
+
+  Scenario('Reject hyphen-only PNCP ID', ({ Given, Then }) => {
+    Given('the user types "12345678000195-1-000001-1" into the search box', async () => {
+      render(SearchHero);
+      await tick();
+      await typeInSearch('12345678000195-1-000001-1');
+    });
+
+    Then('I should not see any jump suggestion', () => {
+      expect(screen.queryByText(/Ver Contratação/)).toBeNull();
     });
   });
 

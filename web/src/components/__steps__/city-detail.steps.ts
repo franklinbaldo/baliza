@@ -122,7 +122,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
           JSON.stringify({
             data: [
               {
-                numeroControlePNCP: '99999999999999-1-000001-1',
+                numeroControlePNCP: '99999999999999-1-000001/2024',
                 dataPublicacaoPncp: '2025-01-15T00:00:00',
                 objetoContratacao: 'Teste',
                 valorTotalEstimado: 500,

@@ -117,14 +117,14 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     });
 
     And(
-      'the PNCP API returns a contract with id "00000000000191-1-000001-1"',
+      'the PNCP API returns a contract with id "00000000000191-1-000001/2024"',
       () => {
         global.fetch = vi.fn().mockResolvedValue(
           new Response(
             JSON.stringify({
               data: [
                 {
-                  numeroControlePNCP: '00000000000191-1-000001-1',
+                  numeroControlePNCP: '00000000000191-1-000001/2024',
                   dataPublicacaoPncp: '2025-01-15T00:00:00',
                   objetoContratacao: 'Aquisição de materiais de teste',
                   valorTotalEstimado: 1000,
@@ -151,7 +151,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       await waitFor(
         () => {
           const link = document.querySelector(
-            'a[href*="00000000000191-1-000001-1"]',
+            'a[href*="00000000000191-1-000001/2024"]',
           );
           expect(link).toBeTruthy();
         },

@@ -40,7 +40,7 @@ const ARCHIVED_CITY_ROW = {
 };
 
 const ARCHIVED_CONTRACT_ROW = {
-  numero_controle_pncp: '00000000000191-1-000001-1',
+  numero_controle_pncp: '00000000000191-1-000001/2024',
   objeto_contrato: 'Aquisição arquivada – contratação',
   data_publicacao_pncp: '2024-03-01T00:00:00',
   valor_global: 7777,
@@ -213,19 +213,19 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   });
 
   Scenario('Contract view falls back to Parquet when PNCP fails', ({ Given, And, When, Then }) => {
-    Given('the PNCP API is unavailable for id "00000000000191-1-000001-1"', () => {
+    Given('the PNCP API is unavailable for id "00000000000191-1-000001/2024"', () => {
       global.fetch = vi.fn().mockResolvedValue(new Response('boom', { status: 503 }));
     });
 
-    And('the Parquet fallback returns one row for id "00000000000191-1-000001-1"', () => {
+    And('the Parquet fallback returns one row for id "00000000000191-1-000001/2024"', () => {
       fallbackMock.mockResolvedValue({
         rows: [ARCHIVED_CONTRACT_ROW],
         dataParticao: '2024-12-01',
       });
     });
 
-    When('the contract detail view mounts for id "00000000000191-1-000001-1"', async () => {
-      setUrlQuery('id=00000000000191-1-000001-1');
+    When('the contract detail view mounts for id "00000000000191-1-000001/2024"', async () => {
+      setUrlQuery('id=00000000000191-1-000001/2024');
       render(ContractDetailView);
       await tick();
     });
@@ -247,16 +247,16 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   });
 
   Scenario('Contract view shows combined error when both fail', ({ Given, And, When, Then }) => {
-    Given('the PNCP API is unavailable for id "00000000000191-1-000001-1"', () => {
+    Given('the PNCP API is unavailable for id "00000000000191-1-000001/2024"', () => {
       global.fetch = vi.fn().mockResolvedValue(new Response('boom', { status: 503 }));
     });
 
-    And('the Parquet fallback returns no rows for id "00000000000191-1-000001-1"', () => {
+    And('the Parquet fallback returns no rows for id "00000000000191-1-000001/2024"', () => {
       fallbackMock.mockResolvedValue(null);
     });
 
-    When('the contract detail view mounts for id "00000000000191-1-000001-1"', async () => {
-      setUrlQuery('id=00000000000191-1-000001-1');
+    When('the contract detail view mounts for id "00000000000191-1-000001/2024"', async () => {
+      setUrlQuery('id=00000000000191-1-000001/2024');
       render(ContractDetailView);
       await tick();
     });
@@ -318,40 +318,4 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     });
   });
 
-  Scenario('Contract view accepts slash-separated PNCP IDs and reaches the fallback', ({ Given, And, When, Then }) => {
-    const slashId = '00000000000191-1-000001/2024';
-    const slashRow = { ...ARCHIVED_CONTRACT_ROW, numero_controle_pncp: slashId };
-
-    Given('the PNCP API is unavailable for id "00000000000191-1-000001/2024"', () => {
-      global.fetch = vi.fn().mockResolvedValue(new Response('boom', { status: 503 }));
-    });
-
-    And('the Parquet fallback returns one row for id "00000000000191-1-000001/2024"', () => {
-      fallbackMock.mockResolvedValue({
-        rows: [slashRow],
-        dataParticao: '2024-12-01',
-      });
-    });
-
-    When('the contract detail view mounts for id "00000000000191-1-000001/2024"', async () => {
-      setUrlQuery(`id=${encodeURIComponent(slashId)}`);
-      render(ContractDetailView);
-      await tick();
-    });
-
-    Then('I should see an info banner about PNCP indisponível', async () => {
-      await waitFor(
-        () => {
-          const alert = screen.getByRole('alert');
-          expect(alert.textContent).toMatch(/PNCP indisponível/i);
-        },
-        { timeout: 2000 },
-      );
-    });
-
-    And('I should see the archived contract objeto', () => {
-      const matches = screen.getAllByText(/Aquisição arquivada – contratação/);
-      expect(matches.length).toBeGreaterThan(0);
-    });
-  });
 });
