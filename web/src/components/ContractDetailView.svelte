@@ -5,6 +5,7 @@
   import type { PNCPContract } from '../lib/types';
   import { queryParquetFallback, archiveErrorMessage, prefetchArchive } from '../lib/parquetFallback';
   import { parsePncpContract } from '../lib/pncp';
+  import { formatParticao } from '../lib/formatParticao';
   import type { ArchivedContrato } from '../lib/archive/schema';
   import { parsePncpId, PNCP_ID_EXAMPLE } from '../lib/pncpId';
   import EntityNotFound from './EntityNotFound.svelte';
@@ -126,7 +127,7 @@
     {#if data.archived}
       <AlertBanner
         title="Dados arquivados"
-        message={`PNCP indisponível — exibindo dados arquivados (última consolidação: ${data.archived.dataParticao ?? 'desconhecida'}).`}
+        message={`PNCP indisponível — exibindo dados arquivados (última consolidação: ${formatParticao(data.archived.dataParticao)}).`}
         level="info"
       />
     {/if}
