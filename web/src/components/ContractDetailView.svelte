@@ -3,7 +3,7 @@
   import { getQueryClient } from '../lib/queryClient';
   import { QUERY_KEYS } from '../lib/queryKeys';
   import type { PNCPContract } from '../lib/types';
-  import { queryParquetFallback, archiveErrorMessage } from '../lib/parquetFallback';
+  import { queryParquetFallback, archiveErrorMessage, prefetchArchive } from '../lib/parquetFallback';
   import type { ArchivedContrato } from '../lib/archive/schema';
   import { parsePncpId, PNCP_ID_EXAMPLE } from '../lib/pncpId';
   import EntityNotFound from './EntityNotFound.svelte';
@@ -20,6 +20,10 @@
         : ''),
   );
   const parsedId = $derived(id ? parsePncpId(id) : null);
+
+  $effect(() => {
+    if (parsedId) prefetchArchive('contratos');
+  });
 
   interface ContractView extends PNCPContract {
     archived?: { dataParticao: string | null };
