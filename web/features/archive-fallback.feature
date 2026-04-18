@@ -26,6 +26,12 @@ Feature: Archive fallback hardening
     When queryArchivedTable is called for "contratos" filtered by "cnpj_orgao"
     Then the result should be a failure with reason "sql_error"
 
+  Scenario: SQL exceeding the timeout yields reason "timeout"
+    Given the IA manifest resolves to a parquet url
+    And DuckDB query never resolves
+    When queryArchivedTable is called for "contratos" with timeoutMs 10
+    Then the result should be a failure with reason "timeout"
+
   Scenario: Limit above 200 is clamped to 200
     Given the IA manifest resolves to a parquet url
     And DuckDB captures the query text and returns one row

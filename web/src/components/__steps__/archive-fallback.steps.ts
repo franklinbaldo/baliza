@@ -162,6 +162,21 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     });
   });
 
+  Scenario('SQL exceeding the timeout yields reason "timeout"', ({ Given, And, When, Then }) => {
+    Given('the IA manifest resolves to a parquet url', () => {
+      installManifestFetch(200, manifestCsvAllTables());
+    });
+    And('DuckDB query never resolves', () => {
+      queryMock.mockImplementation(() => new Promise(() => {}));
+    });
+    When('queryArchivedTable is called for "contratos" with timeoutMs 10', async () => {
+      result = await callArchive('contratos', 'cnpj_orgao', 'xyz', { timeoutMs: 10 });
+    });
+    Then('the result should be a failure with reason "timeout"', () => {
+      expect(result).toEqual({ ok: false, reason: 'timeout' });
+    });
+  });
+
   Scenario('Limit above 200 is clamped to 200', ({ Given, And, When, Then }) => {
     Given('the IA manifest resolves to a parquet url', () => {
       installManifestFetch(200, manifestCsvAllTables());

@@ -11,6 +11,7 @@ export type ArchiveFailureReason =
   | 'no_manifest'
   | 'duckdb_init_failed'
   | 'sql_error'
+  | 'timeout'
   | 'empty';
 
 export type ArchiveResult<T> =
@@ -20,7 +21,10 @@ export type ArchiveResult<T> =
 export interface QueryArchivedOpts {
   limit?: number;
   orderByColumn?: string;
+  timeoutMs?: number;
 }
+
+const DEFAULT_QUERY_TIMEOUT_MS = 8_000;
 
 // Matches a safe SQL identifier — letters, digits, underscores. Column names
 // still flow through this check; table names are matched against a closed
@@ -43,6 +47,8 @@ export function archiveErrorMessage(reason: ArchiveFailureReason): string {
       return 'Arquivo histórico indisponível — motor de consulta local não inicializou.';
     case 'sql_error':
       return 'Arquivo histórico indisponível — consulta ao parquet falhou.';
+    case 'timeout':
+      return 'Arquivo histórico indisponível — consulta ao parquet excedeu o tempo limite.';
     case 'empty':
       return 'PNCP indisponível e arquivo histórico sem registro para este identificador.';
   }
@@ -80,7 +86,7 @@ export async function queryArchivedTable<K extends ArchivedTable>(
     logFallback(table, column, 'sql_error');
     return { ok: false, reason: 'sql_error' };
   }
-  const { limit = 10, orderByColumn } = opts;
+  const { limit = 10, orderByColumn, timeoutMs = DEFAULT_QUERY_TIMEOUT_MS } = opts;
   if (orderByColumn !== undefined && !SAFE_IDENT.test(orderByColumn)) {
     logFallback(table, column, 'sql_error');
     return { ok: false, reason: 'sql_error' };
@@ -106,9 +112,22 @@ export async function queryArchivedTable<K extends ArchivedTable>(
   const orderBy = orderByColumn ? ` ORDER BY ${orderByColumn} DESC NULLS LAST` : '';
   const sql = `SELECT * FROM read_parquet('${safeUrl}') WHERE ${column} = '${safeValue}'${orderBy} LIMIT ${safeLimit}`;
 
+  const controller = new AbortController();
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<'__timeout__'>((resolve) => {
+    timeoutHandle = setTimeout(() => {
+      controller.abort();
+      resolve('__timeout__');
+    }, Math.max(0, timeoutMs));
+  });
+
   try {
-    const res = await conn.query(sql);
-    const rows = res.toArray().map((r: unknown) => {
+    const raced = await Promise.race([conn.query(sql), timeoutPromise]);
+    if (raced === '__timeout__') {
+      logFallback(table, column, 'timeout');
+      return { ok: false, reason: 'timeout' };
+    }
+    const rows = raced.toArray().map((r: unknown) => {
       const anyRow = r as { toJSON?: () => unknown };
       return (typeof anyRow.toJSON === 'function' ? anyRow.toJSON() : r) as ArchivedTableRowMap[K];
     });
@@ -119,8 +138,14 @@ export async function queryArchivedTable<K extends ArchivedTable>(
     logFallback(table, column, 'ok');
     return { ok: true, rows, dataParticao: info.dataParticao };
   } catch {
+    if (controller.signal.aborted) {
+      logFallback(table, column, 'timeout');
+      return { ok: false, reason: 'timeout' };
+    }
     logFallback(table, column, 'sql_error');
     return { ok: false, reason: 'sql_error' };
+  } finally {
+    if (timeoutHandle !== null) clearTimeout(timeoutHandle);
   }
 }
 
