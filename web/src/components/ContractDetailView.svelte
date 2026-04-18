@@ -3,6 +3,7 @@
   import { getQueryClient } from '../lib/queryClient';
   import { QUERY_KEYS } from '../lib/queryKeys';
   import type { PNCPContract } from '../lib/types';
+  import { queryParquetFallback } from '../lib/parquetFallback';
   import EntityNotFound from './EntityNotFound.svelte';
   import AlertBanner from './AlertBanner.svelte';
 
@@ -17,9 +18,38 @@
         : ''),
   );
 
+  interface ContractView extends PNCPContract {
+    archived?: { dataParticao: string | null };
+  }
+
+  function archivedRowToContract(row: Record<string, unknown>, id: string): ContractView {
+    return {
+      numeroControlePNCP: String(row.numero_controle_pncp ?? id),
+      dataPublicacaoPncp: String(row.data_publicacao_pncp ?? ''),
+      objetoContratacao: String(row.objeto_contratacao ?? row.objeto_compra ?? ''),
+      valorTotalEstimado: Number(row.valor_total_estimado ?? 0),
+      valorTotalHomologado:
+        row.valor_total_homologado != null ? Number(row.valor_total_homologado) : undefined,
+      modalidadeNome: row.modalidade_nome ? String(row.modalidade_nome) : undefined,
+      situacaoNome: row.situacao_nome ? String(row.situacao_nome) : undefined,
+      orgaoEntidade: {
+        razaoSocial: String(row.orgao_razao_social ?? ''),
+        cnpj: String(row.orgao_cnpj ?? ''),
+      },
+      unidadeOrgao: {
+        nomeUnidade: String(row.unidade_nome_unidade ?? ''),
+        municipioNome: row.municipio_nome ? String(row.municipio_nome) : undefined,
+        ufSigla: row.uf_sigla ? String(row.uf_sigla) : undefined,
+        codigoMunicipioIbge: row.codigo_municipio_ibge
+          ? String(row.codigo_municipio_ibge)
+          : undefined,
+      },
+    };
+  }
+
   const contractQuery = createQuery(() => ({
     queryKey: QUERY_KEYS.contratacao(id),
-    queryFn: async () => {
+    queryFn: async (): Promise<ContractView | null> => {
       if (!id) return null;
       const parts = id.split("-");
       if (parts.length < 4) throw new Error("ID de contrato inválido. Formato esperado: CNPJ-ANO-SEQ-TIPO.");
@@ -27,9 +57,25 @@
       const ano = parts[1];
       const sequencial = parts[2];
       const url = `https://pncp.gov.br/api/consulta/v1/orgaos/${cnpj}/contratacoes/${ano}/${sequencial}`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("Contratação não localizada no PNCP.");
-      return (await res.json()) as PNCPContract;
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Contratação não localizada no PNCP.");
+        return (await res.json()) as ContractView;
+      } catch (pncpErr) {
+        const archived = await queryParquetFallback<Record<string, unknown>>(
+          'numero_controle_pncp',
+          id,
+          1,
+        );
+        if (!archived || archived.rows.length === 0) {
+          throw new Error(
+            "PNCP indisponível e arquivo histórico sem registro para este identificador.",
+          );
+        }
+        const view = archivedRowToContract(archived.rows[0], id);
+        view.archived = { dataParticao: archived.dataParticao };
+        return view;
+      }
     },
     enabled: !!id,
   }));
@@ -72,6 +118,13 @@
       </div>
     </div>
   {:else if data}
+    {#if data.archived}
+      <AlertBanner
+        title="Dados arquivados"
+        message={`PNCP indisponível — exibindo dados arquivados (última consolidação: ${data.archived.dataParticao ?? 'desconhecida'}).`}
+        level="info"
+      />
+    {/if}
     <header class="hub-header">
       <span class="type-badge">📄 CONTRATAÇÃO PÚBLICA</span>
       <h1>{data.objetoContratacao}</h1>

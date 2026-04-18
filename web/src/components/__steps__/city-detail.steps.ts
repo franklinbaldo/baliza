@@ -77,7 +77,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       await waitFor(
         () => {
           const alert = screen.getByRole('alert');
-          expect(alert.textContent).toMatch(/Município não localizado/);
+          expect(alert.textContent).toMatch(/PNCP indisponível/);
         },
         { timeout: 2000 },
       );

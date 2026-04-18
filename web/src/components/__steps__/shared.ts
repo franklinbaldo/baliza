@@ -20,8 +20,13 @@ vi.mock('../../lib/duckdb', () => ({
 
 vi.mock('../../lib/ia-manifest', () => ({
   getLatestParquetUrl: vi.fn().mockResolvedValue(null),
+  getLatestParquetInfo: vi.fn().mockResolvedValue(null),
   resetIaManifestCache: vi.fn(),
   IA_MANIFEST_URL: 'https://archive.org/download/baliza-pncp-manifest/manifest.csv',
+}));
+
+vi.mock('../../lib/parquetFallback', () => ({
+  queryParquetFallback: vi.fn().mockResolvedValue(null),
 }));
 
 export function render(
