@@ -51,3 +51,13 @@ Feature: Detail view Parquet fallback
     When the contract detail view mounts for id "00000000000191-1-000001/2024"
     Then I should see an info banner about PNCP indisponível
     And I should see the archived contract objeto
+
+  Scenario: Agency fallback uses the exported cnpj_orgao column and orders by recency
+    Given the PNCP API is unavailable for cnpj "00000000000191"
+    When the agency detail view mounts for cnpj "00000000000191"
+    Then the Parquet fallback should be called with column "cnpj_orgao" ordered by "data_publicacao_pncp"
+
+  Scenario: City fallback uses the exported codigo_ibge column and orders by recency
+    Given the PNCP API is unavailable for ibge "3550308"
+    When the city detail view mounts for ibge "3550308"
+    Then the Parquet fallback should be called with column "codigo_ibge" ordered by "data_publicacao_pncp"

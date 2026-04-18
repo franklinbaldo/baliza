@@ -22,32 +22,31 @@ function setUrlQuery(qs: string) {
 
 const ARCHIVED_AGENCY_ROW = {
   numero_controle_pncp: '00000000000191-1-000001/2024',
-  objeto_contratacao: 'Aquisição arquivada – órgão',
+  objeto_contrato: 'Aquisição arquivada – órgão',
   data_publicacao_pncp: '2024-01-15T00:00:00',
-  valor_total_estimado: 9999,
-  orgao_cnpj: '00000000000191',
-  orgao_razao_social: 'Órgão Arquivado',
+  valor_global: 9999,
+  cnpj_orgao: '00000000000191',
+  razao_social_orgao: 'Órgão Arquivado',
 };
 
 const ARCHIVED_CITY_ROW = {
   numero_controle_pncp: '00000000000191-1-000002/2024',
-  objeto_contratacao: 'Aquisição arquivada – município',
+  objeto_contrato: 'Aquisição arquivada – município',
   data_publicacao_pncp: '2024-02-20T00:00:00',
-  valor_total_estimado: 5555,
+  valor_global: 5555,
   municipio_nome: 'São Paulo',
   uf_sigla: 'SP',
-  codigo_municipio_ibge: '3550308',
+  codigo_ibge: '3550308',
 };
 
 const ARCHIVED_CONTRACT_ROW = {
   numero_controle_pncp: '00000000000191-1-000001-1',
-  objeto_contratacao: 'Aquisição arquivada – contratação',
+  objeto_contrato: 'Aquisição arquivada – contratação',
   data_publicacao_pncp: '2024-03-01T00:00:00',
-  valor_total_estimado: 7777,
+  valor_global: 7777,
   modalidade_nome: 'Pregão Eletrônico',
-  situacao_nome: 'Publicada',
-  orgao_cnpj: '00000000000191',
-  orgao_razao_social: 'Órgão Arquivado',
+  cnpj_orgao: '00000000000191',
+  razao_social_orgao: 'Órgão Arquivado',
 };
 
 describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
@@ -270,6 +269,52 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
         },
         { timeout: 2000 },
       );
+    });
+  });
+
+  Scenario('Agency fallback uses the exported cnpj_orgao column and orders by recency', ({ Given, When, Then }) => {
+    Given('the PNCP API is unavailable for cnpj "00000000000191"', () => {
+      global.fetch = vi.fn().mockResolvedValue(new Response('boom', { status: 503 }));
+    });
+
+    When('the agency detail view mounts for cnpj "00000000000191"', async () => {
+      setUrlQuery('cnpj=00000000000191');
+      render(AgencyDetailView);
+      await tick();
+    });
+
+    Then('the Parquet fallback should be called with column "cnpj_orgao" ordered by "data_publicacao_pncp"', async () => {
+      await waitFor(
+        () => expect(fallbackMock).toHaveBeenCalled(),
+        { timeout: 2000 },
+      );
+      const call = fallbackMock.mock.calls[0];
+      expect(call[0]).toBe('cnpj_orgao');
+      expect(call[1]).toBe('00000000000191');
+      expect(call[3]).toBe('data_publicacao_pncp');
+    });
+  });
+
+  Scenario('City fallback uses the exported codigo_ibge column and orders by recency', ({ Given, When, Then }) => {
+    Given('the PNCP API is unavailable for ibge "3550308"', () => {
+      global.fetch = vi.fn().mockResolvedValue(new Response('boom', { status: 503 }));
+    });
+
+    When('the city detail view mounts for ibge "3550308"', async () => {
+      setUrlQuery('ibge=3550308');
+      render(CityDetailView);
+      await tick();
+    });
+
+    Then('the Parquet fallback should be called with column "codigo_ibge" ordered by "data_publicacao_pncp"', async () => {
+      await waitFor(
+        () => expect(fallbackMock).toHaveBeenCalled(),
+        { timeout: 2000 },
+      );
+      const call = fallbackMock.mock.calls[0];
+      expect(call[0]).toBe('codigo_ibge');
+      expect(call[1]).toBe('3550308');
+      expect(call[3]).toBe('data_publicacao_pncp');
     });
   });
 

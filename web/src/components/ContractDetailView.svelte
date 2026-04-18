@@ -26,23 +26,20 @@
     return {
       numeroControlePNCP: String(row.numero_controle_pncp ?? id),
       dataPublicacaoPncp: String(row.data_publicacao_pncp ?? ''),
-      objetoContratacao: String(row.objeto_contratacao ?? row.objeto_compra ?? ''),
-      valorTotalEstimado: Number(row.valor_total_estimado ?? 0),
-      valorTotalHomologado:
-        row.valor_total_homologado != null ? Number(row.valor_total_homologado) : undefined,
+      objetoContratacao: String(row.objeto_contrato ?? ''),
+      valorTotalEstimado: Number(row.valor_global ?? row.valor_inicial ?? 0),
       modalidadeNome: row.modalidade_nome ? String(row.modalidade_nome) : undefined,
-      situacaoNome: row.situacao_nome ? String(row.situacao_nome) : undefined,
+      linkSistemaOrigem: row.link_sistema_origem ? String(row.link_sistema_origem) : undefined,
+      usuarioNome: row.usuario_nome ? String(row.usuario_nome) : undefined,
       orgaoEntidade: {
-        razaoSocial: String(row.orgao_razao_social ?? ''),
-        cnpj: String(row.orgao_cnpj ?? ''),
+        razaoSocial: String(row.razao_social_orgao ?? ''),
+        cnpj: String(row.cnpj_orgao ?? ''),
       },
       unidadeOrgao: {
-        nomeUnidade: String(row.unidade_nome_unidade ?? ''),
+        nomeUnidade: String(row.nome_unidade ?? ''),
         municipioNome: row.municipio_nome ? String(row.municipio_nome) : undefined,
         ufSigla: row.uf_sigla ? String(row.uf_sigla) : undefined,
-        codigoMunicipioIbge: row.codigo_municipio_ibge
-          ? String(row.codigo_municipio_ibge)
-          : undefined,
+        codigoMunicipioIbge: row.codigo_ibge ? String(row.codigo_ibge) : undefined,
       },
     };
   }

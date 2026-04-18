@@ -32,17 +32,17 @@
     return {
       numeroControlePNCP: String(row.numero_controle_pncp ?? ''),
       dataPublicacaoPncp: String(row.data_publicacao_pncp ?? ''),
-      objetoContratacao: String(row.objeto_contratacao ?? row.objeto_compra ?? ''),
-      valorTotalEstimado: Number(row.valor_total_estimado ?? 0),
+      objetoContratacao: String(row.objeto_contrato ?? ''),
+      valorTotalEstimado: Number(row.valor_global ?? row.valor_inicial ?? 0),
       orgaoEntidade: {
-        razaoSocial: String(row.orgao_razao_social ?? ''),
-        cnpj: String(row.orgao_cnpj ?? ''),
+        razaoSocial: String(row.razao_social_orgao ?? ''),
+        cnpj: String(row.cnpj_orgao ?? ''),
       },
       unidadeOrgao: {
-        nomeUnidade: String(row.unidade_nome_unidade ?? ''),
+        nomeUnidade: String(row.nome_unidade ?? ''),
         municipioNome: String(row.municipio_nome ?? ''),
         ufSigla: String(row.uf_sigla ?? ''),
-        codigoMunicipioIbge: String(row.codigo_municipio_ibge ?? ''),
+        codigoMunicipioIbge: String(row.codigo_ibge ?? ''),
       },
     };
   }
@@ -62,9 +62,10 @@
         return { name: cityName, uf, ibge, contracts };
       } catch (pncpErr) {
         const archived = await queryParquetFallback<Record<string, unknown>>(
-          'codigo_municipio_ibge',
+          'codigo_ibge',
           ibge,
           10,
+          'data_publicacao_pncp',
         );
         if (!archived) {
           throw new Error(

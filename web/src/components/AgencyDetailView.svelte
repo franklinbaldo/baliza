@@ -30,14 +30,14 @@
     return {
       numeroControlePNCP: String(row.numero_controle_pncp ?? ''),
       dataPublicacaoPncp: String(row.data_publicacao_pncp ?? ''),
-      objetoContratacao: String(row.objeto_contratacao ?? row.objeto_compra ?? ''),
-      valorTotalEstimado: Number(row.valor_total_estimado ?? 0),
+      objetoContratacao: String(row.objeto_contrato ?? ''),
+      valorTotalEstimado: Number(row.valor_global ?? row.valor_inicial ?? 0),
       orgaoEntidade: {
-        razaoSocial: String(row.orgao_razao_social ?? 'Órgão Arquivado'),
-        cnpj: String(row.orgao_cnpj ?? ''),
+        razaoSocial: String(row.razao_social_orgao ?? 'Órgão Arquivado'),
+        cnpj: String(row.cnpj_orgao ?? ''),
       },
       unidadeOrgao: {
-        nomeUnidade: String(row.unidade_nome_unidade ?? ''),
+        nomeUnidade: String(row.nome_unidade ?? ''),
       },
     };
   }
@@ -56,9 +56,10 @@
         return { name: agencyName, cnpj, contracts };
       } catch (pncpErr) {
         const archived = await queryParquetFallback<Record<string, unknown>>(
-          'orgao_cnpj',
+          'cnpj_orgao',
           cnpj,
           10,
+          'data_publicacao_pncp',
         );
         if (!archived) {
           throw new Error(
