@@ -4,7 +4,7 @@
   import { QUERY_KEYS } from '../lib/queryKeys';
   import { prefetchArchive } from '../lib/parquetFallback';
   import { parsePncpPublicacaoList, type PNCPContract } from '../lib/pncp';
-  import { formatParticao } from '../lib/formatParticao';
+  import { formatBRL, formatDate, formatParticao } from '../lib/format';
   import { createDetailQuery } from '../lib/createDetailQuery';
   import type { ArchivedContrato } from '../lib/archive/schema';
   import EntityNotFound from './EntityNotFound.svelte';
@@ -143,11 +143,11 @@
           <a href={`/baliza/contratacao?id=${item.numeroControlePNCP}`} class="bid-link-card">
             <div class="bid-header">
               <span class="bid-id">{item.numeroControlePNCP}</span>
-              <span class="bid-date">{new Date(item.dataPublicacaoPncp).toLocaleDateString('pt-BR')}</span>
+              <span class="bid-date">{formatDate(item.dataPublicacaoPncp)}</span>
             </div>
             <p class="bid-obj">{item.objetoContratacao.substring(0, 150)}...</p>
             <div class="bid-footer">
-              <span class="valor">{item.valorTotalEstimado != null ? `R$ ${item.valorTotalEstimado.toLocaleString('pt-BR')}` : '—'}</span>
+              <span class="valor">{formatBRL(item.valorTotalEstimado)}</span>
             </div>
           </a>
         {/each}
