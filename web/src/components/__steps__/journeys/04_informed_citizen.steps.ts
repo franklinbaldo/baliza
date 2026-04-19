@@ -1,10 +1,38 @@
 import { loadFeature, describeFeature } from '@amiceli/vitest-cucumber';
-import { expect } from 'vitest';
-import { noop, plannedStep, wipStep } from './_shared';
+import { screen, cleanup, waitFor } from '@testing-library/svelte/pure';
+import { vi, expect } from 'vitest';
+import { tick } from 'svelte';
+import { render, noop, plannedStep } from './_shared';
+import ContractDetailViewRaw from '../../ContractDetailView.svelte';
+import * as iaManifestModule from '../../../lib/ia-manifest';
+
+const ContractDetailView = ContractDetailViewRaw as unknown as Parameters<typeof render>[0];
 
 const feature = await loadFeature('features/journeys/04_informed_citizen.feature');
 
-describeFeature(feature, ({ Scenario }) => {
+const PAYLOAD = {
+  numeroControlePNCP: '00000000000191-1-000001/2024',
+  dataPublicacaoPncp: '2025-01-15T00:00:00',
+  objetoContratacao: 'Materiais hospitalares',
+  valorTotalEstimado: 1500,
+  modalidadeNome: 'Pregão Eletrônico',
+  orgaoEntidade: {
+    razaoSocial: 'Prefeitura Municipal',
+    cnpj: '00000000000191',
+  },
+  unidadeOrgao: {
+    nomeUnidade: 'Compras',
+  },
+  itens: [],
+};
+
+describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
+  BeforeEachScenario(async () => {
+    cleanup();
+    vi.restoreAllMocks();
+    window.history.replaceState({}, '', '/');
+  });
+
   Scenario('Search by hospital name without knowing the CNPJ', ({ Given, When, Then }) => {
     Given('the user opens the home page', noop);
     When('the user types "hospital municipal" into the search box', noop);
@@ -30,10 +58,30 @@ describeFeature(feature, ({ Scenario }) => {
   });
 
   Scenario('Data freshness is visible on every detail page', ({ Given, Then }) => {
-    Given('the user opens "/contratacao?id=00000000000191-1-000001/2024"', noop);
-    Then('the user sees the snapshot date of the underlying Parquet within the page header', () =>
-      wipStep('snapshot-date echo on detail pages'),
-    );
+    Given('the user opens "/contratacao?id=00000000000191-1-000001/2024"', async () => {
+      window.history.replaceState({}, '', '/?id=00000000000191-1-000001/2024');
+      vi.spyOn(iaManifestModule, 'getLatestParquetInfo').mockResolvedValue({
+        url: 'https://archive.org/download/baliza-pncp-2025-01/contratos-2025-01.parquet',
+        dataParticao: '2025-01-31',
+      });
+      global.fetch = vi
+        .fn()
+        .mockImplementation(async () => new Response(JSON.stringify(PAYLOAD), { status: 200 }));
+      render(ContractDetailView);
+      await tick();
+    });
+
+    Then('the user sees the snapshot date of the underlying Parquet within the page header', async () => {
+      await waitFor(
+        () => {
+          const badge = screen.getByTestId('snapshot-date');
+          expect(badge).toBeTruthy();
+          const time = badge.querySelector('time');
+          expect(time?.getAttribute('datetime')).toBe('2025-01-31');
+        },
+        { timeout: 2000 },
+      );
+    });
   });
 
   Scenario('Geographic context is shown when available', ({ Given, Then }) => {

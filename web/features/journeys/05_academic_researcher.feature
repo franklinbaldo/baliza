@@ -5,9 +5,9 @@ Feature: Journey 5 — Academic researcher
   changes, and bulk download of the Parquet snapshots.
   See VISION.md → "Academic researcher".
 
-  @wip @schema
+  @green @schema
   Scenario: Table schemas are reachable from the explorer
-    # WIP: explorer runs SQL but does not expose a schema panel.
+    # Covered by DuckDBExplorer schema sidebar fed by SCHEMA_MAP.
     Given the user opens "/explorador"
     Then the user sees a sidebar listing the tables available in the loaded Parquet
     And the user can expand a table to see column names and types

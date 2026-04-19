@@ -1,9 +1,38 @@
 import { loadFeature, describeFeature } from '@amiceli/vitest-cucumber';
-import { noop, plannedStep, wipStep } from './_shared';
+import { cleanup, waitFor } from '@testing-library/svelte/pure';
+import { vi, expect } from 'vitest';
+import { tick } from 'svelte';
+import { render, noop, plannedStep } from './_shared';
+import ContractDetailViewRaw from '../../ContractDetailView.svelte';
+
+const ContractDetailView = ContractDetailViewRaw as unknown as Parameters<typeof render>[0];
 
 const feature = await loadFeature('features/journeys/02_public_buyer.feature');
 
-describeFeature(feature, ({ Scenario }) => {
+const PAYLOAD = {
+  numeroControlePNCP: '00000000000191-1-000001/2024',
+  dataPublicacaoPncp: '2025-01-15T00:00:00',
+  objetoContratacao: 'Aquisição de merenda escolar',
+  valorTotalEstimado: 1500,
+  modalidadeNome: 'Pregão Eletrônico',
+  orgaoEntidade: {
+    razaoSocial: 'Prefeitura Municipal',
+    cnpj: '00000000000191',
+  },
+  unidadeOrgao: {
+    nomeUnidade: 'Secretaria de Compras',
+    codigoMunicipioIbge: '3550308',
+  },
+  linkSistemaOrigem: 'https://origem.exemplo.gov.br/compras/1',
+  itens: [],
+};
+
+describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
+  BeforeEachScenario(async () => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
   Scenario('Browse vigent registered-price frameworks for an object', ({ Given, Then }) => {
     Given('the user opens "/atas?objeto=papel%20A4"', noop);
     Then(
@@ -52,11 +81,37 @@ describeFeature(feature, ({ Scenario }) => {
   Scenario(
     "Crossover with journey 3 — buyer audits a peer's contract before riding on it",
     ({ Given, Then, And }) => {
-      Given('the user opens "/contratacao?id=00000000000191-1-000001/2024"', noop);
-      Then("the user sees the contract's value, modality and supplier", () =>
-        wipStep('buyer-friendly framing on the existing /contratacao page'),
-      );
-      And('the user sees an outbound link to the original PNCP record', noop);
+      Given('the user opens "/contratacao?id=00000000000191-1-000001/2024"', async () => {
+        window.history.replaceState({}, '', '/?id=00000000000191-1-000001/2024');
+        global.fetch = vi
+          .fn()
+          .mockImplementation(async () => new Response(JSON.stringify(PAYLOAD), { status: 200 }));
+        render(ContractDetailView);
+        await tick();
+      });
+      Then("the user sees the contract's value, modality and supplier", async () => {
+        // ContractDetailView renders value (formatted BRL), modality and
+        // orgaoEntidade.razaoSocial — the three pieces a buyer needs to
+        // defend the decision against an audit.
+        await waitFor(
+          () => {
+            const dds = Array.from(document.querySelectorAll('dd')).map(
+              (el) => el.textContent?.replace(/\s+/g, ' ').trim() ?? '',
+            );
+            expect(dds.some((t) => /R\$\s*1\.500,00/.test(t))).toBe(true);
+            expect(dds.some((t) => /Pregão Eletrônico/.test(t))).toBe(true);
+            expect(dds.some((t) => /Prefeitura Municipal/.test(t))).toBe(true);
+          },
+          { timeout: 2000 },
+        );
+      });
+      And('the user sees an outbound link to the original PNCP record', () => {
+        const link = document.querySelector(
+          'a[href="https://origem.exemplo.gov.br/compras/1"]',
+        ) as HTMLAnchorElement | null;
+        expect(link).toBeTruthy();
+        expect(link?.getAttribute('target')).toBe('_blank');
+      });
     },
   );
 });

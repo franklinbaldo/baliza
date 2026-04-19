@@ -43,9 +43,10 @@ Feature: Journey 7 — Auditor and watchdog
     When the user clicks "Receber alertas deste órgão"
     Then a watch is created with the agency CNPJ as the filter
 
-  @wip @alerts
+  @green @alerts
   Scenario: Crossover with journey 4 — citizen turns a one-off search into a watch
     # crosses @journey4
+    # Covered by ContractDetailView watch card: "Acompanhar este fornecedor" → form pre-filled with supplier CNPJ.
     Given the user has just inspected a contract via /contratacao
     When the user clicks "Acompanhar este fornecedor"
     Then the user is offered a watch form pre-filled with the supplier CNPJ
