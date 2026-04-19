@@ -22,7 +22,10 @@ describe('formatBRL', () => {
 
 describe('formatDate', () => {
   it('renders ISO dates as dd/MM/yyyy', () => {
-    expect(formatDate('2024-05-01')).toBe('01/05/2024');
+    // Use a datetime with explicit local-time hour so the assertion holds in
+    // any TZ. A bare "2024-05-01" parses as UTC midnight and shifts one day
+    // back under negative offsets (e.g. America/Los_Angeles).
+    expect(formatDate('2024-05-01T12:00:00')).toBe('01/05/2024');
   });
 
   it('returns em-dash for null', () => {
