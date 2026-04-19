@@ -21,26 +21,13 @@
   .card {
     background: var(--color-base-100);
     border: 1px solid var(--color-base-300);
+    border-left: 4px solid var(--accent);
     border-radius: var(--radius-box);
     padding: var(--space-md);
     flex: 1;
     min-width: 250px;
     position: relative;
     overflow: hidden;
-  }
-  .card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 4px;
-    height: 100%;
-    background: var(--accent);
-    opacity: 0.5;
-    transition: opacity var(--transition-base);
-  }
-  .card:hover::before {
-    opacity: 1;
   }
   .stat-value {
     color: var(--accent);

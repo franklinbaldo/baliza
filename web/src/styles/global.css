@@ -31,16 +31,16 @@ img, picture, video, canvas, svg { display: block; max-width: 100%; }
   --space-2xl: 6rem;
   --space-3xl: 8rem;
   --transition-base: 0.2s ease;
-  --radius-sm: 4px;
-  --radius-box: 12px;
-  --radius-btn: 2rem;
-  --radius-full: 9999px;
+  --radius-sm: 0px;
+  --radius-box: 0px;
+  --radius-btn: 0px;
+  --radius-full: 0px;
 
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  --shadow-glow: 0 0 10px rgba(26, 107, 60, 0.2);
-  --shadow-glow-strong: 0 0 15px rgba(26, 107, 60, 0.35);
-  --shadow-glow-error: 0 0 10px rgba(197, 48, 48, 0.3);
+  --shadow-sm: 2px 2px 0px var(--color-base-content);
+  --shadow-md: 4px 4px 0px var(--color-base-content);
+  --shadow-glow: 4px 4px 0px var(--color-primary);
+  --shadow-glow-strong: 6px 6px 0px var(--color-primary);
+  --shadow-glow-error: 4px 4px 0px var(--color-error);
 
   /* Skeletons & Shimmer */
   --shimmer-gradient: linear-gradient(90deg,
@@ -79,9 +79,9 @@ img, picture, video, canvas, svg { display: block; max-width: 100%; }
   --color-warning: #D4A843;
   --color-error: #E05555;
 
-  --shadow-glow: 0 0 10px rgba(61, 165, 104, 0.4);
-  --shadow-glow-strong: 0 0 15px rgba(61, 165, 104, 0.6);
-  --shadow-glow-error: 0 0 10px rgba(224, 85, 85, 0.4);
+  --shadow-glow: 4px 4px 0px var(--color-primary);
+  --shadow-glow-strong: 6px 6px 0px var(--color-primary);
+  --shadow-glow-error: 4px 4px 0px var(--color-error);
 
   --shimmer-gradient: linear-gradient(90deg,
       rgba(255, 255, 255, 0.04) 0%,
@@ -118,8 +118,8 @@ h3 { font-size: var(--font-size-xl); }
 
 .card:hover {
   border-color: var(--color-primary);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05), var(--shadow-glow);
-  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  transform: translate(-2px, -2px);
 }
 
 .stat-value {
@@ -231,8 +231,10 @@ h3 { font-size: var(--font-size-xl); }
 }
 
 .btn-primary:hover {
-  filter: brightness(1.1);
-  transform: translateY(-1px);
+  background: var(--color-base-content);
+  color: var(--color-base-100);
+  border-color: var(--color-base-content);
+  transform: translate(-2px, -2px);
   box-shadow: var(--shadow-glow);
 }
 

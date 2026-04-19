@@ -213,10 +213,9 @@
   .hero-section {
     padding: var(--space-3xl) 0 var(--space-xl);
     background:
-      radial-gradient(circle at top right, var(--color-base-200), transparent),
       linear-gradient(to right, rgba(255,255,255,0.02) 1px, transparent 1px),
       linear-gradient(to bottom, rgba(255,255,255,0.02) 1px, transparent 1px);
-    background-size: 100% 100%, 20px 20px, 20px 20px;
+    background-size: 20px 20px, 20px 20px;
   }
 
   .hero-inner {
@@ -242,7 +241,7 @@
     padding: var(--space-md);
     border: 1px solid var(--color-base-300);
     border-radius: var(--radius-box);
-    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.3);
+    box-shadow: var(--shadow-md);
   }
 
   .search-form { display: block; }
@@ -269,7 +268,7 @@
 
   .input-label:focus-within {
     border-color: var(--color-primary);
-    box-shadow: var(--shadow-glow);
+    box-shadow: inset 0 0 0 2px var(--color-primary);
   }
 
   .search-icon {
