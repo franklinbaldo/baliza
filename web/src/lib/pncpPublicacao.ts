@@ -24,6 +24,11 @@ export interface PublicacaoFilters {
 
 export interface PublicacaoOpts {
   sinceDays?: number;
+  /**
+   * PNCP enforces 10 ≤ tamanhoPagina ≤ 50. Values outside that range are
+   * clamped (not rejected) because the call would otherwise 400. Callers
+   * that want a shorter list should slice the returned array instead.
+   */
   tamanhoPagina?: number;
   modalidades?: readonly number[];
   /** Injectable for tests / SSR. Defaults to `new Date()`. */
