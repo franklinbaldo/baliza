@@ -18,10 +18,21 @@ const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
   <head>
     <script is:inline>
       (function () {
+        // Stored preference wins, but a throw from localStorage (private mode,
+        // strict cookie policies) must not prevent the system preference from
+        // being honored — so each read is guarded independently.
+        var stored = null;
+        try { stored = localStorage.getItem('baliza-theme'); } catch (_) {}
+        if (stored) {
+          document.documentElement.setAttribute('data-theme', stored);
+          return;
+        }
         try {
-          var t = localStorage.getItem('baliza-theme');
-          if (t) document.documentElement.setAttribute('data-theme', t);
+          if (window.matchMedia('(prefers-color-scheme: light)').matches) {
+            document.documentElement.setAttribute('data-theme', 'light');
+          }
         } catch (_) {}
+        // Default dark is kept via the data-theme="dark" HTML attribute
       })();
     </script>
     <Metadata title={title} description={description} />

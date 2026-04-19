@@ -19,6 +19,32 @@ export function formatBRL(v: number | null | undefined): string {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+export function formatInteger(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v)) return EM_DASH;
+  return Math.trunc(v).toLocaleString('pt-BR');
+}
+
+// Buckets are deliberately coarse — freshness framing on the home doesn't
+// need minute-accurate diffs, and we skip seconds to avoid "há 0 min" flicker.
+// Future-dated inputs (clock skew, UTC vs local) are clamped to "agora"
+// instead of falling through to a silently misleading relative string.
+export function formatRelativeTime(
+  iso: string | null | undefined,
+  now: Date = new Date(),
+): string {
+  if (!iso) return EM_DASH;
+  const then = new Date(iso);
+  if (isNaN(then.getTime())) return EM_DASH;
+  const diffMs = Math.max(0, now.getTime() - then.getTime());
+  if (diffMs < 60_000) return 'agora';
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 60) return `há ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `há ${hours} h`;
+  const days = Math.floor(hours / 24);
+  return days === 1 ? 'há 1 dia' : `há ${days} dias`;
+}
+
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return EM_DASH;
   const d = new Date(iso);

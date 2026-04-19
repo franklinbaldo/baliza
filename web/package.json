@@ -10,7 +10,13 @@
     "lint": "eslint . --fix",
     "check:full": "astro check && svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:bdd": "vitest run",
+    "test:bdd:journeys": "vitest run src/components/__steps__/journeys",
+    "test:bdd:green": "VITEST_INCLUDE_TAGS=green vitest run",
+    "test:bdd:wip": "VITEST_INCLUDE_TAGS=wip vitest run",
+    "test:bdd:planned": "VITEST_INCLUDE_TAGS=planned VITEST_EXCLUDE_TAGS=ignore vitest run",
+    "test:bdd:report": "node scripts/bdd-report.mjs"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.8",
@@ -31,6 +37,7 @@
     "@sveltejs/vite-plugin-svelte": "^6.2.4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/svelte": "^5.3.1",
+    "@testing-library/user-event": "^14.6.1",
     "@types/papaparse": "^5.5.2",
     "@typescript-eslint/eslint-plugin": "^8.58.2",
     "@typescript-eslint/parser": "^8.58.2",

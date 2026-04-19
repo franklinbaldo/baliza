@@ -1,3 +1,4 @@
+@journey3 @green
 Feature: PNCP ID canonical parsing
   PNCP's canonical numeroControlePNCP form is {cnpj}-{tipo}-{sequencial}/{ano}
   with a 14-digit CNPJ, 6-digit sequencial, and 4-digit year. The parser is

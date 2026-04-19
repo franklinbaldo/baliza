@@ -39,9 +39,25 @@ import Layout from '../layouts/Layout.astro';
       <section>
         <h2>Transparência e Ética</h2>
         <p>
-          Todo o código do Baliza é aberto e todos os arquivos Parquet gerados são de livre 
-          domínio. Nosso objetivo é fornecer as ferramentas para que jornalistas, pesquisadores 
+          Todo o código do Baliza é aberto e todos os arquivos Parquet gerados são de livre
+          domínio. Nosso objetivo é fornecer as ferramentas para que jornalistas, pesquisadores
           e cidadãos auditem a máquina estatal com facilidade e precisão.
+        </p>
+      </section>
+
+      <section id="quarentena" class="method-box">
+        <h2>Critérios de Quarentena</h2>
+        <p>
+          Um registro entra em <strong>quarentena</strong> quando a ingestão detecta anomalias
+          que podem corromper análises agregadas — valores nulos em campos obrigatórios do PNCP,
+          codificações inválidas, ou IDs duplicados na mesma partição diária. O item continua
+          no arquivo Parquet (nenhum dado é descartado), mas é sinalizado para auditoria manual
+          antes de entrar em qualquer consulta pública.
+        </p>
+        <p>
+          O indicador <em>Em quarentena</em> na home é o contador atual desses registros
+          sinalizados. Um número baixo indica que a ingestão está saudável; picos súbitos
+          podem sugerir mudanças no esquema do PNCP que exigem revisão.
         </p>
       </section>
     </article>
@@ -50,8 +66,8 @@ import Layout from '../layouts/Layout.astro';
 
 <style>
   .container--narrow { max-width: 800px; }
-  .page-header { padding: var(--space-xl) 0; border-bottom: 2px solid var(--color-primary); margin-bottom: var(--space-xl); }
-  .lead { font-size: var(--font-size-lg); color: var(--color-secondary); }
+  .page-header { padding: var(--space-xl) 0; margin-bottom: var(--space-xl); }
+  .lead { font-size: var(--font-size-md); color: var(--color-secondary); line-height: 1.6; }
   .prose section { margin-bottom: var(--space-xl); }
   h2 { font-size: var(--font-size-xl); margin-bottom: var(--space-sm); color: var(--color-base-content); }
   p { margin-bottom: var(--space-sm); line-height: 1.7; }

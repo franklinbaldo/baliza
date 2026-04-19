@@ -24,11 +24,20 @@ function stubLocationAssign() {
   return assign;
 }
 
-describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
+describeFeature(feature, ({ Scenario, BeforeEachScenario, AfterEachScenario }) => {
+  const originalInnerWidth = window.innerWidth;
+
   BeforeEachScenario(async () => {
     cleanup();
     vi.restoreAllMocks();
     vi.useRealTimers();
+  });
+
+  AfterEachScenario(() => {
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: originalInnerWidth,
+    });
   });
 
   Scenario('Detect CNPJ pattern and show correct jump link', ({ Given, Then, And }) => {
@@ -337,6 +346,44 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
         },
         { timeout: 2000 },
       );
+    });
+  });
+
+  Scenario('Suggestion label renders in its own row above the chips', ({ Given, Then }) => {
+    Given('the search hero has loaded', async () => {
+      render(SearchHero);
+      await tick();
+    });
+
+    // Structural guard for the pre-fix collision at ~390px: .hints-label must
+    // not share a flex parent with the chips themselves, so the chips live in
+    // their own wrapper. Layout is not computable under jsdom; this test locks
+    // the DOM shape that the @media rule relies on.
+    Then('the hint chips should live in their own wrapper separate from the label', () => {
+      const label = document.querySelector('.hints > .hints-label');
+      const chipWrapper = document.querySelector('.hints > .hint-chips');
+      expect(label).toBeTruthy();
+      expect(chipWrapper).toBeTruthy();
+      expect(document.querySelector('.hints > .hint-chip')).toBeNull();
+      expect(chipWrapper!.querySelectorAll('.hint-chip').length).toBeGreaterThan(0);
+    });
+  });
+
+  Scenario('Search submit button stays inside its form on narrow viewports', ({ Given, When, Then }) => {
+    Given('the browser viewport width is 390 pixels', () => {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    });
+
+    When('the search hero loads', async () => {
+      render(SearchHero);
+      await tick();
+    });
+
+    Then('the Buscar button should be inside the search form', () => {
+      const form = document.querySelector('form.search-form') as HTMLFormElement;
+      const button = screen.getByRole('button', { name: 'Buscar' });
+      expect(form).toBeTruthy();
+      expect(form.contains(button)).toBe(true);
     });
   });
 });
