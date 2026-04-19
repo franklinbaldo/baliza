@@ -29,3 +29,10 @@ Feature: Agency Detail View
     And the PNCP API returns a contract with id "00000000000191-1-000001/2024"
     When the agency detail view mounts
     Then I should see a link to that contract
+
+  Scenario: Query string uses cnpj, not cnpjOrgao
+    Given the URL has cnpj "00000000000191"
+    And the PNCP API returns 0 contracts
+    When the agency detail view mounts
+    Then every PNCP consulta URL should contain "cnpj=00000000000191"
+    And no PNCP consulta URL should contain "cnpjOrgao="
