@@ -4,7 +4,7 @@ import { setVitestCucumberConfiguration } from '@amiceli/vitest-cucumber';
 const splitTags = (raw: string | undefined): string[] =>
   raw
     ? raw
-        .split(',')
+        .split(/[,\s]+/)
         .map((t) => t.trim().replace(/^@/, ''))
         .filter(Boolean)
     : [];
