@@ -1,38 +1,94 @@
 <script lang="ts">
+  import { createQuery, setQueryClientContext } from '@tanstack/svelte-query';
+  import { getQueryClient } from '../lib/queryClient';
+  import { QUERY_KEYS } from '../lib/queryKeys';
+  import { prefetchArchive } from '../lib/parquetFallback';
+  import { createListQuery } from '../lib/createListQuery';
+  import { fetchPublicacaoList } from '../lib/pncpPublicacao';
   import { getUserCoordinates, getCityFromCoords, getIBGECode } from '../lib/geo';
   import type { PNCPContract } from '../lib/pncp';
-  import { formatDate } from '../lib/format';
+  import type { ArchivedContrato } from '../lib/archive/schema';
+  import { formatDate, formatParticao } from '../lib/format';
+  import AlertBanner from './AlertBanner.svelte';
   import EmptyState from './EmptyState.svelte';
 
-  let locationStatus = $state<'idle' | 'locating' | 'loading_data' | 'ready' | 'error' | 'denied'>('idle');
+  setQueryClientContext(getQueryClient());
+
+  type GeoStatus = 'idle' | 'locating' | 'ready' | 'denied' | 'error';
+  let geoStatus = $state<GeoStatus>('idle');
   let cityInfo = $state<{ name: string; ibge: string } | null>(null);
-  let bids = $state<PNCPContract[]>([]);
+
+  interface LocalBidsView {
+    contracts: PNCPContract[];
+    archived?: { dataParticao: string | null };
+  }
+
+  function archivedRowToContract(row: ArchivedContrato): PNCPContract {
+    return {
+      numeroControlePNCP: row.numero_controle_pncp ?? '',
+      dataPublicacaoPncp: row.data_publicacao_pncp ?? '',
+      objetoContratacao: row.objeto_contrato ?? '',
+      valorTotalEstimado: row.valor_global ?? row.valor_inicial ?? null,
+      orgaoEntidade: {
+        razaoSocial: row.razao_social_orgao ?? '',
+        cnpj: row.cnpj_orgao ?? '',
+      },
+      unidadeOrgao: {
+        nomeUnidade: row.nome_unidade ?? '',
+        municipioNome: row.municipio_nome ?? '',
+        ufSigla: row.uf_sigla ?? '',
+        codigoMunicipioIbge: row.codigo_ibge ?? '',
+      },
+    };
+  }
+
+  const ibge = $derived(cityInfo?.ibge ?? '');
+
+  $effect(() => {
+    if (ibge) prefetchArchive('contratos');
+  });
+
+  const bidsQuery = createQuery(() =>
+    createListQuery<LocalBidsView | null>({
+      queryKey: QUERY_KEYS.localBids(ibge),
+      enabled: !!ibge,
+      archive: {
+        column: 'codigo_ibge',
+        value: ibge,
+        limit: 5,
+        orderByColumn: 'data_publicacao_pncp',
+      },
+      fetchLive: async () => {
+        if (!ibge) return null;
+        const contracts = await fetchPublicacaoList(
+          { codigoMunicipioIbge: ibge },
+          { tamanhoPagina: 10 },
+        );
+        return { contracts: contracts.slice(0, 5) };
+      },
+      buildFromArchive: ({ rows, dataParticao }) => ({
+        contracts: rows.map(archivedRowToContract),
+        archived: { dataParticao },
+      }),
+    }),
+  );
+
+  const data = $derived(bidsQuery.data);
+  const loadingData = $derived(!!ibge && bidsQuery.isFetching);
 
   async function handleFindLocal() {
-    locationStatus = 'locating';
+    geoStatus = 'locating';
     try {
       const coords = await getUserCoordinates();
       const cityData = await getCityFromCoords(coords.latitude, coords.longitude);
-      const ibge = await getIBGECode(cityData.city, cityData.state);
-
-      if (!ibge) throw new Error('Não foi possível localizar o código IBGE para este município.');
-
-      cityInfo = { name: cityData.city, ibge };
-      locationStatus = 'loading_data';
-
-      const url = `https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?codigoMunicipioIbge=${ibge}&tamanhoPagina=5`;
-      const res = await fetch(url);
-      const data = await res.json();
-      bids = data.data || [];
-      locationStatus = 'ready';
+      const code = await getIBGECode(cityData.city, cityData.state);
+      if (!code) throw new Error('Não foi possível localizar o código IBGE para este município.');
+      cityInfo = { name: cityData.city, ibge: code };
+      geoStatus = 'ready';
     } catch (err) {
       console.error(err);
       const code = (err as { code?: number }).code;
-      if (code === 1) {
-        locationStatus = 'denied';
-      } else {
-        locationStatus = 'error';
-      }
+      geoStatus = code === 1 ? 'denied' : 'error';
     }
   }
 </script>
@@ -47,50 +103,18 @@
       </div>
     </div>
 
-    {#if locationStatus === 'idle'}
+    {#if geoStatus === 'idle'}
       <button class="btn btn-primary" onclick={handleFindLocal}>
         Ativar Localizador
       </button>
 
-    {:else if locationStatus === 'locating'}
+    {:else if geoStatus === 'locating'}
       <div class="status-msg" aria-busy="true">
         <div class="spinner" aria-hidden="true"></div>
         <p>Buscando sua posição no mapa...</p>
       </div>
 
-    {:else if locationStatus === 'loading_data'}
-      <div class="status-msg" aria-busy="true">
-        <div class="spinner" aria-hidden="true"></div>
-        <p>Consultando PNCP para {cityInfo?.name}...</p>
-      </div>
-
-    {:else if locationStatus === 'ready'}
-      <div class="results">
-        <div class="results-header">
-          <h4>Visto recentemente em <strong>{cityInfo?.name}</strong></h4>
-        </div>
-
-        {#if bids.length === 0}
-          <EmptyState
-            title="Nenhuma contratação recente"
-            message="O PNCP não retornou contratações recentes para este município."
-          />
-        {:else}
-          <div class="bids-list">
-            {#each bids as bid (bid.numeroControlePNCP)}
-              <a href={`/baliza/contratacao?id=${bid.numeroControlePNCP}`} class="bid-card">
-                <div class="bid-meta">
-                  <span class="bid-id">#{bid.numeroControlePNCP}</span>
-                  <span class="bid-date">{formatDate(bid.dataPublicacaoPncp)}</span>
-                </div>
-                <p class="bid-obj">{bid.objetoContratacao.substring(0, 100)}...</p>
-              </a>
-            {/each}
-          </div>
-        {/if}
-      </div>
-
-    {:else if locationStatus === 'denied'}
+    {:else if geoStatus === 'denied'}
       <EmptyState
         title="Acesso à localização negado"
         message="Para usar o Radar Local, permita o acesso à localização nas configurações do navegador."
@@ -98,11 +122,57 @@
         actionLabel="Buscar manualmente"
       />
 
-    {:else if locationStatus === 'error'}
+    {:else if geoStatus === 'error'}
       <EmptyState
         title="Falha na localização"
         message="Não conseguimos determinar sua localização ou o município não foi encontrado."
       />
+
+    {:else if geoStatus === 'ready'}
+      {#if loadingData}
+        <div class="status-msg" aria-busy="true">
+          <div class="spinner" aria-hidden="true"></div>
+          <p>Consultando PNCP para {cityInfo?.name}...</p>
+        </div>
+      {:else if data}
+        {#if data.archived}
+          <AlertBanner
+            title="Dados arquivados"
+            message={`PNCP indisponível — exibindo dados arquivados (última consolidação: ${formatParticao(data.archived.dataParticao)}).`}
+            level="info"
+          />
+        {/if}
+
+        <div class="results">
+          <div class="results-header">
+            <h4>Visto recentemente em <strong>{cityInfo?.name}</strong></h4>
+          </div>
+
+          {#if data.contracts.length === 0}
+            <EmptyState
+              title="Nenhuma contratação recente"
+              message="O PNCP não retornou contratações recentes para este município."
+            />
+          {:else}
+            <div class="bids-list">
+              {#each data.contracts as bid (bid.numeroControlePNCP)}
+                <a href={`/baliza/contratacao?id=${bid.numeroControlePNCP}`} class="bid-card">
+                  <div class="bid-meta">
+                    <span class="bid-id">#{bid.numeroControlePNCP}</span>
+                    <span class="bid-date">{formatDate(bid.dataPublicacaoPncp)}</span>
+                  </div>
+                  <p class="bid-obj">{bid.objetoContratacao.substring(0, 100)}...</p>
+                </a>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      {:else if bidsQuery.error}
+        <EmptyState
+          title="Nenhuma contratação recente"
+          message="O PNCP não retornou contratações recentes para este município."
+        />
+      {/if}
     {/if}
   </div>
 </section>
