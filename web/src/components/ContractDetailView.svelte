@@ -2,9 +2,10 @@
   import { createQuery, setQueryClientContext } from '@tanstack/svelte-query';
   import { getQueryClient } from '../lib/queryClient';
   import { QUERY_KEYS } from '../lib/queryKeys';
-  import { queryParquetFallback, archiveErrorMessage, prefetchArchive } from '../lib/parquetFallback';
+  import { prefetchArchive } from '../lib/parquetFallback';
   import { parsePncpContract, type PNCPContract } from '../lib/pncp';
   import { formatParticao } from '../lib/formatParticao';
+  import { createDetailQuery } from '../lib/createDetailQuery';
   import type { ArchivedContrato } from '../lib/archive/schema';
   import { parsePncpId, PNCP_ID_EXAMPLE } from '../lib/pncpId';
   import EntityNotFound from './EntityNotFound.svelte';
@@ -52,32 +53,30 @@
     };
   }
 
-  const contractQuery = createQuery(() => ({
-    queryKey: QUERY_KEYS.contratacao(id),
-    queryFn: async (): Promise<ContractView | null> => {
-      if (!parsedId) return null;
-      const { cnpj, sequencial, ano } = parsedId;
-      const url = `https://pncp.gov.br/api/consulta/v1/orgaos/${cnpj}/contratacoes/${ano}/${sequencial}`;
-      try {
+  const contractQuery = createQuery(() =>
+    createDetailQuery<ContractView | null>({
+      queryKey: QUERY_KEYS.contratacao(id),
+      enabled: !!parsedId,
+      archive: {
+        column: 'numero_controle_pncp',
+        identifier: id,
+        limit: 1,
+      },
+      fetchLive: async () => {
+        if (!parsedId) return null;
+        const { cnpj, sequencial, ano } = parsedId;
+        const url = `https://pncp.gov.br/api/consulta/v1/orgaos/${cnpj}/contratacoes/${ano}/${sequencial}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error("Contratação não localizada no PNCP.");
         return parsePncpContract(await res.json()) as ContractView;
-      } catch (pncpErr) {
-        const archived = await queryParquetFallback(
-          'numero_controle_pncp',
-          id,
-          1,
-        );
-        if (!archived.ok) {
-          throw new Error(archiveErrorMessage(archived.reason), { cause: pncpErr });
-        }
-        const view = archivedRowToContract(archived.rows[0], id);
-        view.archived = { dataParticao: archived.dataParticao };
+      },
+      buildFromArchive: ({ rows, dataParticao }) => {
+        const view = archivedRowToContract(rows[0], id);
+        view.archived = { dataParticao };
         return view;
-      }
-    },
-    enabled: !!parsedId,
-  }));
+      },
+    }),
+  );
 
   const data = $derived(contractQuery.data);
   const loading = $derived(contractQuery.isFetching);
