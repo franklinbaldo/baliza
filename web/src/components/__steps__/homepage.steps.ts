@@ -9,6 +9,7 @@ const Dashboard = DashboardRaw as unknown as Parameters<typeof render>[0];
 const feature = await loadFeature('features/homepage.feature');
 
 const validStats = { total_contracts: 99000, total_quarantine: 1, days_on_ia: 365 };
+const heroStats = { total_contracts: 5804, total_quarantine: 3, days_on_ia: 3 };
 
 describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   BeforeEachScenario(async () => {
@@ -43,8 +44,42 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
 
     When('the dashboard mounts', () => {});
 
-    Then('I should see "99000" in the stats', async () => {
-      await waitFor(() => expect(screen.getByText('99000')).toBeTruthy());
+    Then('I should see "99.000" in the stats', async () => {
+      await waitFor(() => expect(screen.getByText('99.000')).toBeTruthy());
+    });
+  });
+
+  Scenario('KPI numbers render with Brazilian thousand separator', ({ Given, When, Then }) => {
+    Given('the fetch returns total_contracts 5804', async () => {
+      global.fetch = vi.fn().mockResolvedValue(
+        new Response(JSON.stringify(heroStats), { status: 200 }),
+      );
+      render(Dashboard);
+      await tick();
+    });
+
+    When('the dashboard mounts', () => {});
+
+    Then('I should see "5.804" in the stats', async () => {
+      await waitFor(() => expect(screen.getByText('5.804')).toBeTruthy());
+    });
+  });
+
+  Scenario('Quarantine KPI links to the glossary anchor', ({ Given, When, Then }) => {
+    Given('the fetch returns valid stats', async () => {
+      global.fetch = vi.fn().mockResolvedValue(
+        new Response(JSON.stringify(validStats), { status: 200 }),
+      );
+      render(Dashboard);
+      await tick();
+      await waitFor(() => screen.getByText('99.000'));
+    });
+
+    When('the dashboard has finished loading', () => {});
+
+    Then('the "Em quarentena" card should link to "/baliza/sobre#quarentena"', () => {
+      const link = screen.getByRole('link', { name: /em quarentena/i });
+      expect(link.getAttribute('href')).toBe('/baliza/sobre#quarentena');
     });
   });
 
@@ -73,7 +108,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       );
       render(Dashboard);
       await tick();
-      await waitFor(() => screen.getByText('99000'));
+      await waitFor(() => screen.getByText('99.000'));
     });
 
     When('the dashboard has finished loading', () => {});

@@ -9,7 +9,7 @@ Feature: Dashboard Stats
   Scenario: Render stats when fetch succeeds
     Given the fetch returns total_contracts 42000
     When the dashboard mounts
-    Then I should see "42000" in a stat card
+    Then I should see "42.000" in a stat card
 
   Scenario: Show AlertBanner on fetch error
     Given the fetch throws "Falha na rede"
