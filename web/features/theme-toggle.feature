@@ -1,3 +1,4 @@
+@journey3 @journey4 @journey5 @journey7 @green
 Feature: Theme Toggle
   O usuário pode alternar entre tema claro e escuro.
 
