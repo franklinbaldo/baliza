@@ -288,4 +288,36 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       expect(cards.length).toBe(1);
     });
   });
+
+  Scenario('Skeleton loader shown while PNCP query is pending', ({ Given, And, When, Then }) => {
+    Given('geolocation succeeds with IBGE "1721000"', () => {
+      const resolveGeo = mockGeoResolution();
+
+      global.fetch = vi.fn().mockImplementation((input: unknown) => {
+        const url = typeof input === 'string' ? input : (input as Request).url;
+        const geoResponse = resolveGeo(url);
+        if (geoResponse) return Promise.resolve(geoResponse);
+        return new Promise(() => {});
+      });
+    });
+
+    And('the PNCP fetch is pending', () => {});
+
+    When('the user activates the locator', async () => {
+      render(LocalBids);
+      await tick();
+      await fireEvent.click(screen.getByText('Ativar Localizador'));
+    });
+
+    Then('I should see a skeleton loader with aria-busy', async () => {
+      await waitFor(
+        () => {
+          const busy = document.querySelector('[aria-busy="true"]');
+          expect(busy).toBeTruthy();
+          expect(busy?.querySelector('.skeleton')).toBeTruthy();
+        },
+        { timeout: 3000 },
+      );
+    });
+  });
 });

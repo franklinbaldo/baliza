@@ -36,3 +36,9 @@ Feature: Agency Detail View
     When the agency detail view mounts
     Then every PNCP consulta URL should contain "cnpj=00000000000191"
     And no PNCP consulta URL should contain "cnpjOrgao="
+
+  Scenario: Lookback window dias=180 widens the publicação date range
+    Given the URL has cnpj "00000000000191" and dias "180"
+    And the PNCP API returns 0 contracts
+    When the agency detail view mounts
+    Then every PNCP consulta URL should span 180 days between dataInicial and dataFinal
