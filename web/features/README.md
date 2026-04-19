@@ -32,9 +32,11 @@ All commands run from `web/`.
 
 Tag filtering is driven by the standard `VITEST_INCLUDE_TAGS` and
 `VITEST_EXCLUDE_TAGS` environment variables, plus the default
-`excludeTags: ['wip', 'planned']` configured in `web/vitest.setup.ts`.
-Setting either env var overrides the default (pass `ignore` as the
-exclude to effectively disable the default exclusion).
+`excludeTags: ['planned', 'wip']` configured in `web/vitest.setup.ts`.
+Setting `VITEST_INCLUDE_TAGS` drops matching tags from the default
+exclusion, so `npm run test:bdd:wip` actually exercises `@wip` scenarios.
+Pass `VITEST_EXCLUDE_TAGS=ignore` to effectively disable the default
+exclusion entirely.
 
 ### Tag conventions
 
