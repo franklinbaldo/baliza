@@ -2,9 +2,10 @@
   import { createQuery, setQueryClientContext } from '@tanstack/svelte-query';
   import { getQueryClient } from '../lib/queryClient';
   import { QUERY_KEYS } from '../lib/queryKeys';
-  import { queryParquetFallback, archiveErrorMessage, prefetchArchive } from '../lib/parquetFallback';
+  import { prefetchArchive } from '../lib/parquetFallback';
   import { parsePncpPublicacaoList, type PNCPContract } from '../lib/pncp';
   import { formatParticao } from '../lib/formatParticao';
+  import { createDetailQuery } from '../lib/createDetailQuery';
   import type { ArchivedContrato } from '../lib/archive/schema';
   import EntityNotFound from './EntityNotFound.svelte';
   import AlertBanner from './AlertBanner.svelte';
@@ -48,39 +49,32 @@
     };
   }
 
-  const agencyQuery = createQuery(() => ({
-    queryKey: QUERY_KEYS.orgao(cnpj),
-    queryFn: async (): Promise<AgencyView | null> => {
-      if (!cnpj) return null;
-      const url = `https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?cnpjOrgao=${cnpj}&tamanhoPagina=10`;
-      try {
+  const agencyQuery = createQuery(() =>
+    createDetailQuery<AgencyView | null>({
+      queryKey: QUERY_KEYS.orgao(cnpj),
+      enabled: !!cnpj,
+      archive: {
+        column: 'cnpj_orgao',
+        identifier: cnpj,
+        limit: 10,
+        orderByColumn: 'data_publicacao_pncp',
+      },
+      fetchLive: async () => {
+        if (!cnpj) return null;
+        const url = `https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?cnpjOrgao=${cnpj}&tamanhoPagina=10`;
         const res = await fetch(url);
         if (!res.ok) throw new Error("Órgão não localizado ou sem publicações no PNCP.");
         const contracts = parsePncpPublicacaoList(await res.json());
         const agencyName = contracts[0]?.orgaoEntidade?.razaoSocial || "Órgão Público";
         return { name: agencyName, cnpj, contracts };
-      } catch (pncpErr) {
-        const archived = await queryParquetFallback(
-          'cnpj_orgao',
-          cnpj,
-          10,
-          'data_publicacao_pncp',
-        );
-        if (!archived.ok) {
-          throw new Error(archiveErrorMessage(archived.reason), { cause: pncpErr });
-        }
-        const contracts = archived.rows.map(archivedRowToContract);
+      },
+      buildFromArchive: ({ rows, dataParticao }) => {
+        const contracts = rows.map(archivedRowToContract);
         const agencyName = contracts[0]?.orgaoEntidade?.razaoSocial || "Órgão Arquivado";
-        return {
-          name: agencyName,
-          cnpj,
-          contracts,
-          archived: { dataParticao: archived.dataParticao },
-        };
-      }
-    },
-    enabled: !!cnpj,
-  }));
+        return { name: agencyName, cnpj, contracts, archived: { dataParticao } };
+      },
+    }),
+  );
 
   const data = $derived(agencyQuery.data);
   const loading = $derived(agencyQuery.isFetching);
