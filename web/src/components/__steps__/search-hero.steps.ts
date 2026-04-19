@@ -24,11 +24,20 @@ function stubLocationAssign() {
   return assign;
 }
 
-describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
+describeFeature(feature, ({ Scenario, BeforeEachScenario, AfterEachScenario }) => {
+  const originalInnerWidth = window.innerWidth;
+
   BeforeEachScenario(async () => {
     cleanup();
     vi.restoreAllMocks();
     vi.useRealTimers();
+  });
+
+  AfterEachScenario(() => {
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: originalInnerWidth,
+    });
   });
 
   Scenario('Detect CNPJ pattern and show correct jump link', ({ Given, Then, And }) => {
