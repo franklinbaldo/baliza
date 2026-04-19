@@ -38,7 +38,6 @@
     border-radius: var(--radius-box);
     max-width: 600px;
     margin: 0 auto;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.05);
   }
   .icon { font-size: 3rem; margin-bottom: var(--space-md); }
   h2 { font-size: var(--font-size-xl); margin-bottom: var(--space-sm); color: var(--color-primary); }

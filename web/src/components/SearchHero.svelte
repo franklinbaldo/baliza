@@ -242,7 +242,6 @@
     padding: var(--space-md);
     border: 1px solid var(--color-base-300);
     border-radius: var(--radius-box);
-    box-shadow: var(--shadow-md);
   }
 
   .search-form { display: block; }
