@@ -90,8 +90,14 @@
     // contratos URL. Orgaos/unidades/fornecedores columns don't exist in the
     // contratos parquet, so pointing there would make the generated query
     // error instead of showing the column.
-    const url = resolvedUrls[table] ?? null;
-    const escaped = url ? url.replace(/'/g, "''") : 'IA_URL';
+    //
+    // Early-return if the per-table URL hasn't resolved yet. We intentionally
+    // do NOT fall back to 'IA_URL' here: the reactive $effect would then
+    // rewrite it to resolvedParquetUrl (always contratos), silently producing
+    // wrong-table SQL for orgaos/unidades/fornecedores columns.
+    const url = resolvedUrls[table];
+    if (!url) return;
+    const escaped = url.replace(/'/g, "''");
     query = `SELECT ${column} FROM read_parquet('${escaped}') LIMIT 10`;
     // Hook for component assertions that need to wait for the column click to
     // resolve into textarea state.

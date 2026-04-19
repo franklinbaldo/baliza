@@ -139,7 +139,11 @@
       archive: {
         column: 'cnpj_orgao',
         value: cnpj,
-        limit: 10,
+        // 50 keeps the archive rollup (topSuppliers + monthly chart) in
+        // parity with the live branch — smaller sample sizes under-count
+        // suppliers and misrank the monthly activity for any agency with
+        // non-trivial history.
+        limit: 50,
         orderByColumn: 'data_publicacao_pncp',
       },
       fetchLive: async () => {

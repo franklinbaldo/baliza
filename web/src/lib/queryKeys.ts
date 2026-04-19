@@ -5,4 +5,5 @@ export const QUERY_KEYS = {
   municipio:   (ibge: string, dias: number) => ['municipio', ibge, dias]       as const,
   contratacao: (id: string)                 => ['contratacao', id]             as const,
   localBids:   (ibge: string)               => ['local-bids', ibge]            as const,
+  atas:        (objeto: string)             => ['atas', objeto]                as const,
 } as const;

@@ -1,11 +1,34 @@
 import { loadFeature, describeFeature } from '@amiceli/vitest-cucumber';
-import { cleanup, waitFor } from '@testing-library/svelte/pure';
+import { screen, cleanup, waitFor } from '@testing-library/svelte/pure';
 import { vi, expect } from 'vitest';
 import { tick } from 'svelte';
 import { render, noop, plannedStep } from './_shared';
 import ContractDetailViewRaw from '../../ContractDetailView.svelte';
+import AtasViewRaw from '../../AtasView.svelte';
+import * as parquetFallback from '../../../lib/parquetFallback';
+import type { ArchivedContrato } from '../../../lib/archive/schema';
 
 const ContractDetailView = ContractDetailViewRaw as unknown as Parameters<typeof render>[0];
+const AtasView = AtasViewRaw as unknown as Parameters<typeof render>[0];
+
+function futurePlus(years: number): string {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() + years);
+  return d.toISOString().slice(0, 10);
+}
+
+const ATAS_ROW = {
+  numero_controle_pncp: '00000000000191-1-000001/2024',
+  data_publicacao_pncp: '2025-01-15',
+  data_vigencia_inicio: '2025-01-15',
+  data_vigencia_fim: futurePlus(1),
+  objeto_contrato: 'Registro de preços para papel A4 sulfite',
+  valor_global: 120000,
+  valor_inicial: 120000,
+  cnpj_orgao: '00000000000191',
+  razao_social_orgao: 'Prefeitura Exemplo',
+  nome_unidade: 'Secretaria de Compras',
+} as unknown as ArchivedContrato;
 
 const feature = await loadFeature('features/journeys/02_public_buyer.feature');
 
@@ -34,10 +57,26 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   });
 
   Scenario('Browse vigent registered-price frameworks for an object', ({ Given, Then }) => {
-    Given('the user opens "/atas?objeto=papel%20A4"', noop);
+    Given('the user opens "/atas?objeto=papel%20A4"', async () => {
+      cleanup();
+      vi.restoreAllMocks();
+      window.history.replaceState({}, '', '/?objeto=papel%20A4');
+      vi.spyOn(parquetFallback, 'queryArchivedTableWhere').mockResolvedValue({
+        ok: true,
+        rows: [ATAS_ROW],
+        dataParticao: '2025-01-31',
+      });
+      render(AtasView);
+      await tick();
+    });
     Then(
-      'the user sees a list of vigent atas with start date, end date, contracting agency and remaining quantity',
-      () => plannedStep('atas browser route and vigent-frameworks data model'),
+      'the user sees a list of vigent atas with start date, end date and contracting agency',
+      async () => {
+        await waitFor(
+          () => expect(screen.getByTestId('atas-list')).toBeTruthy(),
+          { timeout: 2000 },
+        );
+      },
     );
   });
 
