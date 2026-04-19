@@ -137,13 +137,12 @@
           {#if query}
             <button type="button" class="clear-btn" onclick={() => { query = ''; scheduleSearch(''); }} aria-label="Limpar busca">×</button>
           {/if}
+          {#if searching}
+            <span class="valid-indicator cg-pulse" aria-hidden="true">⏳</span>
+          {:else if hasPattern}
+            <span class="valid-indicator" aria-hidden="true">✅</span>
+          {/if}
         </label>
-
-        {#if searching}
-          <div class="valid-indicator cg-pulse" aria-hidden="true">⏳</div>
-        {:else if hasPattern}
-          <div class="valid-indicator" aria-hidden="true">✅</div>
-        {/if}
 
         <button type="submit" class="search-btn btn btn-primary" disabled={searching}>Buscar</button>
       </div>
@@ -199,11 +198,13 @@
 
       <div class="hints" role="status" aria-live="polite">
         <span class="hints-label">Sugestões:</span>
-        {#each SEARCH_HINTS as hint (hint)}
-          <button type="button" class="hint-chip" onclick={() => { query = hint; scheduleSearch(hint); }}>
-            {hint}
-          </button>
-        {/each}
+        <div class="hint-chips">
+          {#each SEARCH_HINTS as hint (hint)}
+            <button type="button" class="hint-chip" onclick={() => { query = hint; scheduleSearch(hint); }}>
+              {hint}
+            </button>
+          {/each}
+        </div>
       </div>
     </form>
   </div>
@@ -258,12 +259,14 @@
     display: flex;
     align-items: center;
     gap: 0.6rem;
-    padding: 0.75rem 1rem;
+    padding: 0.75rem 2.25rem 0.75rem 1rem;
     border: 1px solid var(--color-base-300);
     border-radius: var(--radius-sm);
     background: var(--color-base-200);
     transition: border-color var(--transition-base), box-shadow var(--transition-base);
     cursor: text;
+    position: relative;
+    min-width: 0;
   }
 
   .input-label:focus-within {
@@ -303,7 +306,12 @@
   .clear-btn:hover { opacity: 1; }
 
   .valid-indicator {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
     font-size: 1.2rem;
+    line-height: 1;
     pointer-events: none;
   }
 
@@ -311,6 +319,22 @@
     flex-shrink: 0;
     font-size: var(--font-size-base);
     border-radius: var(--radius-sm);
+  }
+
+  @media (max-width: 560px) {
+    .input-wrapper {
+      flex-direction: column;
+      align-items: stretch;
+      gap: var(--space-xs);
+    }
+
+    .search-btn {
+      width: 100%;
+    }
+
+    .hints-label {
+      flex: 1 0 100%;
+    }
   }
 
   .search-box.detected .input-label {
@@ -393,13 +417,23 @@
     margin-top: var(--space-sm);
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-xs);
-    align-items: center;
+    gap: var(--space-xs) var(--space-sm);
+    align-items: baseline;
     font-size: var(--font-size-xs);
     color: var(--color-secondary);
   }
 
-  .hints-label { font-weight: 500; }
+  .hints-label {
+    font-weight: 500;
+    flex: 0 0 auto;
+  }
+
+  .hint-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+    min-width: 0;
+  }
 
   .hint-chip {
     background: var(--color-base-200);

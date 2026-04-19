@@ -76,3 +76,12 @@ Feature: Search Hero
     Given the PNCP search API returns zero results for "xyzneverexists"
     When the user types "xyzneverexists" into the search box
     Then I should see an empty state for the search
+
+  Scenario: Suggestion label renders in its own row above the chips
+    Given the search hero has loaded
+    Then the hint chips should live in their own wrapper separate from the label
+
+  Scenario: Search submit button stays inside its form on narrow viewports
+    Given the browser viewport width is 390 pixels
+    When the search hero loads
+    Then the Buscar button should be inside the search form

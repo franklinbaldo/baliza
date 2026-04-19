@@ -43,8 +43,8 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
 
     When('the dashboard mounts', () => {});
 
-    Then('I should see "42000" in a stat card', async () => {
-      await waitFor(() => expect(screen.getByText('42000')).toBeTruthy());
+    Then('I should see "42.000" in a stat card', async () => {
+      await waitFor(() => expect(screen.getByText('42.000')).toBeTruthy());
     });
   });
 
@@ -73,7 +73,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       );
       render(Dashboard);
       await tick();
-      await waitFor(() => screen.getByText('42000'));
+      await waitFor(() => screen.getByText('42.000'));
     });
 
     When('the dashboard has finished loading', () => {});
