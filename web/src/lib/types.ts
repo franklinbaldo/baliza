@@ -16,7 +16,7 @@ export interface PNCPContract {
   dataAberturaProposta?: string;
   dataEncerramentoProposta?: string;
   objetoContratacao: string;
-  valorTotalEstimado: number;
+  valorTotalEstimado?: number | null;
   valorTotalHomologado?: number;
   orgaoEntidade: {
     razaoSocial: string;

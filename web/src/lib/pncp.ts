@@ -26,7 +26,7 @@ export const PNCPContractSchema = z
     numeroControlePNCP: z.string().min(1),
     dataPublicacaoPncp: z.string().min(1),
     objetoContratacao: z.string(),
-    valorTotalEstimado: z.number().nullable().optional().transform((v) => v ?? 0),
+    valorTotalEstimado: z.number().nullable().optional(),
     valorTotalHomologado: z.number().nullable().optional(),
     dataAberturaProposta: z.string().nullable().optional(),
     dataEncerramentoProposta: z.string().nullable().optional(),

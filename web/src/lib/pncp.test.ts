@@ -22,6 +22,18 @@ describe('pncp parsers', () => {
     expect(out.numeroControlePNCP).toBe('12345678000195-1-000001/2024');
   });
 
+  it('preserves null valorTotalEstimado instead of coercing to zero', () => {
+    const out = parsePncpContract({ ...validContract, valorTotalEstimado: null });
+    expect(out.valorTotalEstimado).toBeNull();
+  });
+
+  it('preserves missing valorTotalEstimado as undefined', () => {
+    const { valorTotalEstimado: _unused, ...withoutValue } = validContract;
+    void _unused;
+    const out = parsePncpContract(withoutValue);
+    expect(out.valorTotalEstimado).toBeUndefined();
+  });
+
   it('logs PNCP_INVALID telemetry tag and rethrows on malformed contract', () => {
     const info = vi.spyOn(console, 'info').mockImplementation(() => {});
     expect(() => parsePncpContract({ junk: true })).toThrow();
