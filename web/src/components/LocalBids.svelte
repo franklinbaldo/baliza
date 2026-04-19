@@ -1,6 +1,7 @@
 <script lang="ts">
   import { getUserCoordinates, getCityFromCoords, getIBGECode } from '../lib/geo';
   import type { PNCPContract } from '../lib/pncp';
+  import { formatDate } from '../lib/format';
   import EmptyState from './EmptyState.svelte';
 
   let locationStatus = $state<'idle' | 'locating' | 'loading_data' | 'ready' | 'error' | 'denied'>('idle');
@@ -80,7 +81,7 @@
               <a href={`/baliza/contratacao?id=${bid.numeroControlePNCP}`} class="bid-card">
                 <div class="bid-meta">
                   <span class="bid-id">#{bid.numeroControlePNCP}</span>
-                  <span class="bid-date">{new Date(bid.dataPublicacaoPncp).toLocaleDateString('pt-BR')}</span>
+                  <span class="bid-date">{formatDate(bid.dataPublicacaoPncp)}</span>
                 </div>
                 <p class="bid-obj">{bid.objetoContratacao.substring(0, 100)}...</p>
               </a>

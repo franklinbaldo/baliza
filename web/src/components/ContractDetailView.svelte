@@ -68,7 +68,7 @@
         const url = `https://pncp.gov.br/api/consulta/v1/orgaos/${cnpj}/contratacoes/${ano}/${sequencial}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error("Contratação não localizada no PNCP.");
-        return parsePncpContract(await res.json()) as ContractView;
+        return parsePncpContract(await res.json());
       },
       buildFromArchive: ({ rows, dataParticao }) => {
         const view = archivedRowToContract(rows[0], id);
