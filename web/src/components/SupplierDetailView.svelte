@@ -165,8 +165,12 @@
     queryKey: ['peer-suppliers', cnpj, topBuyerCnpj] as const,
     enabled: !!cnpj && !!topBuyerCnpj,
     queryFn: async (): Promise<CompetitorTally[]> => {
+      // orderByColumn pins the 100-row window to the most recent contracts;
+      // without it DuckDB can return an arbitrary subset and the competitor
+      // tally fluctuates between loads for larger buyers.
       const r = await queryArchivedTable('contratos', 'cnpj_orgao', topBuyerCnpj, {
         limit: 100,
+        orderByColumn: 'data_publicacao_pncp',
       });
       return r.ok ? computeCompetitors(r.rows, cnpj) : [];
     },

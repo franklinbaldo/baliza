@@ -119,12 +119,14 @@
   let watchFormOpen = $state(false);
   let watchLabel = $state('');
   let watchSaved = $state(false);
+  let watchError = $state<string | null>(null);
 
   function openWatchForm() {
     if (!data?.supplierCnpj) return;
     watchFormOpen = true;
     watchLabel = data.supplierName ?? data.supplierCnpj;
     watchSaved = false;
+    watchError = null;
   }
 
   function saveWatch(e: Event) {
@@ -136,19 +138,29 @@
       label: watchLabel.trim() || data.supplierCnpj,
       createdAt: new Date().toISOString(),
     };
-    if (typeof window !== 'undefined') {
-      try {
-        const raw = window.localStorage.getItem('baliza.watches');
-        const existing: WatchDraft[] = raw ? JSON.parse(raw) : [];
-        existing.push(draft);
-        window.localStorage.setItem('baliza.watches', JSON.stringify(existing));
-      } catch {
-        // localStorage may be disabled (private mode, quota full). We still
-        // flip the confirmation so the user gets feedback and the operator
-        // can debug via the DOM state rather than an invisible throw.
-      }
+    if (typeof window === 'undefined') {
+      watchError = 'Armazenamento local indisponível neste ambiente.';
+      watchSaved = false;
+      return;
     }
-    watchSaved = true;
+    try {
+      const raw = window.localStorage.getItem('baliza.watches');
+      let existing: WatchDraft[] = [];
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) existing = parsed;
+      }
+      existing.push(draft);
+      window.localStorage.setItem('baliza.watches', JSON.stringify(existing));
+      watchSaved = true;
+      watchError = null;
+    } catch {
+      // Storage disabled (private mode), quota exceeded, or existing JSON
+      // corrupt. Surface the failure so the user knows the watch was NOT
+      // persisted — the previous code silently claimed success.
+      watchSaved = false;
+      watchError = 'Não foi possível salvar a vigilância no navegador.';
+    }
   }
 </script>
 
@@ -316,6 +328,8 @@
                   Vigilância salva localmente. O feed será publicado em
                   <code>/alertas/fornecedor-{data.supplierCnpj}.xml</code>.
                 </p>
+              {:else if watchError}
+                <p class="watch-error" role="alert">{watchError}</p>
               {/if}
             </form>
           {/if}
@@ -434,5 +448,10 @@
   .watch-confirm code {
     font-family: var(--font-mono);
     color: var(--color-primary);
+  }
+  .watch-error {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-danger, #b3261e);
   }
 </style>
