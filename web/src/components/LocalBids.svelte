@@ -130,9 +130,15 @@
 
     {:else if geoStatus === 'ready'}
       {#if loadingData}
-        <div class="status-msg" aria-busy="true">
-          <div class="spinner" aria-hidden="true"></div>
-          <p>Consultando PNCP para {cityInfo?.name}...</p>
+        <div
+          class="skeleton-wrap"
+          aria-busy="true"
+          aria-label={`Consultando PNCP para ${cityInfo?.name ?? 'seu município'}`}
+        >
+          <div class="skeleton skeleton-heading"></div>
+          {#each [1, 2, 3] as _, i (i)}
+            <div class="skeleton skeleton-bid"></div>
+          {/each}
         </div>
       {:else if data}
         {#if data.archived}
@@ -216,6 +222,10 @@
   }
 
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  .skeleton-wrap { display: grid; gap: var(--space-sm); }
+  .skeleton-heading { height: 1.25rem; width: 55%; border-radius: var(--radius-sm); }
+  .skeleton-bid { height: 4.5rem; border-radius: var(--radius-sm); }
 
   .results-header {
     margin-bottom: var(--space-md);
