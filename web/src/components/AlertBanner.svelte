@@ -18,7 +18,7 @@
 <style>
   .alert {
     padding: 1rem;
-    border-radius: var(--radius-box);
+    border-radius: 0;
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -32,26 +32,30 @@
   }
 
   .level-info {
-    background: color-mix(in srgb, var(--color-info) 15%, transparent);
+    background: var(--color-base-100);
     border: 1px solid var(--color-info);
+    border-left: 4px solid var(--color-info);
     color: var(--color-info);
   }
 
   .level-success {
-    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+    background: var(--color-base-100);
     border: 1px solid var(--color-success);
+    border-left: 4px solid var(--color-success);
     color: var(--color-success);
   }
 
   .level-warning {
-    background: color-mix(in srgb, var(--color-warning) 15%, transparent);
+    background: var(--color-base-100);
     border: 1px solid var(--color-warning);
+    border-left: 4px solid var(--color-warning);
     color: var(--color-warning);
   }
 
   .level-error {
-    background: color-mix(in srgb, var(--color-error) 15%, transparent);
+    background: var(--color-base-100);
     border: 1px solid var(--color-error);
+    border-left: 4px solid var(--color-error);
     color: var(--color-error);
   }
 </style>
