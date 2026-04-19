@@ -1,11 +1,13 @@
 <script lang="ts">
   import { Sun, Moon } from 'lucide-svelte';
 
-  let isDark = $state(false);
-
-  $effect(() => {
-    isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-  });
+  // Read the data-theme attribute already applied by the FOUC-prevention inline
+  // script in Layout.astro. Initialized synchronously at render time.
+  let isDark = $state(
+    typeof document !== 'undefined'
+      ? document.documentElement.getAttribute('data-theme') === 'dark'
+      : true
+  );
 
   function toggle() {
     isDark = !isDark;
@@ -13,7 +15,9 @@
     document.documentElement.setAttribute('data-theme', theme);
     try {
       localStorage.setItem('baliza-theme', theme);
-    } catch (_) {}
+    } catch {
+      /* localStorage unavailable (e.g. private mode restrictions) */
+    }
   }
 </script>
 
