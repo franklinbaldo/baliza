@@ -2,7 +2,7 @@
   import { onDestroy } from 'svelte';
   import { PROJECT_MISSION, SEARCH_HINTS } from '../lib/homepage-content';
   import { isPncpId, parsePncpId } from '../lib/pncpId';
-  import { normalizeSearchInput } from '../lib/normalizeSearchInput';
+  import { formatBRL, formatDate, normalizeSearchInput } from '../lib/format';
   import EmptyState from './EmptyState.svelte';
   import AlertBanner from './AlertBanner.svelte';
 
@@ -48,17 +48,6 @@
   function truncate(s: string, n: number) {
     if (!s) return '';
     return s.length > n ? s.slice(0, n - 1) + '…' : s;
-  }
-
-  function formatBRL(v: number | null | undefined) {
-    if (v == null) return '—';
-    return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  }
-
-  function formatDate(iso: string | undefined) {
-    if (!iso) return '';
-    const d = new Date(iso);
-    return isNaN(d.getTime()) ? '' : d.toLocaleDateString('pt-BR');
   }
 
   async function runSearch(term: string) {
