@@ -30,7 +30,14 @@
   });
 
   function todayIso(): string {
-    return new Date().toISOString().slice(0, 10);
+    // Local date parts — toISOString() returns UTC, which in negative-offset
+    // timezones during local evening advances the cutoff by one day and
+    // excludes contracts still vigent on the current local date.
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
   }
 
   const atasQuery = createQuery(() => ({

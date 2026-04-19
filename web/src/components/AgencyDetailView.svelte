@@ -123,9 +123,19 @@
     const indexByMonth = new Map(buckets.map((b, i) => [b.month, i]));
     for (const c of contracts) {
       if (!c.dataPublicacaoPncp) continue;
-      const d = new Date(c.dataPublicacaoPncp);
-      if (isNaN(d.getTime())) continue;
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      // YYYY-MM-DD inputs are parsed as UTC midnight; reading the month via
+      // local accessors drifts day-1 publications into the previous month
+      // for viewers west of UTC. Slice the YYYY-MM prefix directly when the
+      // string already starts with it; otherwise fall back to UTC accessors.
+      const raw = c.dataPublicacaoPncp;
+      let key: string;
+      if (/^\d{4}-\d{2}/.test(raw)) {
+        key = raw.slice(0, 7);
+      } else {
+        const d = new Date(raw);
+        if (isNaN(d.getTime())) continue;
+        key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+      }
       const idx = indexByMonth.get(key);
       if (idx != null) buckets[idx].count += 1;
     }
