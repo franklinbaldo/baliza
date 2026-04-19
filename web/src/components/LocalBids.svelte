@@ -1,6 +1,6 @@
 <script lang="ts">
   import { getUserCoordinates, getCityFromCoords, getIBGECode } from '../lib/geo';
-  import type { PNCPContract } from '../lib/types';
+  import type { PNCPContract } from '../lib/pncp';
   import EmptyState from './EmptyState.svelte';
 
   let locationStatus = $state<'idle' | 'locating' | 'loading_data' | 'ready' | 'error' | 'denied'>('idle');

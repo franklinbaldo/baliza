@@ -2,9 +2,8 @@
   import { createQuery, setQueryClientContext } from '@tanstack/svelte-query';
   import { getQueryClient } from '../lib/queryClient';
   import { QUERY_KEYS } from '../lib/queryKeys';
-  import type { PNCPContract } from '../lib/types';
   import { queryParquetFallback, archiveErrorMessage, prefetchArchive } from '../lib/parquetFallback';
-  import { parsePncpContract } from '../lib/pncp';
+  import { parsePncpContract, type PNCPContract } from '../lib/pncp';
   import { formatParticao } from '../lib/formatParticao';
   import type { ArchivedContrato } from '../lib/archive/schema';
   import { parsePncpId, PNCP_ID_EXAMPLE } from '../lib/pncpId';
