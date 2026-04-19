@@ -36,7 +36,7 @@
       numeroControlePNCP: row.numero_controle_pncp ?? id,
       dataPublicacaoPncp: row.data_publicacao_pncp ?? '',
       objetoContratacao: row.objeto_contrato ?? '',
-      valorTotalEstimado: row.valor_global ?? row.valor_inicial ?? 0,
+      valorTotalEstimado: row.valor_global ?? row.valor_inicial ?? null,
       modalidadeNome: row.modalidade_nome ?? undefined,
       linkSistemaOrigem: row.link_sistema_origem ?? undefined,
       usuarioNome: row.usuario_nome ?? undefined,

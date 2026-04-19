@@ -40,7 +40,7 @@
       numeroControlePNCP: row.numero_controle_pncp ?? '',
       dataPublicacaoPncp: row.data_publicacao_pncp ?? '',
       objetoContratacao: row.objeto_contrato ?? '',
-      valorTotalEstimado: row.valor_global ?? row.valor_inicial ?? 0,
+      valorTotalEstimado: row.valor_global ?? row.valor_inicial ?? null,
       orgaoEntidade: {
         razaoSocial: row.razao_social_orgao ?? '',
         cnpj: row.cnpj_orgao ?? '',
@@ -155,7 +155,7 @@
             </div>
             <p class="bid-obj">{item.objetoContratacao.substring(0, 150)}...</p>
             <div class="bid-footer">
-              <span class="valor">R$ {item.valorTotalEstimado?.toLocaleString('pt-BR')}</span>
+              <span class="valor">{item.valorTotalEstimado != null ? `R$ ${item.valorTotalEstimado.toLocaleString('pt-BR')}` : '—'}</span>
             </div>
           </a>
         {/each}
