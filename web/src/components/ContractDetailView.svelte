@@ -3,9 +3,10 @@
   import { getQueryClient } from '../lib/queryClient';
   import { QUERY_KEYS } from '../lib/queryKeys';
   import type { PNCPContract } from '../lib/types';
-  import { queryParquetFallback, archiveErrorMessage, prefetchArchive } from '../lib/parquetFallback';
+  import { queryParquetFallback, prefetchArchive } from '../lib/parquetFallback';
   import { parsePncpContract } from '../lib/pncp';
   import { formatParticao } from '../lib/formatParticao';
+  import { createDetailQuery } from '../lib/createDetailQuery';
   import type { ArchivedContrato } from '../lib/archive/schema';
   import { parsePncpId, PNCP_ID_EXAMPLE } from '../lib/pncpId';
   import EntityNotFound from './EntityNotFound.svelte';
@@ -53,32 +54,26 @@
     };
   }
 
-  const contractQuery = createQuery(() => ({
-    queryKey: QUERY_KEYS.contratacao(id),
-    queryFn: async (): Promise<ContractView | null> => {
-      if (!parsedId) return null;
-      const { cnpj, sequencial, ano } = parsedId;
-      const url = `https://pncp.gov.br/api/consulta/v1/orgaos/${cnpj}/contratacoes/${ano}/${sequencial}`;
-      try {
+  const contractQuery = createQuery(() =>
+    createDetailQuery<ContractView, ArchivedContrato>({
+      queryKey: QUERY_KEYS.contratacao(id),
+      enabled: !!parsedId,
+      fetchLive: async () => {
+        const { cnpj, sequencial, ano } = parsedId!;
+        const url = `https://pncp.gov.br/api/consulta/v1/orgaos/${cnpj}/contratacoes/${ano}/${sequencial}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error("Contratação não localizada no PNCP.");
         return parsePncpContract(await res.json()) as ContractView;
-      } catch (pncpErr) {
-        const archived = await queryParquetFallback(
-          'numero_controle_pncp',
-          id,
-          1,
-        );
-        if (!archived.ok) {
-          throw new Error(archiveErrorMessage(archived.reason), { cause: pncpErr });
-        }
-        const view = archivedRowToContract(archived.rows[0], id);
-        view.archived = { dataParticao: archived.dataParticao };
+      },
+      fetchArchive: () =>
+        queryParquetFallback('numero_controle_pncp', id, 1),
+      mapArchiveRow: ({ rows, dataParticao }) => {
+        const view = archivedRowToContract(rows[0], id);
+        view.archived = { dataParticao };
         return view;
-      }
-    },
-    enabled: !!parsedId,
-  }));
+      },
+    }),
+  );
 
   const data = $derived(contractQuery.data);
   const loading = $derived(contractQuery.isFetching);

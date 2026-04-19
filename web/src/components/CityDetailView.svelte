@@ -3,9 +3,10 @@
   import { getQueryClient } from '../lib/queryClient';
   import { QUERY_KEYS } from '../lib/queryKeys';
   import type { PNCPContract } from '../lib/types';
-  import { queryParquetFallback, archiveErrorMessage, prefetchArchive } from '../lib/parquetFallback';
+  import { queryParquetFallback, prefetchArchive } from '../lib/parquetFallback';
   import { parsePncpPublicacaoList } from '../lib/pncp';
   import { formatParticao } from '../lib/formatParticao';
+  import { createDetailQuery } from '../lib/createDetailQuery';
   import type { ArchivedContrato } from '../lib/archive/schema';
   import EntityNotFound from './EntityNotFound.svelte';
   import AlertBanner from './AlertBanner.svelte';
@@ -54,43 +55,30 @@
     };
   }
 
-  const cityQuery = createQuery(() => ({
-    queryKey: QUERY_KEYS.municipio(ibge),
-    queryFn: async (): Promise<CityView | null> => {
-      if (!ibge) return null;
-      const url = `https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?codigoMunicipioIbge=${ibge}&tamanhoPagina=10`;
-      try {
+  const cityQuery = createQuery(() =>
+    createDetailQuery<CityView, ArchivedContrato>({
+      queryKey: QUERY_KEYS.municipio(ibge),
+      enabled: !!ibge,
+      fetchLive: async () => {
+        const url = `https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?codigoMunicipioIbge=${ibge}&tamanhoPagina=10`;
         const res = await fetch(url);
         if (!res.ok) throw new Error("Município não localizado ou sem publicações no PNCP.");
         const contracts = parsePncpPublicacaoList(await res.json());
         const cityName = contracts[0]?.municipio?.nomeMunicipio || contracts[0]?.unidadeOrgao?.municipioNome || "Município";
         const uf = contracts[0]?.unidadeOrgao?.ufSigla || "";
         return { name: cityName, uf, ibge, contracts };
-      } catch (pncpErr) {
-        const archived = await queryParquetFallback(
-          'codigo_ibge',
-          ibge,
-          10,
-          'data_publicacao_pncp',
-        );
-        if (!archived.ok) {
-          throw new Error(archiveErrorMessage(archived.reason), { cause: pncpErr });
-        }
-        const contracts = archived.rows.map(archivedRowToContract);
-        const first = archived.rows[0];
+      },
+      fetchArchive: () =>
+        queryParquetFallback('codigo_ibge', ibge, 10, 'data_publicacao_pncp'),
+      mapArchiveRow: ({ rows, dataParticao }) => {
+        const contracts = rows.map(archivedRowToContract);
+        const first = rows[0];
         const cityName = first?.municipio_nome ?? 'Município';
         const uf = first?.uf_sigla ?? '';
-        return {
-          name: cityName,
-          uf,
-          ibge,
-          contracts,
-          archived: { dataParticao: archived.dataParticao },
-        };
-      }
-    },
-    enabled: !!ibge,
-  }));
+        return { name: cityName, uf, ibge, contracts, archived: { dataParticao } };
+      },
+    }),
+  );
 
   const data = $derived(cityQuery.data);
   const loading = $derived(cityQuery.isFetching);
