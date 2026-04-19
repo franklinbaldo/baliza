@@ -5,15 +5,10 @@ import type { ArchivedTable } from './archive/schema';
 export const IA_MANIFEST_URL =
   'https://archive.org/download/baliza-pncp-manifest/manifest.csv';
 
-// Every row must provide all three fields; a manifest with malformed rows
-// would otherwise corrupt downstream lookups (e.g. a `parquet_url` of the
-// empty string was previously filtered silently). Invalid rows are dropped
-// with a warning log so the archive layer degrades gracefully instead of
-// failing outright.
 const ManifestRowSchema = z.object({
   data_particao: z.string().min(1),
   table_name: z.string().min(1),
-  parquet_url: z.string().min(1),
+  parquet_url: z.string().url(),
 });
 
 type ManifestRow = z.infer<typeof ManifestRowSchema>;
@@ -52,18 +47,19 @@ async function fetchManifestRows(): Promise<ManifestRow[]> {
     header: true,
     skipEmptyLines: true,
   });
-  const validated: ManifestRow[] = [];
+  const rows: ManifestRow[] = [];
   for (const raw of parsed.data ?? []) {
     const result = ManifestRowSchema.safeParse(raw);
     if (result.success) {
-      validated.push(result.data);
+      rows.push(result.data);
     } else {
-      console.warn('[manifest] row validation failed', {
+      console.warn('[ia-manifest] skipping malformed row', {
         issues: result.error.issues,
+        row: raw,
       });
     }
   }
-  return validated;
+  return rows;
 }
 
 export async function getLatestParquetInfo(

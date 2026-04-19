@@ -2,8 +2,6 @@
  * Baliza Core Types
  */
 
-export type { PNCPContract, PNCPContractItem } from './pncp';
-
 export interface PNCPAgency {
   razao_social: string;
   cnpj: string;

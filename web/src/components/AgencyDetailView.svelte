@@ -2,9 +2,8 @@
   import { createQuery, setQueryClientContext } from '@tanstack/svelte-query';
   import { getQueryClient } from '../lib/queryClient';
   import { QUERY_KEYS } from '../lib/queryKeys';
-  import type { PNCPContract } from '../lib/types';
-  import { queryParquetFallback, prefetchArchive } from '../lib/parquetFallback';
-  import { parsePncpPublicacaoList } from '../lib/pncp';
+  import { prefetchArchive } from '../lib/parquetFallback';
+  import { parsePncpPublicacaoList, type PNCPContract } from '../lib/pncp';
   import { formatBRL, formatDate, formatParticao } from '../lib/format';
   import { createDetailQuery } from '../lib/createDetailQuery';
   import type { ArchivedContrato } from '../lib/archive/schema';
@@ -51,10 +50,17 @@
   }
 
   const agencyQuery = createQuery(() =>
-    createDetailQuery<AgencyView, ArchivedContrato>({
+    createDetailQuery<AgencyView | null>({
       queryKey: QUERY_KEYS.orgao(cnpj),
       enabled: !!cnpj,
+      archive: {
+        column: 'cnpj_orgao',
+        identifier: cnpj,
+        limit: 10,
+        orderByColumn: 'data_publicacao_pncp',
+      },
       fetchLive: async () => {
+        if (!cnpj) return null;
         const url = `https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?cnpjOrgao=${cnpj}&tamanhoPagina=10`;
         const res = await fetch(url);
         if (!res.ok) throw new Error("Órgão não localizado ou sem publicações no PNCP.");
@@ -62,9 +68,7 @@
         const agencyName = contracts[0]?.orgaoEntidade?.razaoSocial || "Órgão Público";
         return { name: agencyName, cnpj, contracts };
       },
-      fetchArchive: () =>
-        queryParquetFallback('cnpj_orgao', cnpj, 10, 'data_publicacao_pncp'),
-      mapArchiveRow: ({ rows, dataParticao }) => {
+      buildFromArchive: ({ rows, dataParticao }) => {
         const contracts = rows.map(archivedRowToContract);
         const agencyName = contracts[0]?.orgaoEntidade?.razaoSocial || "Órgão Arquivado";
         return { name: agencyName, cnpj, contracts, archived: { dataParticao } };

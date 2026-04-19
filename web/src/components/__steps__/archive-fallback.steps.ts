@@ -354,40 +354,45 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     });
   });
 
-  Scenario('Malformed manifest rows are skipped with a warning', ({ Given, And, When, Then }) => {
+  Scenario('Malformed manifest rows are skipped with a warning', ({ Given, When, Then, And }) => {
     let warnSpy: ReturnType<typeof vi.spyOn>;
+    let manifestResult: Awaited<
+      ReturnType<typeof import('../../lib/ia-manifest').getLatestParquetInfo>
+    > = null;
 
-    Given('the IA manifest returns one valid row and one malformed row', () => {
-      warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const csv =
-        'data_particao,table_name,parquet_url\n' +
-        '2024-12-01,contratos,https://archive.org/download/baliza-pncp-manifest/contratos.parquet\n' +
-        '2024-12-01,contratos,\n';
-      fetchSpy = installManifestFetch(200, csv);
-    });
-    And('DuckDB returns one row', () => {
-      queryMock.mockResolvedValue({
-        toArray: () => [{ toJSON: () => ({ numero_controle_pncp: 'x' }) }],
-      });
-    });
-    When(
-      'queryArchivedTable is called for "contratos" filtered by "cnpj_orgao"',
-      async () => {
-        result = await callArchive('contratos', 'cnpj_orgao');
+    Given(
+      'the IA manifest endpoint returns a CSV with a valid contratos row and a malformed row missing parquet_url',
+      () => {
+        warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        installManifestFetch(
+          200,
+          [
+            'data_particao,table_name,parquet_url',
+            '2024-12-01,contratos,',
+            `2024-12-02,contratos,${PARQUET_URL_BY_TABLE.contratos}`,
+          ].join('\n'),
+        );
       },
     );
-    Then('the result should succeed with the valid row', () => {
-      expect(result).toMatchObject({ ok: true });
-      if (result?.ok) {
-        expect(result.rows).toHaveLength(1);
-      }
+    When('getLatestParquetInfo is called for "contratos"', async () => {
+      const { getLatestParquetInfo } = await import('../../lib/ia-manifest');
+      manifestResult = await getLatestParquetInfo('contratos');
     });
-    And('console.warn should log "[manifest] row validation failed"', () => {
-      const warned = (warnSpy.mock.calls as unknown[][]).find(
-        (c) => c[0] === '[manifest] row validation failed',
-      );
-      expect(warned).toBeDefined();
+    Then("the valid row's parquet url should be returned", () => {
+      expect(manifestResult).toEqual({
+        url: PARQUET_URL_BY_TABLE.contratos,
+        dataParticao: '2024-12-02',
+      });
     });
+    And(
+      'console.warn should log "[ia-manifest] skipping malformed row" once',
+      () => {
+        const malformed = (warnSpy.mock.calls as unknown[][]).filter(
+          (c) => c[0] === '[ia-manifest] skipping malformed row',
+        );
+        expect(malformed).toHaveLength(1);
+      },
+    );
   });
 
   Scenario('Multi-table wrappers route through the table allow-list', ({ When, And, Then }) => {

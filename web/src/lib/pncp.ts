@@ -64,8 +64,6 @@ export const PNCPPublicacaoListSchema = z
   .passthrough();
 
 export type PNCPContract = z.infer<typeof PNCPContractSchema>;
-export type PNCPContractItem = z.infer<typeof PNCPContractItemSchema>;
-export type PNCPPublicacaoList = z.infer<typeof PNCPPublicacaoListSchema>;
 
 export function parsePncpContract(raw: unknown): PNCPContract {
   try {

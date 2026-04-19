@@ -1,23 +1,33 @@
-// Live-then-archive query factory used by every detail view. Each view passes
-// in its own live fetcher, archive call, and row-to-view mapper; the factory
-// ties them into the standard TanStack Query options object: try PNCP first,
-// fall through to the parquet snapshot on any failure, surface a friendly
-// archive error if both layers miss.
+import {
+  archiveErrorMessage,
+  queryParquetFallback,
+  type ArchiveResult,
+} from './parquetFallback';
+import type { ArchivedContrato } from './archive/schema';
 
-import { archiveErrorMessage, type ArchiveResult } from './parquetFallback';
+export interface DetailQueryArchiveConfig {
+  column: string;
+  identifier: string;
+  limit?: number;
+  orderByColumn?: string;
+}
 
-export interface DetailQueryConfig<TData, TRow> {
+export interface DetailQueryConfig<TData, TRow = ArchivedContrato> {
   queryKey: readonly unknown[];
   enabled: boolean;
   fetchLive: () => Promise<TData>;
-  fetchArchive: () => Promise<ArchiveResult<TRow>>;
-  mapArchiveRow: (input: {
+  archive: DetailQueryArchiveConfig;
+  buildFromArchive: (result: {
     rows: TRow[];
     dataParticao: string | null;
   }) => TData;
 }
 
-export function createDetailQuery<TData, TRow>(
+// Collapses the try-live-then-archive skeleton that every detail view used
+// to repeat by hand. Callers own the view-specific mapping of live payload
+// and archive rows; this factory only wires the PNCP → parquet fallback and
+// surfaces `archiveErrorMessage(reason)` on a double failure.
+export function createDetailQuery<TData, TRow = ArchivedContrato>(
   config: DetailQueryConfig<TData, TRow>,
 ) {
   return {
@@ -27,13 +37,16 @@ export function createDetailQuery<TData, TRow>(
       try {
         return await config.fetchLive();
       } catch (pncpErr) {
-        const archived = await config.fetchArchive();
+        const archived = (await queryParquetFallback<TRow>(
+          config.archive.column,
+          config.archive.identifier,
+          config.archive.limit,
+          config.archive.orderByColumn,
+        )) as ArchiveResult<TRow>;
         if (!archived.ok) {
-          throw new Error(archiveErrorMessage(archived.reason), {
-            cause: pncpErr,
-          });
+          throw new Error(archiveErrorMessage(archived.reason), { cause: pncpErr });
         }
-        return config.mapArchiveRow({
+        return config.buildFromArchive({
           rows: archived.rows,
           dataParticao: archived.dataParticao,
         });

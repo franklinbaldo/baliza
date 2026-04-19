@@ -2,9 +2,8 @@
   import { createQuery, setQueryClientContext } from '@tanstack/svelte-query';
   import { getQueryClient } from '../lib/queryClient';
   import { QUERY_KEYS } from '../lib/queryKeys';
-  import type { PNCPContract } from '../lib/types';
-  import { queryParquetFallback, prefetchArchive } from '../lib/parquetFallback';
-  import { parsePncpPublicacaoList } from '../lib/pncp';
+  import { prefetchArchive } from '../lib/parquetFallback';
+  import { parsePncpPublicacaoList, type PNCPContract } from '../lib/pncp';
   import { formatBRL, formatDate, formatParticao } from '../lib/format';
   import { createDetailQuery } from '../lib/createDetailQuery';
   import type { ArchivedContrato } from '../lib/archive/schema';
@@ -56,10 +55,17 @@
   }
 
   const cityQuery = createQuery(() =>
-    createDetailQuery<CityView, ArchivedContrato>({
+    createDetailQuery<CityView | null>({
       queryKey: QUERY_KEYS.municipio(ibge),
       enabled: !!ibge,
+      archive: {
+        column: 'codigo_ibge',
+        identifier: ibge,
+        limit: 10,
+        orderByColumn: 'data_publicacao_pncp',
+      },
       fetchLive: async () => {
+        if (!ibge) return null;
         const url = `https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?codigoMunicipioIbge=${ibge}&tamanhoPagina=10`;
         const res = await fetch(url);
         if (!res.ok) throw new Error("Município não localizado ou sem publicações no PNCP.");
@@ -68,9 +74,7 @@
         const uf = contracts[0]?.unidadeOrgao?.ufSigla || "";
         return { name: cityName, uf, ibge, contracts };
       },
-      fetchArchive: () =>
-        queryParquetFallback('codigo_ibge', ibge, 10, 'data_publicacao_pncp'),
-      mapArchiveRow: ({ rows, dataParticao }) => {
+      buildFromArchive: ({ rows, dataParticao }) => {
         const contracts = rows.map(archivedRowToContract);
         const first = rows[0];
         const cityName = first?.municipio_nome ?? 'Município';

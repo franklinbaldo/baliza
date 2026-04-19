@@ -2,9 +2,8 @@
   import { createQuery, setQueryClientContext } from '@tanstack/svelte-query';
   import { getQueryClient } from '../lib/queryClient';
   import { QUERY_KEYS } from '../lib/queryKeys';
-  import type { PNCPContract } from '../lib/types';
-  import { queryParquetFallback, prefetchArchive } from '../lib/parquetFallback';
-  import { parsePncpContract } from '../lib/pncp';
+  import { prefetchArchive } from '../lib/parquetFallback';
+  import { parsePncpContract, type PNCPContract } from '../lib/pncp';
   import { formatBRL, formatDate, formatParticao } from '../lib/format';
   import { createDetailQuery } from '../lib/createDetailQuery';
   import type { ArchivedContrato } from '../lib/archive/schema';
@@ -55,19 +54,23 @@
   }
 
   const contractQuery = createQuery(() =>
-    createDetailQuery<ContractView, ArchivedContrato>({
+    createDetailQuery<ContractView | null>({
       queryKey: QUERY_KEYS.contratacao(id),
       enabled: !!parsedId,
+      archive: {
+        column: 'numero_controle_pncp',
+        identifier: id,
+        limit: 1,
+      },
       fetchLive: async () => {
-        const { cnpj, sequencial, ano } = parsedId!;
+        if (!parsedId) return null;
+        const { cnpj, sequencial, ano } = parsedId;
         const url = `https://pncp.gov.br/api/consulta/v1/orgaos/${cnpj}/contratacoes/${ano}/${sequencial}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error("Contratação não localizada no PNCP.");
-        return parsePncpContract(await res.json()) as ContractView;
+        return parsePncpContract(await res.json());
       },
-      fetchArchive: () =>
-        queryParquetFallback('numero_controle_pncp', id, 1),
-      mapArchiveRow: ({ rows, dataParticao }) => {
+      buildFromArchive: ({ rows, dataParticao }) => {
         const view = archivedRowToContract(rows[0], id);
         view.archived = { dataParticao };
         return view;
