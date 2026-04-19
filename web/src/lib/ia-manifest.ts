@@ -1,14 +1,17 @@
 import Papa from 'papaparse';
+import { z } from 'zod';
 import type { ArchivedTable } from './archive/schema';
 
 export const IA_MANIFEST_URL =
   'https://archive.org/download/baliza-pncp-manifest/manifest.csv';
 
-interface ManifestRow {
-  data_particao?: string;
-  table_name?: string;
-  parquet_url?: string;
-}
+const ManifestRowSchema = z.object({
+  data_particao: z.string().min(1),
+  table_name: z.string().min(1),
+  parquet_url: z.string().url(),
+});
+
+type ManifestRow = z.infer<typeof ManifestRowSchema>;
 
 export interface ParquetInfo {
   url: string;
@@ -40,11 +43,23 @@ async function fetchManifestRows(): Promise<ManifestRow[]> {
     res = await fetchManifestOnce();
   }
   if (!res || !res.ok) return [];
-  const parsed = Papa.parse<ManifestRow>(await res.text(), {
+  const parsed = Papa.parse<unknown>(await res.text(), {
     header: true,
     skipEmptyLines: true,
   });
-  return parsed.data ?? [];
+  const rows: ManifestRow[] = [];
+  for (const raw of parsed.data ?? []) {
+    const result = ManifestRowSchema.safeParse(raw);
+    if (result.success) {
+      rows.push(result.data);
+    } else {
+      console.warn('[ia-manifest] skipping malformed row', {
+        issues: result.error.issues,
+        row: raw,
+      });
+    }
+  }
+  return rows;
 }
 
 export async function getLatestParquetInfo(
@@ -56,16 +71,12 @@ export async function getLatestParquetInfo(
   const promise = (async () => {
     try {
       const rows = (await fetchManifestRows()).filter(
-        (r) => r.table_name === tableName && r.parquet_url,
+        (r) => r.table_name === tableName,
       );
       if (rows.length === 0) return null;
-      rows.sort((a, b) =>
-        (b.data_particao ?? '').localeCompare(a.data_particao ?? ''),
-      );
+      rows.sort((a, b) => b.data_particao.localeCompare(a.data_particao));
       const top = rows[0];
-      return top.parquet_url
-        ? { url: top.parquet_url, dataParticao: top.data_particao ?? null }
-        : null;
+      return { url: top.parquet_url, dataParticao: top.data_particao };
     } catch {
       return null;
     }

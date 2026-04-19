@@ -80,3 +80,9 @@ Feature: Archive fallback hardening
     And queryArchivedUnidades is called
     And queryArchivedFornecedores is called
     Then each call should request its own parquet snapshot from the manifest
+
+  Scenario: Malformed manifest rows are skipped with a warning
+    Given the IA manifest endpoint returns a CSV with a valid contratos row and a malformed row missing parquet_url
+    When getLatestParquetInfo is called for "contratos"
+    Then the valid row's parquet url should be returned
+    And console.warn should log "[ia-manifest] skipping malformed row" once
