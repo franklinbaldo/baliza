@@ -13,8 +13,10 @@ const includedTags = splitTags(process.env.VITEST_INCLUDE_TAGS);
 const excludeTags = splitTags(process.env.VITEST_EXCLUDE_TAGS);
 
 setVitestCucumberConfiguration({
-  includedTags,
+  includeTags: includedTags,
   excludeTags: excludeTags.length > 0 ? excludeTags : ['planned'],
+  predefinedSteps: [],
+  mappedExamples: {},
 });
 
 if (typeof window !== 'undefined' && !window.matchMedia) {

@@ -41,8 +41,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 2rem;
-    height: 2rem;
+    width: 2.75rem;
+    height: 2.75rem;
     border: 1px solid var(--color-base-300);
     background: transparent;
     color: var(--color-secondary);
@@ -52,7 +52,8 @@
     flex-shrink: 0;
   }
 
-  .theme-btn:hover {
+  .theme-btn:hover,
+  .theme-btn:focus-visible {
     color: var(--color-primary);
     border-color: var(--color-primary);
     box-shadow: var(--shadow-glow);

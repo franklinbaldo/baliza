@@ -23,7 +23,7 @@ const isActive = (path: string) => {
       <li><a href={BASE + 'status'} class={isActive(BASE + 'status') ? 'active' : ''} aria-current={isActive(BASE + 'status') ? 'page' : undefined}>Status</a></li>
       <li><a href={BASE + 'sobre'} class={isActive(BASE + 'sobre') ? 'active' : ''} aria-current={isActive(BASE + 'sobre') ? 'page' : undefined}>Sobre</a></li>
     </ul>
-    <ThemeToggle client:load />
+    <ThemeToggle client:only="svelte" />
   </div>
 </nav>
 
