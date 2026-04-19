@@ -1,7 +1,7 @@
 // Zod schemas for the PNCP Consulta API boundary. Detail views validate every
-// live response here; a parse failure is surfaced as `PNCP_INVALID` so the
-// caller falls through to the archive fallback instead of rendering partial
-// or type-unsafe data.
+// live response here; a parse failure is logged with the `PNCP_INVALID`
+// telemetry tag and re-thrown so the caller falls through to the archive
+// fallback instead of rendering partial or type-unsafe data.
 
 import { z } from 'zod';
 import type { PNCPContract } from './types';
@@ -68,9 +68,19 @@ export type PNCPContractParsed = z.infer<typeof PNCPContractSchema>;
 export type PNCPPublicacaoListParsed = z.infer<typeof PNCPPublicacaoListSchema>;
 
 export function parsePncpContract(raw: unknown): PNCPContract {
-  return PNCPContractSchema.parse(raw) as unknown as PNCPContract;
+  try {
+    return PNCPContractSchema.parse(raw) as unknown as PNCPContract;
+  } catch (err) {
+    console.info('[pncp] parse failed', { reason: PNCP_INVALID });
+    throw err;
+  }
 }
 
 export function parsePncpPublicacaoList(raw: unknown): PNCPContract[] {
-  return PNCPPublicacaoListSchema.parse(raw).data as unknown as PNCPContract[];
+  try {
+    return PNCPPublicacaoListSchema.parse(raw).data as unknown as PNCPContract[];
+  } catch (err) {
+    console.info('[pncp] parse failed', { reason: PNCP_INVALID });
+    throw err;
+  }
 }
