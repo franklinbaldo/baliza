@@ -4,7 +4,6 @@
 // fallback instead of rendering partial or type-unsafe data.
 
 import { z } from 'zod';
-import type { PNCPContract } from './types';
 
 export const PNCP_INVALID = 'pncp_invalid';
 
@@ -64,12 +63,11 @@ export const PNCPPublicacaoListSchema = z
   })
   .passthrough();
 
-export type PNCPContractParsed = z.infer<typeof PNCPContractSchema>;
-export type PNCPPublicacaoListParsed = z.infer<typeof PNCPPublicacaoListSchema>;
+export type PNCPContract = z.infer<typeof PNCPContractSchema>;
 
 export function parsePncpContract(raw: unknown): PNCPContract {
   try {
-    return PNCPContractSchema.parse(raw) as unknown as PNCPContract;
+    return PNCPContractSchema.parse(raw);
   } catch (err) {
     console.info('[pncp] parse failed', { reason: PNCP_INVALID });
     throw err;
@@ -78,7 +76,7 @@ export function parsePncpContract(raw: unknown): PNCPContract {
 
 export function parsePncpPublicacaoList(raw: unknown): PNCPContract[] {
   try {
-    return PNCPPublicacaoListSchema.parse(raw).data as unknown as PNCPContract[];
+    return PNCPPublicacaoListSchema.parse(raw).data;
   } catch (err) {
     console.info('[pncp] parse failed', { reason: PNCP_INVALID });
     throw err;
