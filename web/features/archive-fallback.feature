@@ -1,3 +1,4 @@
+@journey5 @journey6 @green
 Feature: Archive fallback hardening
   queryArchivedTable is the primary offline/historical data layer. Every
   failure mode is reported as a discriminated reason so callers can decide

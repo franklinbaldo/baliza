@@ -1,3 +1,4 @@
+@journey3 @journey5 @journey6 @green
 Feature: DuckDB SQL Explorer
   The explorer lets analysts run SQL against Parquet files from Internet Archive.
 
