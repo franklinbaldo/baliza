@@ -159,4 +159,43 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       );
     });
   });
+
+  Scenario('Query string uses cnpj, not cnpjOrgao', ({ Given, And, When, Then }) => {
+    Given('the URL has cnpj "00000000000191"', () => {
+      setUrlQuery('cnpj=00000000000191');
+    });
+
+    And('the PNCP API returns 0 contracts', () => {
+      global.fetch = vi
+        .fn()
+        .mockResolvedValue(new Response(JSON.stringify({ data: [] }), { status: 200 }));
+    });
+
+    When('the agency detail view mounts', async () => {
+      render(AgencyDetailView);
+      await tick();
+    });
+
+    Then('every PNCP consulta URL should contain "cnpj=00000000000191"', async () => {
+      await waitFor(
+        () => {
+          const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
+          expect(fetchMock.mock.calls.length).toBeGreaterThan(0);
+          for (const call of fetchMock.mock.calls) {
+            const url = typeof call[0] === 'string' ? call[0] : (call[0] as Request).url;
+            expect(url).toMatch(/[?&]cnpj=00000000000191\b/);
+          }
+        },
+        { timeout: 2000 },
+      );
+    });
+
+    And('no PNCP consulta URL should contain "cnpjOrgao="', () => {
+      const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
+      for (const call of fetchMock.mock.calls) {
+        const url = typeof call[0] === 'string' ? call[0] : (call[0] as Request).url;
+        expect(url).not.toMatch(/cnpjOrgao=/);
+      }
+    });
+  });
 });

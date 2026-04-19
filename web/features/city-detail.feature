@@ -29,3 +29,15 @@ Feature: City Detail View
     And the PNCP API returns 1 contract
     When the city detail view mounts
     Then I should see a stat card with value "1"
+
+  Scenario: Fan-out merges contracts from multiple modalities and dedupes
+    Given the URL has ibge "1721000"
+    And the PNCP API returns 2 contracts for modality 6 and 1 contract for modality 8
+    When the city detail view mounts
+    Then I should see a stat card with value "3"
+
+  Scenario: Every PNCP consulta URL sends the required publicação parameters
+    Given the URL has ibge "1721000"
+    And the PNCP API returns 0 contracts
+    When the city detail view mounts
+    Then every PNCP consulta URL should include dataInicial, dataFinal, codigoModalidadeContratacao and pagina

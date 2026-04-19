@@ -21,3 +21,17 @@ Feature: Local Bids Geolocation
     And the PNCP API returns 0 results
     When the user activates the locator
     Then I should see "Nenhuma contratação recente"
+
+  Scenario: Success with results renders bid cards
+    Given geolocation succeeds with IBGE "1721000"
+    And the PNCP API returns 1 live contract
+    When the user activates the locator
+    Then I should see 1 bid card
+
+  Scenario: PNCP unavailable — archived fallback renders with info banner
+    Given geolocation succeeds with IBGE "1721000"
+    And every PNCP consulta call returns 503
+    And the Parquet fallback returns 1 archived row for ibge "1721000"
+    When the user activates the locator
+    Then I should see an info banner about PNCP indisponível
+    And I should see 1 bid card
