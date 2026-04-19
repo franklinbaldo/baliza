@@ -303,8 +303,13 @@ h3 { font-size: var(--font-size-xl); }
 
 .badge-info    { color: var(--color-info);    background: color-mix(in srgb, var(--color-info)    15%, transparent); }
 .badge-success { color: var(--color-success); background: color-mix(in srgb, var(--color-success) 15%, transparent); }
-.badge-warning { color: var(--color-warning); background: color-mix(in srgb, var(--color-warning) 15%, transparent); }
-.badge-error   { color: var(--color-error);   background: color-mix(in srgb, var(--color-error)   15%, transparent); }
+
+/* Warning badge: golden ocre fails AA on light bg as text — use base-content (dark text on golden tint) in light theme */
+.badge-warning { color: var(--color-base-content); background: color-mix(in srgb, var(--color-warning) 20%, transparent); }
+[data-theme="dark"] .badge-warning { color: var(--color-warning); background: color-mix(in srgb, var(--color-warning) 15%, transparent); }
+
+/* Error badge: 15% mix fails AA in dark theme — reduced to 5% so both light and dark pass 4.5:1 */
+.badge-error   { color: var(--color-error);   background: color-mix(in srgb, var(--color-error)    5%, transparent); }
 
 /* ── Empty state ─────────────────────────────── */
 
