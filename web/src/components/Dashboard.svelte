@@ -2,6 +2,7 @@
   import StatCard from './StatCard.svelte';
   import AlertBanner from './AlertBanner.svelte';
   import { SyncStatsSchema, type SyncStats } from '../schema';
+  import { formatInteger, formatRelativeTime } from '../lib/format';
   import { onMount } from 'svelte';
 
   let stats = $state<SyncStats | null>(null);
@@ -42,9 +43,22 @@
   </div>
 {:else if stats}
   <div class="dashboard-grid">
-    <StatCard title="Contratos Registrados" value={stats.total_contracts} />
-    <StatCard title="Dias Preservados" value={stats.days_on_ia} />
-    <StatCard title="Total em Quarentena" value={stats.total_quarantine} tone="warning" />
+    <StatCard
+      title="Contratos arquivados"
+      value={formatInteger(stats.total_contracts)}
+    />
+    <StatCard
+      title="Dias de histórico preservados"
+      value={formatInteger(stats.days_on_ia)}
+      hint={stats.generated_at ? `Atualizado ${formatRelativeTime(stats.generated_at)}` : undefined}
+    />
+    <StatCard
+      title="Em quarentena"
+      value={formatInteger(stats.total_quarantine)}
+      tone="warning"
+      hint="O que é isso?"
+      href="/baliza/sobre#quarentena"
+    />
   </div>
 {/if}
 
