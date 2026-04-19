@@ -12,6 +12,12 @@ function setUrlQuery(qs: string) {
   window.history.replaceState({}, '', qs ? `/?${qs}` : '/');
 }
 
+function daysBetweenYyyymmdd(ini: string, fim: string): number {
+  const parse = (s: string) =>
+    Date.UTC(Number(s.slice(0, 4)), Number(s.slice(4, 6)) - 1, Number(s.slice(6, 8)));
+  return Math.round((parse(fim) - parse(ini)) / 86_400_000);
+}
+
 describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   BeforeEachScenario(async () => {
     cleanup();
@@ -196,6 +202,40 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
         const url = typeof call[0] === 'string' ? call[0] : (call[0] as Request).url;
         expect(url).not.toMatch(/cnpjOrgao=/);
       }
+    });
+  });
+
+  Scenario('Lookback window dias=180 widens the publicação date range', ({ Given, And, When, Then }) => {
+    Given('the URL has cnpj "00000000000191" and dias "180"', () => {
+      setUrlQuery('cnpj=00000000000191&dias=180');
+    });
+
+    And('the PNCP API returns 0 contracts', () => {
+      global.fetch = vi
+        .fn()
+        .mockResolvedValue(new Response(JSON.stringify({ data: [] }), { status: 200 }));
+    });
+
+    When('the agency detail view mounts', async () => {
+      render(AgencyDetailView);
+      await tick();
+    });
+
+    Then('every PNCP consulta URL should span 180 days between dataInicial and dataFinal', async () => {
+      await waitFor(
+        () => {
+          const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
+          expect(fetchMock.mock.calls.length).toBeGreaterThan(0);
+          for (const call of fetchMock.mock.calls) {
+            const url = typeof call[0] === 'string' ? call[0] : (call[0] as Request).url;
+            const ini = /dataInicial=(\d{8})/.exec(url)?.[1];
+            const fim = /dataFinal=(\d{8})/.exec(url)?.[1];
+            expect(ini && fim).toBeTruthy();
+            expect(daysBetweenYyyymmdd(ini as string, fim as string)).toBe(180);
+          }
+        },
+        { timeout: 2000 },
+      );
     });
   });
 });

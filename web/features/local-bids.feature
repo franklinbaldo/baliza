@@ -35,3 +35,9 @@ Feature: Local Bids Geolocation
     When the user activates the locator
     Then I should see an info banner about PNCP indisponível
     And I should see 1 bid card
+
+  Scenario: Skeleton loader shown while PNCP query is pending
+    Given geolocation succeeds with IBGE "1721000"
+    And the PNCP fetch is pending
+    When the user activates the locator
+    Then I should see a skeleton loader with aria-busy
