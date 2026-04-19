@@ -1,3 +1,4 @@
+@journey3 @journey4 @green
 Feature: Contract Detail View
   The contract detail panel shows a single contratação read from a URL query param (?id=).
 

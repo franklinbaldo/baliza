@@ -1,3 +1,4 @@
+@journey4 @green
 Feature: Homepage Dashboard
   The landing page shows sync stats with proper loading and error states.
 

@@ -1,3 +1,4 @@
+@journey4 @green
 Feature: Dashboard Stats
   The dashboard displays contract stats with loading and error states.
 

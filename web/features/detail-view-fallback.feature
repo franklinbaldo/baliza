@@ -1,3 +1,4 @@
+@journey3 @journey6 @green
 Feature: Detail view Parquet fallback
   Detail views try the latest Internet Archive Parquet snapshot when PNCP is down.
 
