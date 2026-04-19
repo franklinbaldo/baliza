@@ -3,9 +3,10 @@
   import { getQueryClient } from '../lib/queryClient';
   import { QUERY_KEYS } from '../lib/queryKeys';
   import { prefetchArchive } from '../lib/parquetFallback';
-  import { parsePncpPublicacaoList, type PNCPContract } from '../lib/pncp';
+  import type { PNCPContract } from '../lib/pncp';
+  import { fetchPublicacaoList } from '../lib/pncpPublicacao';
   import { formatBRL, formatDate, formatParticao } from '../lib/format';
-  import { createDetailQuery } from '../lib/createDetailQuery';
+  import { createListQuery } from '../lib/createListQuery';
   import type { ArchivedContrato } from '../lib/archive/schema';
   import EntityNotFound from './EntityNotFound.svelte';
   import AlertBanner from './AlertBanner.svelte';
@@ -50,21 +51,18 @@
   }
 
   const agencyQuery = createQuery(() =>
-    createDetailQuery<AgencyView | null>({
+    createListQuery<AgencyView | null>({
       queryKey: QUERY_KEYS.orgao(cnpj),
       enabled: !!cnpj,
       archive: {
         column: 'cnpj_orgao',
-        identifier: cnpj,
+        value: cnpj,
         limit: 10,
         orderByColumn: 'data_publicacao_pncp',
       },
       fetchLive: async () => {
         if (!cnpj) return null;
-        const url = `https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?cnpjOrgao=${cnpj}&tamanhoPagina=10`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error("Órgão não localizado ou sem publicações no PNCP.");
-        const contracts = parsePncpPublicacaoList(await res.json());
+        const contracts = await fetchPublicacaoList({ cnpj });
         const agencyName = contracts[0]?.orgaoEntidade?.razaoSocial || "Órgão Público";
         return { name: agencyName, cnpj, contracts };
       },
