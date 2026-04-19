@@ -80,3 +80,10 @@ Feature: Archive fallback hardening
     And queryArchivedUnidades is called
     And queryArchivedFornecedores is called
     Then each call should request its own parquet snapshot from the manifest
+
+  Scenario: Malformed manifest rows are skipped with a warning
+    Given the IA manifest returns one valid row and one malformed row
+    And DuckDB returns one row
+    When queryArchivedTable is called for "contratos" filtered by "cnpj_orgao"
+    Then the result should succeed with the valid row
+    And console.warn should log "[manifest] row validation failed"

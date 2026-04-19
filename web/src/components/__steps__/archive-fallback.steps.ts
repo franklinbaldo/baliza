@@ -354,6 +354,42 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     });
   });
 
+  Scenario('Malformed manifest rows are skipped with a warning', ({ Given, And, When, Then }) => {
+    let warnSpy: ReturnType<typeof vi.spyOn>;
+
+    Given('the IA manifest returns one valid row and one malformed row', () => {
+      warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const csv =
+        'data_particao,table_name,parquet_url\n' +
+        '2024-12-01,contratos,https://archive.org/download/baliza-pncp-manifest/contratos.parquet\n' +
+        '2024-12-01,contratos,\n';
+      fetchSpy = installManifestFetch(200, csv);
+    });
+    And('DuckDB returns one row', () => {
+      queryMock.mockResolvedValue({
+        toArray: () => [{ toJSON: () => ({ numero_controle_pncp: 'x' }) }],
+      });
+    });
+    When(
+      'queryArchivedTable is called for "contratos" filtered by "cnpj_orgao"',
+      async () => {
+        result = await callArchive('contratos', 'cnpj_orgao');
+      },
+    );
+    Then('the result should succeed with the valid row', () => {
+      expect(result).toMatchObject({ ok: true });
+      if (result?.ok) {
+        expect(result.rows).toHaveLength(1);
+      }
+    });
+    And('console.warn should log "[manifest] row validation failed"', () => {
+      const warned = (warnSpy.mock.calls as unknown[][]).find(
+        (c) => c[0] === '[manifest] row validation failed',
+      );
+      expect(warned).toBeDefined();
+    });
+  });
+
   Scenario('Multi-table wrappers route through the table allow-list', ({ When, And, Then }) => {
     const calls: Array<{ table: string; sql: string }> = [];
 
