@@ -1,11 +1,34 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
+  import { z } from 'zod';
   import { PROJECT_MISSION, SEARCH_HINTS } from '../lib/homepage-content';
   import { isPncpId, parsePncpId } from '../lib/pncpId';
   import { formatBRL, formatDate, normalizeSearchInput } from '../lib/format';
   import { suggestAccented } from '../lib/accentSuggest';
   import EmptyState from './EmptyState.svelte';
   import AlertBanner from './AlertBanner.svelte';
+
+  // FRONTEND.md requires Zod validation at every external data boundary. The
+  // PNCP /api/search envelope carries a few fields we render directly; the
+  // schema tolerates unknown extras via passthrough() so PNCP adding fields
+  // does not break us.
+  const SearchItemSchema = z
+    .object({
+      numero_controle_pncp: z.string().optional(),
+      title: z.string().optional(),
+      description: z.string().optional(),
+      orgao_nome: z.string().optional(),
+      data_publicacao_pncp: z.string().optional(),
+      valor_global: z.number().nullable().optional(),
+      uf_sigla: z.string().nullable().optional(),
+      modalidade_nome: z.string().nullable().optional(),
+    })
+    .passthrough();
+
+  const PncpSearchResponseSchema = z.object({
+    items: z.array(SearchItemSchema).default([]),
+    total: z.number().optional(),
+  });
 
   // PNCP's public consulta API (Swagger: https://pncp.gov.br/api/consulta/swagger-ui/index.html)
   // has no free-text parameter for /v1/contratacoes/publicacao. The portal's user-facing
@@ -146,9 +169,10 @@
       const url = `${SEARCH_ENDPOINT}?q=${encodeURIComponent(term)}&tipos_documento=edital&pagina=1`;
       const res = await fetch(url);
       if (!res.ok) throw new Error('Falha ao consultar o PNCP. Tente novamente em instantes.');
-      const json = (await res.json()) as { items?: SearchItem[] };
+      const parsed = PncpSearchResponseSchema.safeParse(await res.json());
+      if (!parsed.success) throw new Error('Resposta inesperada do PNCP.');
       if (token !== searchToken) return;
-      results = (json.items || []).slice(0, 10);
+      results = parsed.data.items.slice(0, 10);
       didSearch = true;
       ufFilter = '';
       modalidadeFilter = '';
@@ -174,6 +198,9 @@
       searchError = null;
       didSearch = false;
       searching = false;
+      // Keep URL in sync on shape-match or cleared state so reload does not
+      // replay a query the user already dismissed.
+      pushQueryToUrl(term);
       return;
     }
     debounceTimer = setTimeout(() => runSearch(term), DEBOUNCE_MS);

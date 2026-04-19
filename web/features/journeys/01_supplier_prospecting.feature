@@ -19,9 +19,10 @@ Feature: Journey 1 — B2G supplier prospecting
     When the user picks UF "SP" and modality "Pregão Eletrônico"
     Then the visible aggregates (count, total value, average value) reflect the filtered subset
 
-  @planned @supplier
+  @green @supplier
   Scenario: Supplier page by CNPJ shows history, peers and average ticket
-    # Planned: /fornecedor/{cnpj} does not exist; only /orgao/{cnpj} (the buyer side) does.
+    # Covered by SupplierDetailView at /fornecedor?cnpj= backed by the Parquet
+    # snapshot (PNCP has no supplier-by-CNPJ endpoint).
     Given the user opens "/fornecedor?cnpj=12345678000195"
     Then the user sees the supplier's contract history
     And the user sees the supplier's top three competing CNPJs for the same objects

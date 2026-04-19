@@ -4,9 +4,39 @@ import { vi, expect } from 'vitest';
 import { tick } from 'svelte';
 import { render, noop, plannedStep } from './_shared';
 import SearchHeroRaw from '../../SearchHero.svelte';
+import SupplierDetailViewRaw from '../../SupplierDetailView.svelte';
 import { suggestAccented } from '../../../lib/accentSuggest';
+import * as parquetFallback from '../../../lib/parquetFallback';
 
 const SearchHero = SearchHeroRaw as unknown as Parameters<typeof render>[0];
+const SupplierDetailView = SupplierDetailViewRaw as unknown as Parameters<typeof render>[0];
+
+const SUPPLIER_ROWS = [
+  {
+    numero_controle_pncp: '00000000000191-1-000001/2024',
+    data_publicacao_pncp: '2025-01-15',
+    objeto_contrato: 'Fornecimento de materiais de escritório',
+    valor_global: 1000,
+    valor_inicial: 1000,
+    cnpj_orgao: '00000000000191',
+    razao_social_orgao: 'Prefeitura Exemplo',
+    nome_unidade: 'Secretaria de Compras',
+    ni_fornecedor: '12345678000195',
+    nome_razao_social_fornecedor: 'Fornecedora Exemplo Ltda',
+  },
+  {
+    numero_controle_pncp: '00000000000191-1-000002/2024',
+    data_publicacao_pncp: '2025-02-10',
+    objeto_contrato: 'Fornecimento de materiais de escritório',
+    valor_global: 2000,
+    valor_inicial: 2000,
+    cnpj_orgao: '00000000000191',
+    razao_social_orgao: 'Prefeitura Exemplo',
+    nome_unidade: 'Secretaria de Compras',
+    ni_fornecedor: '12345678000195',
+    nome_razao_social_fornecedor: 'Fornecedora Exemplo Ltda',
+  },
+];
 
 const feature = await loadFeature('features/journeys/01_supplier_prospecting.feature');
 
@@ -84,12 +114,42 @@ describeFeature(feature, ({ Scenario }) => {
   });
 
   Scenario('Supplier page by CNPJ shows history, peers and average ticket', ({ Given, Then, And }) => {
-    Given('the user opens "/fornecedor?cnpj=12345678000195"', noop);
-    Then("the user sees the supplier's contract history", () =>
-      plannedStep('/fornecedor?cnpj= route and supplier rollup view'),
-    );
-    And("the user sees the supplier's top three competing CNPJs for the same objects", noop);
-    And("the user sees the supplier's average ticket size", noop);
+    Given('the user opens "/fornecedor?cnpj=12345678000195"', async () => {
+      cleanup();
+      vi.restoreAllMocks();
+      window.history.replaceState({}, '', '/?cnpj=12345678000195');
+      vi.spyOn(parquetFallback, 'queryParquetFallback').mockResolvedValue({
+        ok: true,
+        rows: SUPPLIER_ROWS,
+        dataParticao: '2025-01-31',
+      });
+      render(SupplierDetailView);
+      await tick();
+    });
+
+    Then("the user sees the supplier's contract history", async () => {
+      await waitFor(
+        () => expect(screen.getByTestId('contract-history')).toBeTruthy(),
+        { timeout: 2000 },
+      );
+    });
+
+    And("the user sees the supplier's top three competing CNPJs for the same objects", async () => {
+      await waitFor(
+        () => expect(screen.getByTestId('competing-suppliers')).toBeTruthy(),
+        { timeout: 2000 },
+      );
+    });
+
+    And("the user sees the supplier's average ticket size", async () => {
+      await waitFor(
+        () => {
+          const card = screen.getByTestId('avg-ticket');
+          expect(card.textContent).toMatch(/R\$\s*1\.500,00/);
+        },
+        { timeout: 2000 },
+      );
+    });
   });
 
   Scenario('Export the current search result as CSV', ({ Given, When, Then }) => {

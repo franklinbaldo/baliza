@@ -144,7 +144,10 @@
       },
       fetchLive: async () => {
         if (!cnpj) return null;
-        const contracts = await fetchPublicacaoList({ cnpj }, { sinceDays: dias });
+        // tamanhoPagina: 50 is PNCP's max. Without it the default of 10
+        // caps the monthly rollup at 10 rows, which under-counts any agency
+        // with non-trivial recent activity.
+        const contracts = await fetchPublicacaoList({ cnpj }, { sinceDays: dias, tamanhoPagina: 50 });
         const agencyName = contracts[0]?.orgaoEntidade?.razaoSocial || "Órgão Público";
         return {
           name: agencyName,

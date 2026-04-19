@@ -4,7 +4,7 @@
   import { FEATURED_QUERIES } from '../lib/homepage-content';
   import { getLatestParquetUrl } from '../lib/ia-manifest';
   import { SCHEMA_MAP } from '../lib/explorerSchema';
-  import { ARCHIVED_TABLES } from '../lib/archive/schema';
+  import { ARCHIVED_TABLES, type ArchivedTable } from '../lib/archive/schema';
   import AlertBanner from './AlertBanner.svelte';
 
   function readInitialQuery(): string {
@@ -18,6 +18,7 @@
   let loading = $state(false);
   let error = $state<string | null>(null);
   let resolvedParquetUrl = $state<string | null>(null);
+  let resolvedUrls = $state<Partial<Record<ArchivedTable, string | null>>>({});
   let schemaOpen = $state(true);
   let expanded = $state<Record<string, boolean>>({ contratos: true });
 
@@ -37,6 +38,13 @@
 
   onMount(async () => {
     resolvedParquetUrl = await getLatestParquetUrl();
+    // Resolve every archived table's latest Parquet URL once. Each
+    // getLatestParquetUrl(t) call is memoized inside ia-manifest, so this is
+    // effectively one shared manifest fetch plus 4 table lookups.
+    const entries = await Promise.all(
+      ARCHIVED_TABLES.map(async (t) => [t, await getLatestParquetUrl(t)] as const),
+    );
+    resolvedUrls = Object.fromEntries(entries) as Partial<Record<ArchivedTable, string | null>>;
   });
 
   $effect(() => {
@@ -77,12 +85,14 @@
     expanded = { ...expanded, [table]: !expanded[table] };
   }
 
-  function insertFromColumn(table: string, column: string) {
-    const snippet = `SELECT ${column} FROM read_parquet('IA_URL') LIMIT 10`;
-    // Replace the whole query rather than splicing at the caret so the
-    // behavior is deterministic even when the textarea is not focused. Users
-    // can still edit afterwards.
-    query = snippet.replaceAll('IA_URL', resolvedParquetUrl ?? 'IA_URL');
+  function insertFromColumn(table: ArchivedTable, column: string) {
+    // Use the URL for the table the column came from, not the default
+    // contratos URL. Orgaos/unidades/fornecedores columns don't exist in the
+    // contratos parquet, so pointing there would make the generated query
+    // error instead of showing the column.
+    const url = resolvedUrls[table] ?? null;
+    const escaped = url ? url.replace(/'/g, "''") : 'IA_URL';
+    query = `SELECT ${column} FROM read_parquet('${escaped}') LIMIT 10`;
     // Hook for component assertions that need to wait for the column click to
     // resolve into textarea state.
     if (typeof window !== 'undefined') {

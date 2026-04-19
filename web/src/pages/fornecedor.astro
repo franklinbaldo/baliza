@@ -1,0 +1,13 @@
+---
+import Layout from '../layouts/Layout.astro';
+import SupplierDetailView from '../components/SupplierDetailView.svelte';
+
+const cnpj = Astro.url.searchParams.get('cnpj') ?? '';
+---
+
+<Layout
+  title="Painel do Fornecedor"
+  description="Histórico de contratos arquivados e análise de concorrentes para este fornecedor."
+>
+  <SupplierDetailView client:only="svelte" cnpj={cnpj} />
+</Layout>

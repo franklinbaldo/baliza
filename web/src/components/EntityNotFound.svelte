@@ -3,7 +3,7 @@
 
   interface Props {
     id: string;
-    type: 'contratação' | 'município' | 'órgão';
+    type: 'contratação' | 'município' | 'órgão' | 'fornecedor';
     error?: string;
   }
 
