@@ -12,9 +12,18 @@ const splitTags = (raw: string | undefined): string[] =>
 const includeTags = splitTags(process.env.VITEST_INCLUDE_TAGS);
 const excludeTags = splitTags(process.env.VITEST_EXCLUDE_TAGS);
 
+// vitest-cucumber requires a scenario to match includeTags AND not match
+// excludeTags, so any tag the caller explicitly opts into must be dropped
+// from the default exclusion — otherwise `npm run test:bdd:wip` would set
+// VITEST_INCLUDE_TAGS=wip and then silently filter every @wip scenario
+// back out via the default excludeTags.
+const defaultExcludeTags = ['planned', 'wip'].filter(
+  (tag) => !includeTags.includes(tag),
+);
+
 setVitestCucumberConfiguration({
   includeTags,
-  excludeTags: excludeTags.length > 0 ? excludeTags : ['planned', 'wip'],
+  excludeTags: excludeTags.length > 0 ? excludeTags : defaultExcludeTags,
   predefinedSteps: [],
   mappedExamples: {},
 });
