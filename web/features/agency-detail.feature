@@ -1,3 +1,4 @@
+@journey1 @journey2 @journey3 @green
 Feature: Agency Detail View
   The agency detail panel shows an órgão profile read from a URL query param (?cnpj=).
 

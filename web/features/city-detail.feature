@@ -1,3 +1,4 @@
+@journey4 @green
 Feature: City Detail View
   The city detail panel shows município contracts read from a URL query param (?ibge=).
 

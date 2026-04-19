@@ -1,3 +1,4 @@
+@journey1 @journey3 @journey4 @green
 Feature: Search Hero
   The search input detects patterns and navigates to the right page, or
   queries the PNCP search API for free text.

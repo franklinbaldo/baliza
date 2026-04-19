@@ -1,3 +1,4 @@
+@journey4 @green
 Feature: Local Bids Geolocation
   The local bids panel finds nearby contracts using the browser geolocation API.
 
