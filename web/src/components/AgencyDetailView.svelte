@@ -11,6 +11,8 @@
   import EntityNotFound from './EntityNotFound.svelte';
   import AlertBanner from './AlertBanner.svelte';
   import EmptyState from './EmptyState.svelte';
+  import LookbackWindow from './LookbackWindow.svelte';
+  import { DEFAULT_SINCE_DAYS } from '../lib/pncpPublicacao';
 
   setQueryClientContext(getQueryClient());
 
@@ -22,6 +24,25 @@
         ? new URLSearchParams(window.location.search).get('cnpj') ?? ''
         : ''),
   );
+
+  const ALLOWED_DIAS = new Set([30, 90, 180, 365]);
+
+  function readDiasFromUrl(): number {
+    if (typeof window === 'undefined') return DEFAULT_SINCE_DAYS;
+    const raw = new URLSearchParams(window.location.search).get('dias');
+    const parsed = raw ? Number(raw) : NaN;
+    return ALLOWED_DIAS.has(parsed) ? parsed : DEFAULT_SINCE_DAYS;
+  }
+
+  let dias = $state<number>(readDiasFromUrl());
+
+  function updateDias(next: number) {
+    dias = next;
+    if (typeof window === 'undefined') return;
+    const entries = Object.fromEntries(new URLSearchParams(window.location.search));
+    const params = new URLSearchParams({ ...entries, dias: String(next) });
+    window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
+  }
 
   $effect(() => {
     if (cnpj) prefetchArchive('contratos');
@@ -52,7 +73,7 @@
 
   const agencyQuery = createQuery(() =>
     createListQuery<AgencyView | null>({
-      queryKey: QUERY_KEYS.orgao(cnpj),
+      queryKey: QUERY_KEYS.orgao(cnpj, dias),
       enabled: !!cnpj,
       archive: {
         column: 'cnpj_orgao',
@@ -62,7 +83,7 @@
       },
       fetchLive: async () => {
         if (!cnpj) return null;
-        const contracts = await fetchPublicacaoList({ cnpj });
+        const contracts = await fetchPublicacaoList({ cnpj }, { sinceDays: dias });
         const agencyName = contracts[0]?.orgaoEntidade?.razaoSocial || "Órgão Público";
         return { name: agencyName, cnpj, contracts };
       },
@@ -123,7 +144,10 @@
       />
     {:else}
       <section class="recent-list">
-        <h3>Portfólio de Contratações Recentes</h3>
+        <div class="recent-header">
+          <h3>Portfólio de Contratações Recentes</h3>
+          <LookbackWindow value={dias} onchange={updateDias} />
+        </div>
         {#each data.contracts as item (item.numeroControlePNCP)}
           <a href={`/baliza/contratacao?id=${item.numeroControlePNCP}`} class="bid-link-card">
             <div class="bid-header">
@@ -158,6 +182,7 @@
   .meta-row { display: flex; gap: var(--space-md); color: var(--color-secondary); font-size: var(--font-size-sm); margin-top: 4px; }
 
   .recent-list { display: grid; gap: var(--space-md); }
+  .recent-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-sm); }
   .bid-link-card {
     display: block; text-decoration: none; color: inherit; background: var(--color-base-100);
     padding: var(--space-md); border-radius: var(--radius-sm); border: 1px solid var(--color-base-300);
