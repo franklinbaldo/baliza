@@ -23,7 +23,7 @@ All commands run from `web/`.
 
 | Command                       | What it does                                    |
 |-------------------------------|-------------------------------------------------|
-| `npm run test:bdd`            | Full suite, with `@planned` excluded by default |
+| `npm run test:bdd`            | Full suite, with `@planned` and `@wip` excluded by default |
 | `npm run test:bdd:journeys`   | Only the seven journey features                 |
 | `npm run test:bdd:green`      | Only `@green` scenarios                         |
 | `npm run test:bdd:wip`        | Only `@wip` scenarios (expect failures)         |
@@ -32,7 +32,7 @@ All commands run from `web/`.
 
 Tag filtering is driven by the standard `VITEST_INCLUDE_TAGS` and
 `VITEST_EXCLUDE_TAGS` environment variables, plus the default
-`excludeTags: ['planned']` configured in `web/vitest.setup.ts`.
+`excludeTags: ['planned', 'wip']` configured in `web/vitest.setup.ts`.
 
 ### Tag conventions
 

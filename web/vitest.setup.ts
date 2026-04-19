@@ -14,7 +14,10 @@ const excludeTags = splitTags(process.env.VITEST_EXCLUDE_TAGS);
 
 setVitestCucumberConfiguration({
   includeTags: includedTags,
-  excludeTags: excludeTags.length > 0 ? excludeTags : ['planned'],
+  // Default excludes roadmap-tagged scenarios. @planned scenarios throw stub
+  // errors by contract; @wip scenarios fail on purpose to document gaps. Both
+  // are opt-in via VITEST_INCLUDE_TAGS or VITEST_EXCLUDE_TAGS overrides.
+  excludeTags: excludeTags.length > 0 ? excludeTags : ['planned', 'wip'],
   predefinedSteps: [],
   mappedExamples: {},
 });
