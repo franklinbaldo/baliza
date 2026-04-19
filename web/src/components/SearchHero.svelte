@@ -187,7 +187,7 @@
                   <div class="result-objeto">{truncate(item.description || item.title || '', 120)}</div>
                   <div class="result-meta">
                     <span class="result-orgao">{item.orgao_nome || ''}</span>
-                    <span class="result-date">{formatDate(item.data_publicacao_pncp, '')}</span>
+                    <span class="result-date">{formatDate(item.data_publicacao_pncp)}</span>
                     <span class="result-valor">{formatBRL(item.valor_global)}</span>
                   </div>
                 </a>
