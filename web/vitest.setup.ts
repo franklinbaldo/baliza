@@ -9,12 +9,14 @@ const splitTags = (raw: string | undefined): string[] =>
         .filter(Boolean)
     : [];
 
-const includedTags = splitTags(process.env.VITEST_INCLUDE_TAGS);
+const includeTags = splitTags(process.env.VITEST_INCLUDE_TAGS);
 const excludeTags = splitTags(process.env.VITEST_EXCLUDE_TAGS);
 
 setVitestCucumberConfiguration({
-  includedTags,
-  excludeTags: excludeTags.length > 0 ? excludeTags : ['planned'],
+  includeTags,
+  excludeTags: excludeTags.length > 0 ? excludeTags : ['wip', 'planned'],
+  predefinedSteps: [],
+  mappedExamples: {},
 });
 
 if (typeof window !== 'undefined' && !window.matchMedia) {
