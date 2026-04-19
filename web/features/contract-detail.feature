@@ -41,4 +41,4 @@ Feature: Contract Detail View
     Given the URL has id "00000000000191-1-000001/2024"
     And the PNCP API returns a valid contract payload
     When the contract detail view mounts
-    Then the PNCP consulta URL should contain "/contratacoes/2024/000001"
+    Then the PNCP consulta URL should contain "/compras/2024/000001"

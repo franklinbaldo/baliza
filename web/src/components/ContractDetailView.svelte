@@ -65,7 +65,7 @@
       fetchLive: async () => {
         if (!parsedId) return null;
         const { cnpj, sequencial, ano } = parsedId;
-        const url = `https://pncp.gov.br/api/consulta/v1/orgaos/${cnpj}/contratacoes/${ano}/${sequencial}`;
+        const url = `https://pncp.gov.br/api/consulta/v1/orgaos/${cnpj}/compras/${ano}/${sequencial}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error("Contratação não localizada no PNCP.");
         return parsePncpContract(await res.json());

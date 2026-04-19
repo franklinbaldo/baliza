@@ -232,12 +232,12 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       await tick();
     });
 
-    Then('the PNCP consulta URL should contain "/contratacoes/2024/000001"', async () => {
+    Then('the PNCP consulta URL should contain "/compras/2024/000001"', async () => {
       await waitFor(
         () => {
           const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
           const calls = fetchMock.mock.calls.map((args: unknown[]) => String(args[0]));
-          expect(calls.some((u: string) => u.includes('/contratacoes/2024/000001'))).toBe(true);
+          expect(calls.some((u: string) => u.includes('/compras/2024/000001'))).toBe(true);
         },
         { timeout: 2000 },
       );
