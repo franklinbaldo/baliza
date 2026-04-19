@@ -16,47 +16,12 @@ concurrency:
 
 jobs:
   sync:
-    name: Sync PNCP to Internet Archive
     runs-on: ubuntu-latest
     timeout-minutes: 360
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Get current month for cache key
-        id: get-cache-key
-        run: echo "month=$(date +'%Y-%m')" >> $GITHUB_OUTPUT
-
-      - name: Setup uv
-        uses: astral-sh/setup-uv@v4
-        with:
-          version: "latest"
-
-      - name: Restore Raw Data Cache
-        uses: actions/cache/restore@v4
-        with:
-          path: data/raw
-          key: pncp-raw-${{ steps.get-cache-key.outputs.month }}-${{ github.run_id }}
-          restore-keys: |
-            pncp-raw-${{ steps.get-cache-key.outputs.month }}-
-
-      - name: Install dependencies
-        run: uv sync
-
-      - name: Run Sync (Greedy Mode)
-        env:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - env:
           IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
           IA_SECRET_KEY: ${{ secrets.IA_SECRET_KEY }}
-        run: |
-          # We set a limit of 340 minutes (5h 40m) to stop just before GH kills the job
-          uv run baliza sync \
-            --start-date "${{ github.event.inputs.start_date || '2023-01-01' }}" \
-            --limit-minutes 340
-
-      - name: Save Raw Data Cache (Always)
-        if: always()
-        uses: actions/cache/save@v4
-        with:
-          path: data/raw
-          key: pncp-raw-${{ steps.get-cache-key.outputs.month }}-${{ github.run_id }}
+        run: uv run baliza sync --start-date "${{ inputs.start_date || '2023-01-01' }}" --limit-minutes 340
