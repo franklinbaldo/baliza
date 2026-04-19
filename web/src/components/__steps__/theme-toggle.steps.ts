@@ -135,7 +135,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario, AfterEachScenario }) =
 
     When('the user presses Space', async () => {
       const user = userEvent.setup();
-      await user.keyboard('{ }');
+      await user.keyboard(' ');
     });
 
     Then('the theme should toggle', () => {
