@@ -227,7 +227,7 @@
         <article class="rollup-card" data-testid="avg-ticket">
           <h3>Ticket médio</h3>
           <p class="big-figure">{formatBRL(data.avgTicket)}</p>
-          <p class="muted">Média dos valores globais registrados no snapshot.</p>
+          <p class="muted">Média dos valores globais dos últimos 50 contratos no arquivo.</p>
         </article>
 
         <article class="rollup-card" data-testid="competing-suppliers">
@@ -253,7 +253,7 @@
 
       <section class="recent-list" data-testid="contract-history">
         <div class="recent-header">
-          <h3>Histórico de contratações (arquivo)</h3>
+          <h3>Histórico de contratações (últimos 50 do arquivo)</h3>
         </div>
         {#each data.contracts as item (item.numeroControlePNCP)}
           <a href={`/baliza/contratacao?id=${item.numeroControlePNCP}`} class="bid-link-card">
