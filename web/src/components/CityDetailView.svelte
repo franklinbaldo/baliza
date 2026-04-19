@@ -12,6 +12,8 @@
   import AlertBanner from './AlertBanner.svelte';
   import EmptyState from './EmptyState.svelte';
   import StatCard from './StatCard.svelte';
+  import LookbackWindow from './LookbackWindow.svelte';
+  import { DEFAULT_SINCE_DAYS } from '../lib/pncpPublicacao';
 
   setQueryClientContext(getQueryClient());
 
@@ -23,6 +25,25 @@
         ? new URLSearchParams(window.location.search).get('ibge') ?? ''
         : ''),
   );
+
+  const ALLOWED_DIAS = new Set([30, 90, 180, 365]);
+
+  function readDiasFromUrl(): number {
+    if (typeof window === 'undefined') return DEFAULT_SINCE_DAYS;
+    const raw = new URLSearchParams(window.location.search).get('dias');
+    const parsed = raw ? Number(raw) : NaN;
+    return ALLOWED_DIAS.has(parsed) ? parsed : DEFAULT_SINCE_DAYS;
+  }
+
+  let dias = $state<number>(readDiasFromUrl());
+
+  function updateDias(next: number) {
+    dias = next;
+    if (typeof window === 'undefined') return;
+    const entries = Object.fromEntries(new URLSearchParams(window.location.search));
+    const params = new URLSearchParams({ ...entries, dias: String(next) });
+    window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
+  }
 
   $effect(() => {
     if (ibge) prefetchArchive('contratos');
@@ -57,7 +78,7 @@
 
   const cityQuery = createQuery(() =>
     createListQuery<CityView | null>({
-      queryKey: QUERY_KEYS.municipio(ibge),
+      queryKey: QUERY_KEYS.municipio(ibge, dias),
       enabled: !!ibge,
       archive: {
         column: 'codigo_ibge',
@@ -67,7 +88,10 @@
       },
       fetchLive: async () => {
         if (!ibge) return null;
-        const contracts = await fetchPublicacaoList({ codigoMunicipioIbge: ibge });
+        const contracts = await fetchPublicacaoList(
+          { codigoMunicipioIbge: ibge },
+          { sinceDays: dias },
+        );
         const cityName = contracts[0]?.municipio?.nomeMunicipio || contracts[0]?.unidadeOrgao?.municipioNome || "Município";
         const uf = contracts[0]?.unidadeOrgao?.ufSigla || "";
         return { name: cityName, uf, ibge, contracts };
@@ -125,6 +149,7 @@
 
     <div class="stats-row">
       <StatCard title="Contratações Recentes" value={data.contracts.length} />
+      <LookbackWindow value={dias} onchange={updateDias} />
     </div>
 
     {#if data.contracts.length === 0}
@@ -171,7 +196,7 @@
   h1 { font-size: var(--font-size-2xl); margin-top: var(--space-sm); }
   .meta-row { display: flex; gap: var(--space-md); color: var(--color-secondary); font-size: var(--font-size-sm); margin-top: 4px; }
 
-  .stats-row { display: flex; gap: var(--space-md); margin-bottom: var(--space-xl); }
+  .stats-row { display: flex; gap: var(--space-md); margin-bottom: var(--space-xl); align-items: center; flex-wrap: wrap; }
 
   .recent-list { display: grid; gap: var(--space-md); }
   .bid-link-card {
