@@ -21,6 +21,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
+      - id: month
+        run: echo "key=$(date +'%Y-%m')" >> $GITHUB_OUTPUT
+      - uses: actions/cache@v4
+        with:
+          path: data/raw
+          key: pncp-raw-${{ steps.month.outputs.key }}-${{ github.run_id }}
+          restore-keys: pncp-raw-${{ steps.month.outputs.key }}-
       - env:
           IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
           IA_SECRET_KEY: ${{ secrets.IA_SECRET_KEY }}
