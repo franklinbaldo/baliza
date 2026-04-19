@@ -118,6 +118,10 @@ describe('formatRelativeTime', () => {
     expect(formatRelativeTime('2026-04-17T12:00:00Z', now)).toBe('há 2 dias');
   });
 
+  it('clamps future timestamps to "agora" (clock skew guard)', () => {
+    expect(formatRelativeTime('2026-04-19T15:00:00Z', now)).toBe('agora');
+  });
+
   it('returns em-dash for null', () => {
     expect(formatRelativeTime(null, now)).toBe('—');
   });

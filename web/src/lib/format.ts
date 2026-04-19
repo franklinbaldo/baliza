@@ -26,6 +26,8 @@ export function formatInteger(v: number | null | undefined): string {
 
 // Buckets are deliberately coarse — freshness framing on the home doesn't
 // need minute-accurate diffs, and we skip seconds to avoid "há 0 min" flicker.
+// Future-dated inputs (clock skew, UTC vs local) are clamped to "agora"
+// instead of falling through to a silently misleading relative string.
 export function formatRelativeTime(
   iso: string | null | undefined,
   now: Date = new Date(),
@@ -33,7 +35,7 @@ export function formatRelativeTime(
   if (!iso) return EM_DASH;
   const then = new Date(iso);
   if (isNaN(then.getTime())) return EM_DASH;
-  const diffMs = now.getTime() - then.getTime();
+  const diffMs = Math.max(0, now.getTime() - then.getTime());
   if (diffMs < 60_000) return 'agora';
   const minutes = Math.floor(diffMs / 60_000);
   if (minutes < 60) return `há ${minutes} min`;
