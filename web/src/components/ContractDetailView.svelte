@@ -5,7 +5,7 @@
   import type { PNCPContract } from '../lib/types';
   import { queryParquetFallback, prefetchArchive } from '../lib/parquetFallback';
   import { parsePncpContract } from '../lib/pncp';
-  import { formatParticao } from '../lib/formatParticao';
+  import { formatBRL, formatDate, formatParticao } from '../lib/format';
   import { createDetailQuery } from '../lib/createDetailQuery';
   import type { ArchivedContrato } from '../lib/archive/schema';
   import { parsePncpId, PNCP_ID_EXAMPLE } from '../lib/pncpId';
@@ -78,17 +78,6 @@
   const data = $derived(contractQuery.data);
   const loading = $derived(contractQuery.isFetching);
   const error = $derived(contractQuery.error instanceof Error ? contractQuery.error : null);
-
-  function formatBRL(v: number | null | undefined): string {
-    if (v == null) return '—';
-    return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  }
-
-  function formatDate(iso: string | null | undefined): string {
-    if (!iso) return '—';
-    const d = new Date(iso);
-    return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR');
-  }
 </script>
 
 <div class="contract-view container">
