@@ -9,10 +9,14 @@ const feature = await loadFeature('features/archive-fallback.feature');
 
 interface DuckDBHandle {
   db: null;
-  conn: { query: ReturnType<typeof vi.fn> };
+  conn: {
+    query: ReturnType<typeof vi.fn>;
+    cancelSent: ReturnType<typeof vi.fn>;
+  };
 }
 
 let queryMock: ReturnType<typeof vi.fn>;
+let cancelSentMock: ReturnType<typeof vi.fn>;
 let duckdbInitCount = 0;
 let duckdbInstance: DuckDBHandle | null = null;
 let duckdbShouldThrow = false;
@@ -21,7 +25,10 @@ async function fakeGetDuckDB(): Promise<DuckDBHandle> {
   if (duckdbShouldThrow) throw new Error('duckdb boom');
   if (!duckdbInstance) {
     duckdbInitCount += 1;
-    duckdbInstance = { db: null, conn: { query: queryMock } };
+    duckdbInstance = {
+      db: null,
+      conn: { query: queryMock, cancelSent: cancelSentMock },
+    };
   }
   return duckdbInstance;
 }
@@ -71,6 +78,7 @@ async function resetAll() {
   manifest.resetIaManifestCache();
 
   queryMock = vi.fn();
+  cancelSentMock = vi.fn().mockResolvedValue(true);
   duckdbInstance = null;
   duckdbInitCount = 0;
   duckdbShouldThrow = false;
@@ -277,6 +285,9 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     });
     Then('the result should be a failure with reason "timeout"', () => {
       expect(result).toEqual({ ok: false, reason: 'timeout' });
+    });
+    And('DuckDB cancelSent should have been called to cancel the stuck query', () => {
+      expect(cancelSentMock).toHaveBeenCalledTimes(1);
     });
   });
 

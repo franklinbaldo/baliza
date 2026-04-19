@@ -55,6 +55,7 @@ Feature: Archive fallback hardening
     And DuckDB query never resolves
     When queryArchivedTable is called for "contratos" with timeoutMs 10
     Then the result should be a failure with reason "timeout"
+    And DuckDB cancelSent should have been called to cancel the stuck query
 
   Scenario: Limit above 200 is clamped to 200
     Given the IA manifest resolves to a parquet url

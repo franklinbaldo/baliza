@@ -121,17 +121,27 @@ export async function queryArchivedTable<K extends ArchivedTable>(
   const orderBy = orderByColumn ? ` ORDER BY ${orderByColumn} DESC NULLS LAST` : '';
   const sql = `SELECT * FROM read_parquet('${safeUrl}') WHERE ${column} = '${safeValue}'${orderBy} LIMIT ${safeLimit}`;
 
-  const controller = new AbortController();
+  let timedOut = false;
   let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+  // Kick off the query first so we can tell DuckDB to cancel it if the
+  // timer wins the race. Without cancelSent() the worker keeps the query
+  // running against the shared singleton connection and can tie up later
+  // archive lookups.
+  const queryPromise = conn.query(sql);
+  // Swallow late rejections caused by cancelSent() — otherwise the
+  // rejection after the race has already resolved with '__timeout__'
+  // surfaces as an unhandled promise rejection.
+  queryPromise.catch(() => null);
   const timeoutPromise = new Promise<'__timeout__'>((resolve) => {
     timeoutHandle = setTimeout(() => {
-      controller.abort();
+      timedOut = true;
+      void conn.cancelSent().catch(() => null);
       resolve('__timeout__');
     }, Math.max(0, timeoutMs));
   });
 
   try {
-    const raced = await Promise.race([conn.query(sql), timeoutPromise]);
+    const raced = await Promise.race([queryPromise, timeoutPromise]);
     if (raced === '__timeout__') {
       logFallbackFailed(table, column, 'timeout');
       return { ok: false, reason: 'timeout' };
@@ -147,7 +157,7 @@ export async function queryArchivedTable<K extends ArchivedTable>(
     logFallbackServed(table, column, rows.length);
     return { ok: true, rows, dataParticao: info.dataParticao };
   } catch {
-    if (controller.signal.aborted) {
+    if (timedOut) {
       logFallbackFailed(table, column, 'timeout');
       return { ok: false, reason: 'timeout' };
     }
