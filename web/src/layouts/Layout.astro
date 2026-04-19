@@ -20,7 +20,12 @@ const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
       (function () {
         try {
           var t = localStorage.getItem('baliza-theme');
-          if (t) document.documentElement.setAttribute('data-theme', t);
+          if (t) {
+            document.documentElement.setAttribute('data-theme', t);
+          } else if (window.matchMedia('(prefers-color-scheme: light)').matches) {
+            document.documentElement.setAttribute('data-theme', 'light');
+          }
+          // Default dark is kept via the data-theme="dark" HTML attribute
         } catch (_) {}
       })();
     </script>

@@ -233,7 +233,8 @@
 
   .hero-tagline {
     color: var(--color-secondary);
-    font-size: var(--font-size-lg);
+    font-size: var(--font-size-md);
+    line-height: 1.6;
     margin-bottom: var(--space-lg);
   }
 
@@ -242,7 +243,6 @@
     padding: var(--space-md);
     border: 1px solid var(--color-base-300);
     border-radius: var(--radius-box);
-    box-shadow: var(--shadow-md);
   }
 
   .search-form { display: block; }

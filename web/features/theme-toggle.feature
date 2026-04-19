@@ -1,0 +1,20 @@
+Feature: Theme Toggle
+  O usuário pode alternar entre tema claro e escuro.
+
+  Scenario: Theme toggle persists choice across reloads
+    Given the page loads with no stored theme preference
+    When the user clicks the theme toggle button
+    Then the theme should change
+    And the new theme should persist after page reload
+
+  Scenario: Theme toggle respects prefers-color-scheme on first visit
+    Given the system prefers dark color scheme
+    And there is no stored theme preference
+    When the page loads
+    Then the document should use the dark theme
+
+  Scenario: Theme toggle is operable via keyboard
+    Given the theme toggle button is focused
+    When the user presses Enter
+    Then the theme should toggle
+    And the button should reflect the current theme state via aria-pressed

@@ -1,6 +1,21 @@
 /* ═══════════════════════════════════════════
    Baliza Dashboard — Global Styles
    No CSS framework. Design tokens + vanilla CSS.
+
+   Typography scale (Major Third, base 16px):
+     --font-size-xs:   0.75rem  (12px)  — labels, badges, meta
+     --font-size-sm:   0.875rem (14px)  — secondary text, nav links
+     --font-size-base: 1rem     (16px)  — body / prose
+     --font-size-md:   1.125rem (18px)  — page decks / subheads (.page-deck)
+     --font-size-lg:   1.25rem  (20px)  — large inputs, section labels
+     --font-size-xl:   1.563rem (25px)  — h3
+     --font-size-2xl:  1.953rem (31px)  — h2
+     --font-size-3xl:  2.441rem (39px)  — h1
+
+   Shadow Doctrine B — shadow como gesto de interação.
+   Shadows aparecem APENAS em :hover e :focus-visible.
+   Em repouso todos os elementos são flat (sem box-shadow).
+   Exceção explícita: nenhuma atualmente.
    ═══════════════════════════════════════════ */
 
 @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -18,6 +33,7 @@ img, picture, video, canvas, svg { display: block; max-width: 100%; }
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.875rem;
   --font-size-base: 1rem;
+  --font-size-md: 1.125rem;
   --font-size-lg: 1.25rem;
   --font-size-xl: 1.563rem;
   --font-size-2xl: 1.953rem;
@@ -137,6 +153,15 @@ h3 { font-size: var(--font-size-xl); }
   color: var(--color-secondary);
   text-transform: uppercase;
   letter-spacing: 0.08em;
+}
+
+/* Subhead canônico de página — use embaixo de todo H1/H2 de topo de seção.
+   Substitui os usos ad-hoc de .lead, .hero-tagline, .section-desc. */
+.page-deck {
+  font-size: var(--font-size-md);
+  color: var(--color-secondary);
+  line-height: 1.6;
+  max-width: 72ch;
 }
 
 .container {
@@ -278,8 +303,13 @@ h3 { font-size: var(--font-size-xl); }
 
 .badge-info    { color: var(--color-info);    background: color-mix(in srgb, var(--color-info)    15%, transparent); }
 .badge-success { color: var(--color-success); background: color-mix(in srgb, var(--color-success) 15%, transparent); }
-.badge-warning { color: var(--color-warning); background: color-mix(in srgb, var(--color-warning) 15%, transparent); }
-.badge-error   { color: var(--color-error);   background: color-mix(in srgb, var(--color-error)   15%, transparent); }
+
+/* Warning badge: golden ocre fails AA on light bg as text — use base-content (dark text on golden tint) in light theme */
+.badge-warning { color: var(--color-base-content); background: color-mix(in srgb, var(--color-warning) 20%, transparent); }
+[data-theme="dark"] .badge-warning { color: var(--color-warning); background: color-mix(in srgb, var(--color-warning) 15%, transparent); }
+
+/* Error badge: 15% mix fails AA in dark theme — reduced to 5% so both light and dark pass 4.5:1 */
+.badge-error   { color: var(--color-error);   background: color-mix(in srgb, var(--color-error)    5%, transparent); }
 
 /* ── Empty state ─────────────────────────────── */
 
