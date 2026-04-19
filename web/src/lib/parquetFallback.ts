@@ -81,29 +81,28 @@ export function prefetchArchive(
   void getLatestParquetInfo(tableName).catch(() => null);
 }
 
-export async function queryArchivedTable<K extends ArchivedTable>(
+export interface ArchiveWhereFilter {
+  column: string;
+  op: 'eq' | 'ilike' | 'gte' | 'lte';
+  value: string;
+}
+
+async function runArchiveQuery<K extends ArchivedTable>(
   table: K,
-  column: string,
-  value: string,
-  opts: QueryArchivedOpts = {},
+  columnLabel: string,
+  buildWhere: (safeValues: string[]) => string,
+  values: string[],
+  opts: QueryArchivedOpts,
 ): Promise<ArchiveResult<ArchivedTableRowMap[K]>> {
-  if (!isArchivedTable(table)) {
-    logFallbackFailed(table as ArchivedTable, column, 'sql_error');
-    return { ok: false, reason: 'sql_error' };
-  }
-  if (!SAFE_IDENT.test(column)) {
-    logFallbackFailed(table, column, 'sql_error');
-    return { ok: false, reason: 'sql_error' };
-  }
   const { limit = 10, orderByColumn, timeoutMs = DEFAULT_QUERY_TIMEOUT_MS } = opts;
   if (orderByColumn !== undefined && !SAFE_IDENT.test(orderByColumn)) {
-    logFallbackFailed(table, column, 'sql_error');
+    logFallbackFailed(table, columnLabel, 'sql_error');
     return { ok: false, reason: 'sql_error' };
   }
 
   const info = await getLatestParquetInfo(table);
   if (!info) {
-    logFallbackFailed(table, column, 'no_manifest');
+    logFallbackFailed(table, columnLabel, 'no_manifest');
     return { ok: false, reason: 'no_manifest' };
   }
 
@@ -111,15 +110,16 @@ export async function queryArchivedTable<K extends ArchivedTable>(
   try {
     ({ conn } = await getDuckDB());
   } catch {
-    logFallbackFailed(table, column, 'duckdb_init_failed');
+    logFallbackFailed(table, columnLabel, 'duckdb_init_failed');
     return { ok: false, reason: 'duckdb_init_failed' };
   }
 
   const safeUrl = escapeSqlLiteral(info.url);
-  const safeValue = escapeSqlLiteral(value);
+  const safeValues = values.map(escapeSqlLiteral);
   const safeLimit = Math.max(1, Math.min(200, Math.floor(limit)));
   const orderBy = orderByColumn ? ` ORDER BY ${orderByColumn} DESC NULLS LAST` : '';
-  const sql = `SELECT * FROM read_parquet('${safeUrl}') WHERE ${column} = '${safeValue}'${orderBy} LIMIT ${safeLimit}`;
+  const whereStr = buildWhere(safeValues);
+  const sql = `SELECT * FROM read_parquet('${safeUrl}') WHERE ${whereStr}${orderBy} LIMIT ${safeLimit}`;
 
   let timedOut = false;
   let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
@@ -143,7 +143,7 @@ export async function queryArchivedTable<K extends ArchivedTable>(
   try {
     const raced = await Promise.race([queryPromise, timeoutPromise]);
     if (raced === '__timeout__') {
-      logFallbackFailed(table, column, 'timeout');
+      logFallbackFailed(table, columnLabel, 'timeout');
       return { ok: false, reason: 'timeout' };
     }
     const rows = raced.toArray().map((r: unknown) => {
@@ -151,21 +151,83 @@ export async function queryArchivedTable<K extends ArchivedTable>(
       return (typeof anyRow.toJSON === 'function' ? anyRow.toJSON() : r) as ArchivedTableRowMap[K];
     });
     if (rows.length === 0) {
-      logFallbackFailed(table, column, 'empty');
+      logFallbackFailed(table, columnLabel, 'empty');
       return { ok: false, reason: 'empty' };
     }
-    logFallbackServed(table, column, rows.length);
+    logFallbackServed(table, columnLabel, rows.length);
     return { ok: true, rows, dataParticao: info.dataParticao };
   } catch {
     if (timedOut) {
-      logFallbackFailed(table, column, 'timeout');
+      logFallbackFailed(table, columnLabel, 'timeout');
       return { ok: false, reason: 'timeout' };
     }
-    logFallbackFailed(table, column, 'sql_error');
+    logFallbackFailed(table, columnLabel, 'sql_error');
     return { ok: false, reason: 'sql_error' };
   } finally {
     if (timeoutHandle !== null) clearTimeout(timeoutHandle);
   }
+}
+
+export async function queryArchivedTable<K extends ArchivedTable>(
+  table: K,
+  column: string,
+  value: string,
+  opts: QueryArchivedOpts = {},
+): Promise<ArchiveResult<ArchivedTableRowMap[K]>> {
+  if (!isArchivedTable(table)) {
+    logFallbackFailed(table as ArchivedTable, column, 'sql_error');
+    return { ok: false, reason: 'sql_error' };
+  }
+  if (!SAFE_IDENT.test(column)) {
+    logFallbackFailed(table, column, 'sql_error');
+    return { ok: false, reason: 'sql_error' };
+  }
+  return runArchiveQuery(
+    table,
+    column,
+    ([safeValue]) => `${column} = '${safeValue}'`,
+    [value],
+    opts,
+  );
+}
+
+export async function queryArchivedTableWhere<K extends ArchivedTable>(
+  table: K,
+  filters: ArchiveWhereFilter[],
+  opts: QueryArchivedOpts = {},
+): Promise<ArchiveResult<ArchivedTableRowMap[K]>> {
+  if (!isArchivedTable(table)) {
+    logFallbackFailed(table as ArchivedTable, '*', 'sql_error');
+    return { ok: false, reason: 'sql_error' };
+  }
+  if (filters.length === 0) {
+    logFallbackFailed(table, '*', 'sql_error');
+    return { ok: false, reason: 'sql_error' };
+  }
+  for (const f of filters) {
+    if (!SAFE_IDENT.test(f.column)) {
+      logFallbackFailed(table, f.column, 'sql_error');
+      return { ok: false, reason: 'sql_error' };
+    }
+  }
+  return runArchiveQuery(
+    table,
+    '*',
+    (safeValues) =>
+      filters
+        .map(({ column, op }, i) => {
+          const v = safeValues[i];
+          switch (op) {
+            case 'eq':    return `${column} = '${v}'`;
+            case 'ilike': return `${column} ILIKE '%${v}%'`;
+            case 'gte':   return `${column} >= '${v}'`;
+            case 'lte':   return `${column} <= '${v}'`;
+          }
+        })
+        .join(' AND '),
+    filters.map((f) => f.value),
+    opts,
+  );
 }
 
 export function queryParquetFallback<T = ArchivedContrato>(

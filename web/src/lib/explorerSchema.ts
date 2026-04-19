@@ -1,0 +1,101 @@
+// Static column descriptions for each archived Parquet table. Kept as a
+// hand-maintained constant (mirrored from `archive/schema.ts`) because DuckDB
+// WASM schema introspection is cold-path and would add a round-trip for a
+// sidebar that must render before any query has been issued. The explorer
+// sidebar uses this to list tables + columns + types; update both files in
+// lockstep when `daily_exporter.py` changes.
+
+import type { ArchivedTable } from './archive/schema';
+
+export interface SchemaColumn {
+  name: string;
+  type: string;
+}
+
+export const SCHEMA_MAP: Record<ArchivedTable, SchemaColumn[]> = {
+  contratos: [
+    { name: 'numero_controle_pncp', type: 'VARCHAR' },
+    { name: 'numero_controle_pncp_compra', type: 'VARCHAR' },
+    { name: 'ano_contrato', type: 'INTEGER' },
+    { name: 'sequencial_contrato', type: 'INTEGER' },
+    { name: 'ano_compra', type: 'INTEGER' },
+    { name: 'sequencial_compra', type: 'INTEGER' },
+    { name: 'numero_contrato_empenho', type: 'VARCHAR' },
+    { name: 'numero_retificacao', type: 'INTEGER' },
+    { name: 'processo', type: 'VARCHAR' },
+    { name: 'cnpj_orgao', type: 'VARCHAR' },
+    { name: 'razao_social_orgao', type: 'VARCHAR' },
+    { name: 'poder_id', type: 'VARCHAR' },
+    { name: 'esfera_id', type: 'VARCHAR' },
+    { name: 'codigo_unidade', type: 'VARCHAR' },
+    { name: 'nome_unidade', type: 'VARCHAR' },
+    { name: 'uf_sigla', type: 'VARCHAR' },
+    { name: 'uf_nome', type: 'VARCHAR' },
+    { name: 'municipio_nome', type: 'VARCHAR' },
+    { name: 'codigo_ibge', type: 'VARCHAR' },
+    { name: 'cnpj_orgao_subrogado', type: 'VARCHAR' },
+    { name: 'razao_social_orgao_subrogado', type: 'VARCHAR' },
+    { name: 'codigo_unidade_subrogada', type: 'VARCHAR' },
+    { name: 'nome_unidade_subrogada', type: 'VARCHAR' },
+    { name: 'uf_sigla_subrogada', type: 'VARCHAR' },
+    { name: 'ni_fornecedor', type: 'VARCHAR' },
+    { name: 'tipo_pessoa', type: 'VARCHAR' },
+    { name: 'nome_razao_social_fornecedor', type: 'VARCHAR' },
+    { name: 'codigo_pais_fornecedor', type: 'VARCHAR' },
+    { name: 'ni_fornecedor_subcontratado', type: 'VARCHAR' },
+    { name: 'nome_fornecedor_subcontratado', type: 'VARCHAR' },
+    { name: 'tipo_pessoa_subcontratada', type: 'VARCHAR' },
+    { name: 'modalidade_id', type: 'INTEGER' },
+    { name: 'modalidade_nome', type: 'VARCHAR' },
+    { name: 'tipo_contrato_id', type: 'INTEGER' },
+    { name: 'tipo_contrato_nome', type: 'VARCHAR' },
+    { name: 'categoria_processo_id', type: 'INTEGER' },
+    { name: 'categoria_processo_nome', type: 'VARCHAR' },
+    { name: 'receita', type: 'BOOLEAN' },
+    { name: 'valor_inicial', type: 'DOUBLE' },
+    { name: 'valor_parcela', type: 'DOUBLE' },
+    { name: 'valor_global', type: 'DOUBLE' },
+    { name: 'valor_acumulado', type: 'DOUBLE' },
+    { name: 'numero_parcelas', type: 'INTEGER' },
+    { name: 'data_publicacao', type: 'VARCHAR' },
+    { name: 'data_publicacao_pncp', type: 'VARCHAR' },
+    { name: 'data_assinatura', type: 'VARCHAR' },
+    { name: 'data_vigencia_inicio', type: 'VARCHAR' },
+    { name: 'data_vigencia_fim', type: 'VARCHAR' },
+    { name: 'data_inclusao', type: 'VARCHAR' },
+    { name: 'data_atualizacao', type: 'VARCHAR' },
+    { name: 'data_atualizacao_global', type: 'VARCHAR' },
+    { name: 'objeto_contrato', type: 'VARCHAR' },
+    { name: 'informacao_complementar', type: 'VARCHAR' },
+    { name: 'link_sistema_origem', type: 'VARCHAR' },
+    { name: 'identificador_cipi', type: 'VARCHAR' },
+    { name: 'url_cipi', type: 'VARCHAR' },
+    { name: 'usuario_nome', type: 'VARCHAR' },
+    { name: 'data_particao', type: 'VARCHAR' },
+  ],
+  orgaos: [
+    { name: 'cnpj', type: 'VARCHAR' },
+    { name: 'razao_social', type: 'VARCHAR' },
+    { name: 'poder_id', type: 'VARCHAR' },
+    { name: 'esfera_id', type: 'VARCHAR' },
+    { name: 'contratos_no_dia', type: 'INTEGER' },
+    { name: 'valor_total_no_dia', type: 'DOUBLE' },
+  ],
+  unidades: [
+    { name: 'codigo_unidade', type: 'VARCHAR' },
+    { name: 'cnpj_orgao', type: 'VARCHAR' },
+    { name: 'nome_unidade', type: 'VARCHAR' },
+    { name: 'uf_sigla', type: 'VARCHAR' },
+    { name: 'municipio_nome', type: 'VARCHAR' },
+    { name: 'codigo_ibge', type: 'VARCHAR' },
+    { name: 'contratos_no_dia', type: 'INTEGER' },
+  ],
+  fornecedores: [
+    { name: 'ni_fornecedor', type: 'VARCHAR' },
+    { name: 'tipo_pessoa', type: 'VARCHAR' },
+    { name: 'nome_razao_social', type: 'VARCHAR' },
+    { name: 'codigo_pais', type: 'VARCHAR' },
+    { name: 'contratos_no_dia', type: 'INTEGER' },
+    { name: 'valor_total_no_dia', type: 'DOUBLE' },
+  ],
+};

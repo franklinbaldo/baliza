@@ -20,7 +20,9 @@ const DIST_DIR = join(__dirname, '..', 'dist', '_astro');
 // Pinned to the measured size (~225 KB) + 20 %. When an intentional feature
 // increases the baseline, raise this constant in the same commit and note
 // what landed.
-const BUDGET_BYTES = 270_000;
+// 2026-04: raised to 285_000 for the SupplierDetailView (+6.7 KB) — adds the
+// /fornecedor?cnpj= supplier prospecting page (Journey 1 @green).
+const BUDGET_BYTES = 285_000;
 
 function isClientEntryFile(name) {
   if (!name.endsWith('.js')) return false;

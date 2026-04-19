@@ -1,10 +1,34 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
+  import { z } from 'zod';
   import { PROJECT_MISSION, SEARCH_HINTS } from '../lib/homepage-content';
   import { isPncpId, parsePncpId } from '../lib/pncpId';
   import { formatBRL, formatDate, normalizeSearchInput } from '../lib/format';
+  import { suggestAccented } from '../lib/accentSuggest';
   import EmptyState from './EmptyState.svelte';
   import AlertBanner from './AlertBanner.svelte';
+
+  // FRONTEND.md requires Zod validation at every external data boundary. The
+  // PNCP /api/search envelope carries a few fields we render directly; the
+  // schema tolerates unknown extras via passthrough() so PNCP adding fields
+  // does not break us.
+  const SearchItemSchema = z
+    .object({
+      numero_controle_pncp: z.string().optional(),
+      title: z.string().optional(),
+      description: z.string().optional(),
+      orgao_nome: z.string().optional(),
+      data_publicacao_pncp: z.string().optional(),
+      valor_global: z.number().nullable().optional(),
+      uf_sigla: z.string().nullable().optional(),
+      modalidade_nome: z.string().nullable().optional(),
+    })
+    .passthrough();
+
+  const PncpSearchResponseSchema = z.object({
+    items: z.array(SearchItemSchema).default([]),
+    total: z.number().optional(),
+  });
 
   // PNCP's public consulta API (Swagger: https://pncp.gov.br/api/consulta/swagger-ui/index.html)
   // has no free-text parameter for /v1/contratacoes/publicacao. The portal's user-facing
@@ -21,6 +45,11 @@
     orgao_nome?: string;
     data_publicacao_pncp?: string;
     valor_global?: number | null;
+    // PNCP free-text search occasionally echoes UF and modality in the item
+    // envelope. Whenever present, the aggregate-filter strip lets the user
+    // narrow by those dimensions without a round-trip to the API.
+    uf_sigla?: string | null;
+    modalidade_nome?: string | null;
   }
 
   let query = $state('');
@@ -42,26 +71,112 @@
   let searching = $state(false);
   let searchError = $state<string | null>(null);
   let didSearch = $state(false);
+  let lastSearchedTerm = $state('');
+  let ufFilter = $state<string>('');
+  let modalidadeFilter = $state<string>('');
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let searchToken = 0;
+
+  // Slug used to suggest a saved-watch RSS URL. The endpoint is @planned, but
+  // the URL shape is part of the public contract (see VISION.md → "Auditor /
+  // watchdog"); emitting it here lets journalists copy the future-proof link
+  // before the feed exists.
+  function slugifyWatch(term: string): string {
+    return term
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 64);
+  }
+
+  const watchSlug = $derived(slugifyWatch(lastSearchedTerm));
+  const watchUrl = $derived(watchSlug ? `/baliza/alertas/${watchSlug}.xml` : '');
+  let watchOffered = $state(false);
+
+  const accentSuggestion = $derived(
+    didSearch && results.length === 0 && !searchError
+      ? suggestAccented(lastSearchedTerm)
+      : null,
+  );
+
+  const ufOptions = $derived(
+    Array.from(
+      new Set(
+        results
+          .map((r) => (r.uf_sigla ?? '').toString().trim())
+          .filter((uf) => uf.length > 0),
+      ),
+    ).sort(),
+  );
+
+  const modalidadeOptions = $derived(
+    Array.from(
+      new Set(
+        results
+          .map((r) => (r.modalidade_nome ?? '').toString().trim())
+          .filter((m) => m.length > 0),
+      ),
+    ).sort(),
+  );
+
+  const filteredResults = $derived(
+    results.filter((r) => {
+      if (ufFilter && (r.uf_sigla ?? '') !== ufFilter) return false;
+      if (modalidadeFilter && (r.modalidade_nome ?? '') !== modalidadeFilter)
+        return false;
+      return true;
+    }),
+  );
+
+  const aggregates = $derived.by(() => {
+    const count = filteredResults.length;
+    const total = filteredResults.reduce(
+      (acc, r) => acc + (typeof r.valor_global === 'number' ? r.valor_global : 0),
+      0,
+    );
+    const average = count > 0 ? total / count : 0;
+    return { count, total, average };
+  });
 
   function truncate(s: string, n: number) {
     if (!s) return '';
     return s.length > n ? s.slice(0, n - 1) + '…' : s;
   }
 
+  function pushQueryToUrl(term: string) {
+    if (typeof window === 'undefined') return;
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity
+    const params = new URLSearchParams(window.location.search);
+    if (term) {
+      params.set('q', term);
+    } else {
+      params.delete('q');
+    }
+    const next = params.toString();
+    const url = next ? `${window.location.pathname}?${next}` : window.location.pathname;
+    window.history.replaceState({}, '', url);
+  }
+
   async function runSearch(term: string) {
     const token = ++searchToken;
     searching = true;
     searchError = null;
+    lastSearchedTerm = term;
+    pushQueryToUrl(term);
     try {
       const url = `${SEARCH_ENDPOINT}?q=${encodeURIComponent(term)}&tipos_documento=edital&pagina=1`;
       const res = await fetch(url);
       if (!res.ok) throw new Error('Falha ao consultar o PNCP. Tente novamente em instantes.');
-      const json = (await res.json()) as { items?: SearchItem[] };
+      const parsed = PncpSearchResponseSchema.safeParse(await res.json());
+      if (!parsed.success) throw new Error('Resposta inesperada do PNCP.');
       if (token !== searchToken) return;
-      results = (json.items || []).slice(0, 10);
+      results = parsed.data.items.slice(0, 10);
       didSearch = true;
+      ufFilter = '';
+      modalidadeFilter = '';
+      watchOffered = false;
     } catch (err) {
       if (token !== searchToken) return;
       results = [];
@@ -83,10 +198,22 @@
       searchError = null;
       didSearch = false;
       searching = false;
+      // Keep URL in sync on shape-match or cleared state so reload does not
+      // replay a query the user already dismissed.
+      pushQueryToUrl(term);
       return;
     }
     debounceTimer = setTimeout(() => runSearch(term), DEBOUNCE_MS);
   }
+
+  onMount(() => {
+    if (typeof window === 'undefined') return;
+    const initial = new URLSearchParams(window.location.search).get('q') ?? '';
+    if (initial) {
+      query = initial;
+      scheduleSearch(normalizeSearchInput(initial));
+    }
+  });
 
   onDestroy(() => {
     if (debounceTimer) clearTimeout(debounceTimer);
@@ -110,6 +237,62 @@
       if (debounceTimer) clearTimeout(debounceTimer);
       runSearch(cleanQuery);
     }
+  }
+
+  function retryWithSuggestion() {
+    if (!accentSuggestion) return;
+    query = accentSuggestion;
+    if (debounceTimer) clearTimeout(debounceTimer);
+    runSearch(accentSuggestion);
+  }
+
+  function offerWatch() {
+    watchOffered = true;
+  }
+
+  // CSV export of the currently visible (filtered) result set. Columns mirror
+  // the on-screen table; values are quoted via RFC 4180 doubling so commas and
+  // quotes inside descriptions or org names survive the round-trip.
+  function csvEscape(value: unknown): string {
+    const raw = value == null ? '' : String(value);
+    return `"${raw.replace(/"/g, '""')}"`;
+  }
+
+  function exportCsv() {
+    if (filteredResults.length === 0) return;
+    const headers = [
+      'numero_controle_pncp',
+      'objeto',
+      'orgao',
+      'uf',
+      'modalidade',
+      'data_publicacao_pncp',
+      'valor_global',
+    ];
+    const lines = [headers.join(',')];
+    for (const r of filteredResults) {
+      lines.push(
+        [
+          csvEscape(r.numero_controle_pncp ?? ''),
+          csvEscape(r.description ?? r.title ?? ''),
+          csvEscape(r.orgao_nome ?? ''),
+          csvEscape(r.uf_sigla ?? ''),
+          csvEscape(r.modalidade_nome ?? ''),
+          csvEscape(r.data_publicacao_pncp ?? ''),
+          csvEscape(r.valor_global ?? ''),
+        ].join(','),
+      );
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const slug = slugifyWatch(lastSearchedTerm) || 'resultados';
+    a.href = url;
+    a.download = `baliza-busca-${slug}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   }
 </script>
 
@@ -178,9 +361,61 @@
             title="Nenhum resultado"
             message="A busca PNCP não encontrou contratações para este termo."
           />
+          {#if accentSuggestion}
+            <div class="accent-suggestion" role="status" aria-live="polite">
+              Tentar com acentos: <button type="button" class="link-btn" onclick={retryWithSuggestion}>
+                {accentSuggestion}
+              </button>
+            </div>
+          {/if}
         {:else if results.length > 0}
+          <div class="result-toolbar" aria-label="Filtros e ações da busca">
+            <div class="filters">
+              {#if ufOptions.length > 0}
+                <label class="filter-field">
+                  UF
+                  <select bind:value={ufFilter} aria-label="Filtrar por UF">
+                    <option value="">Todas</option>
+                    {#each ufOptions as uf (uf)}
+                      <option value={uf}>{uf}</option>
+                    {/each}
+                  </select>
+                </label>
+              {/if}
+              {#if modalidadeOptions.length > 0}
+                <label class="filter-field">
+                  Modalidade
+                  <select bind:value={modalidadeFilter} aria-label="Filtrar por modalidade">
+                    <option value="">Todas</option>
+                    {#each modalidadeOptions as m (m)}
+                      <option value={m}>{m}</option>
+                    {/each}
+                  </select>
+                </label>
+              {/if}
+            </div>
+            <dl class="aggregate-strip" data-testid="search-aggregates">
+              <div><dt>Contratos</dt><dd>{aggregates.count}</dd></div>
+              <div><dt>Valor total</dt><dd>{formatBRL(aggregates.total)}</dd></div>
+              <div><dt>Ticket médio</dt><dd>{formatBRL(aggregates.average)}</dd></div>
+            </dl>
+            <div class="result-actions">
+              <button type="button" class="btn btn-outline btn-sm" onclick={exportCsv}>
+                Exportar CSV
+              </button>
+              <button type="button" class="btn btn-outline btn-sm" onclick={offerWatch}>
+                Acompanhar esta busca
+              </button>
+            </div>
+          </div>
+          {#if watchOffered && watchUrl}
+            <div class="watch-offer" role="status" aria-live="polite" data-testid="watch-offer">
+              RSS disponível em
+              <code class="watch-url">{watchUrl}</code>
+            </div>
+          {/if}
           <ul class="results-list" role="listbox" aria-label="Resultados da busca PNCP">
-            {#each results as item (item.numero_controle_pncp)}
+            {#each filteredResults as item (item.numero_controle_pncp)}
               <li role="option" aria-selected="false">
                 <a href={`/baliza/contratacao?id=${item.numero_controle_pncp}`} class="result-link">
                   <div class="result-objeto">{truncate(item.description || item.title || '', 120)}</div>
@@ -371,6 +606,123 @@
   }
 
   .jump-link:hover { text-decoration: underline; }
+
+  .result-toolbar {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: var(--space-md);
+    align-items: center;
+    margin-top: var(--space-md);
+    padding: var(--space-sm);
+    background: var(--color-base-200);
+    border: 1px solid var(--color-base-300);
+    border-radius: var(--radius-sm);
+    text-align: left;
+  }
+
+  @media (max-width: 720px) {
+    .result-toolbar {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    font-size: var(--font-size-xs);
+  }
+
+  .filter-field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    color: var(--color-secondary);
+    font-weight: 600;
+  }
+
+  .filter-field select {
+    background: var(--color-base-100);
+    border: 1px solid var(--color-base-300);
+    border-radius: var(--radius-sm);
+    padding: 4px 8px;
+    font-size: var(--font-size-xs);
+    color: var(--color-base-content);
+    font-family: var(--font-sans);
+  }
+
+  .aggregate-strip {
+    display: flex;
+    gap: var(--space-md);
+    margin: 0;
+    padding: 0;
+    font-size: var(--font-size-xs);
+    flex-wrap: wrap;
+  }
+
+  .aggregate-strip div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .aggregate-strip dt {
+    color: var(--color-secondary);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 0.65rem;
+  }
+
+  .aggregate-strip dd {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    color: var(--color-primary);
+    font-size: var(--font-size-sm);
+  }
+
+  .result-actions {
+    display: flex;
+    gap: var(--space-xs);
+    flex-wrap: wrap;
+  }
+
+  .watch-offer {
+    margin-top: var(--space-xs);
+    padding: var(--space-xs) var(--space-sm);
+    background: var(--color-base-200);
+    border: 1px dashed var(--color-primary);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    color: var(--color-secondary);
+    text-align: left;
+  }
+
+  .watch-url {
+    font-family: var(--font-mono);
+    color: var(--color-primary);
+    font-weight: 700;
+  }
+
+  .accent-suggestion {
+    margin-top: var(--space-sm);
+    text-align: center;
+    font-size: var(--font-size-sm);
+    color: var(--color-secondary);
+  }
+
+  .link-btn {
+    background: none;
+    border: none;
+    color: var(--color-primary);
+    text-decoration: underline;
+    cursor: pointer;
+    font: inherit;
+    padding: 0;
+  }
+
+  .link-btn:hover { text-decoration: none; }
 
   .results-list {
     list-style: none;

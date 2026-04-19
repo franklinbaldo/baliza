@@ -1,0 +1,13 @@
+---
+import Layout from '../layouts/Layout.astro';
+import AtasView from '../components/AtasView.svelte';
+
+const objeto = Astro.url.searchParams.get('objeto') ?? '';
+---
+
+<Layout
+  title="Atas de Registro de Preços"
+  description="Contratos vigentes que correspondem ao objeto pesquisado, servidos do arquivo Parquet."
+>
+  <AtasView client:only="svelte" objeto={objeto} />
+</Layout>

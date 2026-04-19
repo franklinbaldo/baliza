@@ -5,11 +5,13 @@ Feature: Journey 2 — Public buyer
   prices, peer comparisons, and a clean catalog match.
   See VISION.md → "Public buyer".
 
-  @planned @frameworks
+  @green @frameworks
   Scenario: Browse vigent registered-price frameworks for an object
-    # Planned: atas browser does not exist yet.
+    # Covered by AtasView at /atas?objeto= (archive-only, ILIKE + vigent
+    # date filter). Remaining quantity is not in the Parquet snapshot, so
+    # the UI shows agency, objeto, validity window and value.
     Given the user opens "/atas?objeto=papel%20A4"
-    Then the user sees a list of vigent atas with start date, end date, contracting agency and remaining quantity
+    Then the user sees a list of vigent atas with start date, end date and contracting agency
 
   @planned @price-reference
   Scenario: Generate a price reference and export it as a citable PDF
@@ -38,9 +40,10 @@ Feature: Journey 2 — Public buyer
     Given the user opens "/dispensas?objeto=papel%20A4"
     Then the user sees the most cited legal articles in similar dispensa contracts
 
-  @wip @price-reference
+  @green @price-reference
   Scenario: Crossover with journey 3 — buyer audits a peer's contract before riding on it
     # crosses @journey3
+    # Covered by ContractDetailView (modalidade, valores, órgão + outbound link).
     Given the user opens "/contratacao?id=00000000000191-1-000001/2024"
     Then the user sees the contract's value, modality and supplier
     And the user sees an outbound link to the original PNCP record

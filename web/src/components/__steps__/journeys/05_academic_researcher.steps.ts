@@ -1,16 +1,53 @@
 import { loadFeature, describeFeature } from '@amiceli/vitest-cucumber';
-import { expect } from 'vitest';
-import { noop, plannedStep, wipStep } from './_shared';
+import { screen, cleanup, fireEvent, waitFor } from '@testing-library/svelte/pure';
+import { vi, expect } from 'vitest';
+import { tick } from 'svelte';
+import { render, noop, plannedStep } from './_shared';
+import DuckDBExplorerRaw from '../../DuckDBExplorer.svelte';
+
+const DuckDBExplorer = DuckDBExplorerRaw as unknown as Parameters<typeof render>[0];
 
 const feature = await loadFeature('features/journeys/05_academic_researcher.feature');
 
-describeFeature(feature, ({ Scenario }) => {
+describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
+  BeforeEachScenario(async () => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
   Scenario('Table schemas are reachable from the explorer', ({ Given, Then, And }) => {
-    Given('the user opens "/explorador"', noop);
-    Then('the user sees a sidebar listing the tables available in the loaded Parquet', () =>
-      wipStep('schema sidebar in the DuckDB explorer'),
-    );
-    And('the user can expand a table to see column names and types', noop);
+    Given('the user opens "/explorador"', async () => {
+      render(DuckDBExplorer);
+      await tick();
+    });
+    Then('the user sees a sidebar listing the tables available in the loaded Parquet', async () => {
+      await waitFor(() => {
+        const sidebar = screen.getByTestId('schema-sidebar');
+        expect(sidebar).toBeTruthy();
+        expect(sidebar.textContent).toMatch(/contratos/);
+      });
+    });
+    And('the user can expand a table to see column names and types', async () => {
+      const sidebar = screen.getByTestId('schema-sidebar');
+      // The `contratos` table is expanded by default; confirm at least one
+      // column row renders both the column name and its declared type.
+      const cols = sidebar.querySelectorAll('.schema-columns .schema-column');
+      expect(cols.length).toBeGreaterThan(0);
+      const first = cols[0];
+      expect(first.querySelector('.schema-column-name')?.textContent?.length).toBeGreaterThan(0);
+      expect(first.querySelector('.schema-column-type')?.textContent?.length).toBeGreaterThan(0);
+
+      // Clicking a second table (orgaos) must expand it to reveal its columns.
+      const toggles = sidebar.querySelectorAll('.schema-table-toggle');
+      const orgaosToggle = Array.from(toggles).find(
+        (b) => b.textContent?.includes('orgaos'),
+      ) as HTMLButtonElement | undefined;
+      expect(orgaosToggle).toBeTruthy();
+      await fireEvent.click(orgaosToggle!);
+      await tick();
+      const expandedCols = sidebar.querySelectorAll('.schema-columns');
+      expect(expandedCols.length).toBeGreaterThanOrEqual(2);
+    });
   });
 
   Scenario('Explorer query is encoded in the URL for reproducibility', ({ Given, When, Then }) => {

@@ -48,10 +48,24 @@
     if (cnpj) prefetchArchive('contratos');
   });
 
+  interface SupplierTally {
+    name: string;
+    cnpj: string;
+    count: number;
+  }
+
+  interface MonthBucket {
+    month: string; // ISO YYYY-MM
+    label: string; // pt-BR short
+    count: number;
+  }
+
   interface AgencyView {
     name: string;
     cnpj: string;
     contracts: PNCPContract[];
+    topSuppliers: SupplierTally[];
+    monthly: MonthBucket[];
     archived?: { dataParticao: string | null };
   }
 
@@ -71,6 +85,63 @@
     };
   }
 
+  // Top suppliers are aggregated only from the archive path because the live
+  // PNCP publicacao endpoint does not return fornecedor details. Empty array
+  // means "fornecedor info unavailable for this lookback"; the UI shows a
+  // "dados disponíveis apenas no snapshot Parquet" hint in that case.
+  function computeTopSuppliers(rows: ArchivedContrato[]): SupplierTally[] {
+    // Local aggregation buffer — not reactive state, so plain Map is fine.
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity
+    const tally = new Map<string, SupplierTally>();
+    for (const row of rows) {
+      const cnpjKey = row.ni_fornecedor ?? '';
+      const name = row.nome_razao_social_fornecedor ?? '';
+      if (!cnpjKey && !name) continue;
+      const key = cnpjKey || name;
+      const existing = tally.get(key);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        tally.set(key, { cnpj: cnpjKey, name: name || '—', count: 1 });
+      }
+    }
+    return [...tally.values()].sort((a, b) => b.count - a.count).slice(0, 5);
+  }
+
+  // 12-month window back from today. Buckets with zero count still appear so
+  // the chart axis is continuous (gaps would hide slow periods, which is
+  // exactly what the "time series" scenario wants to surface).
+  function computeMonthly(contracts: Pick<PNCPContract, 'dataPublicacaoPncp'>[]): MonthBucket[] {
+    const now = new Date();
+    const buckets: MonthBucket[] = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
+      buckets.push({ month, label, count: 0 });
+    }
+    const indexByMonth = new Map(buckets.map((b, i) => [b.month, i]));
+    for (const c of contracts) {
+      if (!c.dataPublicacaoPncp) continue;
+      // YYYY-MM-DD inputs are parsed as UTC midnight; reading the month via
+      // local accessors drifts day-1 publications into the previous month
+      // for viewers west of UTC. Slice the YYYY-MM prefix directly when the
+      // string already starts with it; otherwise fall back to UTC accessors.
+      const raw = c.dataPublicacaoPncp;
+      let key: string;
+      if (/^\d{4}-\d{2}/.test(raw)) {
+        key = raw.slice(0, 7);
+      } else {
+        const d = new Date(raw);
+        if (isNaN(d.getTime())) continue;
+        key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+      }
+      const idx = indexByMonth.get(key);
+      if (idx != null) buckets[idx].count += 1;
+    }
+    return buckets;
+  }
+
   const agencyQuery = createQuery(() =>
     createListQuery<AgencyView | null>({
       queryKey: QUERY_KEYS.orgao(cnpj, dias),
@@ -78,19 +149,39 @@
       archive: {
         column: 'cnpj_orgao',
         value: cnpj,
-        limit: 10,
+        // 50 keeps the archive rollup (topSuppliers + monthly chart) in
+        // parity with the live branch — smaller sample sizes under-count
+        // suppliers and misrank the monthly activity for any agency with
+        // non-trivial history.
+        limit: 50,
         orderByColumn: 'data_publicacao_pncp',
       },
       fetchLive: async () => {
         if (!cnpj) return null;
-        const contracts = await fetchPublicacaoList({ cnpj }, { sinceDays: dias });
+        // tamanhoPagina: 50 is PNCP's max. Without it the default of 10
+        // caps the monthly rollup at 10 rows, which under-counts any agency
+        // with non-trivial recent activity.
+        const contracts = await fetchPublicacaoList({ cnpj }, { sinceDays: dias, tamanhoPagina: 50 });
         const agencyName = contracts[0]?.orgaoEntidade?.razaoSocial || "Órgão Público";
-        return { name: agencyName, cnpj, contracts };
+        return {
+          name: agencyName,
+          cnpj,
+          contracts,
+          topSuppliers: [],
+          monthly: computeMonthly(contracts),
+        };
       },
       buildFromArchive: ({ rows, dataParticao }) => {
         const contracts = rows.map(archivedRowToContract);
         const agencyName = contracts[0]?.orgaoEntidade?.razaoSocial || "Órgão Arquivado";
-        return { name: agencyName, cnpj, contracts, archived: { dataParticao } };
+        return {
+          name: agencyName,
+          cnpj,
+          contracts,
+          topSuppliers: computeTopSuppliers(rows),
+          monthly: computeMonthly(contracts),
+          archived: { dataParticao },
+        };
       },
     }),
   );
@@ -98,6 +189,9 @@
   const data = $derived(agencyQuery.data);
   const loading = $derived(agencyQuery.isFetching);
   const error = $derived(agencyQuery.error as Error | null);
+  const maxMonthly = $derived(
+    data ? Math.max(1, ...data.monthly.map((m) => m.count)) : 1,
+  );
 </script>
 
 <div class="agency-detail container">
@@ -143,6 +237,45 @@
         actionLabel="Voltar à busca"
       />
     {:else}
+      <section class="rollup-grid">
+        <article class="rollup-card" data-testid="top-suppliers">
+          <h3>Top 5 fornecedores</h3>
+          {#if data.topSuppliers.length === 0}
+            <p class="muted">
+              Dados de fornecedor disponíveis apenas no snapshot Parquet.
+              Alterne a janela para consultar o arquivo.
+            </p>
+          {:else}
+            <ol class="supplier-list">
+              {#each data.topSuppliers as s, i (`${s.cnpj || s.name}-${i}`)}
+                <li>
+                  <span class="supplier-rank">#{i + 1}</span>
+                  <span class="supplier-name">{s.name}</span>
+                  <span class="supplier-count">{s.count}</span>
+                </li>
+              {/each}
+            </ol>
+          {/if}
+        </article>
+
+        <article class="rollup-card" data-testid="monthly-chart">
+          <h3>Contratos por mês (12 meses)</h3>
+          <ul class="monthly-chart" aria-label="Contratos por mês">
+            {#each data.monthly as m (m.month)}
+              <li>
+                <span class="month-label">{m.label}</span>
+                <span
+                  class="month-bar"
+                  style={`width: ${(m.count / maxMonthly) * 100}%`}
+                  aria-hidden="true"
+                ></span>
+                <span class="month-count">{m.count}</span>
+              </li>
+            {/each}
+          </ul>
+        </article>
+      </section>
+
       <section class="recent-list">
         <div class="recent-header">
           <h3>Portfólio de Contratações Recentes</h3>
@@ -180,6 +313,56 @@
   .type-badge { font-family: var(--font-mono); font-size: 0.7rem; background: var(--color-primary); color: white; padding: 2px 8px; border-radius: 4px; }
   h1 { font-size: var(--font-size-2xl); margin-top: var(--space-sm); }
   .meta-row { display: flex; gap: var(--space-md); color: var(--color-secondary); font-size: var(--font-size-sm); margin-top: 4px; }
+
+  .rollup-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: var(--space-lg);
+    margin-bottom: var(--space-2xl);
+  }
+
+  .rollup-card {
+    background: var(--color-base-100);
+    border: 1px solid var(--color-base-300);
+    border-radius: var(--radius-sm);
+    padding: var(--space-md);
+  }
+  .rollup-card h3 { margin: 0 0 var(--space-sm); font-size: var(--font-size-md); }
+  .rollup-card .muted { color: var(--color-secondary); font-size: var(--font-size-sm); margin: 0; }
+
+  .supplier-list { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-xs); }
+  .supplier-list li {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: var(--space-sm);
+    align-items: baseline;
+    font-size: var(--font-size-sm);
+    padding: 4px 0;
+    border-bottom: 1px solid var(--color-base-200);
+  }
+  .supplier-list li:last-child { border-bottom: none; }
+  .supplier-rank { font-family: var(--font-mono); font-weight: 700; color: var(--color-secondary); }
+  .supplier-name { overflow-wrap: anywhere; }
+  .supplier-count { font-family: var(--font-mono); color: var(--color-primary); font-weight: 700; }
+
+  .monthly-chart { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
+  .monthly-chart li {
+    display: grid;
+    grid-template-columns: 3rem 1fr auto;
+    gap: var(--space-xs);
+    align-items: center;
+    font-size: var(--font-size-xs);
+  }
+  .month-label { font-family: var(--font-mono); color: var(--color-secondary); }
+  .month-bar {
+    display: block;
+    height: 0.6rem;
+    min-width: 2px;
+    background: var(--color-primary);
+    border-radius: 2px;
+    min-height: 0.6rem;
+  }
+  .month-count { font-family: var(--font-mono); color: var(--color-primary); font-weight: 700; }
 
   .recent-list { display: grid; gap: var(--space-md); }
   .recent-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-sm); }

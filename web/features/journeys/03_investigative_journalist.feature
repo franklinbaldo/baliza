@@ -17,9 +17,9 @@ Feature: Journey 3 — Investigative journalist
     Given the user opens "/contratacao?id=00000000000191-1-000001/2024"
     Then the user sees an outbound link to the origin system that opens in a new tab
 
-  @wip @search
+  @green @search
   Scenario: Search state is preserved in the query string
-    # WIP: SearchHero runs queries client-side but does not push the query to the URL.
+    # Covered by SearchHero pushState on submit + onMount ?q= restore.
     Given the user submits the free-text query "hospital municipal"
     Then the page URL contains "?q=hospital%20municipal"
     And reloading the page restores the same result list
@@ -31,16 +31,17 @@ Feature: Journey 3 — Investigative journalist
     When the user clicks "Exportar Markdown"
     Then the clipboard contains a Markdown table with headers and rows
 
-  @wip @agency-rollup
+  @green @agency-rollup
   Scenario: Agency page surfaces top suppliers and a time series
-    # WIP: agency page exists but does not yet aggregate by supplier or time.
+    # Covered by AgencyDetailView rollup cards (top-suppliers + monthly-chart).
     Given the user opens "/orgao?cnpj=00000000000191"
     Then the user sees the top five suppliers for that agency
     And the user sees a monthly contract-count chart for the last twelve months
 
-  @wip @permalink
+  @green @permalink
   Scenario: Crossover with journey 7 — journalist subscribes to a saved query
     # crosses @journey7
+    # Covered by SearchHero "Acompanhar esta busca" button → /alertas/<slug>.xml offer.
     Given a search result list is visible for "hospital municipal"
     When the user clicks "Acompanhar esta busca"
     Then the user is offered an RSS URL for new matches

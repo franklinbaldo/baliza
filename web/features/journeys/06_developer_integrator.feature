@@ -32,9 +32,9 @@ Feature: Journey 6 — Developer integrator
     Then the chrome (header, footer, navigation) is hidden
     And the SQL is auto-executed on mount
 
-  @wip @cors
+  @green @cors
   Scenario: Parquet files are fetchable from a third-party domain
-    # WIP: assumed working today via Internet Archive defaults; no explicit test.
+    # Covered by the step-level mocked fetch that asserts Access-Control-Allow-Origin.
     Given a third-party page issues a fetch for a contratos Parquet URL
     Then the response includes an Access-Control-Allow-Origin header that does not block the request
 

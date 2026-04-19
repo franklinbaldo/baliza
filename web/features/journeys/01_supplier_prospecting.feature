@@ -12,31 +12,32 @@ Feature: Journey 1 — B2G supplier prospecting
     Then the user lands on a market page summarizing top buyers, top suppliers and price ranges
     And the page shows the number of distinct contracts found
 
-  @wip @search
+  @green @search
   Scenario: Filter contracts by UF and modality recomputes aggregates
-    # WIP: agency rollups exist; cross-UF aggregate filters do not.
+    # Covered by SearchHero aggregate strip + UF/modality dropdowns.
     Given a search result list is visible
     When the user picks UF "SP" and modality "Pregão Eletrônico"
     Then the visible aggregates (count, total value, average value) reflect the filtered subset
 
-  @planned @supplier
+  @green @supplier
   Scenario: Supplier page by CNPJ shows history, peers and average ticket
-    # Planned: /fornecedor/{cnpj} does not exist; only /orgao/{cnpj} (the buyer side) does.
+    # Covered by SupplierDetailView at /fornecedor?cnpj= backed by the Parquet
+    # snapshot (PNCP has no supplier-by-CNPJ endpoint).
     Given the user opens "/fornecedor?cnpj=12345678000195"
     Then the user sees the supplier's contract history
     And the user sees the supplier's top three competing CNPJs for the same objects
     And the user sees the supplier's average ticket size
 
-  @wip @export
+  @green @export
   Scenario: Export the current search result as CSV
-    # WIP: explorer can export query output, but the home search result list cannot.
+    # Covered by SearchHero "Exportar CSV" button.
     Given a search result list is visible for "merenda escolar"
     When the user clicks "Exportar CSV"
     Then a CSV file is downloaded with named columns matching the visible table
 
-  @wip @search
+  @green @search
   Scenario: Empty search suggests accent-tolerant alternatives
-    # WIP: PNCP search runs verbatim today; suggestions are not generated.
+    # Covered by SearchHero empty-state + accent lexicon (accentSuggest.ts).
     Given the user submits the free-text query "construcao de escola"
     When PNCP returns zero results
     Then the user sees a suggestion to retry with "construção de escola"
