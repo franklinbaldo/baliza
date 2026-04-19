@@ -23,6 +23,11 @@ const defaultExcludeTags = ['planned', 'wip'].filter(
 
 setVitestCucumberConfiguration({
   includeTags,
+  // Default excludes roadmap-tagged scenarios. @planned scenarios throw stub
+  // errors by contract; @wip scenarios fail on purpose to document gaps. Both
+  // are opt-in via VITEST_INCLUDE_TAGS (which automatically drops the matching
+  // default exclusion above) or via an explicit VITEST_EXCLUDE_TAGS override
+  // (pass `ignore` to effectively disable the default exclusion).
   excludeTags: excludeTags.length > 0 ? excludeTags : defaultExcludeTags,
   predefinedSteps: [],
   mappedExamples: {},

@@ -35,6 +35,8 @@ Tag filtering is driven by the standard `VITEST_INCLUDE_TAGS` and
 `excludeTags: ['planned', 'wip']` configured in `web/vitest.setup.ts`.
 Setting `VITEST_INCLUDE_TAGS` drops matching tags from the default
 exclusion, so `npm run test:bdd:wip` actually exercises `@wip` scenarios.
+Pass `VITEST_EXCLUDE_TAGS=ignore` to effectively disable the default
+exclusion entirely.
 
 ### Tag conventions
 
