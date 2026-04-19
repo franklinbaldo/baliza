@@ -7,6 +7,24 @@ import ThemeToggleRaw from '../ThemeToggle.svelte';
 
 const ThemeToggle = ThemeToggleRaw as unknown as Parameters<typeof render>[0];
 
+// Mirrors the inline FOUC-prevention script in web/src/layouts/Layout.astro.
+// Kept in lockstep: any change in Layout.astro's <script is:inline> block
+// must be reflected here so these scenarios exercise real first-visit logic
+// instead of a pre-seeded data-theme attribute.
+function applyThemeFromEnvironment(): void {
+  let stored: string | null = null;
+  try { stored = localStorage.getItem('baliza-theme'); } catch { /* unavailable */ }
+  if (stored) {
+    document.documentElement.setAttribute('data-theme', stored);
+    return;
+  }
+  try {
+    if (window.matchMedia('(prefers-color-scheme: light)').matches) {
+      document.documentElement.setAttribute('data-theme', 'light');
+    }
+  } catch { /* unavailable */ }
+}
+
 const feature = await loadFeature('features/theme-toggle.feature');
 
 describeFeature(feature, ({ Scenario, BeforeEachScenario, AfterEachScenario }) => {
@@ -26,7 +44,10 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario, AfterEachScenario }) =
       if (key === 'baliza-theme') storedTheme = value;
     });
 
-    document.documentElement.removeAttribute('data-theme');
+    // Astro Layout renders <html data-theme="dark"> as the default; the inline
+    // script may overwrite it. Mirror that baseline so the scenarios observe
+    // the real first-paint sequence.
+    document.documentElement.setAttribute('data-theme', 'dark');
   });
 
   AfterEachScenario(() => {
@@ -37,7 +58,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario, AfterEachScenario }) =
   Scenario('Theme toggle persists choice across reloads', ({ Given, When, Then, And }) => {
     Given('the page loads with no stored theme preference', async () => {
       storedTheme = null;
-      document.documentElement.setAttribute('data-theme', 'dark');
+      applyThemeFromEnvironment();
       render(ThemeToggle);
     });
 
@@ -68,14 +89,15 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario, AfterEachScenario }) =
 
     And('there is no stored theme preference', () => {
       storedTheme = null;
-      document.documentElement.setAttribute('data-theme', 'dark');
     });
 
     When('the page loads', async () => {
+      applyThemeFromEnvironment();
       render(ThemeToggle);
     });
 
     Then('the document should use the dark theme', () => {
+      expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
       const btn = screen.getByTestId('theme-toggle');
       expect(btn.getAttribute('aria-pressed')).toBe('true');
     });
@@ -83,7 +105,6 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario, AfterEachScenario }) =
 
   Scenario('Theme toggle is operable via keyboard', ({ Given, When, Then, And }) => {
     Given('the theme toggle button is focused', async () => {
-      document.documentElement.setAttribute('data-theme', 'dark');
       render(ThemeToggle);
       const btn = screen.getByTestId('theme-toggle');
       btn.focus();
@@ -107,7 +128,6 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario, AfterEachScenario }) =
 
   Scenario('Theme toggle activates via Space key', ({ Given, When, Then }) => {
     Given('the theme toggle button is focused', async () => {
-      document.documentElement.setAttribute('data-theme', 'dark');
       render(ThemeToggle);
       const btn = screen.getByTestId('theme-toggle');
       btn.focus();
@@ -136,14 +156,15 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario, AfterEachScenario }) =
 
     And('there is no stored theme preference', () => {
       storedTheme = null;
-      document.documentElement.setAttribute('data-theme', 'light');
     });
 
     When('the page loads', async () => {
+      applyThemeFromEnvironment();
       render(ThemeToggle);
     });
 
     Then('the document should use the light theme', () => {
+      expect(document.documentElement.getAttribute('data-theme')).toBe('light');
       const btn = screen.getByTestId('theme-toggle');
       expect(btn.getAttribute('aria-pressed')).toBe('false');
     });
@@ -152,14 +173,15 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario, AfterEachScenario }) =
   Scenario('Stored theme preference is restored on page load', ({ Given, When, Then }) => {
     Given('a stored theme preference of "light" exists', () => {
       storedTheme = 'light';
-      document.documentElement.setAttribute('data-theme', 'light');
     });
 
     When('the toggle mounts', async () => {
+      applyThemeFromEnvironment();
       render(ThemeToggle);
     });
 
     Then('the button reflects the stored light theme', () => {
+      expect(document.documentElement.getAttribute('data-theme')).toBe('light');
       const btn = screen.getByTestId('theme-toggle');
       expect(btn.getAttribute('aria-pressed')).toBe('false');
     });
