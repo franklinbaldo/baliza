@@ -5,9 +5,9 @@ Feature: Journey 7 — Auditor and watchdog
   CNPJ, exemptions above a value threshold, anomalies in a state.
   See VISION.md → "Auditor / watchdog".
 
-  @planned @alerts
+  @green @alerts
   Scenario: Save the current query as a watch in localStorage
-    # Planned: no watch persistence today.
+    # Covered by SearchHero "Salvar vigilância" → baliza.watches key + WatchList.
     Given a search result list is visible for "dispensa acima de 1 milhão"
     When the user clicks "Salvar vigilância"
     Then a watch entry is persisted in localStorage
@@ -36,9 +36,9 @@ Feature: Journey 7 — Auditor and watchdog
     When the user opens the watch again
     Then the user sees a "novidades desde sua última visita" section listing only new matches
 
-  @planned @alerts
+  @green @alerts
   Scenario: Subscribe to a CNPJ from its agency or supplier page
-    # Planned: per-CNPJ subscription entry point does not exist.
+    # Covered by AgencyDetailView data-testid="subscribe-agency" → saveWatch kind=cnpj-agency.
     Given the user opens "/orgao?cnpj=00000000000191"
     When the user clicks "Receber alertas deste órgão"
     Then a watch is created with the agency CNPJ as the filter

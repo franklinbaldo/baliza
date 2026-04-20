@@ -211,6 +211,29 @@
           </span>
         {/if}
       </div>
+
+      {#snippet plainLanguageSummary()}
+        <p class="plain-summary" data-testid="plain-language-summary">
+          {#if data.orgaoEntidade?.razaoSocial}
+            <strong>{data.orgaoEntidade.razaoSocial}</strong>
+          {:else}
+            Um órgão público
+          {/if}
+          contratou
+          {#if data.supplierName || data.supplierCnpj}
+            <strong>{data.supplierName ?? data.supplierCnpj}</strong>
+          {:else}
+            um fornecedor (ainda não identificado no snapshot)
+          {/if}
+          {#if data.valorTotalEstimado != null}
+            pelo valor de <strong>{formatBRL(data.valorTotalEstimado)}</strong>
+          {:else}
+            com valor não informado
+          {/if}
+          para <strong>{data.objetoContratacao || 'um objeto não descrito'}</strong>{data.modalidadeNome ? `, via ${data.modalidadeNome}` : ''}.
+        </p>
+      {/snippet}
+      {@render plainLanguageSummary()}
     </header>
 
     <div class="grid-details">
@@ -378,6 +401,17 @@
   .back-row { display: flex; }
 
   .hub-header { margin-bottom: var(--space-2xl); border-bottom: 2px solid var(--color-base-300); padding-bottom: var(--space-md); }
+  .plain-summary {
+    margin-top: var(--space-md);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--color-base-200);
+    border-left: 4px solid var(--color-primary);
+    border-radius: var(--radius-sm);
+    line-height: 1.6;
+    color: var(--color-base-content);
+    font-size: var(--font-size-md);
+  }
+  .plain-summary strong { color: var(--color-primary); }
   .type-badge { font-family: var(--font-mono); font-size: 0.7rem; background: var(--color-primary); color: white; padding: 2px 8px; border-radius: 4px; }
   h1 { font-size: var(--font-size-xl); margin-top: var(--space-sm); line-height: 1.3; }
   .meta-row { display: flex; gap: var(--space-md); color: var(--color-secondary); font-size: var(--font-size-sm); margin-top: 8px; flex-wrap: wrap; }

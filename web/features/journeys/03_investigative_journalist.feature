@@ -24,9 +24,9 @@ Feature: Journey 3 — Investigative journalist
     Then the page URL contains "?q=hospital%20municipal"
     And reloading the page restores the same result list
 
-  @planned @export
+  @green @export
   Scenario: Export a result list as Markdown
-    # Planned: only CSV export exists, in the explorer.
+    # Covered by SearchHero data-testid="export-markdown" → clipboard GFM table.
     Given a search result list is visible for "hospital municipal"
     When the user clicks "Exportar Markdown"
     Then the clipboard contains a Markdown table with headers and rows
@@ -41,7 +41,7 @@ Feature: Journey 3 — Investigative journalist
   @green @permalink
   Scenario: Crossover with journey 7 — journalist subscribes to a saved query
     # crosses @journey7
-    # Covered by SearchHero "Acompanhar esta busca" button → /alertas/<slug>.xml offer.
+    # Covered by SearchHero "Salvar vigilância" button → /alertas/<slug>.xml offer.
     Given a search result list is visible for "hospital municipal"
-    When the user clicks "Acompanhar esta busca"
+    When the user clicks "Salvar vigilância"
     Then the user is offered an RSS URL for new matches

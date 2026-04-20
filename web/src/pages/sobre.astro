@@ -1,5 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import CitationBlock from '../components/CitationBlock.svelte';
 ---
 
 <Layout 
@@ -44,6 +45,8 @@ import Layout from '../layouts/Layout.astro';
           e cidadãos auditem a máquina estatal com facilidade e precisão.
         </p>
       </section>
+
+      <CitationBlock client:idle />
 
       <section id="quarentena" class="method-box">
         <h2>Critérios de Quarentena</h2>

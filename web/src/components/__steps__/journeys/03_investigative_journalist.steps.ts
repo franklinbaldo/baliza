@@ -2,7 +2,7 @@ import { loadFeature, describeFeature } from '@amiceli/vitest-cucumber';
 import { screen, cleanup, fireEvent, waitFor } from '@testing-library/svelte/pure';
 import { vi, expect } from 'vitest';
 import { tick } from 'svelte';
-import { render, noop, plannedStep } from './_shared';
+import { render, noop } from './_shared';
 import SearchHeroRaw from '../../SearchHero.svelte';
 import AgencyDetailViewRaw from '../../AgencyDetailView.svelte';
 
@@ -87,11 +87,39 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   });
 
   Scenario('Export a result list as Markdown', ({ Given, When, Then }) => {
-    Given('a search result list is visible for "hospital municipal"', noop);
-    When('the user clicks "Exportar Markdown"', noop);
-    Then('the clipboard contains a Markdown table with headers and rows', () =>
-      plannedStep('Markdown export from search results'),
-    );
+    // Clipboard is mocked because jsdom does not implement the async
+    // Clipboard API; the contract we assert is simply "the component wrote
+    // a Markdown table to navigator.clipboard.writeText".
+    let written = '';
+    const writeText = vi.fn(async (payload: string) => {
+      written = payload;
+    });
+
+    Given('a search result list is visible for "hospital municipal"', async () => {
+      Object.assign(navigator, {
+        clipboard: { writeText },
+      });
+      global.fetch = vi
+        .fn()
+        .mockImplementation(async () => new Response(JSON.stringify(HOSPITAL_PAYLOAD), { status: 200 }));
+      render(SearchHero);
+      await tick();
+      await typeInSearch('hospital municipal');
+      await waitFor(() => expect(screen.getByRole('listbox')).toBeTruthy(), { timeout: 2000 });
+    });
+
+    When('the user clicks "Exportar Markdown"', async () => {
+      const btn = screen.getByTestId('export-markdown');
+      await fireEvent.click(btn);
+      await tick();
+      await waitFor(() => expect(writeText).toHaveBeenCalled());
+    });
+
+    Then('the clipboard contains a Markdown table with headers and rows', () => {
+      expect(written).toMatch(/\| PNCP \| Objeto \|/);
+      expect(written).toMatch(/\| --- \|/);
+      expect(written).toMatch(/hospital municipal|Hospital municipal/i);
+    });
   });
 
   Scenario('Agency page surfaces top suppliers and a time series', ({ Given, Then, And }) => {
@@ -145,8 +173,8 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       await waitFor(() => expect(screen.getByRole('listbox')).toBeTruthy(), { timeout: 2000 });
     });
 
-    When('the user clicks "Acompanhar esta busca"', async () => {
-      const btn = screen.getByRole('button', { name: /Acompanhar esta busca/i });
+    When('the user clicks "Salvar vigilância"', async () => {
+      const btn = screen.getByTestId('save-watch');
       await fireEvent.click(btn);
       await tick();
     });
