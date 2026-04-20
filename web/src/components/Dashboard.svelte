@@ -44,19 +44,20 @@
 {:else if stats}
   <div class="dashboard-grid">
     <StatCard
-      title="Contratos arquivados"
+      title="Contratos citáveis"
       value={formatInteger(stats.total_contracts)}
+      hint="cada um com permalink e snapshot imutável"
     />
     <StatCard
-      title="Dias de histórico preservados"
+      title="Dias no Internet Archive"
       value={formatInteger(stats.days_on_ia)}
-      hint={stats.generated_at ? `Atualizado ${formatRelativeTime(stats.generated_at)}` : undefined}
+      hint={stats.generated_at ? `Atualizado ${formatRelativeTime(stats.generated_at)}` : 'fora do alcance de qualquer servidor único'}
     />
     <StatCard
       title="Em quarentena"
       value={formatInteger(stats.total_quarantine)}
       tone="warning"
-      hint="O que é isso?"
+      hint="anomalias sinalizadas — entenda o critério"
       href="/baliza/sobre#quarentena"
     />
   </div>

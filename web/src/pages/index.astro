@@ -2,34 +2,37 @@
 import Layout from '../layouts/Layout.astro';
 import SearchHero from '../components/SearchHero.svelte';
 import Dashboard from '../components/Dashboard.svelte';
+import JourneyPicker from '../components/JourneyPicker.astro';
 import ProjectAnatomy from '../components/ProjectAnatomy.astro';
 import LocalBids from '../components/LocalBids.svelte';
 ---
 
-<Layout 
-  title="Home" 
-  description="Baliza Monitor: Monitoramento das contratações públicas brasileiras."
+<Layout
+  title="Home"
+  description="Baliza: memória permanente das contratações públicas brasileiras. Parquet imutável no Internet Archive, SQL no navegador, permalinks citáveis."
 >
-  <!-- 1. Hero UI (Utility Focus) -->
+  <!-- 1. Hero + busca universal (CNPJ, IBGE, ID PNCP, objeto) -->
   <SearchHero client:load />
 
-  <!-- 2. The Integrity Monitor (The original heatmap, now above the fold) -->
+  <!-- 2. Seven-journey entry — the cascade principle from VISION.md, above the fold -->
+  <JourneyPicker />
+
+  <!-- 3. Outcome-framed monitor (permanence, citability) -->
   <section class="monitor-section container">
     <Dashboard client:visible />
   </section>
 
-  <!-- 3. Local Utility (Hyper-local Bids) -->
-  <LocalBids client:idle />
-
-  <!-- 4. Orientation Section (Trust Building) -->
+  <!-- 4. Why Baliza exists -->
   <ProjectAnatomy />
+
+  <!-- 5. Local utility -->
+  <LocalBids client:idle />
 </Layout>
 
 <style>
   .monitor-section {
-    padding: var(--space-md) 0 var(--space-xl);
+    padding: var(--space-xl) 0 var(--space-xl);
     position: relative;
     z-index: 20;
-    margin-top: calc(var(--space-md) * -1);
   }
 </style>
