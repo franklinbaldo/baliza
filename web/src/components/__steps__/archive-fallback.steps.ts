@@ -326,23 +326,38 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     });
   });
 
-  Scenario('prefetchArchive warms the manifest without booting DuckDB', ({ Given, When, Then, And }) => {
-    Given('prefetchArchive was called for "contratos"', async () => {
+  Scenario('prefetchArchive warms the manifest without booting DuckDB', ({ Given, When, Then }) => {
+    Given('the IA manifest resolves to a parquet url', () => {
+      fetchSpy = installManifestFetch(200, manifestCsvAllTables());
+      queryMock.mockResolvedValue({
+        toArray: () => [{ toJSON: () => ({ numero_controle_pncp: 'x' }) }],
+      });
+    });
+    When('prefetchArchive is called for "contratos"', async () => {
+      const { prefetchArchive } = await import('../../lib/parquetFallback');
+      prefetchArchive('contratos');
+      // Let the fire-and-forget manifest fetch settle before the assertion.
+      await new Promise((r) => setTimeout(r, 0));
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    Then('DuckDB should not have been initialized', () => {
+      expect(duckdbInitCount).toBe(0);
+      expect(getDuckDBSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  Scenario('A later queryArchivedTable after prefetchArchive reuses the warmed manifest', ({ Given, When, Then, And }) => {
+    Given('prefetchArchive has warmed the manifest for "contratos"', async () => {
       fetchSpy = installManifestFetch(200, manifestCsvAllTables());
       queryMock.mockResolvedValue({
         toArray: () => [{ toJSON: () => ({ numero_controle_pncp: 'x' }) }],
       });
       const { prefetchArchive } = await import('../../lib/parquetFallback');
       prefetchArchive('contratos');
-      // Let the fire-and-forget manifest fetch settle before the "later" query.
       await new Promise((r) => setTimeout(r, 0));
       await new Promise((r) => setTimeout(r, 0));
     });
-    Then('DuckDB should not have been initialized yet', () => {
-      expect(duckdbInitCount).toBe(0);
-      expect(getDuckDBSpy).not.toHaveBeenCalled();
-    });
-    When('the caller later invokes queryArchivedTable for "contratos" filtered by "cnpj_orgao"', async () => {
+    When('queryArchivedTable is called for "contratos" filtered by "cnpj_orgao"', async () => {
       result = await callArchive('contratos', 'cnpj_orgao');
     });
     Then('the IA manifest should have been fetched exactly once', () => {
@@ -395,38 +410,65 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     );
   });
 
-  Scenario('Multi-table wrappers route through the table allow-list', ({ When, And, Then }) => {
-    const calls: Array<{ table: string; sql: string }> = [];
+  function detectTable(sql: string): string {
+    const entry = Object.entries(PARQUET_URL_BY_TABLE).find(([, url]) =>
+      sql.includes(url),
+    );
+    return entry ? entry[0] : 'unknown';
+  }
 
+  function installManifestAndCapture(): Array<{ table: string; sql: string }> {
+    const calls: Array<{ table: string; sql: string }> = [];
+    fetchSpy = installManifestFetch(200, manifestCsvAllTables());
+    queryMock.mockImplementation(async (sql: string) => {
+      calls.push({ table: detectTable(sql), sql });
+      return { toArray: () => [{ toJSON: () => ({ cnpj: '00' }) }] };
+    });
+    return calls;
+  }
+
+  Scenario('queryArchivedOrgaos requests the orgaos parquet snapshot', ({ Given, When, Then }) => {
+    let calls: Array<{ table: string; sql: string }>;
+    Given('the IA manifest resolves to a parquet url for every table', () => {
+      calls = installManifestAndCapture();
+    });
     When('queryArchivedOrgaos is called', async () => {
-      fetchSpy = installManifestFetch(200, manifestCsvAllTables());
-      queryMock.mockImplementation(async (sql: string) => {
-        calls.push({ table: detectTable(sql), sql });
-        return { toArray: () => [{ toJSON: () => ({ cnpj: '00' }) }] };
-      });
       const { queryArchivedOrgaos } = await import('../../lib/parquetFallback');
       await queryArchivedOrgaos('cnpj', '00000000000191');
     });
-    And('queryArchivedUnidades is called', async () => {
+    Then('the query should be routed to the "orgaos" parquet snapshot', () => {
+      expect(calls).toHaveLength(1);
+      expect(calls[0].table).toBe('orgaos');
+    });
+  });
+
+  Scenario('queryArchivedUnidades requests the unidades parquet snapshot', ({ Given, When, Then }) => {
+    let calls: Array<{ table: string; sql: string }>;
+    Given('the IA manifest resolves to a parquet url for every table', () => {
+      calls = installManifestAndCapture();
+    });
+    When('queryArchivedUnidades is called', async () => {
       const { queryArchivedUnidades } = await import('../../lib/parquetFallback');
       await queryArchivedUnidades('codigo_unidade', '1');
     });
-    And('queryArchivedFornecedores is called', async () => {
+    Then('the query should be routed to the "unidades" parquet snapshot', () => {
+      expect(calls).toHaveLength(1);
+      expect(calls[0].table).toBe('unidades');
+    });
+  });
+
+  Scenario('queryArchivedFornecedores requests the fornecedores parquet snapshot', ({ Given, When, Then }) => {
+    let calls: Array<{ table: string; sql: string }>;
+    Given('the IA manifest resolves to a parquet url for every table', () => {
+      calls = installManifestAndCapture();
+    });
+    When('queryArchivedFornecedores is called', async () => {
       const { queryArchivedFornecedores } = await import('../../lib/parquetFallback');
       await queryArchivedFornecedores('ni_fornecedor', '00000000000191');
     });
-    Then('each call should request its own parquet snapshot from the manifest', () => {
-      expect(calls).toHaveLength(3);
-      expect(calls.map((c) => c.table).sort()).toEqual(
-        ['fornecedores', 'orgaos', 'unidades'].sort(),
-      );
+    Then('the query should be routed to the "fornecedores" parquet snapshot', () => {
+      expect(calls).toHaveLength(1);
+      expect(calls[0].table).toBe('fornecedores');
     });
-
-    function detectTable(sql: string): string {
-      const entry = Object.entries(PARQUET_URL_BY_TABLE).find(([, url]) =>
-        sql.includes(url),
-      );
-      return entry ? entry[0] : 'unknown';
-    }
   });
 });

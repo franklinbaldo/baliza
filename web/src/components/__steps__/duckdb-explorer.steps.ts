@@ -42,15 +42,15 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     });
   });
 
-  Scenario("Featured query chip inserts SQL into textarea", ({ When, And, Then }) => {
-    When('the explorer mounts', async () => {
+  Scenario("Featured query chip inserts SQL into textarea", ({ Given, When, Then }) => {
+    Given('the explorer has mounted', async () => {
       render(DuckDBExplorer);
       await tick();
     });
 
     let picked: { label: string; sql: string } | null = null;
 
-    And('the user clicks a featured query chip', async () => {
+    When('the user clicks a featured query chip', async () => {
       picked = FEATURED_QUERIES[0];
       await fireEvent.click(screen.getByText(picked.label));
       await tick();
@@ -62,13 +62,13 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     });
   });
 
-  Scenario('IA_URL placeholder shows warning and disables button', ({ When, And, Then }) => {
-    When('the explorer mounts', async () => {
+  Scenario('IA_URL placeholder shows warning and disables button', ({ Given, When, Then, And }) => {
+    Given('the explorer has mounted', async () => {
       render(DuckDBExplorer);
       await tick();
     });
 
-    And('the user clicks a featured query chip that still contains "IA_URL"', async () => {
+    When('the user clicks a featured query chip that still contains "IA_URL"', async () => {
       const fq = chipThatNeedsIaUrl();
       await fireEvent.click(screen.getByText(fq.label));
       await tick();
@@ -84,7 +84,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     });
   });
 
-  Scenario('Valid SQL executes and renders results', ({ Given, When, And, Then }) => {
+  Scenario('Valid SQL executes and renders results', ({ Given, And, When, Then }) => {
     Given('DuckDB returns one row with column "n" equal to 1', () => {
       vi.spyOn(duckdbModule, 'getDuckDB').mockResolvedValue({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -98,12 +98,12 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       });
     });
 
-    When('the explorer mounts', async () => {
+    And('the explorer has mounted', async () => {
       render(DuckDBExplorer);
       await tick();
     });
 
-    And('the user clicks "Explorar Dados"', async () => {
+    When('the user clicks "Explorar Dados"', async () => {
       const textarea = getTextarea();
       await fireEvent.input(textarea, { target: { value: 'SELECT 1 AS n' } });
       await tick();
@@ -123,7 +123,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
 
   Scenario(
     'Resolved IA URL replaces IA_URL placeholder in featured query chips',
-    ({ Given, When, And, Then }) => {
+    ({ Given, And, When, Then }) => {
       const resolvedUrl =
         'https://archive.org/download/baliza-pncp-2025-01/contratos-2025-01.parquet';
 
@@ -136,12 +136,12 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
         },
       );
 
-      When('the explorer mounts', async () => {
+      And('the explorer has mounted', async () => {
         render(DuckDBExplorer);
         await tick();
       });
 
-      And('the user clicks a featured query chip', async () => {
+      When('the user clicks a featured query chip', async () => {
         const fq = FEATURED_QUERIES.find((q) => q.sql.includes("'IA_URL'"));
         if (!fq) throw new Error('No featured query contains IA_URL');
         await waitFor(() => screen.getByText(fq.label));
@@ -166,7 +166,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
 
   Scenario(
     'Single quotes in resolved URL are escaped to prevent SQL injection',
-    ({ Given, When, And, Then }) => {
+    ({ Given, And, When, Then }) => {
       const maliciousUrl = "https://example.com/evil'; DROP TABLE x; --";
 
       Given('the IA manifest resolves to a URL containing a single quote', () => {
@@ -175,12 +175,12 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
         );
       });
 
-      When('the explorer mounts', async () => {
+      And('the explorer has mounted', async () => {
         render(DuckDBExplorer);
         await tick();
       });
 
-      And('the user clicks a featured query chip', async () => {
+      When('the user clicks a featured query chip', async () => {
         const fq = FEATURED_QUERIES.find((q) => q.sql.includes("'IA_URL'"));
         if (!fq) throw new Error('No featured query contains IA_URL');
         await waitFor(() => screen.getByText(fq.label));
@@ -204,7 +204,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
 
   Scenario(
     'Active query is backfilled when IA URL resolves after a chip click',
-    ({ Given, When, And, Then }) => {
+    ({ Given, And, When, Then }) => {
       const resolvedUrl =
         'https://archive.org/download/baliza-pncp-2025-01/contratos-2025-01.parquet';
       let resolveManifest: (url: string | null) => void = () => {};
@@ -221,13 +221,13 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
         },
       );
 
-      When('the explorer mounts', async () => {
+      And('the explorer has mounted', async () => {
         render(DuckDBExplorer);
         await tick();
       });
 
       And(
-        'the user clicks a featured query chip before the manifest resolves',
+        'the user clicked a featured query chip before the manifest resolved',
         async () => {
           const fq = FEATURED_QUERIES.find((q) => q.sql.includes("'IA_URL'"));
           if (!fq) throw new Error('No featured query contains IA_URL');
@@ -237,7 +237,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
         },
       );
 
-      And('the manifest finishes resolving', async () => {
+      When('the manifest finishes resolving', async () => {
         resolveManifest(resolvedUrl);
         await tick();
         await tick();
