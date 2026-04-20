@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-import re
-from collections.abc import Callable, Iterable
-from dataclasses import dataclass
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlencode
+from unittest.mock import MagicMock
 
+import duckdb
 import pytest
+
+from baliza.engine import BalizaEngine
+from baliza.ia_uploader import ManifestReadError
 
 # =============================================================================
 # Test Tier Configuration
@@ -22,7 +24,6 @@ import pytest
 def pytest_collection_modifyitems(config, items):
     """Auto-apply tier markers based on feature file tags or location."""
     for item in items:
-        # Check if test has @tier0, @tier1, etc. in the scenario tags
         if hasattr(item, "callspec") and "scenario" in item.callspec.params:
             scenario = item.callspec.params["scenario"]
             if hasattr(scenario, "tags"):
@@ -30,7 +31,6 @@ def pytest_collection_modifyitems(config, items):
                     if tag.startswith("tier"):
                         item.add_marker(getattr(pytest.mark, tag))
 
-        # Auto-mark based on file path
         test_path = str(item.fspath)
         if "/tier0/" in test_path:
             item.add_marker(pytest.mark.tier0)
@@ -41,7 +41,6 @@ def pytest_collection_modifyitems(config, items):
         elif "/tier3/" in test_path:
             item.add_marker(pytest.mark.tier3)
 
-        # Default: tests without tier marker get tier1
         tier_markers = [m for m in item.iter_markers() if m.name.startswith("tier")]
         if not tier_markers:
             item.add_marker(pytest.mark.tier1)
@@ -54,18 +53,9 @@ def pytest_collection_modifyitems(config, items):
 
 @pytest.fixture(scope="module")
 def vcr_config():
-    """
-    VCR configuration for recording/replaying HTTP interactions.
-
-    Configuration:
-    - record_mode='once': Record cassettes once, then always replay
-    - match_on=['uri', 'method']: Match requests by URL and HTTP method
-    - filter_headers: Remove sensitive headers from cassettes
-    - cassette_library_dir: Store cassettes in tests/cassettes/
-    - decode_compressed_response: Handle gzip/deflate responses
-    """
+    """VCR config: replay only, no recording in CI."""
     return {
-        "record_mode": "new_episodes",  # Allow recording new interactions
+        "record_mode": "none",
         "match_on": ["uri", "method"],
         "filter_headers": [
             ("authorization", "REDACTED"),
@@ -74,91 +64,216 @@ def vcr_config():
         "cassette_library_dir": str(Path(__file__).parent / "cassettes"),
         "path_transformer": lambda path: path + ".yaml",
         "decode_compressed_response": True,
-        # This option was removed in a recent version of vcr.py
-        # "allow_playback_repeats": True,
     }
 
 
 @pytest.fixture(scope="module")
 def vcr_cassette_dir(request):
-    """Return cassette directory path for VCR."""
     return Path(__file__).parent / "cassettes"
 
 
+@pytest.fixture
+def pncp_cassette_dir() -> Path:
+    return Path(__file__).parent / "cassettes" / "pncp"
+
+
 # =============================================================================
-# HTTP Mock for Unit Tests (existing)
+# Shared fixtures for BDD step definitions
 # =============================================================================
 
+# DDL that mirrors the ~55-column snake_case schema DailyExporter reads from.
+# Kept together in one constant so both `baliza_raw` (exporter) and any future
+# test that wants to seed raw contract rows use the same shape.
+_CONTRATOS_TABLE_DDL = """
+CREATE TABLE IF NOT EXISTS baliza_raw.contratos (
+    numero_controle_pncp VARCHAR PRIMARY KEY,
+    numero_controle_pncp_compra VARCHAR,
+    ano_contrato INTEGER,
+    sequencial_contrato INTEGER,
+    ano_compra INTEGER,
+    sequencial_compra INTEGER,
+    numero_contrato_empenho VARCHAR,
+    numero_retificacao INTEGER,
+    processo VARCHAR,
+    cnpj_orgao VARCHAR,
+    razao_social_orgao VARCHAR,
+    poder_id VARCHAR,
+    esfera_id VARCHAR,
+    codigo_unidade VARCHAR,
+    nome_unidade VARCHAR,
+    uf_sigla VARCHAR,
+    uf_nome VARCHAR,
+    municipio_nome VARCHAR,
+    codigo_ibge VARCHAR,
+    cnpj_orgao_subrogado VARCHAR,
+    razao_social_orgao_subrogado VARCHAR,
+    codigo_unidade_subrogada VARCHAR,
+    nome_unidade_subrogada VARCHAR,
+    uf_sigla_subrogada VARCHAR,
+    ni_fornecedor VARCHAR,
+    tipo_pessoa VARCHAR,
+    nome_razao_social_fornecedor VARCHAR,
+    codigo_pais_fornecedor VARCHAR,
+    ni_fornecedor_subcontratado VARCHAR,
+    nome_fornecedor_subcontratado VARCHAR,
+    tipo_pessoa_subcontratada VARCHAR,
+    modalidade_id INTEGER,
+    modalidade_nome VARCHAR,
+    tipo_contrato_id INTEGER,
+    tipo_contrato_nome VARCHAR,
+    categoria_processo_id INTEGER,
+    categoria_processo_nome VARCHAR,
+    receita BOOLEAN,
+    valor_inicial DOUBLE,
+    valor_parcela DOUBLE,
+    valor_global DOUBLE,
+    valor_acumulado DOUBLE,
+    numero_parcelas INTEGER,
+    data_publicacao TIMESTAMP,
+    data_publicacao_pncp TIMESTAMP,
+    data_assinatura DATE,
+    data_vigencia_inicio DATE,
+    data_vigencia_fim DATE,
+    data_inclusao TIMESTAMP,
+    data_atualizacao TIMESTAMP,
+    data_atualizacao_global TIMESTAMP,
+    objeto_contrato VARCHAR,
+    informacao_complementar VARCHAR,
+    link_sistema_origem VARCHAR,
+    identificador_cipi VARCHAR,
+    url_cipi VARCHAR,
+    usuario_nome VARCHAR
+)
+"""
 
-@dataclass
-class _MockResponse:
-    status_code: int
-    _json_data: Any
 
-    def json(self) -> Any:
-        return self._json_data
-
-    def raise_for_status(self) -> None:
-        if self.status_code >= 400:
-            raise RuntimeError(f"HTTP {self.status_code}")
-
-
-Matcher = Callable[[str], bool | re.Match[str] | None]
-
-
-class _MockClient:
-    def __init__(self, responses: Iterable[tuple[Matcher, _MockResponse]]):
-        self._responses = list(responses)
-
-    def __enter__(self) -> _MockClient:
-        return self
-
-    def __exit__(self, exc_type, exc, tb) -> None:
-        return None
-
-    def get(self, url: str, params: dict[str, Any] | None = None) -> _MockResponse:
-        if params:
-            query = urlencode(params, doseq=True)
-            if query:
-                url = f"{url}?{query}"
-        for matcher, response in self._responses:
-            if matcher(url):
-                return response
-        raise AssertionError(f"No mock response available for {url}")
+@pytest.fixture
+def baliza_engine(tmp_path: Path) -> Iterator[BalizaEngine]:
+    """Fresh BalizaEngine on a temp DuckDB file, auto-closed."""
+    db_file = tmp_path / "test.duckdb"
+    engine = BalizaEngine(db_path=db_file)
+    try:
+        yield engine
+    finally:
+        try:
+            engine.con.disconnect()
+        except Exception:
+            pass
 
 
-class HttpxMock:
-    def __init__(self) -> None:
-        self._entries: list[tuple[Matcher, _MockResponse]] = []
+@pytest.fixture
+def make_db_with_contracts(tmp_path: Path) -> Callable[..., dict[str, Any]]:
+    """Factory that creates a DuckDB file with baliza_raw.contratos pre-seeded.
 
-    def add_response(
-        self,
-        *,
-        url: str | re.Pattern[str] | None = None,
-        json: Any | None = None,
-        status_code: int = 200,
-    ) -> None:
-        payload = json if json is not None else {}
-        if url is None:
+    The DDL matches DailyExporter's SELECT columns so exports succeed without
+    any migration layer. Rows use evenly-distributed CNPJ values so callers
+    can control unique-org counts via the `count` parameter.
+    """
 
-            def matcher(target: str) -> bool:
-                return True
-        elif isinstance(url, re.Pattern):
-            matcher = url.match
-        else:
+    def _factory(date_str: str, count: int = 50) -> dict[str, Any]:
+        db_file = tmp_path / "test.duckdb"
+        output_dir = tmp_path / "daily"
 
-            def matcher(target: str, *, expected: str = url) -> bool:
-                return target == expected
+        with duckdb.connect(str(db_file)) as con:
+            con.execute("CREATE SCHEMA IF NOT EXISTS baliza_raw")
+            con.execute(_CONTRATOS_TABLE_DDL)
+            for i in range(count):
+                org_no = i % max(1, count // 5)
+                cnpj = f"{org_no:014d}"
+                con.execute(
+                    """
+                    INSERT OR IGNORE INTO baliza_raw.contratos (
+                        numero_controle_pncp,
+                        data_publicacao,
+                        cnpj_orgao,
+                        razao_social_orgao,
+                        poder_id,
+                        esfera_id,
+                        codigo_unidade,
+                        nome_unidade,
+                        uf_sigla,
+                        uf_nome,
+                        municipio_nome,
+                        codigo_ibge,
+                        ni_fornecedor,
+                        tipo_pessoa,
+                        nome_razao_social_fornecedor,
+                        codigo_pais_fornecedor,
+                        modalidade_id,
+                        modalidade_nome,
+                        valor_inicial,
+                        objeto_contrato,
+                        processo,
+                        usuario_nome
+                    ) VALUES (
+                        ?, CAST(?||'T10:00:00' AS TIMESTAMP), ?, ?, 'E', 'F',
+                        '001', 'Unit 1', 'SP', 'São Paulo', 'São Paulo', '3550308',
+                        '12000000000190', 'PJ', 'Fornecedor X', 'BR',
+                        1, 'Pregão', ?, 'Test contract', 'PROC-001', 'Test User'
+                    )
+                    """,
+                    [f"CTRL-{i:05d}", date_str, cnpj, f"Org {org_no}", 1000.00 + float(i)],
+                )
 
-        self._entries.append((matcher, _MockResponse(status_code=status_code, _json_data=payload)))
+        return {"db_path": db_file, "output_dir": output_dir, "date_str": date_str}
 
-    def create_client(self) -> _MockClient:
-        return _MockClient(self._entries)
+    return _factory
 
 
-# Old httpx_mock fixture for dlt CLI - no longer needed
-# New simple tests mock httpx.Client.get directly with unittest.mock
-#
-# @pytest.fixture()
-# def httpx_mock() -> HttpxMock:
-#     ...
+@pytest.fixture
+def mock_ia_manifest(monkeypatch) -> Callable[[list[dict[str, Any]] | None], None]:
+    """Patch the IA manifest readers so no HTTP is attempted.
+
+    Passing None causes both readers to raise ManifestReadError (simulates a
+    transient IA outage). The `try_` variant swallows the error and returns
+    [] per its contract; the strict variant propagates — matching prod.
+    """
+
+    def _install(rows: list[dict[str, Any]] | None) -> None:
+        if rows is None:
+            def _raise() -> list[dict[str, Any]]:
+                raise ManifestReadError("simulated manifest read failure")
+
+            monkeypatch.setattr(
+                "baliza.ia_uploader.read_manifest_from_ia", _raise
+            )
+
+            def _try_empty() -> list[dict[str, Any]]:
+                return []
+
+            monkeypatch.setattr(
+                "baliza.ia_uploader.try_read_manifest_from_ia", _try_empty
+            )
+            return
+
+        def _reader() -> list[dict[str, Any]]:
+            return list(rows)
+
+        monkeypatch.setattr("baliza.ia_uploader.read_manifest_from_ia", _reader)
+        monkeypatch.setattr(
+            "baliza.ia_uploader.try_read_manifest_from_ia", _reader
+        )
+
+    return _install
+
+
+@pytest.fixture
+def mock_ia_upload(monkeypatch) -> list[dict[str, Any]]:
+    """Patch internetarchive.upload to record calls without hitting the network."""
+    calls: list[dict[str, Any]] = []
+
+    def _fake_upload(item_id, files=None, metadata=None, **kwargs):
+        calls.append(
+            {
+                "item_id": item_id,
+                "files": dict(files) if files else {},
+                "metadata": dict(metadata) if metadata else {},
+                "kwargs": kwargs,
+            }
+        )
+        return [MagicMock(status_code=200)]
+
+    monkeypatch.setattr("internetarchive.upload", _fake_upload)
+    monkeypatch.setattr("baliza.ia_uploader.ia.upload", _fake_upload)
+    monkeypatch.setattr("baliza.consolidator.ia.upload", _fake_upload)
+    return calls
