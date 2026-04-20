@@ -26,7 +26,7 @@ Feature: Journey 3 — Investigative journalist
 
   @green @export
   Scenario: Export a result list as Markdown
-    # Covered by SearchHero data-testid="export-markdown" → clipboard GFM table.
+    # Covered by SearchHero "Exportar Markdown" button → clipboard GFM table.
     Given a search result list is visible for "hospital municipal"
     When the user clicks "Exportar Markdown"
     Then the clipboard contains a Markdown table with headers and rows

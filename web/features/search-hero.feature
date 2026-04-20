@@ -22,17 +22,15 @@ Feature: Search Hero
     Given the user types "12345678000195-1-000001/2024" into the search box
     Then I should see "Ver Contratação" as a jump suggestion
 
-  Scenario: Reject PNCP ID with missing year segment
-    Given the user types "12345678000195-1-000001" into the search box
+  Scenario Outline: Non-canonical PNCP IDs show no jump suggestion
+    Given the user types "<input>" into the search box
     Then I should not see any jump suggestion
 
-  Scenario: Reject PNCP ID with 3-digit year
-    Given the user types "12345678000195-1-000001/202" into the search box
-    Then I should not see any jump suggestion
-
-  Scenario: Reject hyphen-only PNCP ID
-    Given the user types "12345678000195-1-000001-1" into the search box
-    Then I should not see any jump suggestion
+    Examples:
+      | input                       |
+      | 12345678000195-1-000001     |
+      | 12345678000195-1-000001/202 |
+      | 12345678000195-1-000001-1   |
 
   Scenario: Short query shows no jump suggestion
     Given the user types "ab" into the search box

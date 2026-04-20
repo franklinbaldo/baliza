@@ -27,7 +27,7 @@ Feature: Journey 5 — Academic researcher
 
   @green @citation
   Scenario: Generate a citable reference block for the current snapshot
-    # Covered by CitationBlock on /sobre (data-testid=open-citation, bibtex-block, citation-meta).
+    # Covered by CitationBlock on /sobre (citation trigger, BibTeX block, citation metadata).
     Given the user opens "/sobre"
     When the user clicks "Gerar citação acadêmica"
     Then a BibTeX block is rendered with the snapshot date and Internet Archive item URL

@@ -38,7 +38,7 @@ Feature: Journey 7 — Auditor and watchdog
 
   @green @alerts
   Scenario: Subscribe to a CNPJ from its agency or supplier page
-    # Covered by AgencyDetailView data-testid="subscribe-agency" → saveWatch kind=cnpj-agency.
+    # Covered by AgencyDetailView "Receber alertas deste órgão" button → saveWatch kind=cnpj-agency.
     Given the user opens "/orgao?cnpj=00000000000191"
     When the user clicks "Receber alertas deste órgão"
     Then a watch is created with the agency CNPJ as the filter

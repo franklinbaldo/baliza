@@ -11,7 +11,7 @@ Feature: Agency Detail View
     Given the URL has cnpj "00000000000191"
     And the fetch is pending
     When the agency detail view mounts
-    Then I should see an aria-busy element
+    Then I should see a loading skeleton
 
   Scenario: Fetch error shows AlertBanner
     Given the URL has cnpj "00000000000191"

@@ -1,8 +1,11 @@
 @journey5 @journey6 @green
 Feature: Archive fallback hardening
-  queryArchivedTable is the primary offline/historical data layer. Every
-  failure mode is reported as a discriminated reason so callers can decide
-  how to present it; limits are clamped and the layer can be preloaded.
+  Contract data must still be served from the Internet Archive Parquet
+  snapshots when PNCP is unreachable — with honest, discriminated failure
+  reasons the UI can explain, and without wasting boot time on work the
+  caller did not ask for. This is the resilience guarantee journeys 5 and
+  6 depend on: archival reproducibility for researchers and dependable
+  bulk access for integrators.
 
   Scenario: Manifest endpoint 404 yields reason "no_manifest"
     Given the IA manifest endpoint returns 404
@@ -70,17 +73,35 @@ Feature: Archive fallback hardening
     Then the result should be a failure with reason "sql_error"
 
   Scenario: prefetchArchive warms the manifest without booting DuckDB
-    Given prefetchArchive was called for "contratos"
-    Then DuckDB should not have been initialized yet
-    When the caller later invokes queryArchivedTable for "contratos" filtered by "cnpj_orgao"
+    Given the IA manifest resolves to a parquet url
+    When prefetchArchive is called for "contratos"
+    Then DuckDB should not have been initialized
+
+  Scenario: A later queryArchivedTable after prefetchArchive reuses the warmed manifest
+    Given prefetchArchive has warmed the manifest for "contratos"
+    When queryArchivedTable is called for "contratos" filtered by "cnpj_orgao"
     Then the IA manifest should have been fetched exactly once
     And DuckDB should have been initialized exactly once
 
-  Scenario: Multi-table wrappers route through the table allow-list
+  Scenario: queryArchivedOrgaos requests the orgaos parquet snapshot
+    Given the IA manifest resolves to a parquet url for every table
     When queryArchivedOrgaos is called
-    And queryArchivedUnidades is called
-    And queryArchivedFornecedores is called
-    Then each call should request its own parquet snapshot from the manifest
+    Then the query should be routed to the "orgaos" parquet snapshot
+
+  Scenario: queryArchivedUnidades requests the unidades parquet snapshot
+    Given the IA manifest resolves to a parquet url for every table
+    When queryArchivedUnidades is called
+    Then the query should be routed to the "unidades" parquet snapshot
+
+  Scenario: queryArchivedFornecedores requests the fornecedores parquet snapshot
+    Given the IA manifest resolves to a parquet url for every table
+    When queryArchivedFornecedores is called
+    Then the query should be routed to the "fornecedores" parquet snapshot
+
+  Scenario: Consecutive wrapper calls each hit their own parquet snapshot
+    Given the IA manifest resolves to a parquet url for every table
+    When queryArchivedOrgaos, queryArchivedUnidades and queryArchivedFornecedores are called in sequence
+    Then each wrapper should route to its own parquet snapshot
 
   Scenario: Malformed manifest rows are skipped with a warning
     Given the IA manifest endpoint returns a CSV with a valid contratos row and a malformed row missing parquet_url

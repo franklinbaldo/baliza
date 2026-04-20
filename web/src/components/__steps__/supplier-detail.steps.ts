@@ -69,7 +69,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       await tick();
     });
 
-    Then('I should see an aria-busy element', async () => {
+    Then('I should see a loading skeleton', async () => {
       await waitFor(() =>
         expect(document.querySelector('[aria-busy="true"]')).toBeTruthy(),
       );

@@ -21,7 +21,7 @@ Feature: Journey 4 — Informed citizen
 
   @green @plain-language
   Scenario: Detail page renders a plain-language summary above the schema dump
-    # Covered by ContractDetailView data-testid="plain-language-summary".
+    # Covered by ContractDetailView plain-language summary block.
     Given the user opens "/contratacao?id=00000000000191-1-000001/2024"
     Then the user sees a one-paragraph summary that names the buyer, supplier, value and what was bought
 
