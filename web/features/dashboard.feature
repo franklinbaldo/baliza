@@ -21,4 +21,4 @@ Feature: Dashboard Stats
   Scenario: Skeleton cards not visible after data loads
     Given the fetch returns valid stats
     When the dashboard has finished loading
-    Then I should not see any aria-busy element
+    Then I should not see a loading skeleton

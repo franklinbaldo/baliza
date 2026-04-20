@@ -11,7 +11,7 @@ Feature: Contract Detail View
     Given the URL has id "00000000000191-1-000001/2024"
     And the fetch is pending
     When the contract detail view mounts
-    Then I should see an aria-busy element
+    Then I should see a loading skeleton
 
   Scenario: Fetch error shows AlertBanner
     Given the URL has id "00000000000191-1-000001/2024"

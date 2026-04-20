@@ -309,7 +309,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       await fireEvent.click(screen.getByText('Ativar Localizador'));
     });
 
-    Then('I should see a skeleton loader with aria-busy', async () => {
+    Then('I should see a loading skeleton', async () => {
       await waitFor(
         () => {
           const busy = document.querySelector('[aria-busy="true"]');

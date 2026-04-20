@@ -18,7 +18,7 @@ Feature: Atas de Registro de Preços Browser
     Given the URL has objeto "papel A4"
     And the archive lookup is pending
     When the atas view mounts
-    Then I should see an aria-busy element
+    Then I should see a loading skeleton
 
   Scenario: Archive failure shows AlertBanner
     Given the URL has objeto "papel A4"

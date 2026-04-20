@@ -11,7 +11,7 @@ Feature: City Detail View
     Given the URL has ibge "1721000"
     And the fetch is pending
     When the city detail view mounts
-    Then I should see an aria-busy element
+    Then I should see a loading skeleton
 
   Scenario: Fetch error shows AlertBanner
     Given the URL has ibge "1721000"

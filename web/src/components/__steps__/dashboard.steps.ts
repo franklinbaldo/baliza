@@ -78,7 +78,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
 
     When('the dashboard has finished loading', () => {});
 
-    Then('I should not see any aria-busy element', () => {
+    Then('I should not see a loading skeleton', () => {
       expect(document.querySelector('[aria-busy="true"]')).toBeNull();
     });
   });

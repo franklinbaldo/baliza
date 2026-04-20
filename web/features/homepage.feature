@@ -31,4 +31,4 @@ Feature: Homepage Dashboard
   Scenario: No skeleton visible after data loads
     Given the fetch returns valid stats
     When the dashboard has finished loading
-    Then I should not see any aria-busy element
+    Then I should not see a loading skeleton

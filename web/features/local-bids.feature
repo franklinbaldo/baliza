@@ -41,4 +41,4 @@ Feature: Local Bids Geolocation
     Given geolocation succeeds with IBGE "1721000"
     And the PNCP fetch is pending
     When the user activates the locator
-    Then I should see a skeleton loader with aria-busy
+    Then I should see a loading skeleton

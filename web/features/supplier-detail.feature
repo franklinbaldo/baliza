@@ -12,7 +12,7 @@ Feature: Supplier Detail View
     Given the URL has cnpj "12345678000195"
     And the archive lookup is pending
     When the supplier detail view mounts
-    Then I should see an aria-busy element
+    Then I should see a loading skeleton
 
   Scenario: Archive failure shows AlertBanner
     Given the URL has cnpj "12345678000195"
