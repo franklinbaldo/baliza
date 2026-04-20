@@ -471,4 +471,29 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       expect(calls[0].table).toBe('fornecedores');
     });
   });
+
+  // Exercises the non-contamination invariant: invoking the three wrappers
+  // in one runtime sequence (no BeforeEachScenario reset between them) must
+  // still route each call to its own parquet snapshot. Guards against a
+  // regression where ia-manifest or parquetFallback caches become keyed
+  // too broadly and a later wrapper reuses an earlier wrapper's URL.
+  Scenario('Consecutive wrapper calls each hit their own parquet snapshot', ({ Given, When, Then }) => {
+    let calls: Array<{ table: string; sql: string }>;
+    Given('the IA manifest resolves to a parquet url for every table', () => {
+      calls = installManifestAndCapture();
+    });
+    When('queryArchivedOrgaos, queryArchivedUnidades and queryArchivedFornecedores are called in sequence', async () => {
+      const { queryArchivedOrgaos, queryArchivedUnidades, queryArchivedFornecedores } =
+        await import('../../lib/parquetFallback');
+      await queryArchivedOrgaos('cnpj', '00000000000191');
+      await queryArchivedUnidades('codigo_unidade', '1');
+      await queryArchivedFornecedores('ni_fornecedor', '00000000000191');
+    });
+    Then('each wrapper should route to its own parquet snapshot', () => {
+      expect(calls).toHaveLength(3);
+      expect(calls.map((c) => c.table).sort()).toEqual(
+        ['fornecedores', 'orgaos', 'unidades'],
+      );
+    });
+  });
 });

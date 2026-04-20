@@ -98,6 +98,11 @@ Feature: Archive fallback hardening
     When queryArchivedFornecedores is called
     Then the query should be routed to the "fornecedores" parquet snapshot
 
+  Scenario: Consecutive wrapper calls each hit their own parquet snapshot
+    Given the IA manifest resolves to a parquet url for every table
+    When queryArchivedOrgaos, queryArchivedUnidades and queryArchivedFornecedores are called in sequence
+    Then each wrapper should route to its own parquet snapshot
+
   Scenario: Malformed manifest rows are skipped with a warning
     Given the IA manifest endpoint returns a CSV with a valid contratos row and a malformed row missing parquet_url
     When getLatestParquetInfo is called for "contratos"
