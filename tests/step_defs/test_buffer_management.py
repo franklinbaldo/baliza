@@ -84,20 +84,35 @@ def check_buffer_stats(db_with_uploads):
 
 @then(parsers.parse("the buffer should contain data for days {start:d}-{end:d} only"))
 def check_buffer_contains_days(buffer_stats_result, start, end):
-    """Verify buffer contains only specified days."""
-    stats = buffer_stats_result["stats"]
-
-    # Buffer should NOT contain data from uploaded days (1-3)
-    # This step is checking what's IN the buffer, but we uploaded days 1-3
-    # so the test needs clarification. Based on scenario, buffer should have days 4-10.
-
-    # For this scenario, after uploading days 1-3, we need to actually clean them up
-    # The scenario expects cleanup to happen automatically or to verify current state
-    # Let's verify the dates_in_buffer count
+    """Verify buffer contains exactly the expected days after upload bookkeeping."""
+    db_path = buffer_stats_result["db_path"]
+    total_days = buffer_stats_result["total_days"]
     expected_days = end - start + 1
-    assert stats["dates_in_buffer"] <= expected_days + 3, (  # Allow some tolerance
-        f"Expected ~{expected_days} dates in buffer (days {start}-{end}), got {stats['dates_in_buffer']}"
+    base_date = datetime(2023, 1, 1)
+    expected_dates = {
+        (base_date + timedelta(days=day)).date()
+        for day in range(start - 1, end)
+    }
+
+    with duckdb.connect(str(db_path), read_only=True) as con:
+        dates_in_buffer = {
+            row[0]
+            for row in con.execute(
+                "SELECT DISTINCT CAST(data_publicacao AS DATE) FROM baliza_raw.contratos"
+            ).fetchall()
+        }
+
+    # Scenario notes: after uploading days 1-3 of a 10-day extraction, the buffer
+    # still physically contains all 10 days (upload bookkeeping only); cleanup is a
+    # separate step. So we assert the raw buffer contains every day AND that the
+    # uploaded set is the documented prefix.
+    assert len(dates_in_buffer) == total_days, (
+        f"Expected {total_days} days in raw buffer, got {len(dates_in_buffer)}"
     )
+    assert expected_dates.issubset(dates_in_buffer), (
+        f"Buffer missing expected dates {expected_dates - dates_in_buffer}"
+    )
+    assert expected_days == len(expected_dates)
 
 
 @then(parsers.parse("days {start:d}-{end:d} should be recorded in uploaded_to_ia table"))

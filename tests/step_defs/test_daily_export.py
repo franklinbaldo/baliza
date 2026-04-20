@@ -17,45 +17,50 @@ from baliza.extractor import PNCPExtractor
 runner = CliRunner()
 
 
-def _make_db_with_contracts(tmp_path: Path, date_str: str, count: int = 50) -> dict:
-    """Helper: create a test DB using the real schema, insert N contracts."""
-    db_file = tmp_path / "test.duckdb"
-    output_dir = tmp_path / "daily"
+@pytest.fixture
+def make_db_with_contracts(tmp_path: Path):
+    """Factory fixture: create a test DB using the real schema, insert N contracts."""
 
-    extractor = PNCPExtractor(db_path=db_file)
-    with duckdb.connect(str(db_file)) as con:
-        extractor._ensure_schema(con)
-        for i in range(count):
-            org_no = i % max(1, count // 5)
-            cnpj = f"{org_no:014d}"
-            con.execute(
-                """
-                INSERT OR IGNORE INTO baliza_raw.contratos (
-                    numero_controle_pncp,
-                    data_publicacao,
-                    cnpj_orgao,
-                    razao_social_orgao,
-                    poder_id,
-                    esfera_id,
-                    codigo_unidade,
-                    nome_unidade,
-                    uf_sigla,
-                    ni_fornecedor,
-                    tipo_pessoa,
-                    modalidade_id,
-                    modalidade_nome,
-                    valor_inicial,
-                    objeto_contrato,
-                    processo,
-                    usuario_nome
-                ) VALUES (?, CAST(?||'T10:00:00' AS TIMESTAMP), ?, ?, 'E', 'F',
-                          '001', 'Unit 1', 'SP', '12000000000190', 'PJ',
-                          1, 'Pregão', ?, 'Test contract', 'PROC-001', 'Test User')
-            """,
-                [f"CTRL-{i:05d}", date_str, cnpj, f"Org {org_no}", 1000.00 + float(i)],
-            )
+    def _factory(date_str: str, count: int = 50) -> dict:
+        db_file = tmp_path / "test.duckdb"
+        output_dir = tmp_path / "daily"
 
-    return {"db_path": db_file, "output_dir": output_dir, "date_str": date_str}
+        extractor = PNCPExtractor(db_path=db_file)
+        with duckdb.connect(str(db_file)) as con:
+            extractor._ensure_schema(con)
+            for i in range(count):
+                org_no = i % max(1, count // 5)
+                cnpj = f"{org_no:014d}"
+                con.execute(
+                    """
+                    INSERT OR IGNORE INTO baliza_raw.contratos (
+                        numero_controle_pncp,
+                        data_publicacao,
+                        cnpj_orgao,
+                        razao_social_orgao,
+                        poder_id,
+                        esfera_id,
+                        codigo_unidade,
+                        nome_unidade,
+                        uf_sigla,
+                        ni_fornecedor,
+                        tipo_pessoa,
+                        modalidade_id,
+                        modalidade_nome,
+                        valor_inicial,
+                        objeto_contrato,
+                        processo,
+                        usuario_nome
+                    ) VALUES (?, CAST(?||'T10:00:00' AS TIMESTAMP), ?, ?, 'E', 'F',
+                              '001', 'Unit 1', 'SP', '12000000000190', 'PJ',
+                              1, 'Pregão', ?, 'Test contract', 'PROC-001', 'Test User')
+                """,
+                    [f"CTRL-{i:05d}", date_str, cnpj, f"Org {org_no}", 1000.00 + float(i)],
+                )
+
+        return {"db_path": db_file, "output_dir": output_dir, "date_str": date_str}
+
+    return _factory
 
 
 # =============================================================================
@@ -73,19 +78,23 @@ def test_daily_export_creates_files():
     parsers.parse("a DuckDB database with contracts for {date_str}"),
     target_fixture="db_with_contracts",
 )
-def db_with_contracts(tmp_path: Path, date_str: str) -> dict:
+def db_with_contracts(make_db_with_contracts, date_str: str) -> dict:
     """Create database with contracts for a specific date."""
-    return _make_db_with_contracts(tmp_path, date_str, count=50)
+    return make_db_with_contracts(date_str, count=50)
 
 
 @when(
     parsers.parse('I run "baliza export-daily --date {date_str} --output {output_path}"'),
     target_fixture="export_daily_result",
 )
-def run_export_daily(db_with_contracts, date_str, output_path):
+def run_export_daily(db_with_contracts, tmp_path: Path, date_str, output_path):
     """Run baliza export-daily command."""
     db_path = db_with_contracts["db_path"]
-    output_dir = db_with_contracts["output_dir"]
+    # Resolve the output_path from the feature file under tmp_path so each scenario
+    # is isolated. This preserves the "data/daily/" wording in the feature while
+    # keeping the test hermetic.
+    output_dir = tmp_path / output_path.strip("/")
+    db_with_contracts["output_dir"] = output_dir
 
     result = runner.invoke(
         app,
@@ -150,9 +159,9 @@ def test_contratos_schema():
 
 
 @given(parsers.parse("a daily export for {date_str}"), target_fixture="daily_export")
-def daily_export(tmp_path: Path, date_str: str) -> dict:
+def daily_export(make_db_with_contracts, date_str: str) -> dict:
     """Create a daily export."""
-    ctx = _make_db_with_contracts(tmp_path, date_str, count=1)
+    ctx = make_db_with_contracts(date_str, count=1)
     exporter = DailyExporter(ctx["db_path"], "baliza_raw")
     target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
     stats = exporter.export(target_date, ctx["output_dir"])
@@ -211,9 +220,9 @@ def test_orgaos_deduplicated():
     ),
     target_fixture="db_with_orgs",
 )
-def db_with_multiple_orgs(tmp_path: Path, contract_count: int, org_count: int) -> dict:
+def db_with_multiple_orgs(make_db_with_contracts, contract_count: int, org_count: int) -> dict:
     """Create database with multiple contracts from multiple orgs."""
-    ctx = _make_db_with_contracts(tmp_path, "2023-01-15", count=contract_count)
+    ctx = make_db_with_contracts("2023-01-15", count=contract_count)
     return {**ctx, "contract_count": contract_count, "org_count": org_count}
 
 
@@ -329,9 +338,9 @@ def test_metadata_contains_stats():
 @given(
     parsers.parse("a daily export with {count:d} contracts"), target_fixture="export_with_metadata"
 )
-def export_with_metadata(tmp_path: Path, count: int) -> dict:
+def export_with_metadata(make_db_with_contracts, count: int) -> dict:
     """Create daily export with N contracts."""
-    ctx = _make_db_with_contracts(tmp_path, "2023-01-15", count=count)
+    ctx = make_db_with_contracts("2023-01-15", count=count)
     exporter = DailyExporter(ctx["db_path"], "baliza_raw")
     stats = exporter.export(date(2023, 1, 15), ctx["output_dir"])
     return {**ctx, "stats": stats, "count": count}

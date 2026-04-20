@@ -8,11 +8,12 @@ Feature: Daily Parquet Export
     Given a DuckDB database with contracts for 2023-01-15
     When I run "baliza export-daily --date 2023-01-15 --output data/daily/"
     Then the following files should exist:
-      | file                               |
-      | data/daily/2023-01-15/contratos.parquet |
-      | data/daily/2023-01-15/orgaos.parquet    |
-      | data/daily/2023-01-15/unidades.parquet  |
-      | data/daily/2023-01-15/_metadata.json    |
+      | file                                        |
+      | data/daily/2023-01-15/contratos.parquet     |
+      | data/daily/2023-01-15/orgaos.parquet        |
+      | data/daily/2023-01-15/unidades.parquet      |
+      | data/daily/2023-01-15/fornecedores.parquet  |
+      | data/daily/2023-01-15/_metadata.json        |
 
   @tier0
   Scenario: Contratos parquet has correct schema

@@ -320,6 +320,7 @@ def test_checkpoint_cleared_after_completion():
 def in_progress_extraction(tmp_path: Path) -> dict:
     """Create database with checkpoint at page 3."""
     db_file = tmp_path / "test.duckdb"
+    extraction_date = datetime(2023, 1, 15)
 
     with PNCPExtractor(db_file, "test_dataset") as extractor:
         with duckdb.connect(str(db_file)) as con:
@@ -327,16 +328,16 @@ def in_progress_extraction(tmp_path: Path) -> dict:
             extractor._save_checkpoint(
                 con,
                 "contratos",
-                datetime(2023, 1, 15),
+                extraction_date,
                 {
                     "current_page": 3,
                     "total_pages": 5,
                     "rows_extracted": 300,
                 },
-                datetime(2023, 1, 15),
+                extraction_date,
             )
 
-    return {"db_path": db_file, "dataset": "test_dataset"}
+    return {"db_path": db_file, "dataset": "test_dataset", "extraction_date": extraction_date}
 
 
 @when("extraction completes successfully", target_fixture="completed_extraction")
@@ -344,6 +345,7 @@ def complete_extraction(in_progress_extraction):
     """Complete the extraction."""
     db_path = in_progress_extraction["db_path"]
     dataset = in_progress_extraction["dataset"]
+    extraction_date = in_progress_extraction["extraction_date"]
 
     def mock_get(url, params=None, **kwargs):
         page = params.get("pagina", 1)
@@ -379,7 +381,7 @@ def complete_extraction(in_progress_extraction):
 
     with patch("httpx.Client.stream", side_effect=mock_stream):
         with PNCPExtractor(db_path, dataset) as extractor:
-            result = extractor.extract(datetime(2023, 1, 15), datetime(2023, 1, 15), "contratos")
+            result = extractor.extract(extraction_date, extraction_date, "contratos")
 
     return {**in_progress_extraction, "result": result}
 
@@ -388,14 +390,16 @@ def complete_extraction(in_progress_extraction):
 def check_no_checkpoint(completed_extraction):
     """Verify checkpoint was cleared."""
     db_path = completed_extraction["db_path"]
+    extraction_date = completed_extraction["extraction_date"]
 
     with duckdb.connect(str(db_path), read_only=True) as con:
         result = con.execute(
             """
             SELECT COUNT(*)
             FROM baliza_state.extraction_checkpoint
-            WHERE extraction_date = '2023-01-15'
-        """
+            WHERE extraction_date = ?
+        """,
+            [extraction_date.date()],
         ).fetchone()
 
         assert result[0] == 0, "Checkpoint should be cleared after completion"
