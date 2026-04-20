@@ -1,8 +1,11 @@
 @journey5 @journey6 @green
 Feature: Archive fallback hardening
-  queryArchivedTable is the primary offline/historical data layer. Every
-  failure mode is reported as a discriminated reason so callers can decide
-  how to present it; limits are clamped and the layer can be preloaded.
+  Contract data must still be served from the Internet Archive Parquet
+  snapshots when PNCP is unreachable — with honest, discriminated failure
+  reasons the UI can explain, and without wasting boot time on work the
+  caller did not ask for. This is the resilience guarantee journeys 5 and
+  6 depend on: archival reproducibility for researchers and dependable
+  bulk access for integrators.
 
   Scenario: Manifest endpoint 404 yields reason "no_manifest"
     Given the IA manifest endpoint returns 404

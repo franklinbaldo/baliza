@@ -1,6 +1,9 @@
 @journey3 @journey5 @journey6 @green
 Feature: DuckDB SQL Explorer
-  The explorer lets analysts run SQL against Parquet files from Internet Archive.
+  Journalists, researchers, and developer integrators can run ad-hoc SQL
+  against Baliza's archived contract snapshots directly in the browser —
+  no download, no installation — so the same dataset that powers the
+  public views is reproducibly inspectable from anyone's machine.
 
   Scenario: Initial state shows explore button and default query
     When the explorer mounts
