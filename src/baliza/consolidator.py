@@ -63,7 +63,16 @@ class IAConsolidator:
                     for row in reader:
                         # Extract year from data_particao (YYYY-MM-DD)
                         p_date = row.get("data_particao", "")
-                        if p_date.startswith(str(year)) and row.get("table_name") == "contratos":
+                        # Exclude v2 shard / supplemental rows — their
+                        # contracts already live in the canonical monthly
+                        # files and re-ingesting them here would duplicate.
+                        # Empty/missing file_type is v1 canonical.
+                        file_type = row.get("file_type", "")
+                        if (
+                            p_date.startswith(str(year))
+                            and row.get("table_name") == "contratos"
+                            and file_type in ("", "monthly_canonical")
+                        ):
                             url = row.get("parquet_url") or row.get("file_url")
                             if url:
                                 urls.append(url)
