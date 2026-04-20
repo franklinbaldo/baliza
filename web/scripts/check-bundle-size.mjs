@@ -17,11 +17,11 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DIST_DIR = join(__dirname, '..', 'dist', '_astro');
 
-// Pinned to the measured size (~225 KB) + 20 %. When an intentional feature
+// Current baseline: 295_000 bytes — measured size (~225 KB) plus headroom,
+// with room absorbed by the SupplierDetailView shipped for Journey 1 @green
+// (/fornecedor?cnpj= supplier prospecting page). When an intentional feature
 // increases the baseline, raise this constant in the same commit and note
 // what landed.
-// 2026-04: raised to 285_000 for the SupplierDetailView (+6.7 KB) — adds the
-// /fornecedor?cnpj= supplier prospecting page (Journey 1 @green).
 const BUDGET_BYTES = 295_000;
 
 function isClientEntryFile(name) {

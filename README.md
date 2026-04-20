@@ -9,7 +9,7 @@
 
 ## Product vision and user journeys
 
-Who Baliza serves and which problem it solves for each persona is documented in [`VISION.md`](VISION.md) — including the seven canonical user journeys (B2G supplier, public buyer, journalist, citizen, researcher, developer, auditor), the prioritization principle, and the explicit non-goals. The journeys are mirrored as an executable specification under [`web/features/journeys/`](web/features/journeys/); component-level behaviors live in [`web/features/`](web/features/). Red scenarios are intentional: each one is a backlog item. Run `npm run test:bdd:report` (from `web/`) for the current green/wip/planned breakdown.
+Who Baliza serves and which problem it solves for each persona is documented in [`VISION.md`](VISION.md) — including the six canonical user journeys (B2G supplier, public buyer, journalist, citizen, researcher, developer), the prioritization principle, and the explicit non-goals. The journeys are mirrored as an executable specification under [`web/features/journeys/`](web/features/journeys/); component-level behaviors live in [`web/features/`](web/features/). Red scenarios are intentional: each one is a backlog item. Run `npm run test:bdd:report` (from `web/`) for the current green/wip/planned breakdown.
 
 ## Installation
 

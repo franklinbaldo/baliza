@@ -29,7 +29,7 @@ This is a prioritization rule, not a market segmentation. When two roadmap
 items compete, the one that better serves the exigent professional case wins,
 because the resulting capability cascades down to the lighter use cases.
 
-### The seven journeys
+### The six journeys
 
 Each journey has a persona, a verbatim central question, the capabilities it
 needs, an honest current state, and a link to the matching feature file under
@@ -169,27 +169,6 @@ but there is no `/desenvolvedores` page, no consumption guide, and no embed
 mode.
 
 Feature file: [`web/features/journeys/06_developer_integrator.feature`](web/features/journeys/06_developer_integrator.feature)
-
-#### 7. Auditor / watchdog
-
-The recurring observer (NGO, control body, accountability journalist) who
-needs to be told when something matches a saved pattern.
-
-*"I want alerts (RSS, webhook, email) when a recurring anomaly shows up — a
-new contract for CNPJ X, exemptions above value Y in state Z."*
-
-Capabilities needed:
-
-- Save the current query as a "watch" persisted in localStorage
-- RSS feed at `/alertas/[slug].xml` publishing new matches
-- Configurable webhook fired on new matches (stateless via GitHub Action)
-- Diff view showing what changed since the last visit to a saved query
-- Per-CNPJ and per-agency subscription entry points
-
-Current state: not yet served. None of the alerting infrastructure exists.
-The `AlertBanner` component is UI-only.
-
-Feature file: [`web/features/journeys/07_auditor_watchdog.feature`](web/features/journeys/07_auditor_watchdog.feature)
 
 ### What Baliza is NOT (non-goals)
 
