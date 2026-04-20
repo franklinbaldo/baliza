@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import shutil
 import tempfile
@@ -13,8 +14,27 @@ import internetarchive as ia
 from rich.console import Console
 
 from .engine import BalizaEngine
+from .utils import DUCKDB_PARQUET_COPY_OPTIONS, PARQUET_ROW_GROUP_SIZE
 
 console = Console()
+
+# Manifest v2 metadata — record the file properties consumers (web UI,
+# researchers) need to reason about the layout without re-reading the file.
+# `sort_key` / `bloom_filter_columns` are informational; `sha256` enables
+# integrity checks; `file_type` distinguishes canonical vs shard vs
+# supplemental rows.
+_CONTRATOS_SORT_KEY = "cnpj_orgao,data_publicacao,numero_controle_pncp"
+_CONTRATOS_BLOOM_FILTER_COLUMNS = (
+    "cnpj_orgao|ni_fornecedor|codigo_ibge"  # dict-encoded columns DuckDB auto-blooms
+)
+
+
+def _sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 class MonthlyExporter:
@@ -24,21 +44,33 @@ class MonthlyExporter:
         self.engine = engine
 
     def export_month(self, start_date: date, output_dir: Path) -> dict[str, Path]:
-        """Export all tables for a given month to Parquet in output_dir."""
-        output_dir.mkdir(parents=True, exist_ok=True)
-        files = {}
+        """Export all tables for a given month to Parquet in output_dir.
 
-        # Mofified to monthly filename
+        Uses DuckDB ``COPY ... TO`` (via Ibis' underlying connection) so the
+        output gets the same WASM-optimized options as the daily and
+        consolidated files: 8192-row groups, ZSTD L9, bloom filters on
+        dict-encoded columns, and the journey-aware sort order.
+        """
+        output_dir.mkdir(parents=True, exist_ok=True)
+        files: dict[str, Path] = {}
+
         month_str = start_date.strftime("%Y-%m")
         table_name = "contratos"
         filename = f"{table_name}-{month_str}.parquet"
         out_path = output_dir / filename
 
         try:
-            # Query the in-memory engine
-            t = self.engine.get_table(table_name, schema="main")
-            t.to_parquet(out_path)
-            if out_path.exists():
+            self.engine.con.raw_sql(
+                f"""
+                COPY (
+                    SELECT *
+                    FROM main.{table_name}
+                    ORDER BY cnpj_orgao, data_publicacao DESC, numero_controle_pncp
+                ) TO '{out_path}'
+                ({DUCKDB_PARQUET_COPY_OPTIONS})
+                """
+            )
+            if out_path.exists() and out_path.stat().st_size > 0:
                 files[table_name] = out_path
         except Exception as e:
             console.print(
@@ -186,11 +218,30 @@ class IAUploader:
         secret_key: str,
         q_stats: dict[str, int] | None = None,
     ) -> None:
-        """Append a new row to the manifest.csv on IA."""
+        """Append a new row to the manifest.csv on IA.
+
+        Emits manifest v2 columns (``file_type``, ``sha256``,
+        ``file_size_bytes``, ``sort_key``, ``row_group_size``,
+        ``bloom_filter_columns``, ``uf_sigla``) alongside the existing
+        ones. Legacy columns keep their names so the web loader at
+        ``web/src/lib/ia-manifest.ts`` keeps validating rows without
+        changes.
+        """
         manifest = self._read_manifest_from_ia()
 
         # Build new row
         month_str = start_date.strftime("%Y-%m")
+        parquet_filename = f"contratos-{month_str}.parquet"
+        parquet_url = f"https://archive.org/download/{item_id}/{parquet_filename}"
+
+        parquet_local = uploaded_files.get(parquet_filename)
+        if parquet_local and Path(parquet_local).exists():
+            parquet_sha256 = _sha256(Path(parquet_local))
+            parquet_size = Path(parquet_local).stat().st_size
+        else:
+            parquet_sha256 = ""
+            parquet_size = 0
+
         new_row = {
             "data_particao": month_str,
             "table_name": "contratos",
@@ -198,11 +249,19 @@ class IAUploader:
             "quarantine_count": q_stats.get("quarantine", 0) if q_stats else 0,
             "ia_item_id": item_id,
             "raw_zip_url": f"https://archive.org/download/{item_id}/raw-{month_str}.zip",
-            "parquet_url": f"https://archive.org/download/{item_id}/contratos-{month_str}.parquet",
+            "parquet_url": parquet_url,
             "quarantine_url": f"https://archive.org/download/{item_id}/quarentena-{month_str}.csv"
             if q_stats and q_stats.get("quarantine", 0) > 0
             else "",
             "uploaded_at": datetime.now().isoformat(),
+            # Manifest v2 columns (all optional in the web schema):
+            "file_type": "monthly_canonical",
+            "uf_sigla": "",
+            "sort_key": _CONTRATOS_SORT_KEY,
+            "row_group_size": PARQUET_ROW_GROUP_SIZE,
+            "bloom_filter_columns": _CONTRATOS_BLOOM_FILTER_COLUMNS,
+            "sha256": parquet_sha256,
+            "file_size_bytes": parquet_size,
         }
 
         # Simple deduplication: remove old row for same partition/table
@@ -213,20 +272,28 @@ class IAUploader:
         ]
         manifest.append(new_row)
 
-        # Write back to CSV
+        # Write back to CSV — union v1 + v2 fieldnames so older rows that
+        # lack v2 columns still get serialized cleanly.
+        fieldnames = [
+            "data_particao",
+            "table_name",
+            "row_count",
+            "quarantine_count",
+            "ia_item_id",
+            "raw_zip_url",
+            "parquet_url",
+            "quarantine_url",
+            "uploaded_at",
+            "file_type",
+            "uf_sigla",
+            "sort_key",
+            "row_group_size",
+            "bloom_filter_columns",
+            "sha256",
+            "file_size_bytes",
+        ]
         with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as tf:
-            fieldnames = [
-                "data_particao",
-                "table_name",
-                "row_count",
-                "quarantine_count",
-                "ia_item_id",
-                "raw_zip_url",
-                "parquet_url",
-                "quarantine_url",
-                "uploaded_at",
-            ]
-            writer = csv.DictWriter(tf, fieldnames=fieldnames)
+            writer = csv.DictWriter(tf, fieldnames=fieldnames, extrasaction="ignore")
             writer.writeheader()
             writer.writerows(manifest)
             temp_csv = tf.name

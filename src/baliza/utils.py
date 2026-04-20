@@ -1,14 +1,104 @@
 """Validation utilities."""
 
+from __future__ import annotations
+
 import ipaddress
 import os
 import re
 import socket
+from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import ParseResult, urlparse, urlunparse
 
+import pyarrow as pa
+import pyarrow.parquet as pq
+
 if TYPE_CHECKING:
     from ipaddress import IPv4Address, IPv6Address
+
+
+# Tuned for DuckDB-WASM HTTP range reads: small enough that a point
+# lookup touches ~0.5–1 MB compressed, matches DuckDB's default.
+PARQUET_ROW_GROUP_SIZE = 8192
+
+# ZSTD L9 is ~15% smaller than L3; write cost is paid once nightly.
+PARQUET_COMPRESSION_LEVEL = 9
+
+# DuckDB COPY TO options string for WASM-optimized Parquet:
+# - write_bloom_filter: writes Bloom filters on all eligible (dict-encoded)
+#   columns — enables row-group skipping for equality filters on PK, cnpj,
+#   ni_fornecedor, codigo_ibge without per-column configuration.
+# - bloom_filter_false_positive_ratio 0.01: ~1% FPP, ~1-2% file overhead.
+# - row_group_size 8192: point lookups touch ~0.5–1 MB compressed.
+# - compression_level 9: write-once-read-many archive pattern.
+DUCKDB_PARQUET_COPY_OPTIONS = (
+    f"FORMAT PARQUET, "
+    f"COMPRESSION ZSTD, COMPRESSION_LEVEL {PARQUET_COMPRESSION_LEVEL}, "
+    f"ROW_GROUP_SIZE {PARQUET_ROW_GROUP_SIZE}, "
+    f"write_bloom_filter true, "
+    f"bloom_filter_false_positive_ratio 0.01"
+)
+
+
+def write_optimized_parquet(
+    reader: pa.RecordBatchReader | pa.Table,
+    path: Path,
+    schema: pa.Schema,
+    table_name: str,
+    row_group_size: int = PARQUET_ROW_GROUP_SIZE,
+) -> tuple[int, int]:
+    """Write a PyArrow table/reader as Parquet tuned for DuckDB-WASM range reads.
+
+    Used by small per-day files (daily_exporter) where bloom filters are less
+    critical. For WASM-hit monthly/annual/shard files the DuckDB writer path
+    is preferred — it produces bloom filters natively.
+
+    Options applied:
+    - ZSTD compression level 9
+    - Row group size 8192 (point lookups touch one row group)
+    - Page index enabled (per-page min/max skipping)
+    - Parquet v2.6
+
+    Args:
+        reader: Arrow Table or RecordBatchReader to write.
+        path: Destination file path.
+        schema: Target schema (used for casting each batch).
+        table_name: Logical table name (unused — kept for callsite symmetry with
+            the DuckDB writer path).
+        row_group_size: Rows per row group.
+
+    Returns:
+        (file_size_bytes, row_count).
+    """
+    del table_name
+
+    writer_kwargs: dict = {
+        "compression": "zstd",
+        "compression_level": PARQUET_COMPRESSION_LEVEL,
+        "write_statistics": True,
+        "version": "2.6",
+        "write_page_index": True,
+    }
+
+    row_count = 0
+    with pq.ParquetWriter(path, schema=schema, **writer_kwargs) as writer:
+        if isinstance(reader, pa.Table):
+            try:
+                table = reader.cast(schema)
+            except pa.ArrowInvalid:
+                table = reader
+            writer.write_table(table, row_group_size=row_group_size)
+            row_count = table.num_rows
+        else:
+            for batch in reader:
+                try:
+                    t = pa.Table.from_batches([batch]).cast(schema)
+                except pa.ArrowInvalid:
+                    t = pa.Table.from_batches([batch])
+                writer.write_table(t, row_group_size=row_group_size)
+                row_count += t.num_rows
+
+    return path.stat().st_size, row_count
 
 
 def validate_url(url: str) -> str:
@@ -74,7 +164,7 @@ def validate_url(url: str) -> str:
     return url
 
 
-def _resolve_safe_ip(hostname: str) -> "IPv4Address | IPv6Address":
+def _resolve_safe_ip(hostname: str) -> IPv4Address | IPv6Address:
     """Resolve a hostname to a safe, global IP address.
 
     Args:
@@ -117,7 +207,7 @@ def _resolve_safe_ip(hostname: str) -> "IPv4Address | IPv6Address":
 
 
 def _rewrite_url_with_ip(
-    parsed: ParseResult, ip_obj: "IPv4Address | IPv6Address"
+    parsed: ParseResult, ip_obj: IPv4Address | IPv6Address
 ) -> tuple[str, dict[str, str]]:
     """Rewrite a URL to use a specific IP address and return necessary headers.
 

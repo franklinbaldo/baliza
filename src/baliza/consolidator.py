@@ -20,8 +20,11 @@ import httpx
 import internetarchive as ia
 from rich.console import Console
 
+from .utils import DUCKDB_PARQUET_COPY_OPTIONS
+
 CONSOLIDATED_IA_ITEM = "baliza-pncp-consolidated"
 MANIFEST_IA_ITEM = "baliza-pncp-manifest"
+DIMENSIONS_IA_ITEM = "baliza-pncp-dimensions"
 MANIFEST_URL = f"https://archive.org/download/{MANIFEST_IA_ITEM}/manifest.csv"
 
 # A past year is considered frozen 60 days after year-end
@@ -102,8 +105,9 @@ class IAConsolidator:
             return False
 
         console.print(f"  Found {len(daily_urls)} daily files.")
+        is_current_year = year == datetime.date.today().year
 
-        # 2. Use DuckDB httpfs to read all and write one consolidated Parquet
+        # 2. Use DuckDB httpfs to stream+sort and write one consolidated Parquet
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = Path(tmpdir) / filename
             url_list = ", ".join(f"'{u}'" for u in daily_urls)
@@ -115,30 +119,190 @@ class IAConsolidator:
                     COPY (
                         SELECT *
                         FROM read_parquet([{url_list}])
-                        ORDER BY data_publicacao, numero_controle_pncp
+                        ORDER BY cnpj_orgao, data_publicacao DESC, numero_controle_pncp
                     ) TO '{output_path}'
-                    (FORMAT PARQUET, COMPRESSION ZSTD, ROW_GROUP_SIZE 100000)
+                    ({DUCKDB_PARQUET_COPY_OPTIONS})
                 """)
 
-            size_mb = output_path.stat().st_size / 1_048_576
-            console.print(f"  Written {filename} ({size_mb:.1f} MB). Uploading to IA...")
+                size_mb = output_path.stat().st_size / 1_048_576
+                console.print(
+                    f"  Written {filename} ({size_mb:.1f} MB). Uploading to IA..."
+                )
 
-            # 3. Upload to baliza-pncp-consolidated/
-            ia.upload(
-                CONSOLIDATED_IA_ITEM,
-                files={filename: str(output_path)},
-                access_key=ia_access_key,
-                secret_key=ia_secret_key,
-                metadata={
-                    "title": "Baliza PNCP Consolidated Data",
-                    "mediatype": "data",
-                    "collection": "opensource_media",
-                },
-                retries=3,
-            )
+                files_to_upload = {filename: str(output_path)}
+
+                # 2a. Per-UF shards (current year only; past years stay single-file).
+                if is_current_year:
+                    shard_paths = self._build_per_uf_shards(
+                        con, output_path, year, Path(tmpdir)
+                    )
+                    for shard_path in shard_paths:
+                        files_to_upload[shard_path.name] = str(shard_path)
+                    console.print(f"  Built {len(shard_paths)} per-UF shards.")
+
+                # 3. Upload to baliza-pncp-consolidated/
+                ia.upload(
+                    CONSOLIDATED_IA_ITEM,
+                    files=files_to_upload,
+                    access_key=ia_access_key,
+                    secret_key=ia_secret_key,
+                    metadata={
+                        "title": "Baliza PNCP Consolidated Data",
+                        "mediatype": "data",
+                        "collection": "opensource_media",
+                    },
+                    retries=3,
+                )
+
+                # 4. Rebuild cumulative dimension files (current year only —
+                # captures latest rollups consumers need for detail pages).
+                if is_current_year:
+                    self._rebuild_dimensions(
+                        con, output_path, Path(tmpdir), ia_access_key, ia_secret_key
+                    )
 
         console.print(f"[green]✓ {year} consolidated uploaded ({size_mb:.1f} MB).[/green]")
         return True
+
+    @staticmethod
+    def _build_per_uf_shards(
+        con: duckdb.DuckDBPyConnection,
+        source_path: Path,
+        year: int,
+        tmp_root: Path,
+    ) -> list[Path]:
+        """Emit one contratos-YYYY-uf=XX.parquet per UF present in the file.
+
+        Flat filenames (not Hive directories) so IA preserves them verbatim
+        and the Journey 6 URL regex still matches the canonical file.
+        Each shard is bloom-filtered + sorted like the canonical.
+        """
+        shard_dir = tmp_root / "shards"
+        shard_dir.mkdir(exist_ok=True)
+
+        ufs = [
+            row[0]
+            for row in con.execute(
+                f"SELECT DISTINCT uf_sigla FROM read_parquet('{source_path}') "
+                f"WHERE uf_sigla IS NOT NULL ORDER BY uf_sigla"
+            ).fetchall()
+        ]
+
+        shard_paths: list[Path] = []
+        for uf in ufs:
+            shard_name = f"contratos-{year}-uf={uf}.parquet"
+            shard_path = shard_dir / shard_name
+            con.execute(
+                f"""
+                COPY (
+                    SELECT *
+                    FROM read_parquet('{source_path}')
+                    WHERE uf_sigla = ?
+                    ORDER BY cnpj_orgao, data_publicacao DESC, numero_controle_pncp
+                ) TO '{shard_path}'
+                ({DUCKDB_PARQUET_COPY_OPTIONS})
+                """,
+                [uf],
+            )
+            shard_paths.append(shard_path)
+        return shard_paths
+
+    @staticmethod
+    def _rebuild_dimensions(
+        con: duckdb.DuckDBPyConnection,
+        source_path: Path,
+        tmp_root: Path,
+        ia_access_key: str,
+        ia_secret_key: str,
+    ) -> None:
+        """Build cumulative dim-{orgaos,fornecedores,unidades}-latest.parquet.
+
+        Aggregated from the current-year consolidated file. These replace
+        per-day dimension files as the primary source for supplier/agency
+        detail pages; per-day files stay in their monthly items as
+        supplemental for audit / diff use cases (Journey 7).
+        """
+        dim_dir = tmp_root / "dims"
+        dim_dir.mkdir(exist_ok=True)
+
+        specs = [
+            (
+                "dim-orgaos-latest.parquet",
+                f"""
+                SELECT
+                    cnpj_orgao                      AS cnpj,
+                    MAX(razao_social_orgao)         AS razao_social,
+                    MAX(poder_id)                   AS poder_id,
+                    MAX(esfera_id)                  AS esfera_id,
+                    COUNT(*)                        AS contratos_total,
+                    SUM(valor_inicial)              AS valor_total,
+                    MIN(data_publicacao)            AS primeiro_contrato_at,
+                    MAX(data_publicacao)            AS ultimo_contrato_at
+                FROM read_parquet('{source_path}')
+                GROUP BY cnpj_orgao
+                ORDER BY cnpj
+                """,
+            ),
+            (
+                "dim-fornecedores-latest.parquet",
+                f"""
+                SELECT
+                    ni_fornecedor,
+                    MAX(tipo_pessoa)                    AS tipo_pessoa,
+                    MAX(nome_razao_social_fornecedor)   AS nome_razao_social,
+                    MAX(codigo_pais_fornecedor)         AS codigo_pais,
+                    COUNT(*)                            AS contratos_total,
+                    SUM(valor_inicial)                  AS valor_total,
+                    MIN(data_publicacao)                AS primeiro_contrato_at,
+                    MAX(data_publicacao)                AS ultimo_contrato_at
+                FROM read_parquet('{source_path}')
+                WHERE ni_fornecedor IS NOT NULL
+                GROUP BY ni_fornecedor
+                ORDER BY ni_fornecedor
+                """,
+            ),
+            (
+                "dim-unidades-latest.parquet",
+                f"""
+                SELECT
+                    codigo_unidade,
+                    cnpj_orgao,
+                    MAX(nome_unidade)   AS nome_unidade,
+                    MAX(uf_sigla)       AS uf_sigla,
+                    MAX(municipio_nome) AS municipio_nome,
+                    MAX(codigo_ibge)    AS codigo_ibge,
+                    COUNT(*)            AS contratos_total
+                FROM read_parquet('{source_path}')
+                WHERE codigo_unidade IS NOT NULL
+                GROUP BY codigo_unidade, cnpj_orgao
+                ORDER BY codigo_unidade
+                """,
+            ),
+        ]
+
+        files_to_upload: dict[str, str] = {}
+        for filename, sql in specs:
+            dim_path = dim_dir / filename
+            con.execute(
+                f"COPY ({sql}) TO '{dim_path}' ({DUCKDB_PARQUET_COPY_OPTIONS})"
+            )
+            files_to_upload[filename] = str(dim_path)
+
+        ia.upload(
+            DIMENSIONS_IA_ITEM,
+            files=files_to_upload,
+            access_key=ia_access_key,
+            secret_key=ia_secret_key,
+            metadata={
+                "title": "Baliza PNCP Cumulative Dimensions",
+                "mediatype": "data",
+                "collection": "opensource_media",
+            },
+            retries=3,
+        )
+        console.print(
+            f"  Rebuilt {len(files_to_upload)} cumulative dimension files."
+        )
 
     def consolidate_all(
         self,

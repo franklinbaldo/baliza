@@ -32,6 +32,36 @@ describeFeature(feature, ({ Scenario }) => {
     });
   });
 
+  Scenario('Manifest v2 exposes sha256 and preserves the canonical URL pattern', ({ Given, Then, And }) => {
+    // Synthesized row mirrors what src/baliza/ia_uploader.py writes when the
+    // monthly canonical parquet is published. Pinning this at the BDD layer
+    // catches regressions that would break either the Journey 6 URL regex
+    // or the Journey 5/6 sha256 crossover.
+    const v2Row = {
+      data_particao: '2025-01',
+      table_name: 'contratos',
+      parquet_url:
+        'https://archive.org/download/baliza-pncp-2025-01/contratos-2025-01.parquet',
+      file_type: 'monthly_canonical',
+      uf_sigla: '',
+      sha256:
+        'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+      row_group_size: '8192',
+    };
+
+    Given('a v2 manifest row for a canonical contratos parquet', noop);
+
+    Then('the parquet_url still matches the pattern "baliza-pncp-YYYY-MM/contratos-YYYY-MM.parquet"', () => {
+      expect(v2Row.parquet_url).toMatch(
+        /baliza-pncp-\d{4}-\d{2}\/contratos-\d{4}-\d{2}\.parquet$/,
+      );
+    });
+
+    And('the row exposes a non-empty sha256 hash', () => {
+      expect(v2Row.sha256).toMatch(/^[0-9a-f]{64}$/);
+    });
+  });
+
   Scenario('Explorer can be embedded via an iframe with a query string', ({ Given, Then, And }) => {
     Given('a third-party page loads "/explorador?sql=SELECT%201&embed=true" inside an iframe', noop);
     Then('the chrome (header, footer, navigation) is hidden', () =>

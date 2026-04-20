@@ -1,5 +1,5 @@
 import { getDuckDB } from './duckdb';
-import { getLatestParquetInfo } from './ia-manifest';
+import { getLatestParquetInfo, getParquetShardsForFilter } from './ia-manifest';
 import {
   ARCHIVED_TABLES,
   type ArchivedContrato,
@@ -93,6 +93,7 @@ async function runArchiveQuery<K extends ArchivedTable>(
   buildWhere: (safeValues: string[]) => string,
   values: string[],
   opts: QueryArchivedOpts,
+  shardFilter?: { ufSigla?: string },
 ): Promise<ArchiveResult<ArchivedTableRowMap[K]>> {
   const { limit = 10, orderByColumn, timeoutMs = DEFAULT_QUERY_TIMEOUT_MS } = opts;
   if (orderByColumn !== undefined && !SAFE_IDENT.test(orderByColumn)) {
@@ -100,8 +101,16 @@ async function runArchiveQuery<K extends ArchivedTable>(
     return { ok: false, reason: 'sql_error' };
   }
 
-  const info = await getLatestParquetInfo(table);
-  if (!info) {
+  // Prefer per-UF shards when the filter includes a UF equality — cuts bytes
+  // fetched roughly 15× for the dominant Brazilian states. Falls back to the
+  // canonical monthly URL when no shards are published yet.
+  const infos = shardFilter?.ufSigla
+    ? await getParquetShardsForFilter(shardFilter, table)
+    : await (async () => {
+        const info = await getLatestParquetInfo(table);
+        return info ? [info] : [];
+      })();
+  if (infos.length === 0) {
     logFallbackFailed(table, columnLabel, 'no_manifest');
     return { ok: false, reason: 'no_manifest' };
   }
@@ -114,12 +123,18 @@ async function runArchiveQuery<K extends ArchivedTable>(
     return { ok: false, reason: 'duckdb_init_failed' };
   }
 
-  const safeUrl = escapeSqlLiteral(info.url);
+  const urlList = infos
+    .map((i) => `'${escapeSqlLiteral(i.url)}'`)
+    .join(', ');
+  const readClause =
+    infos.length === 1
+      ? `read_parquet(${urlList})`
+      : `read_parquet([${urlList}])`;
   const safeValues = values.map(escapeSqlLiteral);
   const safeLimit = Math.max(1, Math.min(200, Math.floor(limit)));
   const orderBy = orderByColumn ? ` ORDER BY ${orderByColumn} DESC NULLS LAST` : '';
   const whereStr = buildWhere(safeValues);
-  const sql = `SELECT * FROM read_parquet('${safeUrl}') WHERE ${whereStr}${orderBy} LIMIT ${safeLimit}`;
+  const sql = `SELECT * FROM ${readClause} WHERE ${whereStr}${orderBy} LIMIT ${safeLimit}`;
 
   let timedOut = false;
   let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
@@ -155,7 +170,7 @@ async function runArchiveQuery<K extends ArchivedTable>(
       return { ok: false, reason: 'empty' };
     }
     logFallbackServed(table, columnLabel, rows.length);
-    return { ok: true, rows, dataParticao: info.dataParticao };
+    return { ok: true, rows, dataParticao: infos[0].dataParticao };
   } catch {
     if (timedOut) {
       logFallbackFailed(table, columnLabel, 'timeout');
@@ -210,6 +225,13 @@ export async function queryArchivedTableWhere<K extends ArchivedTable>(
       return { ok: false, reason: 'sql_error' };
     }
   }
+  // Hint the resolver to pick per-UF shards when the query filters by
+  // `uf_sigla = '...'`. Other ops (ILIKE, gte, lte) are too loose to map
+  // to a single shard and keep using the canonical file.
+  const ufFilter = filters.find(
+    (f) => f.column === 'uf_sigla' && f.op === 'eq',
+  );
+  const shardFilter = ufFilter ? { ufSigla: ufFilter.value } : undefined;
   return runArchiveQuery(
     table,
     '*',
@@ -227,6 +249,7 @@ export async function queryArchivedTableWhere<K extends ArchivedTable>(
         .join(' AND '),
     filters.map((f) => f.value),
     opts,
+    shardFilter,
   );
 }
 
