@@ -62,6 +62,14 @@ describeFeature(feature, ({ Scenario }) => {
     });
   });
 
+  Scenario('Explorer can be embedded via an iframe with a query string', ({ Given, Then, And }) => {
+    Given('a third-party page loads "/explorador?sql=SELECT%201&embed=true" inside an iframe', noop);
+    Then('the chrome (header, footer, navigation) is hidden', () =>
+      plannedStep('embed mode driven by ?embed=true query param'),
+    );
+    And('the SQL is auto-executed on mount', noop);
+  });
+
   Scenario('Parquet files are fetchable from a third-party domain', ({ Given, Then }) => {
     // A live CORS round-trip would be flaky in CI (network + archive.org), so
     // the contract is pinned with a mocked fetch. The assertion mirrors what

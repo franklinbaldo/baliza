@@ -19,6 +19,14 @@ Feature: Journey 1 — B2G supplier prospecting
     When the user picks UF "SP" and modality "Pregão Eletrônico"
     Then the visible aggregates (count, total value, average value) reflect the filtered subset
 
+  @planned @search
+  Scenario: Empty search suggests accent-tolerant alternatives
+    # Planned: client-side accent/stopword normalization (String.prototype.normalize
+    # 'NFD' + stopword list) is not implemented. Static-compatible — no backend.
+    Given the user submits the free-text query "construcao de escola"
+    When PNCP returns zero results
+    Then the user sees a suggestion to retry with "construção de escola"
+
   @green @supplier
   Scenario: Supplier page by CNPJ shows history, peers and average ticket
     # Covered by SupplierDetailView at /fornecedor?cnpj= backed by the Parquet

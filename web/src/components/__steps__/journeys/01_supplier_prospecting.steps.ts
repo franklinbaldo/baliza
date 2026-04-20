@@ -112,6 +112,14 @@ describeFeature(feature, ({ Scenario }) => {
     });
   });
 
+  Scenario('Empty search suggests accent-tolerant alternatives', ({ Given, When, Then }) => {
+    Given('the user submits the free-text query "construcao de escola"', noop);
+    When('PNCP returns zero results', noop);
+    Then('the user sees a suggestion to retry with "construção de escola"', () =>
+      plannedStep('accent/stopword-tolerant search suggestions'),
+    );
+  });
+
   Scenario('Supplier page by CNPJ shows history, peers and average ticket', ({ Given, Then, And }) => {
     Given('the user opens "/fornecedor?cnpj=12345678000195"', async () => {
       cleanup();

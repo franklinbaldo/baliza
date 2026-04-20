@@ -12,6 +12,14 @@ Feature: Journey 4 — Informed citizen
     When the user types "hospital municipal" into the search box
     Then the user sees a results listbox with at least one link
 
+  @planned @glossary
+  Scenario: Hover a technical term to see a plain-language definition
+    # Planned: glossary tooltips not implemented. Static-compatible — a
+    # bundled term→definition map rendered by a Svelte tooltip is enough.
+    Given the user opens "/contratacao?id=00000000000191-1-000001/2024"
+    When the user hovers the term "Dispensa"
+    Then the user sees a tooltip explaining what a "Dispensa" is in plain language
+
   @green @plain-language
   Scenario: Detail page renders a plain-language summary above the schema dump
     # Covered by ContractDetailView plain-language summary block.
@@ -23,6 +31,13 @@ Feature: Journey 4 — Informed citizen
     # Covered by ContractDetailView snapshot badge (pulled from manifest dataParticao).
     Given the user opens "/contratacao?id=00000000000191-1-000001/2024"
     Then the user sees the snapshot date of the underlying Parquet within the page header
+
+  @planned @plain-language
+  Scenario: Geographic context is shown when available
+    # Planned: no geo enrichment today. Static-compatible — a bundled
+    # IBGE code → municipality/state/region lookup (JSON) is enough.
+    Given the user opens "/municipio?ibge=3550308"
+    Then the user sees the municipality population and the state it belongs to
 
   @green @search
   Scenario: Crossover with journey 3 — citizen reaches the same permalink a journalist would cite

@@ -271,7 +271,7 @@ class IAConsolidator:
         Aggregated from the current-year consolidated file. These replace
         per-day dimension files as the primary source for supplier/agency
         detail pages; per-day files stay in their monthly items as
-        supplemental for audit / diff use cases.
+        supplemental for audit / diff use cases (Journey 7).
         """
         dim_dir = tmp_root / "dims"
         dim_dir.mkdir(exist_ok=True)

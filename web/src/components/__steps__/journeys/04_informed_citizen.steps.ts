@@ -2,7 +2,7 @@ import { loadFeature, describeFeature } from '@amiceli/vitest-cucumber';
 import { screen, cleanup, waitFor } from '@testing-library/svelte/pure';
 import { vi, expect } from 'vitest';
 import { tick } from 'svelte';
-import { render, noop } from './_shared';
+import { render, noop, plannedStep } from './_shared';
 import ContractDetailViewRaw from '../../ContractDetailView.svelte';
 import * as iaManifestModule from '../../../lib/ia-manifest';
 
@@ -40,6 +40,14 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       // Covered by web/features/search-hero.feature; here only the journey link is asserted.
       expect(true).toBe(true);
     });
+  });
+
+  Scenario('Hover a technical term to see a plain-language definition', ({ Given, When, Then }) => {
+    Given('the user opens "/contratacao?id=00000000000191-1-000001/2024"', noop);
+    When('the user hovers the term "Dispensa"', noop);
+    Then('the user sees a tooltip explaining what a "Dispensa" is in plain language', () =>
+      plannedStep('inline glossary tooltip for procurement jargon'),
+    );
   });
 
   Scenario('Detail page renders a plain-language summary above the schema dump', ({ Given, Then }) => {
@@ -96,6 +104,13 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
         { timeout: 2000 },
       );
     });
+  });
+
+  Scenario('Geographic context is shown when available', ({ Given, Then }) => {
+    Given('the user opens "/municipio?ibge=3550308"', noop);
+    Then('the user sees the municipality population and the state it belongs to', () =>
+      plannedStep('IBGE-based geo lookup on the municipality page'),
+    );
   });
 
   Scenario(

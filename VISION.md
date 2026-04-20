@@ -29,7 +29,7 @@ This is a prioritization rule, not a market segmentation. When two roadmap
 items compete, the one that better serves the exigent professional case wins,
 because the resulting capability cascades down to the lighter use cases.
 
-### The six journeys
+### The seven journeys
 
 Each journey has a persona, a verbatim central question, the capabilities it
 needs, an honest current state, and a link to the matching feature file under
@@ -49,6 +49,8 @@ Capabilities needed:
 - Filter contracts by UF and modality with recomputed aggregates
 - Supplier page by CNPJ with history, competitors and average ticket
 - Export of result sets as CSV with named columns
+- Accent- and stop-word-tolerant search with empty-state suggestions
+  (client-side normalization, no backend)
 
 Current state: partial. `SearchHero` resolves CNPJ jumps and `/orgao` shows
 agency rollups, but there is no `/mercado/{objeto}` aggregation, no supplier
@@ -70,6 +72,8 @@ Capabilities needed:
 - Generate a price reference (min/avg/median/max/stdev) and export as a
   citable PDF
 - Compare procurement practice across municipalities of similar size
+- Resolve the right CATMAT/CATSER code from a natural-language description
+  (bundled taxonomy, no backend)
 - Inspect the legal basis (cited articles) used by peers in similar
   exemptions
 
@@ -111,8 +115,11 @@ search, an inline glossary, and humanized context."*
 Capabilities needed:
 
 - Search by hospital, school or agency name without knowing the CNPJ
+- Tooltip or glossary link on every technical term ("dispensa",
+  "inexigibilidade") — bundled term→definition map, no backend
 - Detail pages rendered in plain language, not just schema columns
 - Data freshness visible at all times, not hidden behind a "status" tab
+- Geographic context when available — bundled IBGE lookup, no backend
 
 Current state: partial. Free-text PNCP search works; freshness is shown on
 `/status` but not next to results; plain-language rendering and a glossary
@@ -155,6 +162,7 @@ Capabilities needed:
 - A `/desenvolvedores` page that surfaces the manifest (URL, hash, date, size)
 - Consumption examples in Python (pandas), R (arrow), and JS (DuckDB WASM)
 - Stable, documented Internet Archive naming convention
+- Embeddable explorer view via `?sql=...&embed=true` (URL-driven, no backend)
 - CORS allowing direct Parquet fetches from third-party domains
 
 Current state: partial. The Internet Archive items exist with a stable name,
@@ -163,6 +171,32 @@ but there is no `/desenvolvedores` page, no consumption guide, and no embed
 mode.
 
 Feature file: [`web/features/journeys/06_developer_integrator.feature`](web/features/journeys/06_developer_integrator.feature)
+
+#### 7. Auditor / watchdog
+
+The recurring observer (NGO, control body, accountability journalist) who
+needs to be told when something matches a saved pattern.
+
+*"I want alerts when a recurring anomaly shows up — a new contract for CNPJ
+X, exemptions above value Y in state Z."*
+
+Capabilities needed:
+
+- Save the current query as a "watch" persisted in localStorage
+- Diff view showing what changed since the last visit to a saved watch
+  (client-side comparison against a stored snapshot)
+- Per-CNPJ and per-agency entry points that create a local watch
+- Daily-rebuilt RSS feed on Internet Archive for a curated set of public
+  watches (feeds pre-configured in the repo; the PNCP sync workflow
+  uploads `feed-{slug}.xml` alongside the monthly Parquet)
+
+Static-only constraint: arbitrary per-user webhooks and email alerts are
+out of scope — they need a server. Watches are either local (localStorage)
+or public (curated RSS on IA).
+
+Current state: not yet served. None of the alerting infrastructure exists.
+
+Feature file: [`web/features/journeys/07_auditor_watchdog.feature`](web/features/journeys/07_auditor_watchdog.feature)
 
 ### What Baliza is NOT (non-goals)
 
@@ -190,6 +224,8 @@ Feature file: [`web/features/journeys/06_developer_integrator.feature`](web/feat
 | `/mercado/{objeto}`         | Planned  | 1, 2                          |
 | `/fornecedor/{cnpj}`        | Planned  | 1, 3                          |
 | `/desenvolvedores`          | Planned  | 6                             |
+| `/glossario`                | Planned  | 4                             |
+| `archive.org/…/feed-{slug}.xml` | Planned | 7                          |
 | `/schema` and `/citation`   | Planned  | 5                             |
 
 ### Capability roadmap

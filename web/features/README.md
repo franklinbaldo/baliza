@@ -24,7 +24,7 @@ All commands run from `web/`.
 | Command                       | What it does                                    |
 |-------------------------------|-------------------------------------------------|
 | `npm run test:bdd`            | Full suite; `@wip` and `@planned` excluded by default so CI stays green |
-| `npm run test:bdd:journeys`   | Only the six journey features                   |
+| `npm run test:bdd:journeys`   | Only the seven journey features                 |
 | `npm run test:bdd:green`      | Only `@green` scenarios                         |
 | `npm run test:bdd:wip`        | Only `@wip` scenarios (expect failures)         |
 | `npm run test:bdd:planned`    | Only `@planned` scenarios (expect stub throws)  |
@@ -43,12 +43,13 @@ exclusion entirely.
 Every scenario carries:
 
 1. A status tag — exactly one of `@green`, `@wip`, `@planned`.
-2. A journey tag — `@journey1` … `@journey6`. Set at the feature level for
+2. A journey tag — `@journey1` … `@journey7`. Set at the feature level for
    journey files; set per-file at the feature level for component files.
 3. A capability tag — `@search`, `@market`, `@supplier`, `@export`,
    `@permalink`, `@plain-language`, `@freshness`, `@explorer`,
    `@schema`, `@changelog`, `@citation`, `@api`, `@manifest`,
-   `@cors`, `@frameworks`, `@price-reference`, `@agency-rollup`.
+   `@cors`, `@frameworks`, `@price-reference`, `@agency-rollup`,
+   `@catmat`, `@glossary`, `@alerts`, `@rss`, `@diff`, `@embed`.
 4. A cross-journey pointer — an optional trailing `# crosses @journeyN`
    comment on a scenario that also advances another journey. Used for
    traceability; no runtime effect.

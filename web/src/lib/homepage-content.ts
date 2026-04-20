@@ -75,7 +75,7 @@ export const SEARCH_HINTS = [
 ];
 
 /**
- * The six journeys from VISION.md. Each has the persona's verbatim central
+ * The seven journeys from VISION.md. Each has the persona's verbatim central
  * question and a status reflecting VISION.md's "current state" annotations:
  *
  *   green   → capabilities largely shipped for this persona
@@ -139,5 +139,14 @@ export const JOURNEYS = [
     status: "wip" as const,
     href: "/desenvolvedores",
     icon: "⚙️",
+  },
+  {
+    slug: "auditor",
+    role: "Observador recorrente",
+    question:
+      "Quero alertas quando surgir algo que bate com um padrão salvo — novos contratos para um CNPJ, dispensas acima de X, anomalias em um estado.",
+    status: "planned" as const,
+    href: "/sobre",
+    icon: "🛡️",
   },
 ];
