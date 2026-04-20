@@ -52,18 +52,54 @@ MANIFEST_FIELDNAMES = [
 ]
 
 
+class ManifestReadError(RuntimeError):
+    """Raised when manifest.csv cannot be read/parsed and writers must abort.
+
+    Distinguished from "no manifest yet" (HTTP 404) which returns []: a
+    transient network or parse error must NOT trigger a write that would
+    overwrite a live manifest with only the partial rows the caller has
+    locally.
+    """
+
+
 def read_manifest_from_ia() -> list[dict[str, Any]]:
-    """Read manifest.csv from the baliza-pncp-manifest IA item."""
+    """Read manifest.csv from the baliza-pncp-manifest IA item.
+
+    Returns [] only when the manifest is genuinely absent (HTTP 404 — fresh
+    IA item before the first publish). Any other failure (network, non-200,
+    parse error) raises ManifestReadError so that downstream writers do
+    not overwrite a live manifest with their partial view.
+    """
     url_csv = f"https://archive.org/download/{MANIFEST_ITEM_ID}/manifest.csv"
     try:
         with httpx.Client(follow_redirects=True) as client:
             resp = client.get(url_csv)
-            if resp.status_code == 200:
-                f = io.StringIO(resp.text)
-                return list(csv.DictReader(f))
     except Exception as e:
-        console.print(f"[dim]Note: manifest.csv not found or unreadable: {e}[/dim]")
-    return []
+        raise ManifestReadError(f"network error reading manifest.csv: {e}") from e
+    if resp.status_code == 404:
+        return []
+    if resp.status_code != 200:
+        raise ManifestReadError(
+            f"unexpected status {resp.status_code} reading manifest.csv"
+        )
+    try:
+        f = io.StringIO(resp.text)
+        return list(csv.DictReader(f))
+    except Exception as e:
+        raise ManifestReadError(f"parse error reading manifest.csv: {e}") from e
+
+
+def try_read_manifest_from_ia() -> list[dict[str, Any]]:
+    """Best-effort read for read-only callers (CLI inspection, status).
+
+    Writers MUST use read_manifest_from_ia() instead so a transient read
+    failure aborts the publish rather than truncating the manifest.
+    """
+    try:
+        return read_manifest_from_ia()
+    except ManifestReadError as e:
+        console.print(f"[dim]Note: manifest.csv not readable: {e}[/dim]")
+        return []
 
 
 def write_manifest_to_ia(
@@ -104,19 +140,38 @@ def register_monthly_uf_shards(
     ``sha256``, ``file_size_bytes``. Existing monthly_uf rows for the same
     (year, table) are replaced atomically so reruns are idempotent.
     Monthly canonical rows and supplemental rows are left untouched.
+
+    Propagates ManifestReadError — callers should not swallow it, since
+    writing partial rows on top of a read failure would wipe the canonical
+    history from the live manifest.
     """
-    data_particao = str(year)
+    year_str = str(year)
     manifest = read_manifest_from_ia()
-    # Drop prior monthly_uf rows for this year+table — keep canonical and
-    # other file_types intact. The year-level partition value matches what
-    # we write below.
+    # Use the latest canonical month already published for this year as the
+    # shard's data_particao. That way the web resolver's
+    # `canonical.dataParticao > shard.dataParticao` freshness check can
+    # detect month-level lag (e.g. canonical 2025-04 vs shards rebuilt when
+    # only 2025-01 was published). Falls back to the year string when no
+    # canonical rows exist yet.
+    canonical_months = [
+        r.get("data_particao", "")
+        for r in manifest
+        if r.get("table_name") == table_name
+        and (r.get("data_particao") or "").startswith(year_str)
+        and r.get("file_type", "") in ("", "monthly_canonical")
+    ]
+    data_particao = max(canonical_months) if canonical_months else year_str
+    # Drop prior monthly_uf rows for this year+table across any partition
+    # value — we're rebuilding every shard, so stale entries from earlier
+    # rebuilds (which may carry a different data_particao) would otherwise
+    # accumulate and mislead readers.
     manifest = [
         r
         for r in manifest
         if not (
-            r.get("data_particao") == data_particao
-            and r.get("table_name") == table_name
+            r.get("table_name") == table_name
             and r.get("file_type") == "monthly_uf"
+            and (r.get("data_particao") or "").startswith(year_str)
         )
     ]
     now = datetime.now().isoformat()
@@ -204,22 +259,13 @@ class IAUploader:
         self.manifest_item_id = "baliza-pncp-manifest"
 
     def _read_manifest_from_ia(self) -> list[dict[str, Any]]:
-        """Read existing manifest.csv from IA, with a fallback to legacy manifest.parquet."""
-        # 1. Try manifest.csv first (new standard)
-        url_csv = f"https://archive.org/download/{self.manifest_item_id}/manifest.csv"
-        try:
-            with httpx.Client(follow_redirects=True) as client:
-                resp = client.get(url_csv)
-                if resp.status_code == 200:
-                    f = io.StringIO(resp.text)
-                    reader = csv.DictReader(f)
-                    return list(reader)
-        except Exception as e:
-            console.print(f"[dim]Note: manifest.csv not found or unreadable: {e}[/dim]")
+        """Best-effort read used by CLI inspectors.
 
-        return []
-
-        return []
+        Writers must use the module-level ``read_manifest_from_ia`` which
+        fails closed — overwriting the live manifest with the partial view
+        collected after a transient read error would silently wipe rows.
+        """
+        return try_read_manifest_from_ia()
 
     def get_uploaded_dates(self) -> set[date]:
         """Fetch the set of already synchronized dates from the remote CSV manifest."""
@@ -341,8 +387,12 @@ class IAUploader:
         ones. Legacy columns keep their names so the web loader at
         ``web/src/lib/ia-manifest.ts`` keeps validating rows without
         changes.
+
+        Uses the strict module-level reader — a transient IA read failure
+        must abort the publish rather than overwrite the live manifest with
+        only the new row.
         """
-        manifest = self._read_manifest_from_ia()
+        manifest = read_manifest_from_ia()
 
         # Build new row
         month_str = start_date.strftime("%Y-%m")
