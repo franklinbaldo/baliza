@@ -44,6 +44,43 @@ export function slugify(raw: string): string {
     .slice(0, 64);
 }
 
+// Pre-migration ContractDetailView wrote entries with `kind: 'fornecedor'` and
+// no `slug`. Normalize those so the new list/subscribe flow never silently
+// drops them on the next write — data that the user already saved must be
+// preserved across the schema bump.
+function normalizeLegacyWatch(w: unknown): Watch | null {
+  if (!w || typeof w !== 'object') return null;
+  const raw = w as Record<string, unknown>;
+  const label = typeof raw.label === 'string' ? raw.label : undefined;
+  const legacyKind = typeof raw.kind === 'string' ? raw.kind : undefined;
+  if (!label || !legacyKind) return null;
+
+  const cnpj = typeof raw.cnpj === 'string' ? raw.cnpj : undefined;
+  const term = typeof raw.term === 'string' ? raw.term : undefined;
+  const createdAt =
+    typeof raw.createdAt === 'string' ? raw.createdAt : new Date().toISOString();
+
+  // Old kind names → new kind vocabulary. 'fornecedor' is the legacy label
+  // for a supplier-CNPJ watch written by ContractDetailView before the
+  // shared module landed.
+  const kind: WatchKind =
+    legacyKind === 'fornecedor'
+      ? 'cnpj-supplier'
+      : (legacyKind as WatchKind);
+  if (!['query', 'cnpj-agency', 'cnpj-supplier'].includes(kind)) return null;
+
+  const slug =
+    typeof raw.slug === 'string' && raw.slug.length > 0
+      ? raw.slug
+      : slugify(
+          kind === 'cnpj-supplier' || kind === 'cnpj-agency'
+            ? `${kind}-${cnpj ?? label}`
+            : label,
+        );
+
+  return { slug, label, kind, createdAt, cnpj, term };
+}
+
 export function readWatches(): Watch[] {
   if (typeof window === 'undefined') return [];
   try {
@@ -51,12 +88,21 @@ export function readWatches(): Watch[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    // Defensive: drop entries missing the minimum shape rather than throwing,
-    // since a half-corrupted blob should not blank the whole list.
-    return parsed.filter(
-      (w): w is Watch =>
-        w && typeof w.slug === 'string' && typeof w.label === 'string' && typeof w.kind === 'string',
-    );
+    // Map-then-filter keeps legacy records (kind='fornecedor', no slug) alive
+    // instead of silently purging them on the next write.
+    const normalized = parsed
+      .map(normalizeLegacyWatch)
+      .filter((w): w is Watch => w !== null);
+
+    // Legacy records can collide on slug when two pre-migration fornecedor
+    // entries share a CNPJ. Keep the first (oldest by array order) so the
+    // UI does not render a duplicate row.
+    const seen = new Set<string>();
+    return normalized.filter((w) => {
+      if (seen.has(w.slug)) return false;
+      seen.add(w.slug);
+      return true;
+    });
   } catch {
     return [];
   }

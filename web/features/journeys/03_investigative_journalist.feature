@@ -41,7 +41,7 @@ Feature: Journey 3 — Investigative journalist
   @green @permalink
   Scenario: Crossover with journey 7 — journalist subscribes to a saved query
     # crosses @journey7
-    # Covered by SearchHero "Acompanhar esta busca" button → /alertas/<slug>.xml offer.
+    # Covered by SearchHero "Salvar vigilância" button → /alertas/<slug>.xml offer.
     Given a search result list is visible for "hospital municipal"
-    When the user clicks "Acompanhar esta busca"
+    When the user clicks "Salvar vigilância"
     Then the user is offered an RSS URL for new matches

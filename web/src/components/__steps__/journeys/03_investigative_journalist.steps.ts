@@ -173,8 +173,8 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       await waitFor(() => expect(screen.getByRole('listbox')).toBeTruthy(), { timeout: 2000 });
     });
 
-    When('the user clicks "Acompanhar esta busca"', async () => {
-      const btn = screen.getByRole('button', { name: /Acompanhar esta busca/i });
+    When('the user clicks "Salvar vigilância"', async () => {
+      const btn = screen.getByTestId('save-watch');
       await fireEvent.click(btn);
       await tick();
     });

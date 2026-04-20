@@ -42,6 +42,12 @@
   function feedFor(w: Watch): string {
     return `/baliza/alertas/${w.slug}.xml`;
   }
+
+  const KIND_LABEL: Record<Watch['kind'], string> = {
+    query: 'Busca',
+    'cnpj-agency': 'Órgão',
+    'cnpj-supplier': 'Fornecedor',
+  };
 </script>
 
 {#if mounted && watches.length > 0}
@@ -58,7 +64,7 @@
           <li class="watch-item" data-testid={`watch-item-${w.slug}`}>
             <div class="watch-main">
               <a href={hrefFor(w)} class="watch-label">{w.label}</a>
-              <span class={`watch-kind kind-${w.kind}`}>{w.kind}</span>
+              <span class={`watch-kind kind-${w.kind}`}>{KIND_LABEL[w.kind]}</span>
             </div>
             <div class="watch-side">
               <code class="watch-feed">{feedFor(w)}</code>

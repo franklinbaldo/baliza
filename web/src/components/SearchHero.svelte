@@ -354,7 +354,7 @@
   }
 </script>
 
-<section class="hero-section">
+<section class="hero-section" id="busca">
   <div class="container hero-inner">
     <h1 class="hero-title">{PROJECT_MISSION.title}</h1>
     <p class="hero-tagline">{PROJECT_MISSION.tagline}</p>
@@ -466,9 +466,6 @@
               </button>
               <button type="button" class="btn btn-outline btn-sm" data-testid="save-watch" onclick={offerWatch}>
                 Salvar vigilância
-              </button>
-              <button type="button" class="btn btn-outline btn-sm" onclick={offerWatch}>
-                Acompanhar esta busca
               </button>
             </div>
           </div>
