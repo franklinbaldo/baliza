@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import csv
 import datetime
+import hashlib
 import io
 import tempfile
 from pathlib import Path
@@ -20,6 +21,7 @@ import httpx
 import internetarchive as ia
 from rich.console import Console
 
+from .ia_uploader import register_monthly_uf_shards
 from .utils import DUCKDB_PARQUET_COPY_OPTIONS
 
 CONSOLIDATED_IA_ITEM = "baliza-pncp-consolidated"
@@ -132,13 +134,14 @@ class IAConsolidator:
                 files_to_upload = {filename: str(output_path)}
 
                 # 2a. Per-UF shards (current year only; past years stay single-file).
+                shards: list[dict] = []
                 if is_current_year:
-                    shard_paths = self._build_per_uf_shards(
+                    shards = self._build_per_uf_shards(
                         con, output_path, year, Path(tmpdir)
                     )
-                    for shard_path in shard_paths:
-                        files_to_upload[shard_path.name] = str(shard_path)
-                    console.print(f"  Built {len(shard_paths)} per-UF shards.")
+                    for s in shards:
+                        files_to_upload[s["filename"]] = str(s["path"])
+                    console.print(f"  Built {len(shards)} per-UF shards.")
 
                 # 3. Upload to baliza-pncp-consolidated/
                 ia.upload(
@@ -153,6 +156,29 @@ class IAConsolidator:
                     },
                     retries=3,
                 )
+
+                # 3a. Register shard rows in the manifest so the web resolver
+                # can discover them. Without this, uf-filtered archive queries
+                # never pick up the narrower shards.
+                if shards:
+                    shard_rows = [
+                        {
+                            "uf_sigla": s["uf_sigla"],
+                            "parquet_url": f"https://archive.org/download/{CONSOLIDATED_IA_ITEM}/{s['filename']}",
+                            "sha256": s["sha256"],
+                            "file_size_bytes": s["file_size_bytes"],
+                            "row_count": s["row_count"],
+                            "ia_item_id": CONSOLIDATED_IA_ITEM,
+                        }
+                        for s in shards
+                    ]
+                    register_monthly_uf_shards(
+                        year=year,
+                        table_name="contratos",
+                        shards=shard_rows,
+                        access_key=ia_access_key,
+                        secret_key=ia_secret_key,
+                    )
 
                 # 4. Rebuild cumulative dimension files (current year only —
                 # captures latest rollups consumers need for detail pages).
@@ -170,12 +196,15 @@ class IAConsolidator:
         source_path: Path,
         year: int,
         tmp_root: Path,
-    ) -> list[Path]:
+    ) -> list[dict]:
         """Emit one contratos-YYYY-uf=XX.parquet per UF present in the file.
 
         Flat filenames (not Hive directories) so IA preserves them verbatim
         and the Journey 6 URL regex still matches the canonical file.
         Each shard is bloom-filtered + sorted like the canonical.
+
+        Returns per-shard metadata (uf, path, row_count, sha256, file_size_bytes)
+        so callers can register shard rows in the manifest.
         """
         shard_dir = tmp_root / "shards"
         shard_dir.mkdir(exist_ok=True)
@@ -188,7 +217,7 @@ class IAConsolidator:
             ).fetchall()
         ]
 
-        shard_paths: list[Path] = []
+        shards: list[dict] = []
         for uf in ufs:
             shard_name = f"contratos-{year}-uf={uf}.parquet"
             shard_path = shard_dir / shard_name
@@ -204,8 +233,21 @@ class IAConsolidator:
                 """,
                 [uf],
             )
-            shard_paths.append(shard_path)
-        return shard_paths
+            row_count = con.execute(
+                f"SELECT COUNT(*) FROM read_parquet('{shard_path}')"
+            ).fetchone()[0]
+            sha256 = hashlib.sha256(shard_path.read_bytes()).hexdigest()
+            shards.append(
+                {
+                    "uf_sigla": uf,
+                    "path": shard_path,
+                    "filename": shard_name,
+                    "row_count": row_count,
+                    "sha256": sha256,
+                    "file_size_bytes": shard_path.stat().st_size,
+                }
+            )
+        return shards
 
     @staticmethod
     def _rebuild_dimensions(

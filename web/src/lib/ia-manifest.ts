@@ -152,8 +152,13 @@ export async function getParquetShardsForFilter(
       // Fall back to canonical when the newest shard partition trails the
       // canonical snapshot — otherwise UF queries would silently serve
       // older data than non-UF queries on the same page load.
+      // Shards use a year-level partition ("2025") while canonical rows use
+      // "YYYY-MM"; compare year prefixes so the naive string compare does
+      // not falsely report "2025-04" > "2025".
       const canonical = await getLatestParquetInfo(tableName);
-      if (canonical?.dataParticao && canonical.dataParticao > newest) {
+      const canonicalYear = canonical?.dataParticao?.slice(0, 4);
+      const shardYear = newest.slice(0, 4);
+      if (canonical && canonicalYear && canonicalYear > shardYear) {
         return [canonical];
       }
       // Restrict to the newest partition so semantics match the canonical

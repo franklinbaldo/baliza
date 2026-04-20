@@ -28,6 +28,121 @@ _CONTRATOS_BLOOM_FILTER_COLUMNS = (
     "cnpj_orgao|ni_fornecedor|codigo_ibge"  # dict-encoded columns DuckDB auto-blooms
 )
 
+MANIFEST_ITEM_ID = "baliza-pncp-manifest"
+
+# Union of v1 + v2 fieldnames — DictWriter with extrasaction="ignore"
+# happily writes blanks for legacy rows missing v2 columns.
+MANIFEST_FIELDNAMES = [
+    "data_particao",
+    "table_name",
+    "row_count",
+    "quarantine_count",
+    "ia_item_id",
+    "raw_zip_url",
+    "parquet_url",
+    "quarantine_url",
+    "uploaded_at",
+    "file_type",
+    "uf_sigla",
+    "sort_key",
+    "row_group_size",
+    "bloom_filter_columns",
+    "sha256",
+    "file_size_bytes",
+]
+
+
+def read_manifest_from_ia() -> list[dict[str, Any]]:
+    """Read manifest.csv from the baliza-pncp-manifest IA item."""
+    url_csv = f"https://archive.org/download/{MANIFEST_ITEM_ID}/manifest.csv"
+    try:
+        with httpx.Client(follow_redirects=True) as client:
+            resp = client.get(url_csv)
+            if resp.status_code == 200:
+                f = io.StringIO(resp.text)
+                return list(csv.DictReader(f))
+    except Exception as e:
+        console.print(f"[dim]Note: manifest.csv not found or unreadable: {e}[/dim]")
+    return []
+
+
+def write_manifest_to_ia(
+    rows: list[dict[str, Any]], access_key: str, secret_key: str
+) -> None:
+    """Serialize manifest rows to CSV and upload to IA."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as tf:
+        writer = csv.DictWriter(
+            tf, fieldnames=MANIFEST_FIELDNAMES, extrasaction="ignore"
+        )
+        writer.writeheader()
+        writer.writerows(rows)
+        temp_csv = tf.name
+    try:
+        ia.upload(
+            MANIFEST_ITEM_ID,
+            files={"manifest.csv": temp_csv},
+            access_key=access_key,
+            secret_key=secret_key,
+            metadata={"title": "Baliza PNCP Manifest", "mediatype": "data"},
+            retries=3,
+        )
+    finally:
+        if Path(temp_csv).exists():
+            Path(temp_csv).unlink()
+
+
+def register_monthly_uf_shards(
+    year: int,
+    table_name: str,
+    shards: list[dict[str, Any]],
+    access_key: str,
+    secret_key: str,
+) -> None:
+    """Publish monthly_uf shard rows to the manifest so the web resolver can find them.
+
+    ``shards`` is a list of dicts carrying ``uf_sigla``, ``parquet_url``,
+    ``sha256``, ``file_size_bytes``. Existing monthly_uf rows for the same
+    (year, table) are replaced atomically so reruns are idempotent.
+    Monthly canonical rows and supplemental rows are left untouched.
+    """
+    data_particao = str(year)
+    manifest = read_manifest_from_ia()
+    # Drop prior monthly_uf rows for this year+table — keep canonical and
+    # other file_types intact. The year-level partition value matches what
+    # we write below.
+    manifest = [
+        r
+        for r in manifest
+        if not (
+            r.get("data_particao") == data_particao
+            and r.get("table_name") == table_name
+            and r.get("file_type") == "monthly_uf"
+        )
+    ]
+    now = datetime.now().isoformat()
+    for s in shards:
+        manifest.append(
+            {
+                "data_particao": data_particao,
+                "table_name": table_name,
+                "row_count": s.get("row_count", 0),
+                "quarantine_count": 0,
+                "ia_item_id": s.get("ia_item_id", ""),
+                "raw_zip_url": "",
+                "parquet_url": s["parquet_url"],
+                "quarantine_url": "",
+                "uploaded_at": now,
+                "file_type": "monthly_uf",
+                "uf_sigla": s["uf_sigla"],
+                "sort_key": _CONTRATOS_SORT_KEY,
+                "row_group_size": PARQUET_ROW_GROUP_SIZE,
+                "bloom_filter_columns": _CONTRATOS_BLOOM_FILTER_COLUMNS,
+                "sha256": s.get("sha256", ""),
+                "file_size_bytes": s.get("file_size_bytes", 0),
+            }
+        )
+    write_manifest_to_ia(manifest, access_key, secret_key)
+
 
 def _sha256(path: Path) -> str:
     h = hashlib.sha256()
@@ -280,41 +395,4 @@ class IAUploader:
         ]
         manifest.append(new_row)
 
-        # Write back to CSV — union v1 + v2 fieldnames so older rows that
-        # lack v2 columns still get serialized cleanly.
-        fieldnames = [
-            "data_particao",
-            "table_name",
-            "row_count",
-            "quarantine_count",
-            "ia_item_id",
-            "raw_zip_url",
-            "parquet_url",
-            "quarantine_url",
-            "uploaded_at",
-            "file_type",
-            "uf_sigla",
-            "sort_key",
-            "row_group_size",
-            "bloom_filter_columns",
-            "sha256",
-            "file_size_bytes",
-        ]
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as tf:
-            writer = csv.DictWriter(tf, fieldnames=fieldnames, extrasaction="ignore")
-            writer.writeheader()
-            writer.writerows(manifest)
-            temp_csv = tf.name
-
-        try:
-            ia.upload(
-                self.manifest_item_id,
-                files={"manifest.csv": temp_csv},
-                access_key=access_key,
-                secret_key=secret_key,
-                metadata={"title": "Baliza PNCP Manifest", "mediatype": "data"},
-                retries=3,
-            )
-        finally:
-            if Path(temp_csv).exists():
-                Path(temp_csv).unlink()
+        write_manifest_to_ia(manifest, access_key, secret_key)
