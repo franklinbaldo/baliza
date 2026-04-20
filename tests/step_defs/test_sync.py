@@ -15,7 +15,6 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, Mock
 
-import pytest
 from pytest_bdd import given, parsers, scenario, then, when
 from typer.testing import CliRunner
 
@@ -75,17 +74,6 @@ def _contratos_page_body() -> dict:
     }
 
 
-# XFAIL: sync's MonthlyExporter.export_month queries `main.contratos`
-# with snake_case ORDER BY columns, but the ingest path writes the
-# Pydantic camelCase dump. The monthly parquet is silently dropped and
-# only raw-YYYY-MM.zip reaches IA. Tightening the filename assertion
-# (per PR #364 review) surfaces this pre-existing prod bug. Unmark
-# this xfail once the schema mismatch in ia_uploader.py:237-239 is
-# resolved.
-@pytest.mark.xfail(
-    strict=False,
-    reason="prod bug: MonthlyExporter uses snake_case columns absent from main.contratos",
-)
 @scenario(
     "../features/sync.feature",
     "Sync uploads a pending month to Internet Archive",
