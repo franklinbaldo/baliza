@@ -28,12 +28,6 @@ Feature: Journey 2 — Public buyer
     Then the user sees three peer municipalities of similar population
     And the user sees the per-capita spend for the same object
 
-  @planned @catmat
-  Scenario: Resolve a CATMAT or CATSER code from a free-text description
-    # Planned: catalog resolver does not exist.
-    Given the user types "papel sulfite branco A4 75g" into a catalog input
-    Then the user sees the most likely CATMAT codes ranked by match confidence
-
   @planned @frameworks
   Scenario: Inspect the legal basis cited by peers in similar exemptions
     # Planned: legal-basis aggregation does not exist.

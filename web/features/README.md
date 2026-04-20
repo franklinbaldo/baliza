@@ -43,13 +43,12 @@ exclusion entirely.
 Every scenario carries:
 
 1. A status tag — exactly one of `@green`, `@wip`, `@planned`.
-2. A journey tag — `@journey1` … `@journey7`. Set at the feature level for
+2. A journey tag — `@journey1` … `@journey6`. Set at the feature level for
    journey files; set per-file at the feature level for component files.
 3. A capability tag — `@search`, `@market`, `@supplier`, `@export`,
-   `@permalink`, `@glossary`, `@plain-language`, `@freshness`, `@explorer`,
-   `@schema`, `@changelog`, `@citation`, `@api`, `@manifest`, `@embed`,
-   `@cors`, `@alerts`, `@rss`, `@webhook`, `@diff`, `@frameworks`,
-   `@catmat`, `@price-reference`, `@agency-rollup`.
+   `@permalink`, `@plain-language`, `@freshness`, `@explorer`,
+   `@schema`, `@changelog`, `@citation`, `@api`, `@manifest`,
+   `@cors`, `@frameworks`, `@price-reference`, `@agency-rollup`.
 4. A cross-journey pointer — an optional trailing `# crosses @journeyN`
    comment on a scenario that also advances another journey. Used for
    traceability; no runtime effect.

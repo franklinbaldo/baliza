@@ -34,13 +34,6 @@ Feature: Journey 6 — Developer integrator
     Then the parquet_url still matches the pattern "baliza-pncp-YYYY-MM/contratos-YYYY-MM.parquet"
     And the row exposes a non-empty sha256 hash
 
-  @planned @embed
-  Scenario: Explorer can be embedded via an iframe with a query string
-    # Planned: embed mode is not implemented.
-    Given a third-party page loads "/explorador?sql=SELECT%201&embed=true" inside an iframe
-    Then the chrome (header, footer, navigation) is hidden
-    And the SQL is auto-executed on mount
-
   @green @cors
   Scenario: Parquet files are fetchable from a third-party domain
     # Covered by the step-level mocked fetch that asserts Access-Control-Allow-Origin.

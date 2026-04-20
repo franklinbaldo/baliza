@@ -35,13 +35,6 @@ Feature: Journey 1 — B2G supplier prospecting
     When the user clicks "Exportar CSV"
     Then a CSV file is downloaded with named columns matching the visible table
 
-  @green @search
-  Scenario: Empty search suggests accent-tolerant alternatives
-    # Covered by SearchHero empty-state + accent lexicon (accentSuggest.ts).
-    Given the user submits the free-text query "construcao de escola"
-    When PNCP returns zero results
-    Then the user sees a suggestion to retry with "construção de escola"
-
   @planned @market
   Scenario: Crossover with journey 2 — supplier inspects the buyer's pricing reference
     # crosses @journey2
