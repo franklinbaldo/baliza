@@ -15,7 +15,12 @@ const ManifestRowSchema = z.object({
   file_type: z.string().optional(),
   uf_sigla: z.string().optional(),
   sha256: z.string().optional(),
-  row_group_size: z.coerce.number().int().positive().optional(),
+  // Papa.parse fills missing columns with '' for v1 rows; coerce would turn
+  // that into 0 and fail .positive(), dropping otherwise-valid rows.
+  row_group_size: z.preprocess(
+    (v) => (v === '' || v === null || v === undefined ? undefined : v),
+    z.coerce.number().int().positive().optional(),
+  ),
 });
 
 type ManifestRow = z.infer<typeof ManifestRowSchema>;
@@ -143,11 +148,17 @@ export async function getParquetShardsForFilter(
     );
     if (shards.length > 0) {
       shards.sort((a, b) => b.data_particao.localeCompare(a.data_particao));
-      return shards.map((r) => ({
-        url: r.parquet_url,
-        dataParticao: r.data_particao,
-        sha256: r.sha256,
-      }));
+      // Restrict to the newest partition so semantics match the canonical
+      // path (which returns a single snapshot). Mixing partitions would
+      // conflate snapshots while callers still surface only one dataParticao.
+      const newest = shards[0].data_particao;
+      return shards
+        .filter((r) => r.data_particao === newest)
+        .map((r) => ({
+          url: r.parquet_url,
+          dataParticao: r.data_particao,
+          sha256: r.sha256,
+        }));
     }
   }
 
