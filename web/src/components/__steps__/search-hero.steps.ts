@@ -24,7 +24,7 @@ function stubLocationAssign() {
   return assign;
 }
 
-describeFeature(feature, ({ Scenario, BeforeEachScenario, AfterEachScenario }) => {
+describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario, AfterEachScenario }) => {
   const originalInnerWidth = window.innerWidth;
 
   BeforeEachScenario(async () => {
@@ -213,41 +213,20 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario, AfterEachScenario }) =
     });
   });
 
-  Scenario('Reject PNCP ID with missing year segment', ({ Given, Then }) => {
-    Given('the user types "12345678000195-1-000001" into the search box', async () => {
-      render(SearchHero);
-      await tick();
-      await typeInSearch('12345678000195-1-000001');
-    });
+  ScenarioOutline(
+    'Non-canonical PNCP IDs show no jump suggestion',
+    ({ Given, Then }, vars) => {
+      Given('the user types "<input>" into the search box', async () => {
+        render(SearchHero);
+        await tick();
+        await typeInSearch(String(vars.input));
+      });
 
-    Then('I should not see any jump suggestion', () => {
-      expect(screen.queryByText(/Ver Contratação/)).toBeNull();
-    });
-  });
-
-  Scenario('Reject PNCP ID with 3-digit year', ({ Given, Then }) => {
-    Given('the user types "12345678000195-1-000001/202" into the search box', async () => {
-      render(SearchHero);
-      await tick();
-      await typeInSearch('12345678000195-1-000001/202');
-    });
-
-    Then('I should not see any jump suggestion', () => {
-      expect(screen.queryByText(/Ver Contratação/)).toBeNull();
-    });
-  });
-
-  Scenario('Reject hyphen-only PNCP ID', ({ Given, Then }) => {
-    Given('the user types "12345678000195-1-000001-1" into the search box', async () => {
-      render(SearchHero);
-      await tick();
-      await typeInSearch('12345678000195-1-000001-1');
-    });
-
-    Then('I should not see any jump suggestion', () => {
-      expect(screen.queryByText(/Ver Contratação/)).toBeNull();
-    });
-  });
+      Then('I should not see any jump suggestion', () => {
+        expect(screen.queryByText(/Ver Contratação/)).toBeNull();
+      });
+    },
+  );
 
   Scenario('Free text triggers a PNCP search and renders results listbox', ({ Given, When, Then, And }) => {
     Given('the PNCP search API returns two results for "hospital"', () => {

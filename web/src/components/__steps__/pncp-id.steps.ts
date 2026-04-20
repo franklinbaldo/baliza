@@ -13,7 +13,7 @@ function setUrlQuery(qs: string) {
   window.history.replaceState({}, '', qs ? `/?${qs}` : '/');
 }
 
-describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
+describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => {
   let raw = '';
   let parsed: PncpId | null = null;
 
@@ -46,53 +46,20 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     });
   });
 
-  Scenario('Hyphen-only ID is rejected', ({ Given, When, Then }) => {
-    Given('the PNCP ID "12345678000195-1-000001-1"', () => {
-      raw = '12345678000195-1-000001-1';
-    });
-    When('it is parsed', () => {
-      parsed = parsePncpId(raw);
-    });
-    Then('the result should be null', () => {
-      expect(parsed).toBeNull();
-    });
-  });
-
-  Scenario('Missing year segment is rejected', ({ Given, When, Then }) => {
-    Given('the PNCP ID "12345678000195-1-000001"', () => {
-      raw = '12345678000195-1-000001';
-    });
-    When('it is parsed', () => {
-      parsed = parsePncpId(raw);
-    });
-    Then('the result should be null', () => {
-      expect(parsed).toBeNull();
-    });
-  });
-
-  Scenario('Three-digit year is rejected', ({ Given, When, Then }) => {
-    Given('the PNCP ID "12345678000195-1-000001/202"', () => {
-      raw = '12345678000195-1-000001/202';
-    });
-    When('it is parsed', () => {
-      parsed = parsePncpId(raw);
-    });
-    Then('the result should be null', () => {
-      expect(parsed).toBeNull();
-    });
-  });
-
-  Scenario('Lowercase letters are rejected', ({ Given, When, Then }) => {
-    Given('the PNCP ID "abcdefghijklmn-1-000001/2024"', () => {
-      raw = 'abcdefghijklmn-1-000001/2024';
-    });
-    When('it is parsed', () => {
-      parsed = parsePncpId(raw);
-    });
-    Then('the result should be null', () => {
-      expect(parsed).toBeNull();
-    });
-  });
+  ScenarioOutline(
+    'Non-canonical PNCP IDs are rejected',
+    ({ Given, When, Then }, vars) => {
+      Given('the PNCP ID "<input>"', () => {
+        raw = String(vars.input);
+      });
+      When('it is parsed', () => {
+        parsed = parsePncpId(raw);
+      });
+      Then('the result should be null', () => {
+        expect(parsed).toBeNull();
+      });
+    },
+  );
 
   Scenario('ContractDetailView renders a targeted EntityNotFound for non-canonical IDs', ({ Given, When, Then, And }) => {
     Given('the URL has id "12345678000195-1-000001-1"', () => {
