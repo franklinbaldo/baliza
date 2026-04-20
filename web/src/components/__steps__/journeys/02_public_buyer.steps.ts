@@ -103,13 +103,6 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     },
   );
 
-  Scenario('Resolve a CATMAT or CATSER code from a free-text description', ({ Given, Then }) => {
-    Given('the user types "papel sulfite branco A4 75g" into a catalog input', noop);
-    Then('the user sees the most likely CATMAT codes ranked by match confidence', () =>
-      plannedStep('CATMAT/CATSER catalog resolver'),
-    );
-  });
-
   Scenario('Inspect the legal basis cited by peers in similar exemptions', ({ Given, Then }) => {
     Given('the user opens "/dispensas?objeto=papel%20A4"', noop);
     Then('the user sees the most cited legal articles in similar dispensa contracts', () =>

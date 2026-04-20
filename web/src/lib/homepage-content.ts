@@ -75,7 +75,7 @@ export const SEARCH_HINTS = [
 ];
 
 /**
- * The seven journeys from VISION.md. Each has the persona's verbatim central
+ * The six journeys from VISION.md. Each has the persona's verbatim central
  * question and a status reflecting VISION.md's "current state" annotations:
  *
  *   green   → capabilities largely shipped for this persona
@@ -117,7 +117,7 @@ export const JOURNEYS = [
     slug: "cidadao",
     role: "Cidadão informado",
     question:
-      "A notícia disse que o hospital X recebeu R$ Y — é verdade? Quero busca em linguagem comum e um glossário ao lado.",
+      "A notícia disse que o hospital X recebeu R$ Y — é verdade? Quero busca em linguagem comum.",
     status: "wip" as const,
     href: "#busca",
     icon: "👤",
@@ -139,14 +139,5 @@ export const JOURNEYS = [
     status: "wip" as const,
     href: "/desenvolvedores",
     icon: "⚙️",
-  },
-  {
-    slug: "auditor",
-    role: "Auditor / watchdog",
-    question:
-      "Quero alertas (RSS, webhook, e-mail) quando uma anomalia recorrente aparecer — novo contrato para CNPJ X, dispensas acima de Y em Z.",
-    status: "planned" as const,
-    href: "/sobre",
-    icon: "🛡️",
   },
 ];

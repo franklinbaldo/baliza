@@ -5,7 +5,6 @@ import { tick } from 'svelte';
 import { render, noop, plannedStep } from './_shared';
 import SearchHeroRaw from '../../SearchHero.svelte';
 import SupplierDetailViewRaw from '../../SupplierDetailView.svelte';
-import { suggestAccented } from '../../../lib/accentSuggest';
 import * as parquetFallback from '../../../lib/parquetFallback';
 
 const SearchHero = SearchHeroRaw as unknown as Parameters<typeof render>[0];
@@ -173,31 +172,6 @@ describeFeature(feature, ({ Scenario }) => {
     Then('a CSV file is downloaded with named columns matching the visible table', () => {
       const btn = screen.getByRole('button', { name: /Exportar CSV/i }) as HTMLButtonElement;
       expect(btn.disabled).toBe(false);
-    });
-  });
-
-  Scenario('Empty search suggests accent-tolerant alternatives', ({ Given, When, Then }) => {
-    Given('the user submits the free-text query "construcao de escola"', async () => {
-      cleanup();
-      vi.restoreAllMocks();
-      global.fetch = vi
-        .fn()
-        .mockImplementation(async () => new Response(JSON.stringify({ items: [], total: 0 }), { status: 200 }));
-      render(SearchHero);
-      await tick();
-      await typeInSearch('construcao de escola');
-    });
-
-    When('PNCP returns zero results', async () => {
-      await waitFor(() => expect(screen.getByText(/Nenhum resultado/i)).toBeTruthy(), { timeout: 2000 });
-    });
-
-    Then('the user sees a suggestion to retry with "construção de escola"', async () => {
-      expect(suggestAccented('construcao de escola')).toBe('construção de escola');
-      await waitFor(() => {
-        const btn = screen.getByRole('button', { name: /construção de escola/i });
-        expect(btn).toBeTruthy();
-      });
     });
   });
 

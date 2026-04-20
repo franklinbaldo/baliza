@@ -30,10 +30,9 @@
   });
 
   // Supplier data lives in the Parquet schema (`ni_fornecedor`,
-  // `nome_razao_social_fornecedor`) but not in the PNCP consulta endpoint
-  // used for live fetches. We hoist it onto the view model so the
-  // "Acompanhar este fornecedor" entry point can render whenever we know
-  // the CNPJ, regardless of which path loaded the contract.
+  // `nome_razao_social_fornecedor`) but not in the PNCP consulta endpoint.
+  // Hoisted onto the view so the plain-language summary can name the supplier
+  // whenever the archive path loaded the contract.
   interface ContractView extends PNCPContract {
     archived?: { dataParticao: string | null };
     supplierCnpj?: string | null;
@@ -106,62 +105,6 @@
     data?.archived?.dataParticao ?? snapshotDate,
   );
 
-  // Watch entry points are localStorage-backed (the @planned RSS endpoint is
-  // still ahead on the roadmap). The form publishes the supplier CNPJ so the
-  // future daily GitHub Action can match the watch against new contracts.
-  interface WatchDraft {
-    kind: 'fornecedor';
-    cnpj: string;
-    label: string;
-    createdAt: string;
-  }
-
-  let watchFormOpen = $state(false);
-  let watchLabel = $state('');
-  let watchSaved = $state(false);
-  let watchError = $state<string | null>(null);
-
-  function openWatchForm() {
-    if (!data?.supplierCnpj) return;
-    watchFormOpen = true;
-    watchLabel = data.supplierName ?? data.supplierCnpj;
-    watchSaved = false;
-    watchError = null;
-  }
-
-  function saveWatch(e: Event) {
-    e.preventDefault();
-    if (!data?.supplierCnpj) return;
-    const draft: WatchDraft = {
-      kind: 'fornecedor',
-      cnpj: data.supplierCnpj,
-      label: watchLabel.trim() || data.supplierCnpj,
-      createdAt: new Date().toISOString(),
-    };
-    if (typeof window === 'undefined') {
-      watchError = 'Armazenamento local indisponível neste ambiente.';
-      watchSaved = false;
-      return;
-    }
-    try {
-      const raw = window.localStorage.getItem('baliza.watches');
-      let existing: WatchDraft[] = [];
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) existing = parsed;
-      }
-      existing.push(draft);
-      window.localStorage.setItem('baliza.watches', JSON.stringify(existing));
-      watchSaved = true;
-      watchError = null;
-    } catch {
-      // Storage disabled (private mode), quota exceeded, or existing JSON
-      // corrupt. Surface the failure so the user knows the watch was NOT
-      // persisted — the previous code silently claimed success.
-      watchSaved = false;
-      watchError = 'Não foi possível salvar a vigilância no navegador.';
-    }
-  }
 </script>
 
 <div class="contract-view container">
@@ -314,51 +257,6 @@
         {/if}
       </section>
 
-      {#if data.supplierCnpj}
-        <section class="card watch-card" data-testid="watch-supplier-card">
-          <h3>Acompanhar este fornecedor</h3>
-          <p class="muted">
-            Receba atualizações quando novos contratos para
-            <strong>{data.supplierName || data.supplierCnpj}</strong>
-            forem publicados.
-          </p>
-          {#if !watchFormOpen}
-            <button type="button" class="btn btn-outline" onclick={openWatchForm} data-testid="open-watch-form">
-              Acompanhar este fornecedor
-            </button>
-          {:else}
-            <form class="watch-form" onsubmit={saveWatch} data-testid="watch-form">
-              <label class="watch-field">
-                CNPJ do fornecedor
-                <input type="text" value={data.supplierCnpj} readonly data-testid="watch-cnpj" />
-              </label>
-              <label class="watch-field">
-                Rótulo da vigilância
-                <input type="text" bind:value={watchLabel} data-testid="watch-label" />
-              </label>
-              <div class="watch-actions">
-                <button type="submit" class="btn btn-primary btn-sm">Salvar vigilância</button>
-                <button
-                  type="button"
-                  class="btn btn-outline btn-sm"
-                  onclick={() => (watchFormOpen = false)}
-                >
-                  Cancelar
-                </button>
-              </div>
-              {#if watchSaved}
-                <p class="watch-confirm" role="status">
-                  Vigilância salva localmente. O feed será publicado em
-                  <code>/alertas/fornecedor-{data.supplierCnpj}.xml</code>.
-                </p>
-              {:else if watchError}
-                <p class="watch-error" role="alert">{watchError}</p>
-              {/if}
-            </form>
-          {/if}
-        </section>
-      {/if}
-
       <section class="card meta-card">
         <h3>Fontes e Metadados</h3>
         <dl class="data-list">
@@ -453,39 +351,4 @@
   .item-valor { color: var(--color-primary); font-weight: 700; }
 
   .muted { color: var(--color-secondary); font-size: var(--font-size-sm); font-style: italic; margin: 0 0 var(--space-sm); }
-
-  .watch-card { grid-column: 1 / -1; }
-  .watch-form { display: grid; gap: var(--space-sm); }
-  .watch-field {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    font-size: var(--font-size-xs);
-    color: var(--color-secondary);
-    font-weight: 600;
-  }
-  .watch-field input {
-    font-family: var(--font-mono);
-    padding: 6px 8px;
-    border: 1px solid var(--color-base-300);
-    border-radius: var(--radius-sm);
-    background: var(--color-base-200);
-    color: var(--color-base-content);
-    font-size: var(--font-size-sm);
-  }
-  .watch-actions { display: flex; gap: var(--space-xs); }
-  .watch-confirm {
-    margin: 0;
-    font-size: var(--font-size-xs);
-    color: var(--color-secondary);
-  }
-  .watch-confirm code {
-    font-family: var(--font-mono);
-    color: var(--color-primary);
-  }
-  .watch-error {
-    margin: 0;
-    font-size: var(--font-size-xs);
-    color: var(--color-danger, #b3261e);
-  }
 </style>
