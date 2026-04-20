@@ -125,7 +125,7 @@ def test_orgaos_deduplicated():
 def db_with_multiple_orgs(
     make_db_with_contracts, tmp_path: Path, contract_count: int, org_count: int
 ) -> dict:
-    ctx = make_db_with_contracts("2023-01-15", count=contract_count)
+    ctx = make_db_with_contracts("2023-01-15", count=contract_count, org_count=org_count)
     output_dir = tmp_path / "data" / "daily"
     return {
         **ctx,
@@ -143,11 +143,13 @@ def export_orgs_parquet(db_with_orgs) -> dict:
     return {**db_with_orgs, "stats": stats}
 
 
-@then(parsers.parse("orgaos.parquet should have at least {count:d} row"))
+@then(parsers.parse("orgaos.parquet should have exactly {count:d} rows"))
 def check_orgaos_row_count(exported_orgs, count: int):
     parquet_file = exported_orgs["output_dir"] / "2023-01-15" / "orgaos.parquet"
     table = pq.read_table(parquet_file)
-    assert table.num_rows >= count, f"Expected ≥{count} rows, got {table.num_rows}"
+    assert table.num_rows == count, (
+        f"Expected {count} unique orgs after dedup, got {table.num_rows}"
+    )
 
 
 @then("each org should have contratos_no_dia count")

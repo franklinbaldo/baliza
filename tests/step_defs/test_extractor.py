@@ -23,9 +23,7 @@ def _stream_ctx(status_code: int, body: dict | None):
         response = httpx.Response(status_code, request=request)
 
         def _raise():
-            raise httpx.HTTPStatusError(
-                f"HTTP {status_code}", request=request, response=response
-            )
+            raise httpx.HTTPStatusError(f"HTTP {status_code}", request=request, response=response)
 
         resp.raise_for_status = _raise
     else:

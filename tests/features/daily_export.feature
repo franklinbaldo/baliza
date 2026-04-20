@@ -32,7 +32,7 @@ Feature: Daily Parquet Export
   Scenario: Orgaos parquet is deduplicated per day
     Given a DuckDB database with 100 contracts from 10 unique orgs
     When I run the daily export
-    Then orgaos.parquet should have at least 1 row
+    Then orgaos.parquet should have exactly 10 rows
     And each org should have contratos_no_dia count
 
   @tier1

@@ -10,6 +10,7 @@ Feature: Sync a month to Internet Archive
     When I run baliza sync --force-month 2023-01 with IA mocked
     Then the sync command should exit successfully
     And the IA upload mock should have been called for item "baliza-pncp-2023-01"
+    And the uploaded files for "baliza-pncp-2023-01" should include "contratos-2023-01.parquet"
 
   @tier1
   Scenario: Sync skips months already in the manifest

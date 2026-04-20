@@ -53,9 +53,7 @@ def manifest_full_2023(mock_ia_manifest):
     for year in range(2023, today.year + 1):
         last_month = 12 if year < today.year else today.month
         for m in range(1, last_month + 1):
-            rows.append(
-                {"data_particao": f"{year}-{m:02d}", "table_name": "contratos"}
-            )
+            rows.append({"data_particao": f"{year}-{m:02d}", "table_name": "contratos"})
     mock_ia_manifest(rows)
 
 
@@ -75,9 +73,7 @@ def manifest_read_fails(mock_ia_manifest):
 
 
 @when(
-    parsers.parse(
-        'I run "baliza verify --resource {resource} --start {start} --end {end}"'
-    ),
+    parsers.parse('I run "baliza verify --resource {resource} --start {start} --end {end}"'),
     target_fixture="verify_result",
 )
 def run_verify(resource: str, start: str, end: str):

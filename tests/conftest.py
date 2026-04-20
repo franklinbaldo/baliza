@@ -170,15 +170,18 @@ def make_db_with_contracts(tmp_path: Path) -> Callable[..., dict[str, Any]]:
     can control unique-org counts via the `count` parameter.
     """
 
-    def _factory(date_str: str, count: int = 50) -> dict[str, Any]:
+    def _factory(date_str: str, count: int = 50, org_count: int | None = None) -> dict[str, Any]:
         db_file = tmp_path / "test.duckdb"
         output_dir = tmp_path / "daily"
+        # Default heuristic: ~5 contracts per org. Callers can override for
+        # dedup tests that need exact org cardinality.
+        unique_orgs = org_count if org_count is not None else max(1, count // 5)
 
         with duckdb.connect(str(db_file)) as con:
             con.execute("CREATE SCHEMA IF NOT EXISTS baliza_raw")
             con.execute(_CONTRATOS_TABLE_DDL)
             for i in range(count):
-                org_no = i % max(1, count // 5)
+                org_no = i % unique_orgs
                 cnpj = f"{org_no:014d}"
                 con.execute(
                     """
@@ -215,7 +218,12 @@ def make_db_with_contracts(tmp_path: Path) -> Callable[..., dict[str, Any]]:
                     [f"CTRL-{i:05d}", date_str, cnpj, f"Org {org_no}", 1000.00 + float(i)],
                 )
 
-        return {"db_path": db_file, "output_dir": output_dir, "date_str": date_str}
+        return {
+            "db_path": db_file,
+            "output_dir": output_dir,
+            "date_str": date_str,
+            "org_count": unique_orgs,
+        }
 
     return _factory
 
@@ -231,28 +239,23 @@ def mock_ia_manifest(monkeypatch) -> Callable[[list[dict[str, Any]] | None], Non
 
     def _install(rows: list[dict[str, Any]] | None) -> None:
         if rows is None:
+
             def _raise() -> list[dict[str, Any]]:
                 raise ManifestReadError("simulated manifest read failure")
 
-            monkeypatch.setattr(
-                "baliza.ia_uploader.read_manifest_from_ia", _raise
-            )
+            monkeypatch.setattr("baliza.ia_uploader.read_manifest_from_ia", _raise)
 
             def _try_empty() -> list[dict[str, Any]]:
                 return []
 
-            monkeypatch.setattr(
-                "baliza.ia_uploader.try_read_manifest_from_ia", _try_empty
-            )
+            monkeypatch.setattr("baliza.ia_uploader.try_read_manifest_from_ia", _try_empty)
             return
 
         def _reader() -> list[dict[str, Any]]:
             return list(rows)
 
         monkeypatch.setattr("baliza.ia_uploader.read_manifest_from_ia", _reader)
-        monkeypatch.setattr(
-            "baliza.ia_uploader.try_read_manifest_from_ia", _reader
-        )
+        monkeypatch.setattr("baliza.ia_uploader.try_read_manifest_from_ia", _reader)
 
     return _install
 

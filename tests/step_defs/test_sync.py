@@ -15,6 +15,7 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, Mock
 
+import pytest
 from pytest_bdd import given, parsers, scenario, then, when
 from typer.testing import CliRunner
 
@@ -74,6 +75,17 @@ def _contratos_page_body() -> dict:
     }
 
 
+# XFAIL: sync's MonthlyExporter.export_month queries `main.contratos`
+# with snake_case ORDER BY columns, but the ingest path writes the
+# Pydantic camelCase dump. The monthly parquet is silently dropped and
+# only raw-YYYY-MM.zip reaches IA. Tightening the filename assertion
+# (per PR #364 review) surfaces this pre-existing prod bug. Unmark
+# this xfail once the schema mismatch in ia_uploader.py:237-239 is
+# resolved.
+@pytest.mark.xfail(
+    strict=False,
+    reason="prod bug: MonthlyExporter uses snake_case columns absent from main.contratos",
+)
 @scenario(
     "../features/sync.feature",
     "Sync uploads a pending month to Internet Archive",
@@ -277,9 +289,20 @@ def check_sync_failure(sync_result, fragment: str):
 def check_upload_called(sync_result, item_id: str):
     uploads = sync_result["uploads"]
     matching = [u for u in uploads if u["item_id"] == item_id]
-    assert matching, (
-        f"no upload for {item_id!r}; got items={[u['item_id'] for u in uploads]}"
-    )
+    assert matching, f"no upload for {item_id!r}; got items={[u['item_id'] for u in uploads]}"
+
+
+@then(parsers.parse('the uploaded files for "{item_id}" should include "{filename}"'))
+def check_upload_contains_file(sync_result, item_id: str, filename: str):
+    # upload_month pushes raw-YYYY-MM.zip alongside the per-table parquets;
+    # item_id alone would pass if parquet export silently failed and only
+    # the raw archive made it up.
+    matching = [u for u in sync_result["uploads"] if u["item_id"] == item_id]
+    assert matching, f"no upload for {item_id!r}"
+    all_files: list[str] = []
+    for u in matching:
+        all_files.extend(u["files"].keys())
+    assert filename in all_files, f"{filename!r} not in uploaded files for {item_id!r}: {all_files}"
 
 
 @then("the IA upload mock should not have been called")
