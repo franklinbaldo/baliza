@@ -50,6 +50,9 @@ Every scenario carries:
    `@schema`, `@changelog`, `@citation`, `@api`, `@manifest`, `@embed`,
    `@cors`, `@alerts`, `@rss`, `@webhook`, `@diff`, `@frameworks`,
    `@catmat`, `@price-reference`, `@agency-rollup`.
+4. A cross-journey pointer — an optional trailing `# crosses @journeyN`
+   comment on a scenario that also advances another journey. Used for
+   traceability; no runtime effect.
 
 Status definitions:
 

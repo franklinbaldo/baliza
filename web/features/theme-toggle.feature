@@ -1,6 +1,7 @@
 @journey3 @journey4 @journey5 @journey7 @green
 Feature: Theme Toggle
-  O usuário pode alternar entre tema claro e escuro.
+  A visitor can toggle between light and dark themes, and their choice
+  sticks across reloads and respects system preferences on first visit.
 
   Scenario: Theme toggle persists choice across reloads
     Given the page loads with no stored theme preference
