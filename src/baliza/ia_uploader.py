@@ -264,11 +264,19 @@ class IAUploader:
             "file_size_bytes": parquet_size,
         }
 
-        # Simple deduplication: remove old row for same partition/table
+        # Deduplicate only against the canonical row for this partition.
+        # Manifest v2 allows multiple rows per partition (monthly_uf shards,
+        # supplemental dailies); blanket removal would silently drop their
+        # hash/size metadata. Empty/missing file_type is treated as canonical
+        # for v1 backward compat (matches web's isCanonicalRow).
         manifest = [
             r
             for r in manifest
-            if not (r["data_particao"] == month_str and r["table_name"] == "contratos")
+            if not (
+                r["data_particao"] == month_str
+                and r["table_name"] == "contratos"
+                and r.get("file_type", "") in ("", "monthly_canonical")
+            )
         ]
         manifest.append(new_row)
 

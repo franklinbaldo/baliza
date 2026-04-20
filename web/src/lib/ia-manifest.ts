@@ -148,10 +148,17 @@ export async function getParquetShardsForFilter(
     );
     if (shards.length > 0) {
       shards.sort((a, b) => b.data_particao.localeCompare(a.data_particao));
+      const newest = shards[0].data_particao;
+      // Fall back to canonical when the newest shard partition trails the
+      // canonical snapshot — otherwise UF queries would silently serve
+      // older data than non-UF queries on the same page load.
+      const canonical = await getLatestParquetInfo(tableName);
+      if (canonical?.dataParticao && canonical.dataParticao > newest) {
+        return [canonical];
+      }
       // Restrict to the newest partition so semantics match the canonical
       // path (which returns a single snapshot). Mixing partitions would
       // conflate snapshots while callers still surface only one dataParticao.
-      const newest = shards[0].data_particao;
       return shards
         .filter((r) => r.data_particao === newest)
         .map((r) => ({
