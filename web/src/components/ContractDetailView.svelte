@@ -225,7 +225,7 @@
           {:else}
             um fornecedor (ainda não identificado no snapshot)
           {/if}
-          {#if data.valorTotalEstimado}
+          {#if data.valorTotalEstimado != null}
             pelo valor de <strong>{formatBRL(data.valorTotalEstimado)}</strong>
           {:else}
             com valor não informado
