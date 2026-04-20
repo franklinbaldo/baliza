@@ -24,7 +24,7 @@ All commands run from `web/`.
 | Command                       | What it does                                    |
 |-------------------------------|-------------------------------------------------|
 | `npm run test:bdd`            | Full suite; `@wip` and `@planned` excluded by default so CI stays green |
-| `npm run test:bdd:journeys`   | Only the seven journey features                 |
+| `npm run test:bdd:journeys`   | Only the six journey features                   |
 | `npm run test:bdd:green`      | Only `@green` scenarios                         |
 | `npm run test:bdd:wip`        | Only `@wip` scenarios (expect failures)         |
 | `npm run test:bdd:planned`    | Only `@planned` scenarios (expect stub throws)  |

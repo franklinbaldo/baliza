@@ -49,7 +49,6 @@ Capabilities needed:
 - Filter contracts by UF and modality with recomputed aggregates
 - Supplier page by CNPJ with history, competitors and average ticket
 - Export of result sets as CSV with named columns
-- Accent- and stop-word-tolerant search with empty-state suggestions
 
 Current state: partial. `SearchHero` resolves CNPJ jumps and `/orgao` shows
 agency rollups, but there is no `/mercado/{objeto}` aggregation, no supplier
@@ -71,7 +70,6 @@ Capabilities needed:
 - Generate a price reference (min/avg/median/max/stdev) and export as a
   citable PDF
 - Compare procurement practice across municipalities of similar size
-- Resolve the right CATMAT/CATSER code from a natural-language description
 - Inspect the legal basis (cited articles) used by peers in similar
   exemptions
 
@@ -113,11 +111,8 @@ search, an inline glossary, and humanized context."*
 Capabilities needed:
 
 - Search by hospital, school or agency name without knowing the CNPJ
-- Tooltip or glossary link on every technical term ("dispensa",
-  "inexigibilidade")
 - Detail pages rendered in plain language, not just schema columns
 - Data freshness visible at all times, not hidden behind a "status" tab
-- Geographic context when available
 
 Current state: partial. Free-text PNCP search works; freshness is shown on
 `/status` but not next to results; plain-language rendering and a glossary
@@ -160,7 +155,6 @@ Capabilities needed:
 - A `/desenvolvedores` page that surfaces the manifest (URL, hash, date, size)
 - Consumption examples in Python (pandas), R (arrow), and JS (DuckDB WASM)
 - Stable, documented Internet Archive naming convention
-- Embeddable explorer view via `?sql=...&embed=true`
 - CORS allowing direct Parquet fetches from third-party domains
 
 Current state: partial. The Internet Archive items exist with a stable name,
@@ -196,8 +190,6 @@ Feature file: [`web/features/journeys/06_developer_integrator.feature`](web/feat
 | `/mercado/{objeto}`         | Planned  | 1, 2                          |
 | `/fornecedor/{cnpj}`        | Planned  | 1, 3                          |
 | `/desenvolvedores`          | Planned  | 6                             |
-| `/glossario`                | Planned  | 4                             |
-| `/alertas/{slug}.xml`       | Planned  | 7                             |
 | `/schema` and `/citation`   | Planned  | 5                             |
 
 ### Capability roadmap
