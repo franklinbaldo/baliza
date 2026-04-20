@@ -23,7 +23,7 @@ console = Console()
 # `sort_key` / `bloom_filter_columns` are informational; `sha256` enables
 # integrity checks; `file_type` distinguishes canonical vs shard vs
 # supplemental rows.
-_CONTRATOS_SORT_KEY = "cnpj_orgao,data_publicacao,numero_controle_pncp"
+_CONTRATOS_SORT_KEY = "cnpj_orgao,data_publicacao DESC,numero_controle_pncp"
 _CONTRATOS_BLOOM_FILTER_COLUMNS = (
     "cnpj_orgao|ni_fornecedor|codigo_ibge"  # dict-encoded columns DuckDB auto-blooms
 )
