@@ -25,14 +25,21 @@ const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
         try { stored = localStorage.getItem('baliza-theme'); } catch (_) {}
         if (stored) {
           document.documentElement.setAttribute('data-theme', stored);
-          return;
+        } else {
+          try {
+            if (window.matchMedia('(prefers-color-scheme: light)').matches) {
+              document.documentElement.setAttribute('data-theme', 'light');
+            }
+          } catch (_) {}
         }
+        // Embed mode: a third-party iframe loads us with ?embed=true expecting
+        // no header, no footer, and no navigation. Flag the <html> element
+        // before first paint so the chrome never flashes in.
         try {
-          if (window.matchMedia('(prefers-color-scheme: light)').matches) {
-            document.documentElement.setAttribute('data-theme', 'light');
+          if (new URLSearchParams(window.location.search).get('embed') === 'true') {
+            document.documentElement.setAttribute('data-embed', 'true');
           }
         } catch (_) {}
-        // Default dark is kept via the data-theme="dark" HTML attribute
       })();
     </script>
     <Metadata title={title} description={description} />
@@ -96,5 +103,18 @@ const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
   .footer-links a {
     color: var(--color-primary);
     text-decoration: none;
+  }
+
+  /* Embed mode: used by ?embed=true query string on pages rendered inside a
+     third-party iframe. The flag is set on <html> by an inline script in the
+     <head> so chrome never flashes in. */
+  html[data-embed="true"] nav.nav,
+  html[data-embed="true"] footer.portal-footer,
+  html[data-embed="true"] .page-header,
+  html[data-embed="true"] a[href="#main-content"] {
+    display: none !important;
+  }
+  html[data-embed="true"] .page-content {
+    min-height: 100vh;
   }
 </style>

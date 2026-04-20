@@ -13,6 +13,7 @@
   import EmptyState from './EmptyState.svelte';
   import LookbackWindow from './LookbackWindow.svelte';
   import { DEFAULT_SINCE_DAYS } from '../lib/pncpPublicacao';
+  import { saveWatch, watchExists, slugify } from '../lib/watches';
 
   setQueryClientContext(getQueryClient());
 
@@ -192,6 +193,25 @@
   const maxMonthly = $derived(
     data ? Math.max(1, ...data.monthly.map((m) => m.count)) : 1,
   );
+
+  // J7 "subscribe-from-agency" — watchExists is localStorage-backed, so it
+  // needs an effect (not $derived) to resync after the click mutates storage
+  // in this same tab. Cross-tab sync flows through WatchList's storage event.
+  let subscribed = $state(false);
+  $effect(() => {
+    if (data?.cnpj) subscribed = watchExists(slugify(`agency-${data.cnpj}`));
+  });
+
+  function subscribeAgency() {
+    if (!data?.cnpj) return;
+    saveWatch({
+      kind: 'cnpj-agency',
+      cnpj: data.cnpj,
+      label: data.name,
+      slug: slugify(`agency-${data.cnpj}`),
+    });
+    subscribed = true;
+  }
 </script>
 
 <div class="agency-detail container">
@@ -226,6 +246,17 @@
       <div class="meta-row">
         <span>CNPJ: {data.cnpj}</span>
         <span>Fonte: {data.archived ? 'Arquivo Parquet (IA)' : 'PNCP V1'}</span>
+      </div>
+      <div class="hub-actions">
+        <button
+          type="button"
+          class="btn btn-outline btn-sm"
+          data-testid="subscribe-agency"
+          aria-pressed={subscribed}
+          onclick={subscribeAgency}
+        >
+          {subscribed ? 'Vigilância ativa ✓' : 'Receber alertas deste órgão'}
+        </button>
       </div>
     </header>
 
@@ -313,6 +344,7 @@
   .type-badge { font-family: var(--font-mono); font-size: 0.7rem; background: var(--color-primary); color: white; padding: 2px 8px; border-radius: 4px; }
   h1 { font-size: var(--font-size-2xl); margin-top: var(--space-sm); }
   .meta-row { display: flex; gap: var(--space-md); color: var(--color-secondary); font-size: var(--font-size-sm); margin-top: 4px; }
+  .hub-actions { display: flex; gap: var(--space-sm); margin-top: var(--space-sm); }
 
   .rollup-grid {
     display: grid;

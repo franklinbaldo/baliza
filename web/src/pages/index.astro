@@ -5,6 +5,7 @@ import Dashboard from '../components/Dashboard.svelte';
 import JourneyPicker from '../components/JourneyPicker.astro';
 import ProjectAnatomy from '../components/ProjectAnatomy.astro';
 import LocalBids from '../components/LocalBids.svelte';
+import WatchList from '../components/WatchList.svelte';
 ---
 
 <Layout
@@ -17,7 +18,10 @@ import LocalBids from '../components/LocalBids.svelte';
   <!-- 2. Seven-journey entry — the cascade principle from VISION.md, above the fold -->
   <JourneyPicker />
 
-  <!-- 3. Outcome-framed monitor (permanence, citability) -->
+  <!-- 3. Returning-visitor watches (J7 — renders nothing until the user saves one) -->
+  <WatchList client:visible />
+
+  <!-- 4. Outcome-framed monitor (permanence, citability) -->
   <section class="monitor-section container">
     <Dashboard client:visible />
   </section>

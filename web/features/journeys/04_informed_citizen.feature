@@ -19,9 +19,9 @@ Feature: Journey 4 — Informed citizen
     When the user hovers the term "Dispensa"
     Then the user sees a tooltip explaining what a "Dispensa" is in plain language
 
-  @planned @plain-language
+  @green @plain-language
   Scenario: Detail page renders a plain-language summary above the schema dump
-    # Planned: plain-language summary is not generated today.
+    # Covered by ContractDetailView data-testid="plain-language-summary".
     Given the user opens "/contratacao?id=00000000000191-1-000001/2024"
     Then the user sees a one-paragraph summary that names the buyer, supplier, value and what was bought
 

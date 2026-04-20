@@ -5,6 +5,7 @@
   import { isPncpId, parsePncpId } from '../lib/pncpId';
   import { formatBRL, formatDate, normalizeSearchInput } from '../lib/format';
   import { suggestAccented } from '../lib/accentSuggest';
+  import { saveWatch, slugify as slugifyShared } from '../lib/watches';
   import EmptyState from './EmptyState.svelte';
   import AlertBanner from './AlertBanner.svelte';
 
@@ -81,16 +82,7 @@
   // the URL shape is part of the public contract (see VISION.md → "Auditor /
   // watchdog"); emitting it here lets journalists copy the future-proof link
   // before the feed exists.
-  function slugifyWatch(term: string): string {
-    return term
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 64);
-  }
-
+  const slugifyWatch = slugifyShared;
   const watchSlug = $derived(slugifyWatch(lastSearchedTerm));
   const watchUrl = $derived(watchSlug ? `/baliza/alertas/${watchSlug}.xml` : '');
   let watchOffered = $state(false);
@@ -248,6 +240,72 @@
 
   function offerWatch() {
     watchOffered = true;
+    persistWatchForTerm(lastSearchedTerm);
+  }
+
+  // Persist a watch entry in localStorage via the shared `watches` module.
+  // The fuller alerting pipeline (RSS route, webhook dispatcher) is @planned,
+  // but the saved query itself is a local artifact that survives page reloads
+  // and feeds the "Minhas vigilâncias" list surfaced on the homepage.
+  function persistWatchForTerm(term: string) {
+    if (!term) return;
+    saveWatch({ label: term, kind: 'query', term, slug: slugifyWatch(term) });
+  }
+
+  // Markdown export is the journalist's counterpart to CSV: the clipboard
+  // payload is a ready-to-paste GFM table with one row per visible result.
+  function mdEscape(value: unknown): string {
+    const raw = value == null ? '' : String(value);
+    return raw.replace(/\|/g, '\\|').replace(/\n/g, ' ').trim();
+  }
+
+  function buildMarkdownTable(): string {
+    const headers = ['PNCP', 'Objeto', 'Órgão', 'UF', 'Modalidade', 'Data', 'Valor'];
+    const rows = filteredResults.map((r) =>
+      [
+        r.numero_controle_pncp
+          ? `[${r.numero_controle_pncp}](/baliza/contratacao?id=${r.numero_controle_pncp})`
+          : '',
+        mdEscape(r.description ?? r.title ?? ''),
+        mdEscape(r.orgao_nome ?? ''),
+        mdEscape(r.uf_sigla ?? ''),
+        mdEscape(r.modalidade_nome ?? ''),
+        mdEscape(formatDate(r.data_publicacao_pncp)),
+        mdEscape(formatBRL(r.valor_global)),
+      ].join(' | '),
+    );
+    const body = [
+      `| ${headers.join(' | ')} |`,
+      `| ${headers.map(() => '---').join(' | ')} |`,
+      ...rows.map((r) => `| ${r} |`),
+    ].join('\n');
+    return body;
+  }
+
+  let mdCopied = $state(false);
+  async function exportMarkdown() {
+    if (filteredResults.length === 0) return;
+    const md = buildMarkdownTable();
+    try {
+      await navigator.clipboard.writeText(md);
+      mdCopied = true;
+      setTimeout(() => {
+        mdCopied = false;
+      }, 2500);
+    } catch {
+      // Clipboard API may be blocked (insecure origin, permissions). Fall back
+      // to a download so the journalist can still paste the file contents.
+      const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const slug = slugifyWatch(lastSearchedTerm) || 'resultados';
+      a.href = url;
+      a.download = `baliza-busca-${slug}.md`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
   }
 
   // CSV export of the currently visible (filtered) result set. Columns mirror
@@ -403,6 +461,12 @@
               <button type="button" class="btn btn-outline btn-sm" onclick={exportCsv}>
                 Exportar CSV
               </button>
+              <button type="button" class="btn btn-outline btn-sm" data-testid="export-markdown" onclick={exportMarkdown}>
+                {mdCopied ? 'Markdown copiado ✓' : 'Exportar Markdown'}
+              </button>
+              <button type="button" class="btn btn-outline btn-sm" data-testid="save-watch" onclick={offerWatch}>
+                Salvar vigilância
+              </button>
               <button type="button" class="btn btn-outline btn-sm" onclick={offerWatch}>
                 Acompanhar esta busca
               </button>
@@ -410,8 +474,9 @@
           </div>
           {#if watchOffered && watchUrl}
             <div class="watch-offer" role="status" aria-live="polite" data-testid="watch-offer">
-              RSS disponível em
+              Vigilância salva. RSS disponível em
               <code class="watch-url">{watchUrl}</code>
+              <span class="watch-hint">(alimentado no futuro pela extração diária)</span>
             </div>
           {/if}
           <ul class="results-list" role="listbox" aria-label="Resultados da busca PNCP">

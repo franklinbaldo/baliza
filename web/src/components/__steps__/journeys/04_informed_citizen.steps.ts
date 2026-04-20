@@ -51,10 +51,32 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   });
 
   Scenario('Detail page renders a plain-language summary above the schema dump', ({ Given, Then }) => {
-    Given('the user opens "/contratacao?id=00000000000191-1-000001/2024"', noop);
-    Then('the user sees a one-paragraph summary that names the buyer, supplier, value and what was bought', () =>
-      plannedStep('plain-language contract summary block'),
-    );
+    Given('the user opens "/contratacao?id=00000000000191-1-000001/2024"', async () => {
+      window.history.replaceState({}, '', '/?id=00000000000191-1-000001/2024');
+      vi.spyOn(iaManifestModule, 'getLatestParquetInfo').mockResolvedValue({
+        url: 'https://archive.org/download/baliza-pncp-2025-01/contratos-2025-01.parquet',
+        dataParticao: '2025-01-31',
+      });
+      global.fetch = vi
+        .fn()
+        .mockImplementation(async () => new Response(JSON.stringify(PAYLOAD), { status: 200 }));
+      render(ContractDetailView);
+      await tick();
+    });
+
+    Then('the user sees a one-paragraph summary that names the buyer, supplier, value and what was bought', async () => {
+      await waitFor(
+        () => {
+          const summary = screen.getByTestId('plain-language-summary');
+          // Buyer is present; supplier is not in the live payload, so the
+          // summary is expected to degrade gracefully and name the object.
+          expect(summary.textContent).toContain('Prefeitura Municipal');
+          expect(summary.textContent).toContain('Materiais hospitalares');
+          expect(summary.textContent).toMatch(/R\$.*1\.500|1.500,00/);
+        },
+        { timeout: 2000 },
+      );
+    });
   });
 
   Scenario('Data freshness is visible on every detail page', ({ Given, Then }) => {

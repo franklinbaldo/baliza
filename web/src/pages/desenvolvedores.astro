@@ -48,10 +48,9 @@ print(contratos.shape, latest.data_particao)`}</code></pre>
 library(readr)
 
 manifest <- read_csv("${IA_MANIFEST_URL}")
-latest <- tail(
-  manifest[manifest$table_name == "contratos", ][order(manifest$data_particao), ],
-  1
-)
+contratos_only <- manifest[manifest$table_name == "contratos", ]
+contratos_only <- contratos_only[order(contratos_only$data_particao), ]
+latest <- tail(contratos_only, 1)
 contratos <- read_parquet(latest$parquet_url)
 nrow(contratos)`}</code></pre>
     </section>

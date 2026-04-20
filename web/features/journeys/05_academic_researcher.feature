@@ -25,9 +25,9 @@ Feature: Journey 5 — Academic researcher
     Given the user opens "/schema/changelog"
     Then the user sees a reverse-chronological list of column additions, removals and renames
 
-  @planned @citation
+  @green @citation
   Scenario: Generate a citable reference block for the current snapshot
-    # Planned: citation generator does not exist.
+    # Covered by CitationBlock on /sobre (data-testid=open-citation, bibtex-block, citation-meta).
     Given the user opens "/sobre"
     When the user clicks "Gerar citação acadêmica"
     Then a BibTeX block is rendered with the snapshot date and Internet Archive item URL

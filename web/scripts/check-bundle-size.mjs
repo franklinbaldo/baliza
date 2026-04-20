@@ -22,7 +22,11 @@ const DIST_DIR = join(__dirname, '..', 'dist', '_astro');
 // what landed.
 // 2026-04: raised to 285_000 for the SupplierDetailView (+6.7 KB) — adds the
 // /fornecedor?cnpj= supplier prospecting page (Journey 1 @green).
-const BUDGET_BYTES = 285_000;
+// 2026-04: raised to 295_000 for the Journey 3/5/7 shipments — SearchHero
+// Markdown export, CitationBlock (BibTeX on /sobre), WatchList ("Minhas
+// vigilâncias"), watches.ts shared persistence, and the subscribe-from-
+// agency button on AgencyDetailView. Net +4.2 KB across the entry payload.
+const BUDGET_BYTES = 295_000;
 
 function isClientEntryFile(name) {
   if (!name.endsWith('.js')) return false;

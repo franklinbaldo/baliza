@@ -4,8 +4,11 @@ import { vi, expect } from 'vitest';
 import { tick } from 'svelte';
 import { render, noop, plannedStep } from './_shared';
 import DuckDBExplorerRaw from '../../DuckDBExplorer.svelte';
+import CitationBlockRaw from '../../CitationBlock.svelte';
+import * as iaManifestModule from '../../../lib/ia-manifest';
 
 const DuckDBExplorer = DuckDBExplorerRaw as unknown as Parameters<typeof render>[0];
+const CitationBlock = CitationBlockRaw as unknown as Parameters<typeof render>[0];
 
 const feature = await loadFeature('features/journeys/05_academic_researcher.feature');
 
@@ -67,11 +70,37 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   });
 
   Scenario('Generate a citable reference block for the current snapshot', ({ Given, When, Then }) => {
-    Given('the user opens "/sobre"', noop);
-    When('the user clicks "Gerar citação acadêmica"', noop);
-    Then('a BibTeX block is rendered with the snapshot date and Internet Archive item URL', () =>
-      plannedStep('BibTeX citation generator'),
-    );
+    // Drive CitationBlock directly — the /sobre page is a static Astro shell
+    // around this component, so the contract lives at the component level.
+    Given('the user opens "/sobre"', async () => {
+      vi.spyOn(iaManifestModule, 'getLatestParquetInfo').mockResolvedValue({
+        url: 'https://archive.org/download/baliza-pncp-2025-01/contratos-2025-01.parquet',
+        dataParticao: '2025-01-31',
+      });
+      render(CitationBlock);
+      await tick();
+      // Wait for onMount to resolve the manifest before the button activates.
+      await waitFor(() => {
+        const btn = screen.getByTestId('open-citation') as HTMLButtonElement;
+        expect(btn.disabled).toBe(false);
+      });
+    });
+
+    When('the user clicks "Gerar citação acadêmica"', async () => {
+      const btn = screen.getByTestId('open-citation');
+      await fireEvent.click(btn);
+      await tick();
+    });
+
+    Then('a BibTeX block is rendered with the snapshot date and Internet Archive item URL', async () => {
+      await waitFor(() => {
+        const block = screen.getByTestId('bibtex-block');
+        expect(block.textContent).toContain('@misc{baliza2025');
+        expect(block.textContent).toContain('archive.org/download/baliza-pncp-2025-01');
+        const meta = screen.getByTestId('citation-meta');
+        expect(meta.textContent).toContain('2025-01-31');
+      });
+    });
   });
 
   Scenario('Each Parquet snapshot is identified by hash and date', ({ Given, When, Then }) => {
