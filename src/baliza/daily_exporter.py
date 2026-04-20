@@ -17,10 +17,9 @@ from typing import Any
 
 import duckdb
 import pyarrow as pa
-import pyarrow.parquet as pq
 from rich.console import Console
 
-from .utils import validate_identifier
+from .utils import PARQUET_ROW_GROUP_SIZE, validate_identifier, write_optimized_parquet
 
 console = Console()
 
@@ -260,13 +259,15 @@ class DailyExporter:
                 CAST(? AS DATE)                         AS data_particao
             FROM {self.dataset}.contratos
             WHERE data_publicacao >= ? AND data_publicacao < ?
-            ORDER BY numero_controle_pncp
+            ORDER BY cnpj_orgao, data_publicacao DESC, numero_controle_pncp
         """,
             [target_date, target_date, next_day],
-        ).to_arrow_reader(batch_size=10000)
+        ).to_arrow_reader(batch_size=PARQUET_ROW_GROUP_SIZE)
 
         output_path = output_dir / "contratos.parquet"
-        file_size, row_count = self._write_parquet(reader, output_path, CONTRATOS_SCHEMA)
+        file_size, row_count = write_optimized_parquet(
+            reader, output_path, CONTRATOS_SCHEMA, "contratos"
+        )
         return {"row_count": row_count, "file_size_bytes": file_size}
 
     def _export_orgaos(
@@ -292,10 +293,12 @@ class DailyExporter:
             ORDER BY cnpj
         """,
             [target_date, next_day],
-        ).to_arrow_reader(batch_size=10000)
+        ).to_arrow_reader(batch_size=PARQUET_ROW_GROUP_SIZE)
 
         output_path = output_dir / "orgaos.parquet"
-        file_size, row_count = self._write_parquet(reader, output_path, ORGAOS_SCHEMA)
+        file_size, row_count = write_optimized_parquet(
+            reader, output_path, ORGAOS_SCHEMA, "orgaos"
+        )
         return {"row_count": row_count, "file_size_bytes": file_size}
 
     def _export_unidades(
@@ -323,10 +326,12 @@ class DailyExporter:
             ORDER BY codigo_unidade
         """,
             [target_date, next_day],
-        ).to_arrow_reader(batch_size=10000)
+        ).to_arrow_reader(batch_size=PARQUET_ROW_GROUP_SIZE)
 
         output_path = output_dir / "unidades.parquet"
-        file_size, row_count = self._write_parquet(reader, output_path, UNIDADES_SCHEMA)
+        file_size, row_count = write_optimized_parquet(
+            reader, output_path, UNIDADES_SCHEMA, "unidades"
+        )
         return {"row_count": row_count, "file_size_bytes": file_size}
 
     def _export_fornecedores(
@@ -353,54 +358,11 @@ class DailyExporter:
             ORDER BY ni_fornecedor
         """,
             [target_date, next_day],
-        ).to_arrow_reader(batch_size=10000)
+        ).to_arrow_reader(batch_size=PARQUET_ROW_GROUP_SIZE)
 
         output_path = output_dir / "fornecedores.parquet"
-        file_size, row_count = self._write_parquet(reader, output_path, FORNECEDORES_SCHEMA)
+        file_size, row_count = write_optimized_parquet(
+            reader, output_path, FORNECEDORES_SCHEMA, "fornecedores"
+        )
         return {"row_count": row_count, "file_size_bytes": file_size}
 
-    def _write_parquet(
-        self,
-        data: pa.Table | pa.RecordBatchReader,
-        path: Path,
-        schema: pa.Schema,
-    ) -> tuple[int, int]:
-        """Write PyArrow table or reader to parquet with standard settings.
-
-        Args:
-            data: Arrow Table or RecordBatchReader to write
-            path: Output file path
-            schema: Target schema for casting
-
-        Returns:
-            Tuple of (file_size_bytes, row_count)
-        """
-        row_count = 0
-
-        with pq.ParquetWriter(
-            path,
-            schema=schema,
-            compression="zstd",
-            compression_level=3,
-            write_statistics=True,
-            version="2.6",
-        ) as writer:
-            if isinstance(data, pa.Table):
-                try:
-                    table = data.cast(schema)
-                except pa.ArrowInvalid:
-                    table = data
-                writer.write_table(table)
-                row_count = table.num_rows
-            else:
-                for batch in data:
-                    try:
-                        t = pa.Table.from_batches([batch])
-                        t = t.cast(schema)
-                        writer.write_table(t)
-                        row_count += t.num_rows
-                    except Exception:
-                        writer.write_batch(batch)
-                        row_count += batch.num_rows
-
-        return path.stat().st_size, row_count

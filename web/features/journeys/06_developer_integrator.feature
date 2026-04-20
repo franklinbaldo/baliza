@@ -25,6 +25,15 @@ Feature: Journey 6 — Developer integrator
     Given the manifest is loaded
     Then every contratos parquet URL matches the pattern "baliza-pncp-YYYY-MM/contratos-YYYY-MM.parquet"
 
+  @green @manifest
+  Scenario: Manifest v2 exposes sha256 and preserves the canonical URL pattern
+    # Manifest v2 adds optional columns (file_type, sha256, row_group_size, …)
+    # without breaking v1 readers. The canonical URL must still match the
+    # Journey 6 contract.
+    Given a v2 manifest row for a canonical contratos parquet
+    Then the parquet_url still matches the pattern "baliza-pncp-YYYY-MM/contratos-YYYY-MM.parquet"
+    And the row exposes a non-empty sha256 hash
+
   @planned @embed
   Scenario: Explorer can be embedded via an iframe with a query string
     # Planned: embed mode is not implemented.

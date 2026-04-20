@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import shutil
 import tempfile
@@ -13,8 +14,197 @@ import internetarchive as ia
 from rich.console import Console
 
 from .engine import BalizaEngine
+from .utils import DUCKDB_PARQUET_COPY_OPTIONS, PARQUET_ROW_GROUP_SIZE
 
 console = Console()
+
+# Manifest v2 metadata — record the file properties consumers (web UI,
+# researchers) need to reason about the layout without re-reading the file.
+# `sort_key` / `bloom_filter_columns` are informational; `sha256` enables
+# integrity checks; `file_type` distinguishes canonical vs shard vs
+# supplemental rows.
+_CONTRATOS_SORT_KEY = "cnpj_orgao,data_publicacao DESC,numero_controle_pncp"
+_CONTRATOS_BLOOM_FILTER_COLUMNS = (
+    "cnpj_orgao|ni_fornecedor|codigo_ibge"  # dict-encoded columns DuckDB auto-blooms
+)
+
+MANIFEST_ITEM_ID = "baliza-pncp-manifest"
+
+# Union of v1 + v2 fieldnames — DictWriter with extrasaction="ignore"
+# happily writes blanks for legacy rows missing v2 columns.
+MANIFEST_FIELDNAMES = [
+    "data_particao",
+    "table_name",
+    "row_count",
+    "quarantine_count",
+    "ia_item_id",
+    "raw_zip_url",
+    "parquet_url",
+    "quarantine_url",
+    "uploaded_at",
+    "file_type",
+    "uf_sigla",
+    "sort_key",
+    "row_group_size",
+    "bloom_filter_columns",
+    "sha256",
+    "file_size_bytes",
+]
+
+
+class ManifestReadError(RuntimeError):
+    """Raised when manifest.csv cannot be read/parsed and writers must abort.
+
+    Distinguished from "no manifest yet" (HTTP 404) which returns []: a
+    transient network or parse error must NOT trigger a write that would
+    overwrite a live manifest with only the partial rows the caller has
+    locally.
+    """
+
+
+def read_manifest_from_ia() -> list[dict[str, Any]]:
+    """Read manifest.csv from the baliza-pncp-manifest IA item.
+
+    Returns [] only when the manifest is genuinely absent (HTTP 404 — fresh
+    IA item before the first publish). Any other failure (network, non-200,
+    parse error) raises ManifestReadError so that downstream writers do
+    not overwrite a live manifest with their partial view.
+    """
+    url_csv = f"https://archive.org/download/{MANIFEST_ITEM_ID}/manifest.csv"
+    try:
+        with httpx.Client(follow_redirects=True) as client:
+            resp = client.get(url_csv)
+    except Exception as e:
+        raise ManifestReadError(f"network error reading manifest.csv: {e}") from e
+    if resp.status_code == 404:
+        return []
+    if resp.status_code != 200:
+        raise ManifestReadError(
+            f"unexpected status {resp.status_code} reading manifest.csv"
+        )
+    try:
+        f = io.StringIO(resp.text)
+        return list(csv.DictReader(f))
+    except Exception as e:
+        raise ManifestReadError(f"parse error reading manifest.csv: {e}") from e
+
+
+def try_read_manifest_from_ia() -> list[dict[str, Any]]:
+    """Best-effort read for read-only callers (CLI inspection, status).
+
+    Writers MUST use read_manifest_from_ia() instead so a transient read
+    failure aborts the publish rather than truncating the manifest.
+    """
+    try:
+        return read_manifest_from_ia()
+    except ManifestReadError as e:
+        console.print(f"[dim]Note: manifest.csv not readable: {e}[/dim]")
+        return []
+
+
+def write_manifest_to_ia(
+    rows: list[dict[str, Any]], access_key: str, secret_key: str
+) -> None:
+    """Serialize manifest rows to CSV and upload to IA."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as tf:
+        writer = csv.DictWriter(
+            tf, fieldnames=MANIFEST_FIELDNAMES, extrasaction="ignore"
+        )
+        writer.writeheader()
+        writer.writerows(rows)
+        temp_csv = tf.name
+    try:
+        ia.upload(
+            MANIFEST_ITEM_ID,
+            files={"manifest.csv": temp_csv},
+            access_key=access_key,
+            secret_key=secret_key,
+            metadata={"title": "Baliza PNCP Manifest", "mediatype": "data"},
+            retries=3,
+        )
+    finally:
+        if Path(temp_csv).exists():
+            Path(temp_csv).unlink()
+
+
+def register_monthly_uf_shards(
+    year: int,
+    table_name: str,
+    shards: list[dict[str, Any]],
+    access_key: str,
+    secret_key: str,
+) -> None:
+    """Publish monthly_uf shard rows to the manifest so the web resolver can find them.
+
+    ``shards`` is a list of dicts carrying ``uf_sigla``, ``parquet_url``,
+    ``sha256``, ``file_size_bytes``. Existing monthly_uf rows for the same
+    (year, table) are replaced atomically so reruns are idempotent.
+    Monthly canonical rows and supplemental rows are left untouched.
+
+    Propagates ManifestReadError — callers should not swallow it, since
+    writing partial rows on top of a read failure would wipe the canonical
+    history from the live manifest.
+    """
+    year_str = str(year)
+    manifest = read_manifest_from_ia()
+    # Use the latest canonical month already published for this year as the
+    # shard's data_particao. That way the web resolver's
+    # `canonical.dataParticao > shard.dataParticao` freshness check can
+    # detect month-level lag (e.g. canonical 2025-04 vs shards rebuilt when
+    # only 2025-01 was published). Falls back to the year string when no
+    # canonical rows exist yet.
+    canonical_months = [
+        r.get("data_particao", "")
+        for r in manifest
+        if r.get("table_name") == table_name
+        and (r.get("data_particao") or "").startswith(year_str)
+        and r.get("file_type", "") in ("", "monthly_canonical")
+    ]
+    data_particao = max(canonical_months) if canonical_months else year_str
+    # Drop prior monthly_uf rows for this year+table across any partition
+    # value — we're rebuilding every shard, so stale entries from earlier
+    # rebuilds (which may carry a different data_particao) would otherwise
+    # accumulate and mislead readers.
+    manifest = [
+        r
+        for r in manifest
+        if not (
+            r.get("table_name") == table_name
+            and r.get("file_type") == "monthly_uf"
+            and (r.get("data_particao") or "").startswith(year_str)
+        )
+    ]
+    now = datetime.now().isoformat()
+    for s in shards:
+        manifest.append(
+            {
+                "data_particao": data_particao,
+                "table_name": table_name,
+                "row_count": s.get("row_count", 0),
+                "quarantine_count": 0,
+                "ia_item_id": s.get("ia_item_id", ""),
+                "raw_zip_url": "",
+                "parquet_url": s["parquet_url"],
+                "quarantine_url": "",
+                "uploaded_at": now,
+                "file_type": "monthly_uf",
+                "uf_sigla": s["uf_sigla"],
+                "sort_key": _CONTRATOS_SORT_KEY,
+                "row_group_size": PARQUET_ROW_GROUP_SIZE,
+                "bloom_filter_columns": _CONTRATOS_BLOOM_FILTER_COLUMNS,
+                "sha256": s.get("sha256", ""),
+                "file_size_bytes": s.get("file_size_bytes", 0),
+            }
+        )
+    write_manifest_to_ia(manifest, access_key, secret_key)
+
+
+def _sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 class MonthlyExporter:
@@ -24,21 +214,33 @@ class MonthlyExporter:
         self.engine = engine
 
     def export_month(self, start_date: date, output_dir: Path) -> dict[str, Path]:
-        """Export all tables for a given month to Parquet in output_dir."""
-        output_dir.mkdir(parents=True, exist_ok=True)
-        files = {}
+        """Export all tables for a given month to Parquet in output_dir.
 
-        # Mofified to monthly filename
+        Uses DuckDB ``COPY ... TO`` (via Ibis' underlying connection) so the
+        output gets the same WASM-optimized options as the daily and
+        consolidated files: 8192-row groups, ZSTD L9, bloom filters on
+        dict-encoded columns, and the journey-aware sort order.
+        """
+        output_dir.mkdir(parents=True, exist_ok=True)
+        files: dict[str, Path] = {}
+
         month_str = start_date.strftime("%Y-%m")
         table_name = "contratos"
         filename = f"{table_name}-{month_str}.parquet"
         out_path = output_dir / filename
 
         try:
-            # Query the in-memory engine
-            t = self.engine.get_table(table_name, schema="main")
-            t.to_parquet(out_path)
-            if out_path.exists():
+            self.engine.con.raw_sql(
+                f"""
+                COPY (
+                    SELECT *
+                    FROM main.{table_name}
+                    ORDER BY cnpj_orgao, data_publicacao DESC, numero_controle_pncp
+                ) TO '{out_path}'
+                ({DUCKDB_PARQUET_COPY_OPTIONS})
+                """
+            )
+            if out_path.exists() and out_path.stat().st_size > 0:
                 files[table_name] = out_path
         except Exception as e:
             console.print(
@@ -57,22 +259,13 @@ class IAUploader:
         self.manifest_item_id = "baliza-pncp-manifest"
 
     def _read_manifest_from_ia(self) -> list[dict[str, Any]]:
-        """Read existing manifest.csv from IA, with a fallback to legacy manifest.parquet."""
-        # 1. Try manifest.csv first (new standard)
-        url_csv = f"https://archive.org/download/{self.manifest_item_id}/manifest.csv"
-        try:
-            with httpx.Client(follow_redirects=True) as client:
-                resp = client.get(url_csv)
-                if resp.status_code == 200:
-                    f = io.StringIO(resp.text)
-                    reader = csv.DictReader(f)
-                    return list(reader)
-        except Exception as e:
-            console.print(f"[dim]Note: manifest.csv not found or unreadable: {e}[/dim]")
+        """Best-effort read used by CLI inspectors.
 
-        return []
-
-        return []
+        Writers must use the module-level ``read_manifest_from_ia`` which
+        fails closed — overwriting the live manifest with the partial view
+        collected after a transient read error would silently wipe rows.
+        """
+        return try_read_manifest_from_ia()
 
     def get_uploaded_dates(self) -> set[date]:
         """Fetch the set of already synchronized dates from the remote CSV manifest."""
@@ -186,11 +379,34 @@ class IAUploader:
         secret_key: str,
         q_stats: dict[str, int] | None = None,
     ) -> None:
-        """Append a new row to the manifest.csv on IA."""
-        manifest = self._read_manifest_from_ia()
+        """Append a new row to the manifest.csv on IA.
+
+        Emits manifest v2 columns (``file_type``, ``sha256``,
+        ``file_size_bytes``, ``sort_key``, ``row_group_size``,
+        ``bloom_filter_columns``, ``uf_sigla``) alongside the existing
+        ones. Legacy columns keep their names so the web loader at
+        ``web/src/lib/ia-manifest.ts`` keeps validating rows without
+        changes.
+
+        Uses the strict module-level reader — a transient IA read failure
+        must abort the publish rather than overwrite the live manifest with
+        only the new row.
+        """
+        manifest = read_manifest_from_ia()
 
         # Build new row
         month_str = start_date.strftime("%Y-%m")
+        parquet_filename = f"contratos-{month_str}.parquet"
+        parquet_url = f"https://archive.org/download/{item_id}/{parquet_filename}"
+
+        parquet_local = uploaded_files.get(parquet_filename)
+        if parquet_local and Path(parquet_local).exists():
+            parquet_sha256 = _sha256(Path(parquet_local))
+            parquet_size = Path(parquet_local).stat().st_size
+        else:
+            parquet_sha256 = ""
+            parquet_size = 0
+
         new_row = {
             "data_particao": month_str,
             "table_name": "contratos",
@@ -198,48 +414,35 @@ class IAUploader:
             "quarantine_count": q_stats.get("quarantine", 0) if q_stats else 0,
             "ia_item_id": item_id,
             "raw_zip_url": f"https://archive.org/download/{item_id}/raw-{month_str}.zip",
-            "parquet_url": f"https://archive.org/download/{item_id}/contratos-{month_str}.parquet",
+            "parquet_url": parquet_url,
             "quarantine_url": f"https://archive.org/download/{item_id}/quarentena-{month_str}.csv"
             if q_stats and q_stats.get("quarantine", 0) > 0
             else "",
             "uploaded_at": datetime.now().isoformat(),
+            # Manifest v2 columns (all optional in the web schema):
+            "file_type": "monthly_canonical",
+            "uf_sigla": "",
+            "sort_key": _CONTRATOS_SORT_KEY,
+            "row_group_size": PARQUET_ROW_GROUP_SIZE,
+            "bloom_filter_columns": _CONTRATOS_BLOOM_FILTER_COLUMNS,
+            "sha256": parquet_sha256,
+            "file_size_bytes": parquet_size,
         }
 
-        # Simple deduplication: remove old row for same partition/table
+        # Deduplicate only against the canonical row for this partition.
+        # Manifest v2 allows multiple rows per partition (monthly_uf shards,
+        # supplemental dailies); blanket removal would silently drop their
+        # hash/size metadata. Empty/missing file_type is treated as canonical
+        # for v1 backward compat (matches web's isCanonicalRow).
         manifest = [
             r
             for r in manifest
-            if not (r["data_particao"] == month_str and r["table_name"] == "contratos")
+            if not (
+                r["data_particao"] == month_str
+                and r["table_name"] == "contratos"
+                and r.get("file_type", "") in ("", "monthly_canonical")
+            )
         ]
         manifest.append(new_row)
 
-        # Write back to CSV
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as tf:
-            fieldnames = [
-                "data_particao",
-                "table_name",
-                "row_count",
-                "quarantine_count",
-                "ia_item_id",
-                "raw_zip_url",
-                "parquet_url",
-                "quarantine_url",
-                "uploaded_at",
-            ]
-            writer = csv.DictWriter(tf, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(manifest)
-            temp_csv = tf.name
-
-        try:
-            ia.upload(
-                self.manifest_item_id,
-                files={"manifest.csv": temp_csv},
-                access_key=access_key,
-                secret_key=secret_key,
-                metadata={"title": "Baliza PNCP Manifest", "mediatype": "data"},
-                retries=3,
-            )
-        finally:
-            if Path(temp_csv).exists():
-                Path(temp_csv).unlink()
+        write_manifest_to_ia(manifest, access_key, secret_key)
