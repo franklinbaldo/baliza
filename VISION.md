@@ -52,9 +52,11 @@ Capabilities needed:
 - Accent- and stop-word-tolerant search with empty-state suggestions
   (client-side normalization, no backend)
 
-Current state: partial. `SearchHero` resolves CNPJ jumps and `/orgao` shows
-agency rollups, but there is no `/mercado/{objeto}` aggregation, no supplier
-page, and no CSV export from search results.
+Current state: partial. `SearchHero` resolves CNPJ jumps, `/orgao` shows
+agency rollups, and an accent-/diacritic-tolerant "Tentar com acentos"
+retry surfaces when an empty result set looks like a missing tilde
+(`lib/accentSuggest.ts`). Still missing: `/mercado/{objeto}` aggregation,
+a supplier page, and CSV export from search results.
 
 Feature file: [`web/features/journeys/01_supplier_prospecting.feature`](web/features/journeys/01_supplier_prospecting.feature)
 
@@ -121,9 +123,12 @@ Capabilities needed:
 - Data freshness visible at all times, not hidden behind a "status" tab
 - Geographic context when available — bundled IBGE lookup, no backend
 
-Current state: partial. Free-text PNCP search works; freshness is shown on
-`/status` but not next to results; plain-language rendering and a glossary
-do not exist.
+Current state: partial. Free-text PNCP search works; `ContractDetailView`
+renders a plain-language summary above the schema dump, shows the
+underlying Parquet snapshot date in the header, and wraps jargon like
+"Dispensa" in a `Glossary` tooltip backed by `lib/glossary.ts`. Still
+missing: plain-language search by hospital/school name, and geographic
+context (population, state) via a bundled IBGE lookup on `/municipio`.
 
 Feature file: [`web/features/journeys/04_informed_citizen.feature`](web/features/journeys/04_informed_citizen.feature)
 
@@ -143,9 +148,12 @@ Capabilities needed:
 - Reproducible URL-encoded queries in the explorer
 - Suggested academic citation block
 
-Current state: partial. The explorer runs SQL over remote Parquet, the
-manifest CSV exists on Internet Archive, but the schema is not browsable
-in-app, there is no changelog page, and no citation generator.
+Current state: partial. The explorer runs SQL over remote Parquet with a
+browsable schema sidebar (table and column types fed by `SCHEMA_MAP`), the
+manifest CSV on Internet Archive carries a snapshot date and sha256 per
+file, and `/sobre` generates a BibTeX citation block bound to the current
+snapshot. Still missing: a `/schema/changelog` page documenting column
+additions, removals and renames over time.
 
 Feature file: [`web/features/journeys/05_academic_researcher.feature`](web/features/journeys/05_academic_researcher.feature)
 
@@ -165,10 +173,15 @@ Capabilities needed:
 - Embeddable explorer view via `?sql=...&embed=true` (URL-driven, no backend)
 - CORS allowing direct Parquet fetches from third-party domains
 
-Current state: partial. The Internet Archive items exist with a stable name,
-the explorer code already loads remote Parquet through `IA_URL` templating,
-but there is no `/desenvolvedores` page, no consumption guide, and no embed
-mode.
+Current state: partial. The Internet Archive items exist with a stable
+name, the explorer loads remote Parquet through `IA_URL` templating,
+`/desenvolvedores` now ships a `ManifestTable` (URL, `data_particao`,
+`table_name`, sha256, row group size) backed by the IA manifest CSV, and
+`?embed=true` strips the portal chrome and auto-runs any seeded `?sql=…`
+so the explorer can be iframed. Still missing: Python (pandas),
+R (arrow) and JS (DuckDB WASM) consumption examples; the manifest CSV has
+no per-file size column today so `ManifestTable` caps at the latest
+partitions instead.
 
 Feature file: [`web/features/journeys/06_developer_integrator.feature`](web/features/journeys/06_developer_integrator.feature)
 
@@ -223,7 +236,7 @@ Feature file: [`web/features/journeys/07_auditor_watchdog.feature`](web/features
 | `/sobre`                    | Today    | 4, 5                          |
 | `/mercado/{objeto}`         | Planned  | 1, 2                          |
 | `/fornecedor/{cnpj}`        | Planned  | 1, 3                          |
-| `/desenvolvedores`          | Planned  | 6                             |
+| `/desenvolvedores`          | Today    | 6                             |
 | `/glossario`                | Planned  | 4                             |
 | `archive.org/…/feed-{slug}.xml` | Planned | 7                          |
 | `/schema` and `/citation`   | Planned  | 5                             |
