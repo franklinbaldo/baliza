@@ -239,8 +239,7 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                                     return False
                                 try:
                                     with open(path) as fh:
-                                        json.load(fh)
-                                    return True
+                                        data = json.load(fh)
                                 except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
                                     logger.warning(
                                         "corrupt_cache_found",
@@ -252,6 +251,25 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                                     except OSError:
                                         pass
                                     return False
+                                # Parse success alone isn't enough — a cached
+                                # `{}` would silently satisfy exists() + load()
+                                # but produce zero rows during ingest, and the
+                                # month would still write the sentinel and
+                                # upload with missing records.
+                                if isinstance(data, dict) and (
+                                    "data" in data or "totalPaginas" in data
+                                ):
+                                    return True
+                                logger.warning(
+                                    "corrupt_cache_found",
+                                    file=str(path),
+                                    error="schema mismatch (no 'data' or 'totalPaginas' key)",
+                                )
+                                try:
+                                    path.unlink()
+                                except OSError:
+                                    pass
+                                return False
 
                             missing_pages = [
                                 p

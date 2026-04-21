@@ -171,6 +171,42 @@ class TestPNCPExtractorV2(unittest.TestCase):
                 self.assertTrue(cache_file.exists())
                 self.assertEqual(json.loads(cache_file.read_text()), fresh_data)
 
+    def test_fetch_page_refetches_on_schema_invalid_cache(self):
+        """A cached file that parses as JSON but doesn't match the PNCP page
+        shape (e.g. cached `{}` or `[]`) must not be trusted: probe_range
+        would otherwise report total_pages=1 and silently skip real pages,
+        or crash on `data.get('totalPaginas')`. fetch_page unlinks the bad
+        file and falls back to the network."""
+        start_date = datetime(2024, 3, 1)
+        end_date = datetime(2024, 3, 31)
+        month_str = "2024-03"
+
+        with patch("baliza.extractor.Path") as mock_path:
+
+            def path_side_effect(*args):
+                p_str = "/".join(map(str, args))
+                if "data/raw" in p_str:
+                    return Path(self.test_dir, *args)
+                return Path(*args)
+
+            mock_path.side_effect = path_side_effect
+
+            cache_dir = Path(self.test_dir) / "data/raw" / month_str
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            cache_file = cache_dir / "contratos_p1.json"
+            # Valid JSON but missing both "data" and "totalPaginas" keys.
+            cache_file.write_text("{}")
+
+            fresh_data = {"data": [{"id": "fresh"}], "totalPaginas": 1}
+            with patch.object(self.extractor.client, "stream") as mock_stream:
+                mock_stream.return_value = self._mock_stream_response(fresh_data)
+
+                result = self.extractor.fetch_page("contratos", start_date, end_date, page=1)
+
+                mock_stream.assert_called_once()
+                self.assertEqual(result, fresh_data)
+                self.assertEqual(json.loads(cache_file.read_text()), fresh_data)
+
     def test_ingest_range_drops_corrupt_cache_files(self):
         """Since fetch_page no longer re-validates cached JSON on every call,
         ingest_range owns corruption recovery: unlink the bad file and move on

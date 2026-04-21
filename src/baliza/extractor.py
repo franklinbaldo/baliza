@@ -166,17 +166,31 @@ class PNCPExtractor:
         month_str = start_date.strftime("%Y-%m")
         filename = Path(f"data/raw/{month_str}/{resource}_p{page}.json")
 
-        # RESUMABILITY: trust a non-empty cached file. If it's unparseable
-        # we self-heal by unlinking and falling through to the network
-        # fetch below — probe_range always goes through here for page 1,
-        # so we can't rely on ingest_range's corruption recovery to rescue
-        # a bad page 1 (the month would abort before ingest ever ran).
+        # RESUMABILITY: trust a non-empty cached file that parses as a dict
+        # containing the PNCP page shape. Unparseable bytes, wrong top-level
+        # type, or a dict missing the expected keys (e.g. cached `{}` or
+        # `[]`) all self-heal via unlink + fallthrough — probe_range always
+        # goes through here for page 1, so a silently-wrong cache would
+        # either make probe_range report total_pages=1 and skip real pages
+        # or crash with AttributeError.
         if filename.exists() and filename.stat().st_size > 0:
             try:
                 with open(filename) as f:
-                    return json.load(f)
+                    data = json.load(f)
             except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
                 logger.warning("corrupt_cache_found", file=str(filename), error=str(e))
+                try:
+                    filename.unlink()
+                except OSError:
+                    pass
+            else:
+                if isinstance(data, dict) and ("data" in data or "totalPaginas" in data):
+                    return data
+                logger.warning(
+                    "corrupt_cache_found",
+                    file=str(filename),
+                    error="schema mismatch (no 'data' or 'totalPaginas' key)",
+                )
                 try:
                     filename.unlink()
                 except OSError:
