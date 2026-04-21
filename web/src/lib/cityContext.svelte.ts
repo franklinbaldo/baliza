@@ -82,12 +82,11 @@ export function resolveInitialCity(opts: ResolveOpts = {}): ActiveCity {
 // and tests can drive the state directly via setCity().
 export const cityState = $state<ActiveCity>({ ...DEFAULT_CITY, source: 'default' });
 
-let hydrated = false;
+let listenerRegistered = false;
 
-export function hydrateCityContext(): void {
-  if (hydrated || typeof window === 'undefined') return;
+function applyCurrentUrl(): void {
+  if (typeof window === 'undefined') return;
   const resolved = resolveInitialCity({
-    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- one-shot read of ?ibge, not reactive state
     urlParams: new URLSearchParams(window.location.search),
     storage: window.localStorage,
   });
@@ -95,7 +94,18 @@ export function hydrateCityContext(): void {
   cityState.nome = resolved.nome;
   cityState.uf = resolved.uf;
   cityState.source = resolved.source;
-  hydrated = true;
+}
+
+export function hydrateCityContext(): void {
+  if (typeof window === 'undefined') return;
+  // Re-apply on every call — Astro ClientRouter keeps the JS module alive
+  // across SPA transitions, so each page swap must reread ?ibge from the
+  // new URL. The listener (registered once below) handles navigations that
+  // happen without a fresh island mount.
+  applyCurrentUrl();
+  if (listenerRegistered) return;
+  document.addEventListener('astro:page-load', applyCurrentUrl);
+  listenerRegistered = true;
 }
 
 export function setCity(next: City, source: CitySource = 'storage'): void {
