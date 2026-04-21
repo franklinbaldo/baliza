@@ -4,6 +4,7 @@ import json
 import re
 import subprocess
 import threading
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -234,31 +235,59 @@ class PNCPExtractor:
             "total_registries": data.get("totalRegistros", 0),
         }
 
-    def _drop_legacy_contratos_table(self) -> None:
-        """Drop main.contratos if it still has the pre-flatten camelCase schema.
+    def _archive_legacy_contratos_table(self) -> None:
+        """Rename a pre-flatten main.contratos out of the way on upgrade.
 
         Older BALIZA versions stored `main.contratos` with the raw Pydantic
         dump (camelCase keys, nested structs). The post-flatten schema uses
-        snake_case scalars with PK `numero_controle_pncp`. Upserting new rows
-        on top of a legacy table raises IbisTypeError because the PK column
-        doesn't exist. Dropping is safe: the table is fully rebuildable from
-        `data/raw/**/*.json`, which `ingest_range` re-reads on every run.
+        snake_case scalars with PK `numero_controle_pncp`; upserting on top
+        of a legacy table raises IbisTypeError because the PK column is
+        absent.
+
+        We archive rather than drop: successful sync runs delete
+        `data/raw/` in `IAUploader.upload_month`, so the local DuckDB file
+        is the only durable copy of rows for months that already shipped.
+        The legacy rows are preserved as `main.contratos_legacy_<ts>` for
+        the user to inspect / recover; the next `upsert_rows` recreates
+        `main.contratos` in the new shape.
+
+        Idempotent under parallel sync workers: DuckDB serializes catalog
+        operations across connections, so the rename races cleanly — one
+        worker wins, others see the legacy shape gone on their re-check
+        and short-circuit. Timestamp-suffixed archive names avoid
+        collisions if a user ends up doing multiple upgrade rounds.
         """
+        if not self._has_legacy_contratos_shape():
+            return
+
+        archive_name = f"contratos_legacy_{int(time.time() * 1000)}"
+        logger.warning(
+            "archiving_legacy_contratos_schema",
+            archive_table=f"main.{archive_name}",
+        )
+        try:
+            self.engine.con.raw_sql(
+                f"ALTER TABLE main.contratos RENAME TO {archive_name}"
+            )
+        except Exception as e:
+            # A parallel worker already did the rename, or `contratos` was
+            # dropped/renamed out from under us. Tolerate the race as long
+            # as the post-condition (no legacy-shape contratos) holds.
+            if self._has_legacy_contratos_shape():
+                raise
+            logger.info("legacy_archive_raced", error=str(e))
+
+    def _has_legacy_contratos_shape(self) -> bool:
+        """Return True iff main.contratos exists AND has the camelCase PK
+        without the snake_case PK. Any lookup error is treated as 'no'."""
         try:
             tables = self.engine.con.list_tables(database="main")
-        except Exception:
-            return
-        if "contratos" not in tables:
-            return
-        try:
+            if "contratos" not in tables:
+                return False
             columns = set(self.engine.con.table("contratos", database="main").schema().names)
         except Exception:
-            return
-        has_legacy = "numeroControlePNCP" in columns
-        has_new = "numero_controle_pncp" in columns
-        if has_legacy and not has_new:
-            logger.warning("dropping_legacy_contratos_schema", columns=len(columns))
-            self.engine.con.drop_table("contratos", database="main")
+            return False
+        return "numeroControlePNCP" in columns and "numero_controle_pncp" not in columns
 
     def ingest_range(self, start_date: datetime) -> dict[str, int]:
         """Validate and ingest all raw JSON files for a specific month/range into the shared engine."""
@@ -270,7 +299,7 @@ class PNCPExtractor:
         if not raw_dir.exists():
             return stats
 
-        self._drop_legacy_contratos_table()
+        self._archive_legacy_contratos_table()
 
         for json_file in raw_dir.glob("*.json"):
             with open(json_file) as f:
