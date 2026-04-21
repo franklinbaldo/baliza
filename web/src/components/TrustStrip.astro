@@ -1,0 +1,112 @@
+---
+const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+const resolve = (href: string) => `${BASE}${href.replace(/^\//, '')}`;
+
+const PILLARS = [
+  {
+    kicker: 'Arquivo',
+    title: 'Snapshots diários no Internet Archive',
+    body: 'Cada dia de contratações vira um Parquet imutável fora do alcance de qualquer servidor único. Mesmo que o PNCP saia do ar, o dia de ontem segue consultável.',
+    cta: { label: 'Metodologia', href: 'sobre' },
+  },
+  {
+    kicker: 'Citação',
+    title: 'Links estáveis e hashes verificáveis',
+    body: 'Todo contrato tem permalink Baliza com hash do snapshot. O link que você compartilha hoje reproduz a mesma evidência amanhã.',
+    cta: { label: 'Desenvolvedores', href: 'desenvolvedores' },
+  },
+  {
+    kicker: 'Análise',
+    title: 'SQL aberto direto no navegador',
+    body: 'Consultas completas rodam no seu navegador via DuckDB WASM. Nada passa por um backend nosso — sua análise é privada e reprodutível.',
+    cta: { label: 'Explorador SQL', href: 'explorador' },
+  },
+];
+---
+
+<section class="trust-strip" aria-labelledby="trust-title">
+  <div class="container">
+    <header class="trust-head">
+      <span class="kicker">Por que Baliza</span>
+      <h2 id="trust-title">Utilidade civica com uma camada de confiança pública</h2>
+    </header>
+
+    <ul class="trust-grid">
+      {PILLARS.map((p) => (
+        <li class="trust-card">
+          <span class="trust-kicker">{p.kicker}</span>
+          <h3>{p.title}</h3>
+          <p>{p.body}</p>
+          <a href={resolve(p.cta.href)} class="trust-link">{p.cta.label} →</a>
+        </li>
+      ))}
+    </ul>
+  </div>
+</section>
+
+<style>
+  .trust-strip {
+    padding: var(--space-8) 0;
+    border-top: 1px solid var(--neutral-100);
+    border-bottom: 1px solid var(--neutral-100);
+    background: var(--neutral-50);
+  }
+  .trust-head {
+    max-width: 640px;
+    margin-bottom: var(--space-6);
+    display: grid;
+    gap: var(--space-2);
+  }
+  .trust-head h2 {
+    font-family: var(--font-display);
+    font-weight: 300;
+    font-size: clamp(26px, 2.6vw, 36px);
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+  }
+  .trust-grid {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: var(--space-4);
+  }
+  .trust-card {
+    background: var(--neutral-0);
+    border: 1px solid var(--neutral-100);
+    border-top: 4px solid var(--bulcao-support);
+    padding: var(--space-5);
+    display: grid;
+    gap: var(--space-2);
+  }
+  .trust-kicker {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--bulcao-support);
+  }
+  .trust-card h3 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: var(--text-lg);
+    line-height: 1.25;
+  }
+  .trust-card p {
+    color: var(--neutral-500);
+    font-size: var(--text-sm);
+    line-height: 1.6;
+  }
+  .trust-link {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--bulcao-accent);
+    margin-top: auto;
+    padding-top: var(--space-2);
+    border-top: 1px dotted var(--neutral-200);
+  }
+  .trust-link:hover { border-top-color: var(--bulcao-accent); }
+</style>

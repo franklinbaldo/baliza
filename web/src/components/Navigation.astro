@@ -1,5 +1,6 @@
 ---
 import ThemeToggle from './ThemeToggle.svelte';
+import CityNavLink from './CityNavLink.svelte';
 
 const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
 const { pathname } = Astro.url;
@@ -9,6 +10,9 @@ const isActive = (path: string) => {
   const cleanTarget = target.replace(/\/$/, '') || '/';
   return cleanPath === cleanTarget;
 };
+const cleanPath = pathname.replace(/\/$/, '') || '/';
+const cityPrefix = (BASE + 'municipio').replace(/\/$/, '');
+const isCityActive = cleanPath === cityPrefix;
 ---
 
 <nav class="nav">
@@ -16,12 +20,13 @@ const isActive = (path: string) => {
     <a href={BASE} class="logo">
       <span class="logo-accent">Baliza</span> Monitor
     </a>
-    
+
     <ul class="nav-links">
       <li><a href={BASE} class={isActive(BASE) ? 'active' : ''} aria-current={isActive(BASE) ? 'page' : undefined}>Início</a></li>
+      <li class={isCityActive ? 'active-wrap' : ''}><CityNavLink client:load /></li>
       <li><a href={BASE + 'explorador'} class={isActive(BASE + 'explorador') ? 'active' : ''} aria-current={isActive(BASE + 'explorador') ? 'page' : undefined}>Explorador</a></li>
-      <li><a href={BASE + 'desenvolvedores'} class={isActive(BASE + 'desenvolvedores') ? 'active' : ''} aria-current={isActive(BASE + 'desenvolvedores') ? 'page' : undefined}>Desenvolvedores</a></li>
       <li><a href={BASE + 'status'} class={isActive(BASE + 'status') ? 'active' : ''} aria-current={isActive(BASE + 'status') ? 'page' : undefined}>Status</a></li>
+      <li><a href={BASE + 'desenvolvedores'} class={isActive(BASE + 'desenvolvedores') ? 'active' : ''} aria-current={isActive(BASE + 'desenvolvedores') ? 'page' : undefined}>Desenvolvedores</a></li>
       <li><a href={BASE + 'sobre'} class={isActive(BASE + 'sobre') ? 'active' : ''} aria-current={isActive(BASE + 'sobre') ? 'page' : undefined}>Sobre</a></li>
     </ul>
     <ThemeToggle client:only="svelte" />
@@ -83,6 +88,10 @@ const isActive = (path: string) => {
     color: var(--bulcao-accent);
   }
   .nav-links a.active {
+    border-bottom-color: var(--bulcao-accent);
+  }
+  .nav-links li.active-wrap :global(.city-nav-link) {
+    color: var(--bulcao-accent);
     border-bottom-color: var(--bulcao-accent);
   }
 

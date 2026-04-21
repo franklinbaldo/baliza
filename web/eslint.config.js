@@ -34,6 +34,12 @@ export default tseslint.config(
     },
   },
   {
+    files: ['**/*.svelte.ts', '**/*.svelte.js'],
+    languageOptions: {
+      parser: tsParser,
+    },
+  },
+  {
     files: ['**/*.astro'],
     languageOptions: {
       parser: astroParser,

@@ -1,0 +1,34 @@
+<script lang="ts">
+  import { cityState, hydrateCityContext } from '../lib/cityContext.svelte';
+
+  const BASE = '/baliza/';
+  hydrateCityContext();
+
+  const href = $derived(`${BASE}municipio?ibge=${cityState.ibge}`);
+  const label = $derived(
+    cityState.nome
+      ? `Município · ${cityState.nome}${cityState.uf ? '/' + cityState.uf : ''}`
+      : 'Município',
+  );
+</script>
+
+<a {href} class="city-nav-link" aria-label={`Painel do município de ${cityState.nome}`}>
+  {label}
+</a>
+
+<style>
+  .city-nav-link {
+    text-decoration: none;
+    color: var(--neutral-500);
+    font-family: var(--font-body);
+    font-weight: 500;
+    font-size: var(--text-sm);
+    white-space: nowrap;
+    border-bottom: 2px solid transparent;
+    transition: all var(--duration-fast) var(--ease);
+  }
+  .city-nav-link:hover {
+    color: var(--bulcao-accent);
+    border-bottom-color: var(--bulcao-accent);
+  }
+</style>

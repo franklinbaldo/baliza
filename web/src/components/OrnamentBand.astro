@@ -1,0 +1,47 @@
+---
+// Restrained horizontal divider. One band per section boundary, never
+// stacked. `variant="wave"` uses the Bulcão t4 sinusoid; `variant="volpi"`
+// uses the tri-field color band (fg / bg / accent) referenced in the
+// design system's antimodel rules.
+interface Props {
+  variant?: 'wave' | 'volpi';
+  height?: number;
+}
+const { variant = 'wave', height = 32 }: Props = Astro.props;
+---
+
+{variant === 'wave' && (
+  <div class="ornament-band" aria-hidden="true" style={`--band-h:${height}px`}>
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+      <use href="#t4" />
+    </svg>
+  </div>
+)}
+
+{variant === 'volpi' && (
+  <div class="ornament-band volpi" aria-hidden="true" style={`--band-h:${height}px`}>
+    <svg viewBox="0 0 400 60" preserveAspectRatio="none">
+      <rect x="0" y="0" width="80" height="60" fill="var(--bulcao-fg)" />
+      <rect x="80" y="0" width="200" height="60" fill="var(--bulcao-bg)" />
+      <rect x="280" y="0" width="120" height="60" fill="var(--bulcao-accent)" />
+    </svg>
+  </div>
+)}
+
+<style>
+  .ornament-band {
+    width: 100%;
+    height: var(--band-h);
+    overflow: hidden;
+    line-height: 0;
+    background: var(--neutral-50);
+  }
+  .ornament-band svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .ornament-band.volpi {
+    background: transparent;
+  }
+</style>
