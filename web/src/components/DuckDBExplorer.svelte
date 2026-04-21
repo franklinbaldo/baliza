@@ -36,6 +36,18 @@
 
   const hasUnresolvedUrl = $derived(query.includes("'IA_URL'"));
 
+  // Embed mode: a third-party iframe passes ?sql=…&embed=true and expects the
+  // query to auto-execute once the Parquet URL resolves. Read once on mount so
+  // a user toggling query strings later does not re-trigger.
+  const isEmbed = (() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      return new URLSearchParams(window.location.search).get('embed') === 'true';
+    } catch {
+      return false;
+    }
+  })();
+
   onMount(async () => {
     resolvedParquetUrl = await getLatestParquetUrl();
     // Resolve every archived table's latest Parquet URL once. Each
@@ -45,6 +57,10 @@
       ARCHIVED_TABLES.map(async (t) => [t, await getLatestParquetUrl(t)] as const),
     );
     resolvedUrls = Object.fromEntries(entries) as Partial<Record<ArchivedTable, string | null>>;
+
+    if (isEmbed && !query.includes("'IA_URL'")) {
+      void runQuery();
+    }
   });
 
   $effect(() => {

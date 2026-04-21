@@ -113,11 +113,33 @@ describeFeature(feature, ({ Scenario }) => {
   });
 
   Scenario('Empty search suggests accent-tolerant alternatives', ({ Given, When, Then }) => {
-    Given('the user submits the free-text query "construcao de escola"', noop);
-    When('PNCP returns zero results', noop);
-    Then('the user sees a suggestion to retry with "construção de escola"', () =>
-      plannedStep('accent/stopword-tolerant search suggestions'),
-    );
+    Given('the user submits the free-text query "construcao de escola"', async () => {
+      cleanup();
+      vi.restoreAllMocks();
+      global.fetch = vi
+        .fn()
+        .mockImplementation(async () => new Response(JSON.stringify({ items: [], total: 0 }), { status: 200 }));
+      render(SearchHero);
+      await tick();
+      await typeInSearch('construcao de escola');
+    });
+
+    When('PNCP returns zero results', async () => {
+      await waitFor(
+        () => expect(screen.getByText(/Nenhum resultado/i)).toBeTruthy(),
+        { timeout: 2000 },
+      );
+    });
+
+    Then('the user sees a suggestion to retry with "construção de escola"', async () => {
+      await waitFor(
+        () => {
+          const banner = screen.getByTestId('accent-suggestion');
+          expect(banner.textContent).toContain('construção de escola');
+        },
+        { timeout: 2000 },
+      );
+    });
   });
 
   Scenario('Supplier page by CNPJ shows history, peers and average ticket', ({ Given, Then, And }) => {

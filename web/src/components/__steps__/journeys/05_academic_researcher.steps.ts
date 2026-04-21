@@ -5,10 +5,17 @@ import { tick } from 'svelte';
 import { render, noop, plannedStep } from './_shared';
 import DuckDBExplorerRaw from '../../DuckDBExplorer.svelte';
 import CitationBlockRaw from '../../CitationBlock.svelte';
+import ManifestTableRaw from '../../ManifestTable.svelte';
 import * as iaManifestModule from '../../../lib/ia-manifest';
 
 const DuckDBExplorer = DuckDBExplorerRaw as unknown as Parameters<typeof render>[0];
 const CitationBlock = CitationBlockRaw as unknown as Parameters<typeof render>[0];
+const ManifestTable = ManifestTableRaw as unknown as Parameters<typeof render>[0];
+
+const SHARED_SHA256 =
+  'cafebabe1234567890abcdef1234567890abcdef1234567890abcdef12345678';
+const SHARED_PARQUET_URL =
+  'https://archive.org/download/baliza-pncp-2025-01/contratos-2025-01.parquet';
 
 const feature = await loadFeature('features/journeys/05_academic_researcher.feature');
 
@@ -115,10 +122,35 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   Scenario(
     'Crossover with journey 6 — researcher hands a stable URL to a developer integrator',
     ({ Given, Then }) => {
-      Given('the user opens "/desenvolvedores"', noop);
-      Then('the user sees the same manifest entry hashes used by the explorer', () =>
-        plannedStep('/desenvolvedores route exposing manifest hashes'),
-      );
+      // The contract under test is "the same hash flows through both code
+      // paths". Mock both the manifest fetch (ManifestTable) and the
+      // resolved info (CitationBlock) with the same sha256, render the
+      // page the integrator sees, and assert the hash is present.
+      Given('the user opens "/desenvolvedores"', async () => {
+        vi.spyOn(iaManifestModule, 'fetchManifestRows').mockResolvedValue([
+          {
+            data_particao: '2025-01',
+            table_name: 'contratos',
+            parquet_url: SHARED_PARQUET_URL,
+            file_type: 'monthly_canonical',
+            sha256: SHARED_SHA256,
+            row_group_size: 8192,
+          },
+        ]);
+        vi.spyOn(iaManifestModule, 'getLatestParquetInfo').mockResolvedValue({
+          url: SHARED_PARQUET_URL,
+          dataParticao: '2025-01-31',
+          sha256: SHARED_SHA256,
+        });
+        render(ManifestTable);
+        await tick();
+      });
+
+      Then('the user sees the same manifest entry hashes used by the explorer', async () => {
+        await waitFor(() => expect(screen.getByTestId('manifest-table')).toBeTruthy(), { timeout: 2000 });
+        const hashCell = document.querySelector('.hash-cell') as HTMLElement | null;
+        expect(hashCell?.getAttribute('title')).toBe(SHARED_SHA256);
+      });
     },
   );
 });

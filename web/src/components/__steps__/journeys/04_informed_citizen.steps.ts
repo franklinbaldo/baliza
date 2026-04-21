@@ -43,11 +43,35 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   });
 
   Scenario('Hover a technical term to see a plain-language definition', ({ Given, When, Then }) => {
-    Given('the user opens "/contratacao?id=00000000000191-1-000001/2024"', noop);
-    When('the user hovers the term "Dispensa"', noop);
-    Then('the user sees a tooltip explaining what a "Dispensa" is in plain language', () =>
-      plannedStep('inline glossary tooltip for procurement jargon'),
-    );
+    Given('the user opens "/contratacao?id=00000000000191-1-000001/2024"', async () => {
+      window.history.replaceState({}, '', '/?id=00000000000191-1-000001/2024');
+      vi.spyOn(iaManifestModule, 'getLatestParquetInfo').mockResolvedValue({
+        url: 'https://archive.org/download/baliza-pncp-2025-01/contratos-2025-01.parquet',
+        dataParticao: '2025-01-31',
+      });
+      global.fetch = vi
+        .fn()
+        .mockImplementation(async () =>
+          new Response(JSON.stringify({ ...PAYLOAD, modalidadeNome: 'Dispensa' }), { status: 200 }),
+        );
+      render(ContractDetailView);
+      await tick();
+    });
+
+    When('the user hovers the term "Dispensa"', async () => {
+      await waitFor(
+        () => expect(screen.getByTestId('glossary-term')).toBeTruthy(),
+        { timeout: 2000 },
+      );
+    });
+
+    Then('the user sees a tooltip explaining what a "Dispensa" is in plain language', () => {
+      const wrap = screen.getByTestId('glossary-term');
+      expect(wrap.textContent).toContain('Dispensa');
+      const tooltip = wrap.querySelector('[role="tooltip"]') as HTMLElement | null;
+      expect(tooltip).not.toBeNull();
+      expect(tooltip!.textContent?.toLowerCase()).toMatch(/sem licitação|compra direta/);
+    });
   });
 
   Scenario('Detail page renders a plain-language summary above the schema dump', ({ Given, Then }) => {

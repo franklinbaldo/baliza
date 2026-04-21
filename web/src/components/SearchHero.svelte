@@ -4,6 +4,7 @@
   import { PROJECT_MISSION, SEARCH_HINTS } from '../lib/homepage-content';
   import { isPncpId, parsePncpId } from '../lib/pncpId';
   import { formatBRL, formatDate, normalizeSearchInput } from '../lib/format';
+  import { suggestAccented } from '../lib/accentSuggest';
   import EmptyState from './EmptyState.svelte';
   import AlertBanner from './AlertBanner.svelte';
 
@@ -75,6 +76,12 @@
   let modalidadeFilter = $state<string>('');
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let searchToken = 0;
+
+  const accentSuggestion = $derived(
+    didSearch && results.length === 0 && !searchError
+      ? suggestAccented(lastSearchedTerm)
+      : null,
+  );
 
   function slugifyFilename(raw: string): string {
     return raw
@@ -221,6 +228,13 @@
       if (debounceTimer) clearTimeout(debounceTimer);
       runSearch(cleanQuery);
     }
+  }
+
+  function retryWithSuggestion() {
+    if (!accentSuggestion) return;
+    query = accentSuggestion;
+    if (debounceTimer) clearTimeout(debounceTimer);
+    runSearch(accentSuggestion);
   }
 
   // Markdown export is the journalist's counterpart to CSV: the clipboard
@@ -390,6 +404,13 @@
             title="Nenhum resultado"
             message="A busca PNCP não encontrou contratações para este termo."
           />
+          {#if accentSuggestion}
+            <div class="accent-suggestion" data-testid="accent-suggestion" role="status" aria-live="polite">
+              Tentar com acentos: <button type="button" class="link-btn" onclick={retryWithSuggestion}>
+                {accentSuggestion}
+              </button>
+            </div>
+          {/if}
         {:else if results.length > 0}
           <div class="result-toolbar" aria-label="Filtros e ações da busca">
             <div class="filters">
@@ -702,6 +723,27 @@
     display: flex;
     gap: var(--space-xs);
     flex-wrap: wrap;
+  }
+
+  .accent-suggestion {
+    margin-top: var(--space-sm);
+    text-align: center;
+    font-size: var(--font-size-sm);
+    color: var(--color-secondary);
+  }
+
+  .link-btn {
+    background: none;
+    border: none;
+    color: var(--color-primary);
+    text-decoration: underline;
+    cursor: pointer;
+    font: inherit;
+    padding: 0;
+  }
+
+  .link-btn:hover {
+    text-decoration: none;
   }
 
   .results-list {
