@@ -241,7 +241,7 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                                     with open(path) as fh:
                                         json.load(fh)
                                     return True
-                                except (OSError, json.JSONDecodeError) as e:
+                                except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
                                     logger.warning(
                                         "corrupt_cache_found",
                                         file=str(path),

@@ -175,7 +175,7 @@ class PNCPExtractor:
             try:
                 with open(filename) as f:
                     return json.load(f)
-            except (OSError, json.JSONDecodeError) as e:
+            except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
                 logger.warning("corrupt_cache_found", file=str(filename), error=str(e))
                 try:
                     filename.unlink()
@@ -320,7 +320,7 @@ class PNCPExtractor:
             try:
                 with open(json_file) as f:
                     data = json.load(f)
-            except (OSError, json.JSONDecodeError) as e:
+            except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
                 # Corruption surfaces here (we no longer re-validate on every
                 # fetch_page cache hit). Unlink so the next sync refetches.
                 logger.warning("corrupt_cache_found", file=str(json_file), error=str(e))
