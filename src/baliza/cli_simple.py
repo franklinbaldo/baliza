@@ -7,6 +7,7 @@ SHARED ENGINE: Uses a single DuckDB session for extraction and upload.
 from __future__ import annotations
 
 import concurrent.futures
+import json
 import os
 import sys
 from datetime import date, datetime, timedelta
@@ -223,14 +224,39 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                             )
                             total_pages = res["total_pages"]
 
-                            # Which pages are already on disk? fetch_page
-                            # would disk-cache them anyway, but enumerating
-                            # up front lets us log one summary line per
-                            # month and only invoke fetch_page for the gaps.
+                            # Which pages are already on disk and valid?
+                            # `exists()` alone would mis-count a zero-byte
+                            # or corrupt file as cached — we'd then skip
+                            # fetch_page for that page, write the sentinel,
+                            # and let ingest_range silently unlink the bad
+                            # file, ending up with a month uploaded with
+                            # missing records. So validate the cache here
+                            # and unlink anything broken so fetch_page sees
+                            # a clean refetch.
+                            def _page_is_cached(p: int) -> bool:
+                                path = raw_month_dir / f"contratos_p{p}.json"
+                                if not path.exists() or path.stat().st_size == 0:
+                                    return False
+                                try:
+                                    with open(path) as fh:
+                                        json.load(fh)
+                                    return True
+                                except (OSError, json.JSONDecodeError) as e:
+                                    logger.warning(
+                                        "corrupt_cache_found",
+                                        file=str(path),
+                                        error=str(e),
+                                    )
+                                    try:
+                                        path.unlink()
+                                    except OSError:
+                                        pass
+                                    return False
+
                             missing_pages = [
                                 p
                                 for p in range(1, total_pages + 1)
-                                if not (raw_month_dir / f"contratos_p{p}.json").exists()
+                                if not _page_is_cached(p)
                             ]
                             cached_pages = total_pages - len(missing_pages)
 

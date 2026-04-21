@@ -166,14 +166,21 @@ class PNCPExtractor:
         month_str = start_date.strftime("%Y-%m")
         filename = Path(f"data/raw/{month_str}/{resource}_p{page}.json")
 
-        # RESUMABILITY: trust a non-empty cached file. Actual parse happens
-        # exactly once inside ingest_range — if the bytes are corrupt, that
-        # call raises and the file is unlinked there. Re-parsing every cached
-        # page on every sync run turned the log into a torrent of
-        # "resuming_from_cache" messages for no actual verification benefit.
+        # RESUMABILITY: trust a non-empty cached file. If it's unparseable
+        # we self-heal by unlinking and falling through to the network
+        # fetch below — probe_range always goes through here for page 1,
+        # so we can't rely on ingest_range's corruption recovery to rescue
+        # a bad page 1 (the month would abort before ingest ever ran).
         if filename.exists() and filename.stat().st_size > 0:
-            with open(filename) as f:
-                return json.load(f)
+            try:
+                with open(filename) as f:
+                    return json.load(f)
+            except (OSError, json.JSONDecodeError) as e:
+                logger.warning("corrupt_cache_found", file=str(filename), error=str(e))
+                try:
+                    filename.unlink()
+                except OSError:
+                    pass
 
         start_str = start_date.strftime("%Y%m%d")
         end_str = end_date.strftime("%Y%m%d")

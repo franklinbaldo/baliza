@@ -133,6 +133,44 @@ class TestPNCPExtractorV2(unittest.TestCase):
                 _, kwargs = mock_stream.call_args
                 self.assertEqual(kwargs["params"]["tamanhoPagina"], 500)
 
+    def test_fetch_page_self_heals_corrupt_cache(self):
+        """A corrupt non-empty cached file must not abort the month: fetch_page
+        unlinks the bad file and falls back to the network. probe_range routes
+        through fetch_page(page=1), so without this self-heal a single bad page
+        1 would crash every subsequent run until manually cleaned up."""
+        start_date = datetime(2024, 3, 1)
+        end_date = datetime(2024, 3, 31)
+        month_str = "2024-03"
+
+        with patch("baliza.extractor.Path") as mock_path:
+
+            def path_side_effect(*args):
+                p_str = "/".join(map(str, args))
+                if "data/raw" in p_str:
+                    return Path(self.test_dir, *args)
+                return Path(*args)
+
+            mock_path.side_effect = path_side_effect
+
+            cache_dir = Path(self.test_dir) / "data/raw" / month_str
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            cache_file = cache_dir / "contratos_p1.json"
+            cache_file.write_text("{not valid json")
+
+            fresh_data = {"data": [{"id": "fresh"}], "totalPaginas": 1}
+            with patch.object(self.extractor.client, "stream") as mock_stream:
+                mock_stream.return_value = self._mock_stream_response(fresh_data)
+
+                result = self.extractor.fetch_page("contratos", start_date, end_date, page=1)
+
+                mock_stream.assert_called_once()
+                self.assertEqual(result["data"][0]["id"], "fresh")
+                # _save_raw overwrites with the fresh payload; the key
+                # invariant is that the result reflects the network response
+                # rather than the corrupt disk bytes.
+                self.assertTrue(cache_file.exists())
+                self.assertEqual(json.loads(cache_file.read_text()), fresh_data)
+
     def test_ingest_range_drops_corrupt_cache_files(self):
         """Since fetch_page no longer re-validates cached JSON on every call,
         ingest_range owns corruption recovery: unlink the bad file and move on
