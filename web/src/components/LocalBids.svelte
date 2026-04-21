@@ -184,38 +184,38 @@
 </section>
 
 <style>
-  .local-bids { padding: var(--space-xl) 0; }
+  .local-bids { padding: var(--space-8) 0; }
 
   .modernist-card {
-    background: var(--color-base-100);
-    border: 1px solid var(--color-base-300);
-    padding: var(--space-xl);
-    border-radius: var(--radius-box);
+    background: var(--neutral-0);
+    border: 1px solid var(--neutral-200);
+    padding: var(--space-6);
+    border-radius: var(--radius-0);
   }
 
   .card-header {
     display: flex;
-    gap: var(--space-md);
-    margin-bottom: var(--space-lg);
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
   }
 
   .icon-bulb { font-size: 2rem; }
 
-  .title-group h3 { font-size: var(--font-size-xl); margin: 0; }
-  .title-group p  { color: var(--color-secondary); margin: 0; font-size: var(--font-size-sm); }
+  .title-group h3 { font-size: var(--text-2xl); margin: 0; color: var(--bulcao-accent); }
+  .title-group p  { color: var(--neutral-500); margin: 0; font-size: var(--text-md); }
 
   .status-msg {
     display: flex;
     align-items: center;
     gap: 1rem;
-    color: var(--color-secondary);
+    color: var(--neutral-500);
   }
 
   .spinner {
     width: 24px;
     height: 24px;
-    border: 3px solid var(--color-base-300);
-    border-top-color: var(--color-primary);
+    border: 3px solid var(--neutral-200);
+    border-top-color: var(--bulcao-accent);
     border-radius: 50%;
     animation: spin 1s linear infinite;
     flex-shrink: 0;
@@ -223,29 +223,33 @@
 
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  .skeleton-wrap { display: grid; gap: var(--space-sm); }
-  .skeleton-heading { height: 1.25rem; width: 55%; border-radius: var(--radius-sm); }
-  .skeleton-bid { height: 4.5rem; border-radius: var(--radius-sm); }
+  .skeleton-wrap { display: grid; gap: var(--space-2); }
+  .skeleton-heading { height: 1.25rem; width: 55%; border-radius: var(--radius-0); }
+  .skeleton-bid { height: 4.5rem; border-radius: var(--radius-0); }
 
   .results-header {
-    margin-bottom: var(--space-md);
+    margin-bottom: var(--space-4);
     padding-bottom: 8px;
-    border-bottom: 1px solid var(--color-base-200);
+    border-bottom: 1px solid var(--neutral-200);
   }
 
-  .bids-list { display: grid; gap: var(--space-sm); }
+  .bids-list { display: grid; gap: var(--space-2); }
 
   .bid-card {
     display: block;
     text-decoration: none;
     color: inherit;
-    padding: var(--space-md);
-    background: var(--color-base-200);
-    border-radius: var(--radius-sm);
-    transition: background var(--transition-base);
+    padding: var(--space-4);
+    background: var(--neutral-50);
+    border-radius: var(--radius-0);
+    transition: all var(--duration-fast) var(--ease);
+    border: 1px solid transparent;
   }
 
-  .bid-card:hover { background: var(--color-base-300); }
+  .bid-card:hover {
+    background: var(--neutral-100);
+    border-color: var(--bulcao-accent);
+  }
 
   .bid-meta {
     display: flex;
@@ -253,7 +257,7 @@
     margin-bottom: 4px;
   }
 
-  .bid-id   { font-family: var(--font-mono); font-size: 0.75rem; color: var(--color-primary); }
-  .bid-date { font-size: 0.75rem; color: var(--color-secondary); }
-  .bid-obj  { font-size: var(--font-size-sm); line-height: 1.4; margin: 0; }
+  .bid-id   { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--bulcao-accent); }
+  .bid-date { font-size: var(--text-xs); color: var(--neutral-500); }
+  .bid-obj  { font-size: var(--text-sm); line-height: 1.4; margin: 0; }
 </style>

@@ -1,0 +1,40 @@
+--- web/src/components/CityDetailView.svelte
++++ web/src/components/CityDetailView.svelte
+@@ -194,7 +194,6 @@
+
+ <style>
+   .hub-header { margin-bottom: var(--space-xl); border-bottom: 2px solid var(--color-base-300); padding-bottom: var(--space-md); }
+-  .type-badge { font-family: var(--font-mono); font-size: 0.7rem; background: var(--color-primary); color: white; padding: 2px 8px; border-radius: 4px; }
+   h1 { font-size: var(--font-size-2xl); margin-top: var(--space-sm); }
+
+   .meta-row {
+--- web/src/components/AgencyDetailView.svelte
++++ web/src/components/AgencyDetailView.svelte
+@@ -313,7 +313,6 @@
+
+ <style>
+   .hub-header { margin-bottom: var(--space-2xl); border-bottom: 2px solid var(--color-base-300); padding-bottom: var(--space-md); }
+-  .type-badge { font-family: var(--font-mono); font-size: 0.7rem; background: var(--color-primary); color: white; padding: 2px 8px; border-radius: 4px; }
+   h1 { font-size: var(--font-size-2xl); margin-top: var(--space-sm); }
+
+   .meta-row {
+--- web/src/components/ContractDetailView.svelte
++++ web/src/components/ContractDetailView.svelte
+@@ -313,7 +313,6 @@
+
+ <style>
+   .plain-summary strong { color: var(--color-primary); }
+-  .type-badge { font-family: var(--font-mono); font-size: 0.7rem; background: var(--color-primary); color: white; padding: 2px 8px; border-radius: 4px; }
+   h1 { font-size: var(--font-size-xl); margin-top: var(--space-sm); line-height: 1.3; }
+   .meta-row { font-family: var(--font-mono); font-size: var(--font-size-sm); color: var(--color-secondary); margin-top: var(--space-sm); display: flex; flex-wrap: wrap; gap: var(--space-sm); }
+   .meta-item { background: var(--color-base-200); padding: 2px 8px; border-radius: var(--radius-sm); border: 1px solid var(--color-base-300); }
+--- web/src/components/SupplierDetailView.svelte
++++ web/src/components/SupplierDetailView.svelte
+@@ -288,7 +288,6 @@
+
+ <style>
+   .hub-header { margin-bottom: var(--space-2xl); border-bottom: 2px solid var(--color-base-300); padding-bottom: var(--space-md); }
+-  .type-badge { font-family: var(--font-mono); font-size: 0.7rem; background: var(--color-primary); color: white; padding: 2px 8px; border-radius: 4px; }
+   h1 { font-size: var(--font-size-2xl); margin-top: var(--space-sm); }
+
+   .meta-row {

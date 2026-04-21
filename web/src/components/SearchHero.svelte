@@ -463,37 +463,35 @@
 
 <style>
   .hero-section {
-    padding: var(--space-3xl) 0 var(--space-xl);
-    background:
-      linear-gradient(to right, rgba(255,255,255,0.02) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(255,255,255,0.02) 1px, transparent 1px);
-    background-size: 20px 20px, 20px 20px;
+    padding: var(--space-8) 0 var(--space-6);
   }
 
   .hero-inner {
     max-width: 800px;
     text-align: center;
+    margin: 0 auto;
   }
 
   .hero-title {
-    font-size: var(--font-size-3xl);
-    margin-bottom: var(--space-xs);
-    color: var(--color-base-content);
+    font-size: var(--text-4xl);
+    margin-bottom: var(--space-2);
+    color: var(--bulcao-fg);
     line-height: 1.1;
   }
 
   .hero-tagline {
-    color: var(--color-secondary);
-    font-size: var(--font-size-md);
+    color: var(--neutral-500);
+    font-size: var(--text-md);
     line-height: 1.6;
-    margin-bottom: var(--space-lg);
+    margin-bottom: var(--space-6);
   }
 
   .search-box {
-    background: var(--color-base-100);
-    padding: var(--space-md);
-    border: 1px solid var(--color-base-300);
-    border-radius: var(--radius-box);
+    background: var(--neutral-0);
+    padding: var(--space-4);
+    border: 1px solid var(--neutral-200);
+    border-radius: var(--radius-0);
+    box-shadow: var(--shadow-sm);
   }
 
   .search-form { display: block; }
@@ -511,18 +509,17 @@
     align-items: center;
     gap: 0.6rem;
     padding: 0.75rem 2.25rem 0.75rem 1rem;
-    border: 1px solid var(--color-base-300);
-    border-radius: var(--radius-sm);
-    background: var(--color-base-200);
-    transition: border-color var(--transition-base), box-shadow var(--transition-base);
+    border: 1px solid var(--neutral-300);
+    border-radius: var(--radius-0);
+    background: var(--neutral-50);
+    transition: border-color var(--duration-fast) var(--ease);
     cursor: text;
     position: relative;
     min-width: 0;
   }
 
   .input-label:focus-within {
-    border-color: var(--color-primary);
-    box-shadow: inset 0 0 0 2px var(--color-primary);
+    border-color: var(--bulcao-accent);
   }
 
   .search-icon {
@@ -530,7 +527,7 @@
     height: 1.1rem;
     opacity: 0.55;
     flex-shrink: 0;
-    color: var(--color-secondary);
+    color: var(--neutral-500);
   }
 
   input {
@@ -538,9 +535,9 @@
     border: none;
     background: transparent;
     outline: none;
-    font-size: var(--font-size-lg);
-    color: var(--color-base-content);
-    font-family: var(--font-sans);
+    font-size: var(--text-lg);
+    color: var(--bulcao-fg);
+    font-family: var(--font-body);
   }
 
   .clear-btn {
@@ -569,7 +566,7 @@
   .search-btn {
     flex-shrink: 0;
     font-size: var(--font-size-base);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-0);
   }
 
   @media (max-width: 560px) {
@@ -597,7 +594,7 @@
     padding: var(--space-sm);
     background: var(--color-base-200);
     border: 1px dashed var(--color-primary);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-0);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -632,7 +629,7 @@
     padding: var(--space-sm);
     background: var(--color-base-200);
     border: 1px solid var(--color-base-300);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-0);
     text-align: left;
   }
 
@@ -660,7 +657,7 @@
   .filter-field select {
     background: var(--color-base-100);
     border: 1px solid var(--color-base-300);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-0);
     padding: 4px 8px;
     font-size: var(--font-size-xs);
     color: var(--color-base-content);
@@ -718,7 +715,7 @@
     padding: var(--space-sm);
     background: var(--color-base-200);
     border: 1px solid var(--color-base-300);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-0);
     color: inherit;
     text-decoration: none;
     transition: border-color var(--transition-base);
@@ -743,7 +740,7 @@
 
   .result-valor { color: var(--color-primary); font-weight: 700; }
 
-  .skeleton-row { height: 3.5rem; border-radius: var(--radius-sm); }
+  .skeleton-row { height: 3.5rem; border-radius: var(--radius-0); }
 
   .hints {
     margin-top: var(--space-sm);
@@ -771,7 +768,7 @@
     background: var(--color-base-200);
     border: 1px solid var(--color-base-300);
     padding: 3px 10px;
-    border-radius: var(--radius-full);
+    border-radius: var(--radius-pill);
     cursor: pointer;
     font-size: var(--font-size-xs);
     color: var(--color-secondary);

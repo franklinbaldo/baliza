@@ -1,0 +1,10 @@
+--- web/src/components/CityDetailView.svelte
++++ web/src/components/CityDetailView.svelte
+@@ -194,7 +194,6 @@
+
+ <style>
+   .hub-header { margin-bottom: var(--space-xl); border-bottom: 2px solid var(--color-base-300); padding-bottom: var(--space-md); }
+-  .type-badge { font-family: var(--font-mono); font-size: 0.7rem; background: var(--color-primary); color: white; padding: 2px 8px; border-radius: 4px; }
+   h1 { font-size: var(--font-size-2xl); margin-top: var(--space-sm); }
+
+   .meta-row {

@@ -1,0 +1,101 @@
+<style>
+/* ============================================================
+   DESIGN TOKENS
+   ============================================================ */
+:root {
+  /* Neutros quentes (off-white Lina → grafite com calor) */
+  --neutral-0:   #FBF8F1;
+  --neutral-50:  #F5F2EC;
+  --neutral-100: #ECE7DA;
+  --neutral-200: #DCD5C2;
+  --neutral-300: #C4BCA3;
+  --neutral-400: #8A8270;
+  --neutral-500: #666053;
+  --neutral-700: #3D3A33;
+  --neutral-900: #1A1815;
+
+  /* Paleta ativa (default: Concretista) */
+  --bulcao-fg:     #1A1815;
+  --bulcao-bg:     #F5F2EC;
+  --bulcao-accent: #C8312A;
+  --bulcao-support:#2B4B7C;
+
+  /* Tipografia */
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-body: 'Manrope', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+
+  /* Type scale */
+  --text-xs:   12px;
+  --text-sm:   14px;
+  --text-base: 16px;
+  --text-md:   18px;
+  --text-lg:   22px;
+  --text-xl:   28px;
+  --text-2xl:  36px;
+  --text-3xl:  48px;
+  --text-4xl:  64px;
+  --text-5xl:  88px;
+  --text-6xl:  120px;
+
+  /* Espaçamento (base 8px, vazio brasiliense) */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  24px;
+  --space-6:  32px;
+  --space-7:  48px;
+  --space-8:  64px;
+  --space-9:  96px;
+  --space-10: 128px;
+  --space-11: 160px;
+
+  /* Radii (quase zero — geometria limpa) */
+  --radius-0: 0px;
+  --radius-1: 2px;
+  --radius-2: 4px;
+  --radius-pill: 999px;
+
+  /* Motion */
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --duration-fast: 0.18s;
+  --duration: 0.36s;
+  --duration-slow: 0.6s;
+
+  /* Layout */
+  --nav-width: 280px;
+  --content-max: 1040px;
+  --gutter: 40px;
+}
+
+[data-palette="tarsila"] {
+  --bulcao-fg: #B83A2C; --bulcao-bg: #F2E2C8;
+  --bulcao-accent: #2E6F8E; --bulcao-support: #6B4E9A;
+}
+[data-palette="burle"] {
+  --bulcao-fg: #2D5F3F; --bulcao-bg: #ECE7D2;
+  --bulcao-accent: #E0A12A; --bulcao-support: #B891C5;
+}
+[data-palette="concretista"] {
+  --bulcao-fg: #1A1815; --bulcao-bg: #F5F2EC;
+  --bulcao-accent: #C8312A; --bulcao-support: #2B4B7C;
+}
+[data-palette="tropicalista"] {
+  --bulcao-fg: #DC1E63; --bulcao-bg: #FFF1B3;
+  --bulcao-accent: #FF6B1F; --bulcao-support: #2D7A4F;
+}
+
+/* ============================================================
+   RESET + BASE
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font-body);
+  background: var(--neutral-0);
+  color: var(--neutral-900);
+  font-size: var(--text-base);
+  line-height: 1.6;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;

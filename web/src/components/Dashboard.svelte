@@ -67,8 +67,8 @@
   .dashboard-grid {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-md);
-    margin-top: var(--space-md);
+    gap: var(--space-4);
+    margin-top: var(--space-4);
   }
 
   .skeleton-card {
@@ -77,7 +77,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
-    padding: var(--space-md);
+    padding: var(--space-4);
   }
 
   .skeleton-label {
@@ -91,7 +91,7 @@
   }
 
   .retry-row {
-    margin-top: var(--space-sm);
+    margin-top: var(--space-2);
     display: flex;
     justify-content: center;
   }

@@ -43,19 +43,20 @@
     justify-content: center;
     width: 2.75rem;
     height: 2.75rem;
-    border: 1px solid var(--color-base-300);
+    border: 1px solid var(--neutral-300);
     background: transparent;
-    color: var(--color-secondary);
+    color: var(--neutral-500);
     cursor: pointer;
-    border-radius: var(--radius-btn);
-    transition: all var(--transition-base);
+    border-radius: 0;
+    transition: all var(--duration-fast) var(--ease);
     flex-shrink: 0;
   }
 
   .theme-btn:hover,
   .theme-btn:focus-visible {
-    color: var(--color-primary);
-    border-color: var(--color-primary);
-    box-shadow: var(--shadow-glow);
+    color: var(--bulcao-accent);
+    border-color: var(--bulcao-accent);
+    box-shadow: 2px 2px 0 var(--bulcao-accent);
+    transform: translate(-1px, -1px);
   }
 </style>
