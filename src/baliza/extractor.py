@@ -99,7 +99,7 @@ def _flatten_contrato(dumped: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _is_retryable_error(exc: Exception) -> bool:
+def _is_retryable_error(exc: BaseException) -> bool:
     """Determine if an exception should trigger a retry."""
     if isinstance(exc, httpx.HTTPStatusError):
         # Retry on 429 (Rate Limit) and 5xx (Server Errors)
@@ -234,6 +234,32 @@ class PNCPExtractor:
             "total_registries": data.get("totalRegistros", 0),
         }
 
+    def _drop_legacy_contratos_table(self) -> None:
+        """Drop main.contratos if it still has the pre-flatten camelCase schema.
+
+        Older BALIZA versions stored `main.contratos` with the raw Pydantic
+        dump (camelCase keys, nested structs). The post-flatten schema uses
+        snake_case scalars with PK `numero_controle_pncp`. Upserting new rows
+        on top of a legacy table raises IbisTypeError because the PK column
+        doesn't exist. Dropping is safe: the table is fully rebuildable from
+        `data/raw/**/*.json`, which `ingest_range` re-reads on every run.
+        """
+        try:
+            tables = self.engine.con.list_tables(database="main")
+        except Exception:
+            return
+        if "contratos" not in tables:
+            return
+        try:
+            columns = set(self.engine.con.table("contratos", database="main").schema().names)
+        except Exception:
+            return
+        has_legacy = "numeroControlePNCP" in columns
+        has_new = "numero_controle_pncp" in columns
+        if has_legacy and not has_new:
+            logger.warning("dropping_legacy_contratos_schema", columns=len(columns))
+            self.engine.con.drop_table("contratos", database="main")
+
     def ingest_range(self, start_date: datetime) -> dict[str, int]:
         """Validate and ingest all raw JSON files for a specific month/range into the shared engine."""
         month_str = start_date.strftime("%Y-%m")
@@ -243,6 +269,8 @@ class PNCPExtractor:
 
         if not raw_dir.exists():
             return stats
+
+        self._drop_legacy_contratos_table()
 
         for json_file in raw_dir.glob("*.json"):
             with open(json_file) as f:
