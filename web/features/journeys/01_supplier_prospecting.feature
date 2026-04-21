@@ -12,17 +12,18 @@ Feature: Journey 1 — B2G supplier prospecting
     Then the user lands on a market page summarizing top buyers, top suppliers and price ranges
     And the page shows the number of distinct contracts found
 
-  @green @search
+  @planned @search
   Scenario: Filter contracts by UF and modality recomputes aggregates
-    # Covered by SearchHero aggregate strip + UF/modality dropdowns.
+    # Planned: awaits a dedicated /busca page with UF + modality dropdowns
+    # and an aggregate strip (count / total / average).
     Given a search result list is visible
     When the user picks UF "SP" and modality "Pregão Eletrônico"
     Then the visible aggregates (count, total value, average value) reflect the filtered subset
 
-  @green @search
+  @planned @search
   Scenario: Empty search suggests accent-tolerant alternatives
-    # Backed by lib/accentSuggest.ts (closed lexicon, ~80 procurement nouns)
-    # surfaced in the SearchHero empty state. Static-compatible — no backend.
+    # Planned: an accent-tolerant suggestion surface on the future /busca
+    # page (closed lexicon, ~80 procurement nouns — static-compatible).
     Given the user submits the free-text query "construcao de escola"
     When PNCP returns zero results
     Then the user sees a suggestion to retry with "construção de escola"
@@ -36,9 +37,9 @@ Feature: Journey 1 — B2G supplier prospecting
     And the user sees the supplier's top three competing CNPJs for the same objects
     And the user sees the supplier's average ticket size
 
-  @green @export
+  @planned @export
   Scenario: Export the current search result as CSV
-    # Covered by SearchHero "Exportar CSV" button.
+    # Planned: CSV export lives on the future /busca page.
     Given a search result list is visible for "merenda escolar"
     When the user clicks "Exportar CSV"
     Then a CSV file is downloaded with named columns matching the visible table

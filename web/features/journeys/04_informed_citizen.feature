@@ -5,9 +5,10 @@ Feature: Journey 4 — Informed citizen
   search, an inline glossary, and visible data freshness.
   See VISION.md → "Informed citizen".
 
-  @green @search
+  @planned @search
   Scenario: Search by hospital name without knowing the CNPJ
-    # Covered by web/features/search-hero.feature: Free text triggers a PNCP search and renders results listbox.
+    # Planned: free-text PNCP search from the homepage will return when a
+    # dedicated /busca page ships.
     Given the user opens the home page
     When the user types "hospital municipal" into the search box
     Then the user sees a results listbox with at least one link
@@ -40,10 +41,10 @@ Feature: Journey 4 — Informed citizen
     Given the user opens "/municipio?ibge=3550308"
     Then the user sees the municipality population and the state it belongs to
 
-  @green @search
+  @planned @search
   Scenario: Crossover with journey 3 — citizen reaches the same permalink a journalist would cite
     # crosses @journey3
-    # Covered by web/features/search-hero.feature: Submitting a canonical PNCP contract ID navigates to the contract page.
+    # Planned: type-a-PNCP-id-and-jump lives on the future /busca page.
     Given the user types "12345678000195-1-000001/2024" into the search box
     When the user submits the search form
     Then the browser navigates to "/baliza/contratacao?id=12345678000195-1-000001/2024"

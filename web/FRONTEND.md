@@ -83,8 +83,9 @@ Two distinct PNCP surfaces are consumed by the client:
   endpoints for agency / city / contract detail reads. These do **not** accept a
   free-text keyword parameter.
 - **Portal search** (`https://pncp.gov.br/api/search?q=<term>&tipos_documento=edital&pagina=1`)
-  — the keyword-backed index used by the public portal's own search bar; used
-  by `SearchHero` for free-text queries and returns `{ items, total }`.
+  — the keyword-backed index used by the public portal's own search bar; returns
+  `{ items, total }`. Not currently wired to any page (the homepage search
+  surface was removed); reserved for a future `/busca` page.
 
 When any consulta read fails, detail views fall back to the latest Internet
 Archive Parquet snapshot via `queryParquetFallback()`. Column identifiers are
