@@ -1,5 +1,9 @@
 name: PNCP Sync
 
+# The single Baliza pipeline: `baliza sync` extracts missing months,
+# uploads them to Internet Archive, and opportunistically consolidates
+# annual archives — all inside the Python code. No other scheduled
+# workflows drive the data pipeline.
 on:
   schedule:
     - cron: '*/30 * * * *'
@@ -9,10 +13,19 @@ on:
         description: 'Oldest date to backfill to (YYYY-MM-DD)'
         required: false
         default: '2023-01-01'
+      no_consolidate:
+        description: 'Skip end-of-run annual consolidation'
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: pncp-sync
   cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
 
 jobs:
   sync:
@@ -31,4 +44,47 @@ jobs:
       - env:
           IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
           IA_SECRET_KEY: ${{ secrets.IA_SECRET_KEY }}
-        run: uv run baliza sync --start-date "${{ inputs.start_date || '2023-01-01' }}" --limit-minutes 340
+        run: |
+          CONSOLIDATE_FLAG=""
+          if [ "${{ inputs.no_consolidate }}" = "true" ]; then
+            CONSOLIDATE_FLAG="--no-consolidate"
+          fi
+          uv run baliza sync \
+            --start-date "${{ inputs.start_date || '2023-01-01' }}" \
+            --limit-minutes 340 \
+            $CONSOLIDATE_FLAG
+
+  report-failure:
+    name: Report workflow failure
+    if: ${{ failure() }}
+    needs: sync
+    runs-on: ubuntu-latest
+    steps:
+      - name: Open issue for failure
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const runId = context.runId;
+            const runUrl = `${context.payload.repository.html_url}/actions/runs/${runId}`;
+            const identifier = `run_id:${runId}`;
+
+            const search = await github.rest.search.issuesAndPullRequests({
+              q: `repo:${owner}/${repo} "${identifier}" state:open type:issue`
+            });
+            if (search.data.total_count > 0) return;
+
+            await github.rest.issues.create({
+              owner,
+              repo,
+              title: `🚨 Falha no workflow "PNCP Sync" (run #${context.runNumber})`,
+              body: [
+                '@codex há uma falha automática no workflow de sync.',
+                '',
+                `- **Workflow**: PNCP Sync`,
+                `- **Execução**: [#${context.runNumber}](${runUrl})`,
+                `- **Identificador**: ${identifier}`,
+              ].join('\n'),
+              labels: ['ci-failure']
+            });

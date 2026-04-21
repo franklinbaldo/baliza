@@ -71,8 +71,14 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
     ),
     workers: int = typer.Option(4, "--workers", "-w", help="Parallel workers for page extraction"),
     no_curl: bool = typer.Option(False, "--no-curl", help="Opt-out of system cURL and use httpx"),
+    no_consolidate: bool = typer.Option(
+        False, "--no-consolidate", help="Skip end-of-run annual consolidation"
+    ),
+    consolidate_start_year: int = typer.Option(
+        2021, "--consolidate-start-year", help="First year to consider for consolidation"
+    ),
 ) -> None:
-    """Unified sync: extracts missing dates and uploads to IA (stateless, backwards sweep)."""
+    """Unified sync: extracts missing dates, uploads to IA, and consolidates (stateless, backwards sweep)."""
     start_time_exec = datetime.now()
     ia_access_key = os.environ.get("IA_ACCESS_KEY") or os.environ.get("IAS3_ACCESS_KEY")
     ia_secret_key = os.environ.get("IA_SECRET_KEY") or os.environ.get("IAS3_SECRET_KEY")
@@ -95,9 +101,12 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
     engine = BalizaEngine(db_path)
     uploader = IAUploader(engine)
 
-    # 2. Determine months to process using REMOTE manifest
+    # 2. Fetch manifest once — reused by the pending-months planner and
+    # (if enabled) the up-front consolidation catch-up below.
+    raw_manifest: list[dict] = []
     if force_month:
         batch = [datetime.strptime(force_month, "%Y-%m").date()]
+        uploaded: set[str] = set()
     else:
         with console.status("[bold green]Checking IA manifest for pending months...[/bold green]"):
             try:
@@ -134,11 +143,40 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
             pending_months.sort(reverse=True)  # BACKWARDS IN TIME
             batch = pending_months[:batch_size] if batch_size else pending_months
 
+    # 3. CONSOLIDATION CATCH-UP (runs first so a truncated consolidation
+    # in the previous sync gets finished this run, even if the current
+    # run doesn't upload any new months). The consolidator gates itself
+    # on manifest freshness (monthly_uf shard `uploaded_at` vs canonical
+    # `uploaded_at`) — zero-cost when already fresh.
+    consolidated = False
+    consolidation_error: Exception | None = None
+    if not dry_run and not no_consolidate and ia_access_key and ia_secret_key:
+        try:
+            with console.status("[bold green]Checking consolidation status...[/bold green]"):
+                # Pass already-fetched manifest through when we have it
+                # (non-force_month path); let consolidator refetch on the
+                # force_month path where we skipped the planner fetch.
+                IAConsolidator().consolidate_all(
+                    consolidate_start_year,
+                    ia_access_key,
+                    ia_secret_key,
+                    manifest=raw_manifest if raw_manifest else None,
+                )
+            consolidated = True
+        except Exception as e:
+            # Don't block extraction — fresh data capture is independent of
+            # consolidation. But record the error so we can exit non-zero at
+            # the end, which fires the workflow's report-failure job.
+            consolidation_error = e
+            console.print(f"[red]✗ Consolidation failed: {e}[/red]")
+
     if not batch:
+        if consolidation_error is not None:
+            raise typer.Exit(1)
         console.print("[green]✓ Everything up to date.[/green]")
         return
 
-    # 3. Orchestration logic
+    # 4. Orchestration logic
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
@@ -384,16 +422,29 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
             # Final drain
             concurrent.futures.wait(futures.keys())
 
-    # 4. FINAL SUMMARY PANEL
+    # 5. FINAL SUMMARY PANEL
     duration = datetime.now() - start_time_exec
+    if consolidated:
+        consolidation_status = "ran"
+    elif consolidation_error is not None:
+        consolidation_status = "FAILED"
+    else:
+        consolidation_status = "skipped"
     summary = (
         f"• [bold white]Total Records:[/] {total_records:,}\n"
         f"• [bold yellow]Quarantine:[/] {quarantine_count:,}\n"
         f"• [bold red]Errors:[/] {error_count}\n"
+        f"• [bold magenta]Consolidation catch-up:[/] {consolidation_status}\n"
         f"• [bold cyan]Duration:[/] {duration.total_seconds():.1f}s"
     )
     console.print("\n")
     console.print(Panel(summary, title="[bold green]✓ Sincronização Finalizada[/]", expand=False))
+
+    # Surface a non-zero exit when anything went wrong so the workflow's
+    # `report-failure` job fires. Consolidation errors and per-month
+    # extraction errors are both sync-level failures.
+    if consolidation_error is not None or error_count > 0:
+        raise typer.Exit(1)
 
 
 @app.command("verify")

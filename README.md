@@ -1,7 +1,6 @@
 # Baliza CLI
 
-[![Extraction](https://github.com/franklinbaldo/baliza/actions/workflows/continuous-extract.yml/badge.svg)](https://github.com/franklinbaldo/baliza/actions/workflows/continuous-extract.yml)
-[![Backfill](https://github.com/franklinbaldo/baliza/actions/workflows/historical-backfill.yml/badge.svg)](https://github.com/franklinbaldo/baliza/actions/workflows/historical-backfill.yml)
+[![PNCP Sync](https://github.com/franklinbaldo/baliza/actions/workflows/pncp-sync.yml/badge.svg)](https://github.com/franklinbaldo/baliza/actions/workflows/pncp-sync.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 
@@ -32,72 +31,44 @@ Requires Python 3.11+.
 
 ## Commands
 
-### `extract` — Fetch data from PNCP
+Baliza V2 collapses the pipeline into a single omnibus command. The scheduled GitHub Actions workflow runs only `baliza sync`.
+
+### `sync` — Extract missing months, upload to IA, consolidate
 
 ```bash
-baliza extract --start 2024-01-01 --end 2024-01-31
+baliza sync --start-date 2023-01-01
 ```
+
+Walks backwards from the previous month to `--start-date`, skipping months already present on Internet Archive (source of truth is the remote `manifest.csv`). For each missing month it extracts from PNCP, uploads the monthly Parquet snapshot to IA, and — once the run finishes with new data — rebuilds the annual consolidated archives.
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--start` | required | Start date (YYYY-MM-DD) |
-| `--end` | required | End date (YYYY-MM-DD) |
-| `--duckdb, -d` | `baliza.duckdb` | Path to DuckDB file |
-| `--dataset, -s` | `baliza_raw` | Dataset/schema name |
-| `--resource, -r` | `contratos` | PNCP resource to extract |
-| `--workers, -w` | `4` | Parallel workers (1–16) |
-| `--deadline-minutes` | none | Stop gracefully after N minutes |
+| `--start-date` | `2023-01-01` | Oldest date to backfill to |
+| `--batch-size, -n` | all pending | Max months to sync in one run |
+| `--force-month` | — | Target a specific month (YYYY-MM) regardless of manifest |
+| `--limit-minutes` | `0` (no limit) | Stop after N minutes (for CI deadlines) |
+| `--workers, -w` | `4` | Parallel workers (1–16) for page extraction |
+| `--dry-run` | off | Verify without uploading |
+| `--no-consolidate` | off | Skip the end-of-run annual consolidation |
+| `--consolidate-start-year` | `2021` | First year to consider for consolidation |
+| `--duckdb` | `:memory:` | Optional DuckDB file for debugging |
+| `--no-curl` | off | Use httpx instead of system cURL |
 
-Extraction is resumable — interrupted runs pick up from the last checkpoint.
+Requires `IA_ACCESS_KEY` / `IA_SECRET_KEY` in the environment unless `--dry-run` is set.
 
-**Tip:** 4–8 workers is optimal. More workers triggers PNCP rate limits and causes slowdowns.
-
-### `verify` — Check coverage and detect gaps
-
-```bash
-baliza verify --start 2024-01-01 --end 2024-01-31 --resource contratos
-```
-
-### `export` — Export a table to Parquet
+### `verify` — Check IA coverage and detect gaps
 
 ```bash
-baliza export --table contratos --output ./output/
+baliza verify --start 2024-01-01 --end 2024-01-31
 ```
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--table` | required | Table name to export |
-| `--output, -o` | required | Output directory |
-| `--duckdb` | `baliza.duckdb` | Path to DuckDB file |
-| `--dataset` | `baliza_raw` | Dataset/schema name |
-| `--date-col` | `dataPublicacao` | Date column for partitioning |
-
-### `export-daily` — Export a daily Parquet package
+### `consolidate` — Rebuild annual archives manually
 
 ```bash
-baliza export-daily --date 2024-01-15
+baliza consolidate --start-year 2021 [--force]
 ```
 
-Writes a self-contained directory for the given date with `contratos.parquet`, `orgaos.parquet`, `unidades.parquet`, and `_metadata.json`.
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--date` | required | Date (YYYY-MM-DD) |
-| `--output, -o` | `data/daily` | Output directory |
-| `--duckdb` | `baliza.duckdb` | Path to DuckDB file |
-| `--dataset` | `baliza_raw` | Dataset/schema name |
-
-### `status` — Show extraction status
-
-```bash
-baliza status
-```
-
-### `buffer-stats` — Show buffer statistics
-
-```bash
-baliza buffer-stats
-```
+Usually not needed: `sync` already consolidates at the end of a successful run. Use this to force a rebuild of frozen past years (`--force`).
 
 ## Environment variables
 
