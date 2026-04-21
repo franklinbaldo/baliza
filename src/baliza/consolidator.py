@@ -9,15 +9,12 @@ Reading is done via DuckDB httpfs directly from IA URLs (no local download).
 
 from __future__ import annotations
 
-import csv
 import datetime
 import hashlib
-import io
 import tempfile
 from pathlib import Path
 
 import duckdb
-import httpx
 import internetarchive as ia
 from rich.console import Console
 
