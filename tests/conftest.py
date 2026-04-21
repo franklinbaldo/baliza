@@ -244,6 +244,9 @@ def mock_ia_manifest(monkeypatch) -> Callable[[list[dict[str, Any]] | None], Non
                 raise ManifestReadError("simulated manifest read failure")
 
             monkeypatch.setattr("baliza.ia_uploader.read_manifest_from_ia", _raise)
+            # consolidator.py imports read_manifest_from_ia by name at
+            # import time, so the local binding also needs patching.
+            monkeypatch.setattr("baliza.consolidator.read_manifest_from_ia", _raise)
 
             def _try_empty() -> list[dict[str, Any]]:
                 return []
@@ -255,6 +258,7 @@ def mock_ia_manifest(monkeypatch) -> Callable[[list[dict[str, Any]] | None], Non
             return list(rows)
 
         monkeypatch.setattr("baliza.ia_uploader.read_manifest_from_ia", _reader)
+        monkeypatch.setattr("baliza.consolidator.read_manifest_from_ia", _reader)
         monkeypatch.setattr("baliza.ia_uploader.try_read_manifest_from_ia", _reader)
 
     return _install

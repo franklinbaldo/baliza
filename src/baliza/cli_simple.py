@@ -145,6 +145,7 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
     # on manifest freshness (monthly_uf shard `uploaded_at` vs canonical
     # `uploaded_at`) — zero-cost when already fresh.
     consolidated = False
+    consolidation_error: Exception | None = None
     if not dry_run and not no_consolidate and ia_access_key and ia_secret_key:
         try:
             with console.status("[bold green]Checking consolidation status...[/bold green]"):
@@ -159,9 +160,15 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                 )
             consolidated = True
         except Exception as e:
-            console.print(f"[yellow]⚠ Consolidation failed: {e}[/yellow]")
+            # Don't block extraction — fresh data capture is independent of
+            # consolidation. But record the error so we can exit non-zero at
+            # the end, which fires the workflow's report-failure job.
+            consolidation_error = e
+            console.print(f"[red]✗ Consolidation failed: {e}[/red]")
 
     if not batch:
+        if consolidation_error is not None:
+            raise typer.Exit(1)
         console.print("[green]✓ Everything up to date.[/green]")
         return
 
@@ -316,15 +323,27 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
 
     # 5. FINAL SUMMARY PANEL
     duration = datetime.now() - start_time_exec
+    if consolidated:
+        consolidation_status = "ran"
+    elif consolidation_error is not None:
+        consolidation_status = "FAILED"
+    else:
+        consolidation_status = "skipped"
     summary = (
         f"• [bold white]Total Records:[/] {total_records:,}\n"
         f"• [bold yellow]Quarantine:[/] {quarantine_count:,}\n"
         f"• [bold red]Errors:[/] {error_count}\n"
-        f"• [bold magenta]Consolidation catch-up:[/] {'ran' if consolidated else 'skipped'}\n"
+        f"• [bold magenta]Consolidation catch-up:[/] {consolidation_status}\n"
         f"• [bold cyan]Duration:[/] {duration.total_seconds():.1f}s"
     )
     console.print("\n")
     console.print(Panel(summary, title="[bold green]✓ Sincronização Finalizada[/]", expand=False))
+
+    # Surface a non-zero exit when anything went wrong so the workflow's
+    # `report-failure` job fires. Consolidation errors and per-month
+    # extraction errors are both sync-level failures.
+    if consolidation_error is not None or error_count > 0:
+        raise typer.Exit(1)
 
 
 @app.command("verify")
