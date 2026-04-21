@@ -16,7 +16,7 @@ class TestBalizaV2(unittest.TestCase):
             now = datetime.now()
             raw_data = {"test": "data"}
             engine.quarantine_record("test_res", now, "test_error", raw_data)
-            
+
             # Verify via Ibis
             q = engine.get_table("quarantine", schema="baliza_state")
             count = q.count().execute()
@@ -30,15 +30,15 @@ class TestBalizaV2(unittest.TestCase):
                 "identificador": "TEST-001",
                 "valor": 1000.50,
             }
-            
+
             # First ingestion
             engine.upsert_rows([mock_data], "test_table")
-            
+
             # Second ingestion with same PK but updated data
             updated_data = mock_data.copy()
             updated_data["valor"] = 1500.00
             engine.upsert_rows([updated_data], "test_table")
-            
+
             # Verify: should still have 1 row, but with updated value
             t = engine.get_table("test_table")
             res = t.execute()
@@ -50,7 +50,7 @@ class TestBalizaV2(unittest.TestCase):
         with BalizaEngine() as engine:
             rows = [{"numeroControlePNCP": f"ID-{i}", "val": i} for i in range(10)]
             engine.upsert_rows(rows, "batch_table")
-            
+
             t = engine.get_table("batch_table")
             self.assertEqual(t.count().execute(), 10)
 
