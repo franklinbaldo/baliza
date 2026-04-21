@@ -71,10 +71,37 @@ function readUrl(params: URLSearchParams | null | undefined): City | null {
 // Pure so it can be unit-tested without touching window.
 export function resolveInitialCity(opts: ResolveOpts = {}): ActiveCity {
   const fromUrl = readUrl(opts.urlParams);
-  if (fromUrl) return { ...fromUrl, source: 'url' };
   const fromStorage = readStorage(opts.storage);
+  if (fromUrl) {
+    // Homepage CTAs (MonitorGrid, CityPulse) usually carry only ?ibge=.
+    // `sanitize` fills `nome: 'Município'` and empty UF in that case, which
+    // would otherwise clobber the name/UF the user already had in storage —
+    // degrading nav/hero to "Município" after in-app navigation. When the
+    // URL ibge matches storage (or DEFAULT_CITY), borrow the known metadata
+    // while keeping source='url' (the URL is still what pinned this city).
+    const enriched = enrichUrlCity(fromUrl, fromStorage);
+    return { ...enriched, source: 'url' };
+  }
   if (fromStorage) return { ...fromStorage, source: 'storage' };
   return { ...DEFAULT_CITY, source: 'default' };
+}
+
+function enrichUrlCity(urlCity: City, storageCity: City | null): City {
+  const needsNome = urlCity.nome === 'Município';
+  const needsUf = !urlCity.uf;
+  if (!needsNome && !needsUf) return urlCity;
+  const known: City | null =
+    storageCity && storageCity.ibge === urlCity.ibge
+      ? storageCity
+      : urlCity.ibge === DEFAULT_CITY.ibge
+        ? { ...DEFAULT_CITY }
+        : null;
+  if (!known) return urlCity;
+  return {
+    ibge: urlCity.ibge,
+    nome: needsNome ? known.nome : urlCity.nome,
+    uf: needsUf ? known.uf : urlCity.uf,
+  };
 }
 
 // Reactive state — backed by $state so Svelte components re-render when the
