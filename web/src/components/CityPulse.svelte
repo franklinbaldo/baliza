@@ -193,7 +193,7 @@
         <article class="card pulse-col">
           <header class="col-head">
             <span class="col-kicker">Quem está comprando</span>
-            <h3>Órgãos mais ativos</h3>
+            <h3>Órgãos nas últimas publicações</h3>
           </header>
           {#if topOrgaos.length === 0}
             <p class="col-empty">Sem dados suficientes para agrupar.</p>
@@ -209,6 +209,9 @@
                 </li>
               {/each}
             </ul>
+            <p class="col-note">
+              Agrupamento das {FETCH_LIMIT} publicações mais recentes — para um ranking completo dos {SINCE_DAYS} dias, veja o painel da cidade.
+            </p>
           {/if}
           <footer class="col-foot">
             <a class="col-more" href={`${BASE}explorador`}>
@@ -387,6 +390,13 @@
     font-size: var(--text-sm);
     color: var(--neutral-500);
     margin: 0;
+  }
+  .col-note {
+    font-size: var(--text-xs);
+    color: var(--neutral-500);
+    font-style: italic;
+    margin: 0;
+    line-height: 1.4;
   }
   .col-foot {
     padding-top: var(--space-2);
