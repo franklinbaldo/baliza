@@ -244,11 +244,106 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                     month_end_dt = datetime.combine(end_of_month, datetime.min.time())
 
                     with PNCPExtractor(thread_engine, use_curl=not no_curl) as extractor:
-                        # 2. Fast path: sentinel means every expected page is
-                        # already on disk from a previous run. Skip probing
-                        # the API entirely and jump straight to ingest.
+                        # Validate each cached page on disk. `exists()` alone
+                        # would mis-count a zero-byte or corrupt file as
+                        # cached — we'd then skip fetch_page for that page,
+                        # write the sentinel, and let ingest_range silently
+                        # unlink the bad file, ending up with a month
+                        # uploaded with missing records. So validate the
+                        # cache here and unlink anything broken so
+                        # fetch_page sees a clean refetch.
+                        def _page_is_cached(p: int) -> bool:
+                            path = raw_month_dir / f"contratos_p{p}.json"
+                            if not path.exists() or path.stat().st_size == 0:
+                                return False
+                            try:
+                                with open(path) as fh:
+                                    data = json.load(fh)
+                            except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
+                                logger.warning(
+                                    "corrupt_cache_found",
+                                    file=str(path),
+                                    error=str(e),
+                                )
+                                try:
+                                    path.unlink()
+                                except OSError:
+                                    pass
+                                return False
+                            # Parse success alone isn't enough — a cached
+                            # `{}` would silently satisfy exists() + load()
+                            # but produce zero rows during ingest, and the
+                            # month would still write the sentinel and
+                            # upload with missing records.
+                            if isinstance(data, dict) and (
+                                "data" in data or "totalPaginas" in data
+                            ):
+                                return True
+                            logger.warning(
+                                "corrupt_cache_found",
+                                file=str(path),
+                                error="schema mismatch (no 'data' or 'totalPaginas' key)",
+                            )
+                            try:
+                                path.unlink()
+                            except OSError:
+                                pass
+                            return False
+
+                        # Sentinel optimisation: a prior run wrote .fetched
+                        # after fetching all expected pages, so we can read
+                        # totalPaginas from the cached page 1 and skip the
+                        # API probe. The sentinel only gates the API call,
+                        # NOT the per-page validation below — a gap in the
+                        # cache (e.g. ingest_range unlinked a corrupt page
+                        # between runs) must still be detected and refetched
+                        # instead of silently uploading an incomplete month.
+                        total_pages: int | None = None
                         if sentinel.exists():
-                            logger.info("month_cache_hit", month=month_str, source="sentinel")
+                            p1 = raw_month_dir / "contratos_p1.json"
+                            if p1.exists() and p1.stat().st_size > 0:
+                                try:
+                                    with open(p1) as fh:
+                                        _d = json.load(fh)
+                                    if isinstance(_d, dict) and isinstance(
+                                        _d.get("totalPaginas"), int
+                                    ):
+                                        total_pages = _d["totalPaginas"]
+                                except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+                                    total_pages = None
+                            if total_pages is None:
+                                # Sentinel exists but page 1 is gone/bad.
+                                # Drop the sentinel and fall back to probe.
+                                logger.warning(
+                                    "sentinel_cache_regressed",
+                                    month=month_str,
+                                    reason="page1_unreadable",
+                                )
+                                try:
+                                    sentinel.unlink()
+                                except OSError:
+                                    pass
+
+                        if total_pages is None:
+                            res = extractor.probe_range(
+                                "contratos", month_start_dt, month_end_dt
+                            )
+                            total_pages = res["total_pages"]
+
+                        missing_pages = [
+                            p
+                            for p in range(1, total_pages + 1)
+                            if not _page_is_cached(p)
+                        ]
+                        cached_pages = total_pages - len(missing_pages)
+
+                        if not missing_pages:
+                            logger.info(
+                                "month_cache_hit",
+                                month=month_str,
+                                source="all_pages_present",
+                                pages=total_pages,
+                            )
                             progress.update(
                                 tid,
                                 total=2,
@@ -256,109 +351,50 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                                 description=f"Month {month_str} [Cache hit]",
                             )
                         else:
-                            # 3. Probe (Page 1) to learn totalPaginas.
-                            res = extractor.probe_range(
-                                "contratos", month_start_dt, month_end_dt
-                            )
-                            total_pages = res["total_pages"]
-
-                            # Which pages are already on disk and valid?
-                            # `exists()` alone would mis-count a zero-byte
-                            # or corrupt file as cached — we'd then skip
-                            # fetch_page for that page, write the sentinel,
-                            # and let ingest_range silently unlink the bad
-                            # file, ending up with a month uploaded with
-                            # missing records. So validate the cache here
-                            # and unlink anything broken so fetch_page sees
-                            # a clean refetch.
-                            def _page_is_cached(p: int) -> bool:
-                                path = raw_month_dir / f"contratos_p{p}.json"
-                                if not path.exists() or path.stat().st_size == 0:
-                                    return False
-                                try:
-                                    with open(path) as fh:
-                                        data = json.load(fh)
-                                except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
-                                    logger.warning(
-                                        "corrupt_cache_found",
-                                        file=str(path),
-                                        error=str(e),
-                                    )
-                                    try:
-                                        path.unlink()
-                                    except OSError:
-                                        pass
-                                    return False
-                                # Parse success alone isn't enough — a cached
-                                # `{}` would silently satisfy exists() + load()
-                                # but produce zero rows during ingest, and the
-                                # month would still write the sentinel and
-                                # upload with missing records.
-                                if isinstance(data, dict) and (
-                                    "data" in data or "totalPaginas" in data
-                                ):
-                                    return True
+                            # A sentinel-path regression (cache gap after
+                            # sentinel was written) is the interesting case
+                            # to log — flag it so operators can investigate.
+                            if sentinel.exists():
                                 logger.warning(
-                                    "corrupt_cache_found",
-                                    file=str(path),
-                                    error="schema mismatch (no 'data' or 'totalPaginas' key)",
+                                    "sentinel_cache_regressed",
+                                    month=month_str,
+                                    reason="missing_pages",
+                                    pages_missing=len(missing_pages),
+                                    pages_total=total_pages,
                                 )
                                 try:
-                                    path.unlink()
+                                    sentinel.unlink()
                                 except OSError:
                                     pass
-                                return False
-
-                            missing_pages = [
-                                p
-                                for p in range(1, total_pages + 1)
-                                if not _page_is_cached(p)
-                            ]
-                            cached_pages = total_pages - len(missing_pages)
-
-                            if not missing_pages:
-                                logger.info(
-                                    "month_cache_hit",
-                                    month=month_str,
-                                    source="all_pages_present",
-                                    pages=total_pages,
-                                )
+                            logger.info(
+                                "month_cache_partial" if cached_pages else "month_cache_miss",
+                                month=month_str,
+                                pages_cached=cached_pages,
+                                pages_total=total_pages,
+                                pages_to_fetch=len(missing_pages),
+                            )
+                            progress.update(
+                                tid,
+                                total=len(missing_pages) + 2,
+                                advance=1,
+                                description=f"Month {month_str} [Pages 0/{len(missing_pages)}]",
+                            )
+                            for i, p in enumerate(missing_pages, start=1):
                                 progress.update(
                                     tid,
-                                    total=2,
-                                    advance=1,
-                                    description=f"Month {month_str} [Cache hit]",
+                                    description=f"Month {month_str} [Pages {i}/{len(missing_pages)}]",
                                 )
-                            else:
-                                logger.info(
-                                    "month_cache_partial" if cached_pages else "month_cache_miss",
-                                    month=month_str,
-                                    pages_cached=cached_pages,
-                                    pages_total=total_pages,
-                                    pages_to_fetch=len(missing_pages),
+                                extractor.fetch_page(
+                                    "contratos", month_start_dt, month_end_dt, p
                                 )
-                                progress.update(
-                                    tid,
-                                    total=len(missing_pages) + 2,
-                                    advance=1,
-                                    description=f"Month {month_str} [Pages 0/{len(missing_pages)}]",
-                                )
-                                for i, p in enumerate(missing_pages, start=1):
-                                    progress.update(
-                                        tid,
-                                        description=f"Month {month_str} [Pages {i}/{len(missing_pages)}]",
-                                    )
-                                    extractor.fetch_page(
-                                        "contratos", month_start_dt, month_end_dt, p
-                                    )
-                                    progress.update(tid, advance=1)
+                                progress.update(tid, advance=1)
 
-                            # All expected pages are now on disk — write the
-                            # sentinel so the next run skips probe_range
-                            # entirely. IAUploader.upload_month rmtrees the
-                            # whole directory on success, taking this with it.
-                            raw_month_dir.mkdir(parents=True, exist_ok=True)
-                            sentinel.touch()
+                        # All expected pages are now on disk — write the
+                        # sentinel so the next run can skip probe_range.
+                        # IAUploader.upload_month rmtrees the whole
+                        # directory on success, taking this with it.
+                        raw_month_dir.mkdir(parents=True, exist_ok=True)
+                        sentinel.touch()
 
                         # 4. Ingest
                         progress.update(tid, description=f"Month {month_str} [Ingesting]")
