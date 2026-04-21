@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
 from baliza.engine import BalizaEngine
-from baliza.extractor import PNCPExtractor
+from baliza.extractor import PAGE_SIZE, PNCPExtractor
 
 
 class TestPNCPExtractorV2(unittest.TestCase):
@@ -111,6 +111,58 @@ class TestPNCPExtractorV2(unittest.TestCase):
             self.assertEqual(result["total_pages"], 10)
             self.assertEqual(result["total_registries"], 1000)
             mock_fetch.assert_called_with("contratos", start_date, end_date, page=1)
+
+    def test_fetch_page_uses_pncp_max_page_size(self):
+        """httpx path must send tamanhoPagina=PAGE_SIZE (500), matching the
+        declarative pipeline config. A prior bug hard-coded 100 here, causing
+        5x the page count and 5x the cache-resume log noise."""
+        start_date = datetime(2024, 3, 1)
+        end_date = datetime(2024, 3, 31)
+
+        self.assertEqual(PAGE_SIZE, 500)
+
+        mock_data = {"data": [], "totalPaginas": 1}
+        with patch("baliza.extractor.Path") as mock_path:
+            mock_path.side_effect = lambda *args: (
+                Path(self.test_dir, *args) if "data/raw" in str(args) else Path(*args)
+            )
+            with patch.object(self.extractor.client, "stream") as mock_stream:
+                mock_stream.return_value = self._mock_stream_response(mock_data)
+                self.extractor.fetch_page("contratos", start_date, end_date, page=1)
+
+                _, kwargs = mock_stream.call_args
+                self.assertEqual(kwargs["params"]["tamanhoPagina"], 500)
+
+    def test_ingest_range_drops_corrupt_cache_files(self):
+        """Since fetch_page no longer re-validates cached JSON on every call,
+        ingest_range owns corruption recovery: unlink the bad file and move on
+        so downstream runs can refetch just that page."""
+        start_date = datetime(2024, 3, 1)
+        month_str = "2024-03"
+
+        with patch("baliza.extractor.Path") as mock_path:
+
+            def path_side_effect(*args):
+                p_str = "/".join(map(str, args))
+                if "data/raw" in p_str:
+                    return Path(self.test_dir, *args)
+                return Path(*args)
+
+            mock_path.side_effect = path_side_effect
+
+            raw_dir = Path(self.test_dir) / "data/raw" / month_str
+            raw_dir.mkdir(parents=True, exist_ok=True)
+            good = raw_dir / "contratos_p1.json"
+            bad = raw_dir / "contratos_p2.json"
+            good.write_text(json.dumps({"data": [], "totalPaginas": 2}))
+            bad.write_text("{not valid json")
+
+            stats = self.extractor.ingest_range(start_date)
+
+            self.assertFalse(bad.exists(), "corrupt file should be unlinked")
+            self.assertTrue(good.exists(), "valid files must survive")
+            # Empty 'data' arrays count as zero valid rows, not an error.
+            self.assertEqual(stats["valid"], 0)
 
 
 if __name__ == "__main__":

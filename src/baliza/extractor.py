@@ -22,6 +22,17 @@ from .utils import validate_url
 logger = structlog.get_logger()
 console = Console()
 
+# PNCP honours up to 500 items per page for the `contratos` endpoint.
+# The declarative pipeline config (see scripts/test_parameter_variations.py)
+# already uses 500; we mirror it here so the simple CLI extractor doesn't
+# issue 5x as many requests for the same data.
+PAGE_SIZE = 500
+
+# Sentinel written once every expected page for a month is on disk. Presence
+# alone is the signal; contents are irrelevant. Lives inside the month
+# directory so IAUploader.upload_month's existing rmtree cleans it up.
+FETCHED_SENTINEL = ".fetched"
+
 
 def _flatten_contrato(dumped: dict[str, Any]) -> dict[str, Any]:
     """Flatten a Pydantic-dumped RecuperarContratoDTO into the snake_case
@@ -155,17 +166,14 @@ class PNCPExtractor:
         month_str = start_date.strftime("%Y-%m")
         filename = Path(f"data/raw/{month_str}/{resource}_p{page}.json")
 
-        # RESUMABILITY: Check if valid file already exists
+        # RESUMABILITY: trust a non-empty cached file. Actual parse happens
+        # exactly once inside ingest_range — if the bytes are corrupt, that
+        # call raises and the file is unlinked there. Re-parsing every cached
+        # page on every sync run turned the log into a torrent of
+        # "resuming_from_cache" messages for no actual verification benefit.
         if filename.exists() and filename.stat().st_size > 0:
-            try:
-                with open(filename) as f:
-                    data = json.load(f)
-                if "data" in data or "totalPaginas" in data:
-                    logger.info("resuming_from_cache", file=str(filename))
-                    return data
-            except (json.JSONDecodeError, KeyError):
-                logger.warning("corrupt_cache_found", file=str(filename))
-                filename.unlink()
+            with open(filename) as f:
+                return json.load(f)
 
         start_str = start_date.strftime("%Y%m%d")
         end_str = end_date.strftime("%Y%m%d")
@@ -174,7 +182,7 @@ class PNCPExtractor:
             "dataInicial": start_str,
             "dataFinal": end_str,
             "pagina": page,
-            "tamanhoPagina": 100,
+            "tamanhoPagina": PAGE_SIZE,
         }
         logger.info("fetching_page_params", resource=resource, url=url, params=params)
 
@@ -188,7 +196,7 @@ class PNCPExtractor:
                         "accept: */*",
                         "-H",
                         f"User-Agent: {self.headers['User-Agent']}",
-                        f"{url}?dataInicial={start_str}&dataFinal={end_str}&pagina={page}&tamanhoPagina=500",
+                        f"{url}?dataInicial={start_str}&dataFinal={end_str}&pagina={page}&tamanhoPagina={PAGE_SIZE}",
                     ],
                     capture_output=True,
                     text=True,
@@ -302,8 +310,18 @@ class PNCPExtractor:
         self._archive_legacy_contratos_table()
 
         for json_file in raw_dir.glob("*.json"):
-            with open(json_file) as f:
-                data = json.load(f)
+            try:
+                with open(json_file) as f:
+                    data = json.load(f)
+            except (OSError, json.JSONDecodeError) as e:
+                # Corruption surfaces here (we no longer re-validate on every
+                # fetch_page cache hit). Unlink so the next sync refetches.
+                logger.warning("corrupt_cache_found", file=str(json_file), error=str(e))
+                try:
+                    json_file.unlink()
+                except OSError:
+                    pass
+                continue
 
             entries = data.get("data", [])
             valid_rows = []
