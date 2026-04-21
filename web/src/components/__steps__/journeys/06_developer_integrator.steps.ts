@@ -124,16 +124,24 @@ describeFeature(feature, ({ Scenario }) => {
     // here and assert the data-embed attribute the CSS keys on.
     const querySpy = vi.fn().mockResolvedValue({ toArray: () => [] });
 
+    // Replay of the `syncEmbed` function from Layout.astro's inline boot
+    // script. Production calls it on load and on every `astro:page-load`;
+    // jsdom does not execute `<head>` scripts or ClientRouter swaps, so we
+    // invoke it manually to exercise the same contract.
+    const syncEmbed = () => {
+      if (new URLSearchParams(window.location.search).get('embed') === 'true') {
+        document.documentElement.setAttribute('data-embed', 'true');
+      } else {
+        document.documentElement.removeAttribute('data-embed');
+      }
+    };
+
     Given('a third-party page loads "/explorador?sql=SELECT%201&embed=true" inside an iframe', async () => {
       cleanup();
       vi.restoreAllMocks();
       document.documentElement.removeAttribute('data-embed');
       window.history.replaceState({}, '', '/?sql=SELECT%201&embed=true');
-      // Replay the inline boot script from Layout.astro so the assertion
-      // exercises the same contract a real page load sets up.
-      if (new URLSearchParams(window.location.search).get('embed') === 'true') {
-        document.documentElement.setAttribute('data-embed', 'true');
-      }
+      syncEmbed();
       vi.spyOn(iaManifestModule, 'getLatestParquetUrl').mockResolvedValue(
         'https://archive.org/download/baliza-pncp-2025-01/contratos-2025-01.parquet',
       );
@@ -154,6 +162,12 @@ describeFeature(feature, ({ Scenario }) => {
     And('the SQL is auto-executed on mount', async () => {
       await waitFor(() => expect(querySpy).toHaveBeenCalled(), { timeout: 2000 });
       expect(querySpy.mock.calls[0]?.[0]).toBe('SELECT 1');
+      // Navigating away from the embed URL via ClientRouter re-fires
+      // `astro:page-load`, which re-runs `syncEmbed`. The flag must clear
+      // so header/footer/nav return on the destination page.
+      window.history.pushState({}, '', '/');
+      syncEmbed();
+      expect(document.documentElement.hasAttribute('data-embed')).toBe(false);
     });
   });
 

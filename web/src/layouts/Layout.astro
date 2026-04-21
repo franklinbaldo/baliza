@@ -34,12 +34,20 @@ const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
         }
         // Embed mode: a third-party iframe loads us with ?embed=true expecting
         // no header, no footer, and no navigation. Flag the <html> element
-        // before first paint so the chrome never flashes in.
-        try {
-          if (new URLSearchParams(window.location.search).get('embed') === 'true') {
-            document.documentElement.setAttribute('data-embed', 'true');
-          }
-        } catch (_) {}
+        // before first paint so the chrome never flashes in, and re-evaluate
+        // after every ClientRouter navigation so the flag tracks the URL
+        // instead of sticking to whichever page the user entered on.
+        function syncEmbed() {
+          try {
+            if (new URLSearchParams(window.location.search).get('embed') === 'true') {
+              document.documentElement.setAttribute('data-embed', 'true');
+            } else {
+              document.documentElement.removeAttribute('data-embed');
+            }
+          } catch (_) {}
+        }
+        syncEmbed();
+        document.addEventListener('astro:page-load', syncEmbed);
       })();
     </script>
     <Metadata title={title} description={description} />
