@@ -46,7 +46,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     Given('the user opens "/contratacao?id=00000000000191-1-000001/2024"', noop);
     When('the user hovers the term "Dispensa"', noop);
     Then('the user sees a tooltip explaining what a "Dispensa" is in plain language', () =>
-      plannedStep('inline glossary tooltips'),
+      plannedStep('inline glossary tooltip for procurement jargon'),
     );
   });
 
@@ -109,7 +109,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   Scenario('Geographic context is shown when available', ({ Given, Then }) => {
     Given('the user opens "/municipio?ibge=3550308"', noop);
     Then('the user sees the municipality population and the state it belongs to', () =>
-      plannedStep('geographic enrichment for municipalities'),
+      plannedStep('IBGE-based geo lookup on the municipality page'),
     );
   });
 

@@ -161,29 +161,4 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       expect(rows.length).toBe(12);
     });
   });
-
-  Scenario('Crossover with journey 7 — journalist subscribes to a saved query', ({ Given, When, Then }) => {
-    Given('a search result list is visible for "hospital municipal"', async () => {
-      global.fetch = vi
-        .fn()
-        .mockImplementation(async () => new Response(JSON.stringify(HOSPITAL_PAYLOAD), { status: 200 }));
-      render(SearchHero);
-      await tick();
-      await typeInSearch('hospital municipal');
-      await waitFor(() => expect(screen.getByRole('listbox')).toBeTruthy(), { timeout: 2000 });
-    });
-
-    When('the user clicks "Salvar vigilância"', async () => {
-      const btn = screen.getByTestId('save-watch');
-      await fireEvent.click(btn);
-      await tick();
-    });
-
-    Then('the user is offered an RSS URL for new matches', async () => {
-      await waitFor(() => {
-        const offer = screen.getByTestId('watch-offer');
-        expect(offer.textContent).toMatch(/\/alertas\/hospital-municipal\.xml/);
-      });
-    });
-  });
 });

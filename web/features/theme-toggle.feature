@@ -1,4 +1,4 @@
-@journey3 @journey4 @journey5 @journey7 @green
+@journey3 @journey4 @journey5 @green
 Feature: Theme Toggle
   A visitor can toggle between light and dark themes, and their choice
   sticks across reloads and respects system preferences on first visit.

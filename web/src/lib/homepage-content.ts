@@ -117,7 +117,7 @@ export const JOURNEYS = [
     slug: "cidadao",
     role: "Cidadão informado",
     question:
-      "A notícia disse que o hospital X recebeu R$ Y — é verdade? Quero busca em linguagem comum e um glossário ao lado.",
+      "A notícia disse que o hospital X recebeu R$ Y — é verdade? Quero busca em linguagem comum.",
     status: "wip" as const,
     href: "#busca",
     icon: "👤",
@@ -142,9 +142,9 @@ export const JOURNEYS = [
   },
   {
     slug: "auditor",
-    role: "Auditor / watchdog",
+    role: "Observador recorrente",
     question:
-      "Quero alertas (RSS, webhook, e-mail) quando uma anomalia recorrente aparecer — novo contrato para CNPJ X, dispensas acima de Y em Z.",
+      "Quero alertas quando surgir algo que bate com um padrão salvo — novos contratos para um CNPJ, dispensas acima de X, anomalias em um estado.",
     status: "planned" as const,
     href: "/sobre",
     icon: "🛡️",

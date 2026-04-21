@@ -14,7 +14,8 @@ Feature: Journey 4 — Informed citizen
 
   @planned @glossary
   Scenario: Hover a technical term to see a plain-language definition
-    # Planned: glossary tooltips are not implemented.
+    # Planned: glossary tooltips not implemented. Static-compatible — a
+    # bundled term→definition map rendered by a Svelte tooltip is enough.
     Given the user opens "/contratacao?id=00000000000191-1-000001/2024"
     When the user hovers the term "Dispensa"
     Then the user sees a tooltip explaining what a "Dispensa" is in plain language
@@ -33,7 +34,8 @@ Feature: Journey 4 — Informed citizen
 
   @planned @plain-language
   Scenario: Geographic context is shown when available
-    # Planned: no geo enrichment today.
+    # Planned: no geo enrichment today. Static-compatible — a bundled
+    # IBGE code → municipality/state/region lookup (JSON) is enough.
     Given the user opens "/municipio?ibge=3550308"
     Then the user sees the municipality population and the state it belongs to
 

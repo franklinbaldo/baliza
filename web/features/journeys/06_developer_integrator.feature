@@ -36,7 +36,8 @@ Feature: Journey 6 — Developer integrator
 
   @planned @embed
   Scenario: Explorer can be embedded via an iframe with a query string
-    # Planned: embed mode is not implemented.
+    # Planned: embed mode is not implemented. Static-compatible — driven
+    # purely by URL query params (no backend), toggling chrome via CSS.
     Given a third-party page loads "/explorador?sql=SELECT%201&embed=true" inside an iframe
     Then the chrome (header, footer, navigation) is hidden
     And the SQL is auto-executed on mount

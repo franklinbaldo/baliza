@@ -30,7 +30,9 @@ Feature: Journey 2 — Public buyer
 
   @planned @catmat
   Scenario: Resolve a CATMAT or CATSER code from a free-text description
-    # Planned: catalog resolver does not exist.
+    # Planned: catalog resolver does not exist. Static-compatible — a
+    # bundled CATMAT taxonomy JSON (or Parquet on IA queried via DuckDB WASM)
+    # satisfies the lookup without a backend.
     Given the user types "papel sulfite branco A4 75g" into a catalog input
     Then the user sees the most likely CATMAT codes ranked by match confidence
 

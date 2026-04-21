@@ -4,8 +4,6 @@
   import { PROJECT_MISSION, SEARCH_HINTS } from '../lib/homepage-content';
   import { isPncpId, parsePncpId } from '../lib/pncpId';
   import { formatBRL, formatDate, normalizeSearchInput } from '../lib/format';
-  import { suggestAccented } from '../lib/accentSuggest';
-  import { saveWatch, slugify as slugifyShared } from '../lib/watches';
   import EmptyState from './EmptyState.svelte';
   import AlertBanner from './AlertBanner.svelte';
 
@@ -78,20 +76,15 @@
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let searchToken = 0;
 
-  // Slug used to suggest a saved-watch RSS URL. The endpoint is @planned, but
-  // the URL shape is part of the public contract (see VISION.md → "Auditor /
-  // watchdog"); emitting it here lets journalists copy the future-proof link
-  // before the feed exists.
-  const slugifyWatch = slugifyShared;
-  const watchSlug = $derived(slugifyWatch(lastSearchedTerm));
-  const watchUrl = $derived(watchSlug ? `/baliza/alertas/${watchSlug}.xml` : '');
-  let watchOffered = $state(false);
-
-  const accentSuggestion = $derived(
-    didSearch && results.length === 0 && !searchError
-      ? suggestAccented(lastSearchedTerm)
-      : null,
-  );
+  function slugifyFilename(raw: string): string {
+    return raw
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 64);
+  }
 
   const ufOptions = $derived(
     Array.from(
@@ -168,7 +161,6 @@
       didSearch = true;
       ufFilter = '';
       modalidadeFilter = '';
-      watchOffered = false;
     } catch (err) {
       if (token !== searchToken) return;
       results = [];
@@ -231,27 +223,6 @@
     }
   }
 
-  function retryWithSuggestion() {
-    if (!accentSuggestion) return;
-    query = accentSuggestion;
-    if (debounceTimer) clearTimeout(debounceTimer);
-    runSearch(accentSuggestion);
-  }
-
-  function offerWatch() {
-    watchOffered = true;
-    persistWatchForTerm(lastSearchedTerm);
-  }
-
-  // Persist a watch entry in localStorage via the shared `watches` module.
-  // The fuller alerting pipeline (RSS route, webhook dispatcher) is @planned,
-  // but the saved query itself is a local artifact that survives page reloads
-  // and feeds the "Minhas vigilâncias" list surfaced on the homepage.
-  function persistWatchForTerm(term: string) {
-    if (!term) return;
-    saveWatch({ label: term, kind: 'query', term, slug: slugifyWatch(term) });
-  }
-
   // Markdown export is the journalist's counterpart to CSV: the clipboard
   // payload is a ready-to-paste GFM table with one row per visible result.
   function mdEscape(value: unknown): string {
@@ -298,7 +269,7 @@
       const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      const slug = slugifyWatch(lastSearchedTerm) || 'resultados';
+      const slug = slugifyFilename(lastSearchedTerm) || 'resultados';
       a.href = url;
       a.download = `baliza-busca-${slug}.md`;
       document.body.appendChild(a);
@@ -344,7 +315,7 @@
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    const slug = slugifyWatch(lastSearchedTerm) || 'resultados';
+    const slug = slugifyFilename(lastSearchedTerm) || 'resultados';
     a.href = url;
     a.download = `baliza-busca-${slug}.csv`;
     document.body.appendChild(a);
@@ -419,13 +390,6 @@
             title="Nenhum resultado"
             message="A busca PNCP não encontrou contratações para este termo."
           />
-          {#if accentSuggestion}
-            <div class="accent-suggestion" role="status" aria-live="polite">
-              Tentar com acentos: <button type="button" class="link-btn" onclick={retryWithSuggestion}>
-                {accentSuggestion}
-              </button>
-            </div>
-          {/if}
         {:else if results.length > 0}
           <div class="result-toolbar" aria-label="Filtros e ações da busca">
             <div class="filters">
@@ -464,18 +428,8 @@
               <button type="button" class="btn btn-outline btn-sm" data-testid="export-markdown" onclick={exportMarkdown}>
                 {mdCopied ? 'Markdown copiado ✓' : 'Exportar Markdown'}
               </button>
-              <button type="button" class="btn btn-outline btn-sm" data-testid="save-watch" onclick={offerWatch}>
-                Salvar vigilância
-              </button>
             </div>
           </div>
-          {#if watchOffered && watchUrl}
-            <div class="watch-offer" role="status" aria-live="polite" data-testid="watch-offer">
-              Vigilância salva. RSS disponível em
-              <code class="watch-url">{watchUrl}</code>
-              <span class="watch-hint">(alimentado no futuro pela extração diária)</span>
-            </div>
-          {/if}
           <ul class="results-list" role="listbox" aria-label="Resultados da busca PNCP">
             {#each filteredResults as item (item.numero_controle_pncp)}
               <li role="option" aria-selected="false">
@@ -749,42 +703,6 @@
     gap: var(--space-xs);
     flex-wrap: wrap;
   }
-
-  .watch-offer {
-    margin-top: var(--space-xs);
-    padding: var(--space-xs) var(--space-sm);
-    background: var(--color-base-200);
-    border: 1px dashed var(--color-primary);
-    border-radius: var(--radius-sm);
-    font-size: var(--font-size-xs);
-    color: var(--color-secondary);
-    text-align: left;
-  }
-
-  .watch-url {
-    font-family: var(--font-mono);
-    color: var(--color-primary);
-    font-weight: 700;
-  }
-
-  .accent-suggestion {
-    margin-top: var(--space-sm);
-    text-align: center;
-    font-size: var(--font-size-sm);
-    color: var(--color-secondary);
-  }
-
-  .link-btn {
-    background: none;
-    border: none;
-    color: var(--color-primary);
-    text-decoration: underline;
-    cursor: pointer;
-    font: inherit;
-    padding: 0;
-  }
-
-  .link-btn:hover { text-decoration: none; }
 
   .results-list {
     list-style: none;

@@ -106,7 +106,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   Scenario('Resolve a CATMAT or CATSER code from a free-text description', ({ Given, Then }) => {
     Given('the user types "papel sulfite branco A4 75g" into a catalog input', noop);
     Then('the user sees the most likely CATMAT codes ranked by match confidence', () =>
-      plannedStep('CATMAT/CATSER catalog resolver'),
+      plannedStep('CATMAT/CATSER resolver backed by a bundled taxonomy'),
     );
   });
 

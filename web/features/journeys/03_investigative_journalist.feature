@@ -37,11 +37,3 @@ Feature: Journey 3 — Investigative journalist
     Given the user opens "/orgao?cnpj=00000000000191"
     Then the user sees the top five suppliers for that agency
     And the user sees a monthly contract-count chart for the last twelve months
-
-  @green @permalink
-  Scenario: Crossover with journey 7 — journalist subscribes to a saved query
-    # crosses @journey7
-    # Covered by SearchHero "Salvar vigilância" button → /alertas/<slug>.xml offer.
-    Given a search result list is visible for "hospital municipal"
-    When the user clicks "Salvar vigilância"
-    Then the user is offered an RSS URL for new matches
