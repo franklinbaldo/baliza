@@ -75,10 +75,14 @@ export async function getIBGECode(cityName: string, stateName: string): Promise<
   const results = await res.json();
   if (!Array.isArray(results) || results.length === 0) return null;
 
-  const match = (results as IBGEResult[]).find((m) => 
+  // Strict match by city + state. Homonymous names (e.g. "São Francisco"
+  // exists in a dozen states) make a first-result fallback unsafe — it would
+  // silently pin the wrong IBGE on the shared city context. When we can't
+  // confirm the state, surface null and let the caller show an error.
+  const match = (results as IBGEResult[]).find((m) =>
     m.nome.toLowerCase() === cityName.toLowerCase() &&
     (stateName === "" || m.microrregiao.mesorregiao.UF.nome.toLowerCase() === stateName.toLowerCase())
   );
 
-  return match ? String(match.id) : String(results[0].id);
+  return match ? String(match.id) : null;
 }
