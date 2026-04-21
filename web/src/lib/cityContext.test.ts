@@ -75,4 +75,49 @@ describe('resolveInitialCity', () => {
     expect(got.uf).toBe('');
     expect(got.source).toBe('url');
   });
+
+  it('borrows name/UF from storage when URL has only ibge', () => {
+    // Simulates clicking /municipio?ibge=3550308 after the user has already
+    // picked São Paulo via CityPicker — nav/hero should still say "São Paulo/SP".
+    const got = resolveInitialCity({
+      urlParams: new URLSearchParams('?ibge=3550308'),
+      storage: storage({
+        'baliza-city': JSON.stringify({ ibge: '3550308', nome: 'São Paulo', uf: 'SP' }),
+      }),
+    });
+    expect(got).toEqual({
+      ibge: '3550308',
+      nome: 'São Paulo',
+      uf: 'SP',
+      source: 'url',
+    });
+  });
+
+  it('borrows name/UF from DEFAULT_CITY for homepage CTAs without storage', () => {
+    // MonitorGrid links to municipio?ibge=1100205 — a cold visitor hitting
+    // that URL should land on "Porto Velho/RO", not "Município".
+    const got = resolveInitialCity({
+      urlParams: new URLSearchParams('?ibge=1100205'),
+      storage: storage(),
+    });
+    expect(got).toEqual({
+      ibge: DEFAULT_CITY.ibge,
+      nome: DEFAULT_CITY.nome,
+      uf: DEFAULT_CITY.uf,
+      source: 'url',
+    });
+  });
+
+  it('does not borrow from storage when ibge differs', () => {
+    const got = resolveInitialCity({
+      urlParams: new URLSearchParams('?ibge=3550308'),
+      storage: storage({
+        'baliza-city': JSON.stringify({ ibge: '3304557', nome: 'Rio', uf: 'RJ' }),
+      }),
+    });
+    expect(got.ibge).toBe('3550308');
+    expect(got.nome).toBe('Município');
+    expect(got.uf).toBe('');
+    expect(got.source).toBe('url');
+  });
 });
