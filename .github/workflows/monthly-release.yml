@@ -1,155 +1,74 @@
 name: Monthly Release
 
-# Secrets: o workflow usa apenas o GITHUB_TOKEN padrão para criar publicações.
+# Runs on the 1st of every month to backfill the prior month onto
+# Internet Archive (via `baliza sync --force-month`) and publish a
+# GitHub release pointing at the resulting IA item.
 on:
   schedule:
     - cron: '0 4 1 * *'
   workflow_dispatch:
+    inputs:
+      reference:
+        description: 'Month to release (YYYY-MM). Defaults to previous month.'
+        required: false
 
 permissions:
-  contents: read
-  actions: read
+  contents: write
   issues: write
+
+concurrency:
+  group: monthly-release
+  cancel-in-progress: false
 
 jobs:
   release:
-    name: Build and publish monthly dataset
+    name: Backfill and release previous month
     runs-on: ubuntu-latest
-    env:
-      IA_SUMMARY_PATH: internet-archive-summary.json
+    timeout-minutes: 360
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-
-      - name: Install project
-        run: |
-          python -m pip install --upgrade pip
-          pip install .
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
 
       - name: Resolve reference month
         id: reference
         run: |
-          python - <<'PY'
-          from datetime import datetime, timedelta, timezone
-
-          today = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-          previous_month = today - timedelta(days=1)
-          reference = previous_month.strftime('%Y-%m')
-          year, month = reference.split('-')
-
-          with open('$GITHUB_OUTPUT', 'a', encoding='utf-8') as fh:
-            fh.write(f"reference={reference}\n")
-            fh.write(f"year={year}\n")
-            fh.write(f"month={month}\n")
-          PY
+          if [ -n "${{ inputs.reference }}" ]; then
+            REF="${{ inputs.reference }}"
+          else
+            REF=$(date -u -d "$(date -u +%Y-%m-01) -1 day" +%Y-%m)
+          fi
+          echo "reference=$REF" >> "$GITHUB_OUTPUT"
+          echo "ia_identifier=baliza-pncp-$REF" >> "$GITHUB_OUTPUT"
 
       - name: Backfill previous month
-        run: |
-          baliza backfill ${{ steps.reference.outputs.reference }} ${{ steps.reference.outputs.reference }} \
-            --duckdb baliza.duckdb \
-            --dataset baliza_raw
-
-      - name: Export parquet for reference month
-        run: |
-          python scripts/export_parquet.py \
-            contratos \
-            --duckdb baliza.duckdb \
-            --dataset baliza_raw \
-            --output-dir data/contratos \
-            --date-col dataPublicacaoPncp \
-            --fallback-date-col dataAtualizacao \
-            --target-month ${{ steps.reference.outputs.reference }}
-
-      - name: Build manifest
-        id: manifest
-        env:
-          MANIFEST_DIR: data/contratos/ano=${{ steps.reference.outputs.year }}/mes=${{ steps.reference.outputs.month }}
-          DATASET_VERSION: ${{ steps.reference.outputs.reference }}
-        run: |
-          python scripts/build_manifest.py \
-            --parquet-dir "$MANIFEST_DIR" \
-            --dataset-version "$DATASET_VERSION"
-          python - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          manifest_path = Path(os.environ['MANIFEST_DIR']) / 'manifest.json'
-          data = json.loads(manifest_path.read_text(encoding='utf-8'))
-          body = (
-              f"Dataset version: {data['dataset_version']}\n"
-              f"Row count: {data['row_count']}\n"
-              f"Interval: {data['min_data']} → {data['max_data']}\n"
-          )
-          with open('$GITHUB_OUTPUT', 'a', encoding='utf-8') as fh:
-            fh.write('manifest_path=' + str(manifest_path) + '\n')
-            fh.write('release_body<<EOF\n')
-            fh.write(body)
-            fh.write('EOF\n')
-          PY
-
-      - name: Package monthly snapshot
-        env:
-          MANIFEST_DIR: data/contratos/ano=${{ steps.reference.outputs.year }}/mes=${{ steps.reference.outputs.month }}
-          REFERENCE: ${{ steps.reference.outputs.reference }}
-        run: |
-          tar -czf contratos-${REFERENCE}.tar.gz "$MANIFEST_DIR"
-
-      - name: Install Internet Archive client
-        if: ${{ secrets.IA_ACCESS_KEY && secrets.IA_SECRET_KEY }}
-        run: |
-          pip install internetarchive
-
-      - name: Upload package to Internet Archive
-        if: ${{ secrets.IA_ACCESS_KEY && secrets.IA_SECRET_KEY }}
         env:
           IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
           IA_SECRET_KEY: ${{ secrets.IA_SECRET_KEY }}
-          MANIFEST_PATH: ${{ steps.manifest.outputs.manifest_path }}
-          REFERENCE: ${{ steps.reference.outputs.reference }}
         run: |
-          python scripts/upload_internet_archive.py \
-            --file contratos-${REFERENCE}.tar.gz \
-            --manifest "$MANIFEST_PATH" \
-            --identifier baliza-contratos-${REFERENCE} \
-            --metadata-output "$IA_SUMMARY_PATH"
+          uv run baliza sync --force-month "${{ steps.reference.outputs.reference }}"
 
-      - name: Publicar artefato sincronizado com o Internet Archive
-        if: ${{ secrets.IA_ACCESS_KEY && secrets.IA_SECRET_KEY }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: internet-archive-${{ steps.reference.outputs.reference }}
-          path: |
-            contratos-${{ steps.reference.outputs.reference }}.tar.gz
-            ${{ env.IA_SUMMARY_PATH }}
+      - name: Verify upload on Internet Archive
+        run: |
+          uv run baliza verify \
+            --start "${{ steps.reference.outputs.reference }}-01" \
+            --end "${{ steps.reference.outputs.reference }}-01"
 
       - name: Create release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.reference.outputs.reference }}
-          release_name: Baliza contratos ${{ steps.reference.outputs.reference }}
-          body: ${{ steps.manifest.outputs.release_body }}
+          name: Baliza contratos ${{ steps.reference.outputs.reference }}
+          body: |
+            Monthly snapshot of PNCP contracts for ${{ steps.reference.outputs.reference }}.
+
+            Data is distributed via Internet Archive:
+            https://archive.org/details/${{ steps.reference.outputs.ia_identifier }}
           draft: false
           prerelease: false
-
-      - name: Upload release asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: contratos-${{ steps.reference.outputs.reference }}.tar.gz
-          asset_name: contratos-${{ steps.reference.outputs.reference }}.tar.gz
-          asset_content_type: application/gzip
 
   report-failure:
     name: Report workflow failure
