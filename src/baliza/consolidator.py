@@ -45,11 +45,56 @@ def _consolidated_file_name(year: int) -> str:
     return f"contratos-{year}.parquet"
 
 
+def _current_year_is_fresh(manifest: list[dict], year: int) -> bool:
+    """True when the current year's consolidated shards are at-or-after every monthly canonical upload.
+
+    Uses the manifest as a single source of truth: consolidation writes
+    ``monthly_uf`` shard rows after a successful IA upload, so the newest
+    shard timestamp bounds the last successful consolidation. If a monthly
+    canonical upload is newer, current-year consolidation is stale.
+    """
+    year_str = str(year)
+    canonical_mtimes: list[str] = []
+    shard_mtimes: list[str] = []
+    for row in manifest:
+        if row.get("table_name") != "contratos":
+            continue
+        part = row.get("data_particao") or ""
+        if not part.startswith(year_str):
+            continue
+        uploaded_at = row.get("uploaded_at") or ""
+        if not uploaded_at:
+            continue
+        file_type = row.get("file_type") or ""
+        if file_type in ("", "monthly_canonical"):
+            canonical_mtimes.append(uploaded_at)
+        elif file_type == "monthly_uf":
+            shard_mtimes.append(uploaded_at)
+    if not canonical_mtimes:
+        return True  # nothing to consolidate yet
+    if not shard_mtimes:
+        return False  # canonical months exist but no shards → needs first build
+    return max(shard_mtimes) >= max(canonical_mtimes)
+
+
 class IAConsolidator:
     """Reads daily Parquet files from IA (via manifest) and builds annual consolidated files."""
 
     def __init__(self) -> None:
         pass
+
+    def _read_manifest(self) -> list[dict]:
+        """Fetch manifest.csv from IA. Returns [] when the manifest is absent or unreadable."""
+        try:
+            with httpx.Client(follow_redirects=True) as client:
+                resp = client.get(MANIFEST_URL)
+                if resp.status_code != 200:
+                    return []
+                reader = csv.DictReader(io.StringIO(resp.text))
+                return list(reader)
+        except Exception as e:
+            console.print(f"[red]Error reading manifest: {e}[/red]")
+            return []
 
     def _get_daily_urls_for_year(self, year: int) -> list[str]:
         """Read the manifest.csv on IA and get all daily contratos file URLs for the year."""
@@ -95,8 +140,13 @@ class IAConsolidator:
         ia_access_key: str,
         ia_secret_key: str,
         force: bool = False,
+        manifest: list[dict] | None = None,
     ) -> bool:
-        """Build and upload annual consolidated Parquet for the given year."""
+        """Build and upload annual consolidated Parquet for the given year.
+
+        ``manifest`` is optional: when supplied, the current-year freshness
+        gate uses it in place of refetching manifest.csv.
+        """
         frozen = _is_frozen(year)
         filename = _consolidated_file_name(year)
 
@@ -104,6 +154,17 @@ class IAConsolidator:
             if self._check_consolidated_exists_on_ia(year):
                 console.print(
                     f"[dim]Skipping {year}: frozen year, consolidated file already on IA.[/dim]"
+                )
+                return False
+
+        # Current-year freshness gate: skip if shards are already at-or-after
+        # the newest monthly canonical upload. Past years bypass this check —
+        # `_is_frozen` + `_check_consolidated_exists_on_ia` already cover them.
+        if not force and year == datetime.date.today().year:
+            check_manifest = manifest if manifest is not None else self._read_manifest()
+            if _current_year_is_fresh(check_manifest, year):
+                console.print(
+                    f"[dim]Skipping {year}: consolidated shards are up to date.[/dim]"
                 )
                 return False
 
@@ -362,10 +423,22 @@ class IAConsolidator:
         ia_access_key: str,
         ia_secret_key: str,
         force: bool = False,
+        manifest: list[dict] | None = None,
     ) -> dict[int, bool]:
-        """Consolidate from start_year through the current year."""
+        """Consolidate from start_year through the current year.
+
+        Reads the manifest once up-front (unless ``manifest`` is supplied)
+        so the current-year freshness gate doesn't re-fetch per year.
+        """
         current_year = datetime.date.today().year
         results: dict[int, bool] = {}
+        shared_manifest = manifest if manifest is not None else self._read_manifest()
         for year in range(start_year, current_year + 1):
-            results[year] = self.consolidate_year(year, ia_access_key, ia_secret_key, force=force)
+            results[year] = self.consolidate_year(
+                year,
+                ia_access_key,
+                ia_secret_key,
+                force=force,
+                manifest=shared_manifest,
+            )
         return results

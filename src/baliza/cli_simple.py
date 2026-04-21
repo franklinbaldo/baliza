@@ -97,9 +97,12 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
     engine = BalizaEngine(db_path)
     uploader = IAUploader(engine)
 
-    # 2. Determine months to process using REMOTE manifest
+    # 2. Fetch manifest once — reused by the pending-months planner and
+    # (if enabled) the up-front consolidation catch-up below.
+    raw_manifest: list[dict] = []
     if force_month:
         batch = [datetime.strptime(force_month, "%Y-%m").date()]
+        uploaded: set[str] = set()
     else:
         with console.status("[bold green]Checking IA manifest for pending months...[/bold green]"):
             try:
@@ -136,11 +139,33 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
             pending_months.sort(reverse=True)  # BACKWARDS IN TIME
             batch = pending_months[:batch_size] if batch_size else pending_months
 
+    # 3. CONSOLIDATION CATCH-UP (runs first so a truncated consolidation
+    # in the previous sync gets finished this run, even if the current
+    # run doesn't upload any new months). The consolidator gates itself
+    # on manifest freshness (monthly_uf shard `uploaded_at` vs canonical
+    # `uploaded_at`) — zero-cost when already fresh.
+    consolidated = False
+    if not dry_run and not no_consolidate and ia_access_key and ia_secret_key:
+        try:
+            with console.status("[bold green]Checking consolidation status...[/bold green]"):
+                # Pass already-fetched manifest through when we have it
+                # (non-force_month path); let consolidator refetch on the
+                # force_month path where we skipped the planner fetch.
+                IAConsolidator().consolidate_all(
+                    consolidate_start_year,
+                    ia_access_key,
+                    ia_secret_key,
+                    manifest=raw_manifest if raw_manifest else None,
+                )
+            consolidated = True
+        except Exception as e:
+            console.print(f"[yellow]⚠ Consolidation failed: {e}[/yellow]")
+
     if not batch:
         console.print("[green]✓ Everything up to date.[/green]")
         return
 
-    # 3. Orchestration logic
+    # 4. Orchestration logic
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
@@ -289,34 +314,13 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
             # Final drain
             concurrent.futures.wait(futures.keys())
 
-    # 4. CONSOLIDATION (opportunistic, idempotent)
-    # Runs when sync produced new data. IAConsolidator skips frozen past years
-    # that already have a consolidated file, and always rebuilds the current year.
-    consolidated = False
-    if (
-        total_records > 0
-        and not dry_run
-        and not no_consolidate
-        and ia_access_key
-        and ia_secret_key
-    ):
-        try:
-            with console.status("[bold green]Consolidating annual archives...[/bold green]"):
-                IAConsolidator().consolidate_all(
-                    consolidate_start_year, ia_access_key, ia_secret_key
-                )
-            consolidated = True
-        except Exception as e:
-            console.print(f"[yellow]⚠ Consolidation failed: {e}[/yellow]")
-            error_count += 1
-
     # 5. FINAL SUMMARY PANEL
     duration = datetime.now() - start_time_exec
     summary = (
         f"• [bold white]Total Records:[/] {total_records:,}\n"
         f"• [bold yellow]Quarantine:[/] {quarantine_count:,}\n"
         f"• [bold red]Errors:[/] {error_count}\n"
-        f"• [bold magenta]Consolidated:[/] {'yes' if consolidated else 'no'}\n"
+        f"• [bold magenta]Consolidation catch-up:[/] {'ran' if consolidated else 'skipped'}\n"
         f"• [bold cyan]Duration:[/] {duration.total_seconds():.1f}s"
     )
     console.print("\n")
