@@ -1,6 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import { IA_MANIFEST_URL } from '../lib/ia-manifest';
+import ManifestTable from '../components/ManifestTable.svelte';
 ---
 
 <Layout
@@ -24,8 +25,9 @@ import { IA_MANIFEST_URL } from '../lib/ia-manifest';
         <a class="manifest-link" href={IA_MANIFEST_URL} target="_blank" rel="noopener">{IA_MANIFEST_URL}</a>
       </p>
       <p>
-        Colunas: <code>data_particao</code>, <code>table_name</code>, <code>parquet_url</code>. Cada linha do manifesto é imutável no endereço que anuncia — se o conteúdo mudar, a URL muda.
+        Colunas: <code>data_particao</code>, <code>table_name</code>, <code>parquet_url</code>, <code>sha256</code>, <code>row_group_size</code>. Cada linha do manifesto é imutável no endereço que anuncia — se o conteúdo mudar, a URL muda.
       </p>
+      <ManifestTable client:load />
     </section>
 
     <section>
@@ -89,7 +91,6 @@ console.log(res.toArray());`}</code></pre>
         <a href="https://github.com/franklinbaldo/baliza" target="_blank" rel="noopener">web/features/journeys/06_developer_integrator.feature</a>:
       </p>
       <ul>
-        <li>Página com hash SHA-256 por arquivo listado.</li>
         <li>Bloco de citação acadêmica pronto para copiar.</li>
       </ul>
     </section>

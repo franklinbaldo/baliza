@@ -5,11 +5,13 @@ Feature: Journey 6 — Developer integrator
   embeddable explorer, and CORS that allows direct Parquet fetches.
   See VISION.md → "Developer integrator".
 
-  @planned @manifest
+  @green @manifest
   Scenario: Developer landing page lists the Parquet manifest
-    # Planned: /desenvolvedores does not exist.
+    # Backed by ManifestTable.svelte mounted on /desenvolvedores. Size in bytes
+    # is not in the manifest CSV (only on the IA item itself), so the table
+    # surfaces row_group_size as the in-file dimension instead.
     Given the user opens "/desenvolvedores"
-    Then the user sees a table with one row per Parquet file, including URL, sha256 hash, snapshot date and size in bytes
+    Then the user sees a table with one row per Parquet file, including URL, sha256 hash and snapshot date
 
   @planned @api
   Scenario: Consumption examples are shown for Python, R and JavaScript
@@ -34,10 +36,10 @@ Feature: Journey 6 — Developer integrator
     Then the parquet_url still matches the pattern "baliza-pncp-YYYY-MM/contratos-YYYY-MM.parquet"
     And the row exposes a non-empty sha256 hash
 
-  @planned @embed
+  @green @embed
   Scenario: Explorer can be embedded via an iframe with a query string
-    # Planned: embed mode is not implemented. Static-compatible — driven
-    # purely by URL query params (no backend), toggling chrome via CSS.
+    # Static-compatible — driven purely by URL query params (no backend),
+    # toggling chrome via CSS rules in Layout.astro keyed on data-embed.
     Given a third-party page loads "/explorador?sql=SELECT%201&embed=true" inside an iframe
     Then the chrome (header, footer, navigation) is hidden
     And the SQL is auto-executed on mount

@@ -12,10 +12,11 @@ Feature: Journey 4 — Informed citizen
     When the user types "hospital municipal" into the search box
     Then the user sees a results listbox with at least one link
 
-  @planned @glossary
+  @green @glossary
   Scenario: Hover a technical term to see a plain-language definition
-    # Planned: glossary tooltips not implemented. Static-compatible — a
-    # bundled term→definition map rendered by a Svelte tooltip is enough.
+    # Backed by Glossary.svelte + lib/glossary.ts wrapping the modality cell
+    # on ContractDetailView. Static-compatible — a bundled term→definition
+    # map rendered by a Svelte tooltip.
     Given the user opens "/contratacao?id=00000000000191-1-000001/2024"
     When the user hovers the term "Dispensa"
     Then the user sees a tooltip explaining what a "Dispensa" is in plain language

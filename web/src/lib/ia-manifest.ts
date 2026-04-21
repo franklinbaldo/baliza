@@ -23,7 +23,7 @@ const ManifestRowSchema = z.object({
   ),
 });
 
-type ManifestRow = z.infer<typeof ManifestRowSchema>;
+export type ManifestRow = z.infer<typeof ManifestRowSchema>;
 
 export interface ParquetInfo {
   url: string;
@@ -53,7 +53,7 @@ async function fetchManifestOnce(): Promise<Response | null> {
   }
 }
 
-async function fetchManifestRows(): Promise<ManifestRow[]> {
+export async function fetchManifestRows(): Promise<ManifestRow[]> {
   let res = await fetchManifestOnce();
   if (res === null || res.status >= 500) {
     await new Promise((r) => setTimeout(r, MANIFEST_RETRY_BACKOFF_MS));

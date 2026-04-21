@@ -39,8 +39,11 @@ Feature: Journey 5 — Academic researcher
     When the explorer mounts
     Then the manifest loaded from Internet Archive includes a snapshot date for each Parquet entry
 
-  @planned @schema
+  @green @schema
   Scenario: Crossover with journey 6 — researcher hands a stable URL to a developer integrator
     # crosses @journey6
+    # Backed by ManifestTable.svelte on /desenvolvedores: it surfaces the
+    # same sha256 hashes the explorer's citation block reads from the
+    # manifest, proving both code paths share one source of truth.
     Given the user opens "/desenvolvedores"
     Then the user sees the same manifest entry hashes used by the explorer

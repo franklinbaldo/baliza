@@ -19,10 +19,10 @@ Feature: Journey 1 — B2G supplier prospecting
     When the user picks UF "SP" and modality "Pregão Eletrônico"
     Then the visible aggregates (count, total value, average value) reflect the filtered subset
 
-  @planned @search
+  @green @search
   Scenario: Empty search suggests accent-tolerant alternatives
-    # Planned: client-side accent/stopword normalization (String.prototype.normalize
-    # 'NFD' + stopword list) is not implemented. Static-compatible — no backend.
+    # Backed by lib/accentSuggest.ts (closed lexicon, ~80 procurement nouns)
+    # surfaced in the SearchHero empty state. Static-compatible — no backend.
     Given the user submits the free-text query "construcao de escola"
     When PNCP returns zero results
     Then the user sees a suggestion to retry with "construção de escola"

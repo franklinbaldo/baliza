@@ -12,6 +12,7 @@
   import { getLatestParquetInfo } from '../lib/ia-manifest';
   import EntityNotFound from './EntityNotFound.svelte';
   import AlertBanner from './AlertBanner.svelte';
+  import Glossary from './Glossary.svelte';
 
   setQueryClientContext(getQueryClient());
 
@@ -185,7 +186,7 @@
         <dl class="data-list">
           <div role="listitem"><dt>Objeto</dt><dd>{data.objetoContratacao || '—'}</dd></div>
           <div role="listitem"><dt>Nº Controle PNCP</dt><dd>{data.numeroControlePNCP || '—'}</dd></div>
-          <div role="listitem"><dt>Modalidade</dt><dd>{data.modalidadeNome || '—'}</dd></div>
+          <div role="listitem"><dt>Modalidade</dt><dd>{#if data.modalidadeNome}<Glossary term={data.modalidadeNome}>{data.modalidadeNome}</Glossary>{:else}—{/if}</dd></div>
           <div role="listitem"><dt>Situação</dt><dd>{data.situacaoNome || '—'}</dd></div>
           <div role="listitem"><dt>Publicação</dt><dd>{formatDate(data.dataPublicacaoPncp)}</dd></div>
           <div role="listitem"><dt>Abertura de Propostas</dt><dd>{formatDate(data.dataAberturaProposta)}</dd></div>
