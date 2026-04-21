@@ -242,9 +242,10 @@ class IAConsolidator:
                 """,
                 [uf],
             )
-            row_count = con.execute(
+            count_row = con.execute(
                 f"SELECT COUNT(*) FROM read_parquet('{shard_path}')"
-            ).fetchone()[0]
+            ).fetchone()
+            row_count = count_row[0] if count_row else 0
             sha256 = hashlib.sha256(shard_path.read_bytes()).hexdigest()
             shards.append(
                 {

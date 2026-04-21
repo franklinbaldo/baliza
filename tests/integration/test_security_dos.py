@@ -17,7 +17,7 @@ def test_fetch_page_size_limit(tmp_path):
     mock_resp = MagicMock()
     mock_resp.status_code = 200
     mock_resp.raise_for_status = Mock()
-    
+
     # iter_bytes should return an iterator of chunks
     # 16 chunks of 1MB each = 16MB (Exceeds 15MB limit)
     chunks = [b"a" * (1024 * 1024) for _ in range(16)]
@@ -37,5 +37,5 @@ def test_fetch_page_size_limit(tmp_path):
             # Expect ValueError due to size limit
             with pytest.raises(ValueError, match="Response too large"):
                 extractor.fetch_page("contratos", start_date, end_date, page=1)
-            
+
             mock_stream.assert_called_once()
