@@ -67,8 +67,14 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
     ),
     workers: int = typer.Option(4, "--workers", "-w", help="Parallel workers for page extraction"),
     no_curl: bool = typer.Option(False, "--no-curl", help="Opt-out of system cURL and use httpx"),
+    no_consolidate: bool = typer.Option(
+        False, "--no-consolidate", help="Skip end-of-run annual consolidation"
+    ),
+    consolidate_start_year: int = typer.Option(
+        2021, "--consolidate-start-year", help="First year to consider for consolidation"
+    ),
 ) -> None:
-    """Unified sync: extracts missing dates and uploads to IA (stateless, backwards sweep)."""
+    """Unified sync: extracts missing dates, uploads to IA, and consolidates (stateless, backwards sweep)."""
     start_time_exec = datetime.now()
     ia_access_key = os.environ.get("IA_ACCESS_KEY") or os.environ.get("IAS3_ACCESS_KEY")
     ia_secret_key = os.environ.get("IA_SECRET_KEY") or os.environ.get("IAS3_SECRET_KEY")
@@ -283,12 +289,34 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
             # Final drain
             concurrent.futures.wait(futures.keys())
 
-    # 4. FINAL SUMMARY PANEL
+    # 4. CONSOLIDATION (opportunistic, idempotent)
+    # Runs when sync produced new data. IAConsolidator skips frozen past years
+    # that already have a consolidated file, and always rebuilds the current year.
+    consolidated = False
+    if (
+        total_records > 0
+        and not dry_run
+        and not no_consolidate
+        and ia_access_key
+        and ia_secret_key
+    ):
+        try:
+            with console.status("[bold green]Consolidating annual archives...[/bold green]"):
+                IAConsolidator().consolidate_all(
+                    consolidate_start_year, ia_access_key, ia_secret_key
+                )
+            consolidated = True
+        except Exception as e:
+            console.print(f"[yellow]⚠ Consolidation failed: {e}[/yellow]")
+            error_count += 1
+
+    # 5. FINAL SUMMARY PANEL
     duration = datetime.now() - start_time_exec
     summary = (
         f"• [bold white]Total Records:[/] {total_records:,}\n"
         f"• [bold yellow]Quarantine:[/] {quarantine_count:,}\n"
         f"• [bold red]Errors:[/] {error_count}\n"
+        f"• [bold magenta]Consolidated:[/] {'yes' if consolidated else 'no'}\n"
         f"• [bold cyan]Duration:[/] {duration.total_seconds():.1f}s"
     )
     console.print("\n")
