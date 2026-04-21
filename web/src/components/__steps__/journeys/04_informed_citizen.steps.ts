@@ -36,10 +36,9 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   Scenario('Search by hospital name without knowing the CNPJ', ({ Given, When, Then }) => {
     Given('the user opens the home page', noop);
     When('the user types "hospital municipal" into the search box', noop);
-    Then('the user sees a results listbox with at least one link', () => {
-      // Covered by web/features/search-hero.feature; here only the journey link is asserted.
-      expect(true).toBe(true);
-    });
+    Then('the user sees a results listbox with at least one link', () =>
+      plannedStep('dedicated /busca page with free-text PNCP search'),
+    );
   });
 
   Scenario('Hover a technical term to see a plain-language definition', ({ Given, When, Then }) => {
@@ -140,14 +139,11 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   Scenario(
     'Crossover with journey 3 — citizen reaches the same permalink a journalist would cite',
     ({ Given, When, Then }) => {
-      let typed = '';
-      Given('the user types "12345678000195-1-000001/2024" into the search box', () => {
-        typed = '12345678000195-1-000001/2024';
-      });
+      Given('the user types "12345678000195-1-000001/2024" into the search box', noop);
       When('the user submits the search form', noop);
-      Then('the browser navigates to "/baliza/contratacao?id=12345678000195-1-000001/2024"', () => {
-        expect(typed).toMatch(/^\d{14}-\d+-\d+\/\d{4}$/);
-      });
+      Then('the browser navigates to "/baliza/contratacao?id=12345678000195-1-000001/2024"', () =>
+        plannedStep('dedicated /busca page with PNCP-id pattern detection'),
+      );
     },
   );
 });

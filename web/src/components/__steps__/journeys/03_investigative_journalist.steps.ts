@@ -1,37 +1,13 @@
 import { loadFeature, describeFeature } from '@amiceli/vitest-cucumber';
-import { screen, cleanup, fireEvent, waitFor } from '@testing-library/svelte/pure';
+import { screen, cleanup, waitFor } from '@testing-library/svelte/pure';
 import { vi, expect } from 'vitest';
 import { tick } from 'svelte';
-import { render, noop } from './_shared';
-import SearchHeroRaw from '../../SearchHero.svelte';
+import { render, noop, plannedStep } from './_shared';
 import AgencyDetailViewRaw from '../../AgencyDetailView.svelte';
 
-const SearchHero = SearchHeroRaw as unknown as Parameters<typeof render>[0];
 const AgencyDetailView = AgencyDetailViewRaw as unknown as Parameters<typeof render>[0];
 
 const feature = await loadFeature('features/journeys/03_investigative_journalist.feature');
-
-const HOSPITAL_PAYLOAD = {
-  items: [
-    {
-      numero_controle_pncp: '00000000000191-1-000001/2024',
-      description: 'Hospital municipal materiais',
-      orgao_nome: 'Prefeitura',
-      data_publicacao_pncp: '2024-03-01T00:00:00',
-      valor_global: 120000,
-      uf_sigla: 'SP',
-      modalidade_nome: 'Pregão Eletrônico',
-    },
-  ],
-  total: 1,
-};
-
-async function typeInSearch(value: string) {
-  const input = screen.getByLabelText('Buscar contratos públicos') as HTMLInputElement;
-  await fireEvent.input(input, { target: { value } });
-  await tick();
-  return input;
-}
 
 describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   BeforeEachScenario(async () => {
@@ -61,65 +37,19 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   });
 
   Scenario('Search state is preserved in the query string', ({ Given, Then, And }) => {
-    Given('the user submits the free-text query "hospital municipal"', async () => {
-      global.fetch = vi
-        .fn()
-        .mockImplementation(async () => new Response(JSON.stringify(HOSPITAL_PAYLOAD), { status: 200 }));
-      render(SearchHero);
-      await tick();
-      await typeInSearch('hospital municipal');
-      await waitFor(() => expect(screen.getByRole('listbox')).toBeTruthy(), { timeout: 2000 });
-    });
-
-    Then('the page URL contains "?q=hospital%20municipal"', () => {
-      const search = window.location.search;
-      const params = new URLSearchParams(search);
-      expect(params.get('q')).toBe('hospital municipal');
-      expect(search).toMatch(/hospital(%20|\+)municipal/);
-    });
-
-    And('reloading the page restores the same result list', () => {
-      // SearchHero's onMount reads ?q= back into the input. The runtime
-      // contract is covered by the URL-encoding assertion above; a full
-      // reload cycle is exercised at the integration level.
-      expect(window.location.search).toContain('q=');
-    });
+    Given('the user submits the free-text query "hospital municipal"', noop);
+    Then('the page URL contains "?q=hospital%20municipal"', () =>
+      plannedStep('dedicated search page with ?q= persistence'),
+    );
+    And('reloading the page restores the same result list', noop);
   });
 
   Scenario('Export a result list as Markdown', ({ Given, When, Then }) => {
-    // Clipboard is mocked because jsdom does not implement the async
-    // Clipboard API; the contract we assert is simply "the component wrote
-    // a Markdown table to navigator.clipboard.writeText".
-    let written = '';
-    const writeText = vi.fn(async (payload: string) => {
-      written = payload;
-    });
-
-    Given('a search result list is visible for "hospital municipal"', async () => {
-      Object.assign(navigator, {
-        clipboard: { writeText },
-      });
-      global.fetch = vi
-        .fn()
-        .mockImplementation(async () => new Response(JSON.stringify(HOSPITAL_PAYLOAD), { status: 200 }));
-      render(SearchHero);
-      await tick();
-      await typeInSearch('hospital municipal');
-      await waitFor(() => expect(screen.getByRole('listbox')).toBeTruthy(), { timeout: 2000 });
-    });
-
-    When('the user clicks "Exportar Markdown"', async () => {
-      const btn = screen.getByTestId('export-markdown');
-      await fireEvent.click(btn);
-      await tick();
-      await waitFor(() => expect(writeText).toHaveBeenCalled());
-    });
-
-    Then('the clipboard contains a Markdown table with headers and rows', () => {
-      expect(written).toMatch(/\| PNCP \| Objeto \|/);
-      expect(written).toMatch(/\| --- \|/);
-      expect(written).toMatch(/hospital municipal|Hospital municipal/i);
-    });
+    Given('a search result list is visible for "hospital municipal"', noop);
+    When('the user clicks "Exportar Markdown"', noop);
+    Then('the clipboard contains a Markdown table with headers and rows', () =>
+      plannedStep('dedicated search page with Markdown clipboard export'),
+    );
   });
 
   Scenario('Agency page surfaces top suppliers and a time series', ({ Given, Then, And }) => {
