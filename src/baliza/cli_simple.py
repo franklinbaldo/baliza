@@ -7,12 +7,14 @@ SHARED ENGINE: Uses a single DuckDB session for extraction and upload.
 from __future__ import annotations
 
 import concurrent.futures
+import json
 import os
 import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import structlog
 import typer
 from rich.console import Console
 from rich.panel import Panel
@@ -29,9 +31,11 @@ from rich.progress import (
 
 from .consolidator import IAConsolidator
 from .engine import BalizaEngine
-from .extractor import PNCPExtractor, _validate_resource
+from .extractor import FETCHED_SENTINEL, PNCPExtractor, _validate_resource
 from .ia_uploader import IAUploader
 from .logging import configure_logging
+
+logger = structlog.get_logger()
 
 app = typer.Typer()
 console = Console()
@@ -177,7 +181,7 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
             futures: dict[concurrent.futures.Future[Any], date] = {}
 
-            def process_month_full(start_of_month: date):  # noqa: PLR0912
+            def process_month_full(start_of_month: date):  # noqa: PLR0912, PLR0915
                 nonlocal total_records, quarantine_count, error_count
                 
                 month_str = start_of_month.strftime("%Y-%m")
@@ -196,41 +200,138 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                 month_tasks[month_str] = tid
                 
                 try:
+                    raw_month_dir = Path("data/raw") / month_str
+                    sentinel = raw_month_dir / FETCHED_SENTINEL
+                    month_start_dt = datetime.combine(start_of_month, datetime.min.time())
+                    month_end_dt = datetime.combine(end_of_month, datetime.min.time())
+
                     with PNCPExtractor(thread_engine, use_curl=not no_curl) as extractor:
-                        # 2. Probe (Page 1)
-                        res = extractor.probe_range(
-                            "contratos", 
-                            datetime.combine(start_of_month, datetime.min.time()),
-                            datetime.combine(end_of_month, datetime.min.time())
-                        )
-                        total_pages = res["total_pages"]
-                        
-                        # Update progress bar total and description
-                        # Total = pages + 1 (ingest) + 1 (upload)
-                        progress.update(tid, total=total_pages + 2, advance=1, description=f"Month {month_str} [Pages 1/{total_pages}]")
-                        
-                        # 3. Fetch remaining pages
-                        if total_pages > 1:
-                            for p in range(2, total_pages + 1):
-                                progress.update(tid, description=f"Month {month_str} [Pages {p}/{total_pages}]")
-                                extractor.fetch_page(
-                                    "contratos", 
-                                    datetime.combine(start_of_month, datetime.min.time()),
-                                    datetime.combine(end_of_month, datetime.min.time()),
-                                    p
+                        # 2. Fast path: sentinel means every expected page is
+                        # already on disk from a previous run. Skip probing
+                        # the API entirely and jump straight to ingest.
+                        if sentinel.exists():
+                            logger.info("month_cache_hit", month=month_str, source="sentinel")
+                            progress.update(
+                                tid,
+                                total=2,
+                                advance=1,
+                                description=f"Month {month_str} [Cache hit]",
+                            )
+                        else:
+                            # 3. Probe (Page 1) to learn totalPaginas.
+                            res = extractor.probe_range(
+                                "contratos", month_start_dt, month_end_dt
+                            )
+                            total_pages = res["total_pages"]
+
+                            # Which pages are already on disk and valid?
+                            # `exists()` alone would mis-count a zero-byte
+                            # or corrupt file as cached — we'd then skip
+                            # fetch_page for that page, write the sentinel,
+                            # and let ingest_range silently unlink the bad
+                            # file, ending up with a month uploaded with
+                            # missing records. So validate the cache here
+                            # and unlink anything broken so fetch_page sees
+                            # a clean refetch.
+                            def _page_is_cached(p: int) -> bool:
+                                path = raw_month_dir / f"contratos_p{p}.json"
+                                if not path.exists() or path.stat().st_size == 0:
+                                    return False
+                                try:
+                                    with open(path) as fh:
+                                        data = json.load(fh)
+                                except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
+                                    logger.warning(
+                                        "corrupt_cache_found",
+                                        file=str(path),
+                                        error=str(e),
+                                    )
+                                    try:
+                                        path.unlink()
+                                    except OSError:
+                                        pass
+                                    return False
+                                # Parse success alone isn't enough — a cached
+                                # `{}` would silently satisfy exists() + load()
+                                # but produce zero rows during ingest, and the
+                                # month would still write the sentinel and
+                                # upload with missing records.
+                                if isinstance(data, dict) and (
+                                    "data" in data or "totalPaginas" in data
+                                ):
+                                    return True
+                                logger.warning(
+                                    "corrupt_cache_found",
+                                    file=str(path),
+                                    error="schema mismatch (no 'data' or 'totalPaginas' key)",
                                 )
-                                progress.update(tid, advance=1)
+                                try:
+                                    path.unlink()
+                                except OSError:
+                                    pass
+                                return False
+
+                            missing_pages = [
+                                p
+                                for p in range(1, total_pages + 1)
+                                if not _page_is_cached(p)
+                            ]
+                            cached_pages = total_pages - len(missing_pages)
+
+                            if not missing_pages:
+                                logger.info(
+                                    "month_cache_hit",
+                                    month=month_str,
+                                    source="all_pages_present",
+                                    pages=total_pages,
+                                )
+                                progress.update(
+                                    tid,
+                                    total=2,
+                                    advance=1,
+                                    description=f"Month {month_str} [Cache hit]",
+                                )
+                            else:
+                                logger.info(
+                                    "month_cache_partial" if cached_pages else "month_cache_miss",
+                                    month=month_str,
+                                    pages_cached=cached_pages,
+                                    pages_total=total_pages,
+                                    pages_to_fetch=len(missing_pages),
+                                )
+                                progress.update(
+                                    tid,
+                                    total=len(missing_pages) + 2,
+                                    advance=1,
+                                    description=f"Month {month_str} [Pages 0/{len(missing_pages)}]",
+                                )
+                                for i, p in enumerate(missing_pages, start=1):
+                                    progress.update(
+                                        tid,
+                                        description=f"Month {month_str} [Pages {i}/{len(missing_pages)}]",
+                                    )
+                                    extractor.fetch_page(
+                                        "contratos", month_start_dt, month_end_dt, p
+                                    )
+                                    progress.update(tid, advance=1)
+
+                            # All expected pages are now on disk — write the
+                            # sentinel so the next run skips probe_range
+                            # entirely. IAUploader.upload_month rmtrees the
+                            # whole directory on success, taking this with it.
+                            raw_month_dir.mkdir(parents=True, exist_ok=True)
+                            sentinel.touch()
 
                         # 4. Ingest
                         progress.update(tid, description=f"Month {month_str} [Ingesting]")
-                        stats = extractor.ingest_range(datetime.combine(start_of_month, datetime.min.time()))
+                        stats = extractor.ingest_range(month_start_dt)
                         total_records += stats.get("valid", 0)
                         quarantine_count += stats.get("quarantine", 0)
                         progress.update(tid, advance=1)
 
                         # 5. Export & Upload
                         q_csv = Path(f"data/quarentena-{month_str}.csv")
-                        has_q = extractor.export_quarantine(datetime.combine(start_of_month, datetime.min.time()), q_csv)
+                        has_q = extractor.export_quarantine(month_start_dt, q_csv)
 
                         if not dry_run:
                             progress.update(tid, description=f"Month {month_str} [Uploading]")
