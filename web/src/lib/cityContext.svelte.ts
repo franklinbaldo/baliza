@@ -84,11 +84,22 @@ export const cityState = $state<ActiveCity>({ ...DEFAULT_CITY, source: 'default'
 
 let listenerRegistered = false;
 
+function safeLocalStorage(): Storage | null {
+  // Some browsers (Safari private mode, locked-down enterprise profiles)
+  // throw SecurityError on the `localStorage` getter itself, so reading it
+  // unguarded would crash hydration before any island mounts.
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
 function applyCurrentUrl(): void {
   if (typeof window === 'undefined') return;
   const resolved = resolveInitialCity({
     urlParams: new URLSearchParams(window.location.search),
-    storage: window.localStorage,
+    storage: safeLocalStorage(),
   });
   cityState.ibge = resolved.ibge;
   cityState.nome = resolved.nome;
