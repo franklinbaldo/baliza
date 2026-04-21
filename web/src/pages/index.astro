@@ -6,8 +6,49 @@ import MonitorGrid from '../components/MonitorGrid.astro';
 import TrustStrip from '../components/TrustStrip.astro';
 import OrnamentBand from '../components/OrnamentBand.astro';
 import Dashboard from '../components/Dashboard.svelte';
-import SearchHero from '../components/SearchHero.svelte';
-import JourneyPicker from '../components/JourneyPicker.astro';
+import { IA_MANIFEST_URL } from '../lib/ia-manifest';
+
+const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+const resolve = (href: string) => `${BASE}${href.replace(/^\//, '')}`;
+
+const TOOLS: Array<{
+  label: string;
+  blurb: string;
+  href: string;
+  external?: boolean;
+}> = [
+  {
+    label: 'Explorador SQL',
+    blurb: 'Consultas abertas sobre os Parquets arquivados, direto no navegador.',
+    href: resolve('explorador'),
+  },
+  {
+    label: 'Atas de registro de preços',
+    blurb: 'Compromissos vigentes que outros órgãos podem aderir.',
+    href: resolve('atas'),
+  },
+  {
+    label: 'Metodologia e quarentena',
+    blurb: 'Como Baliza ingere, limpa e sinaliza anomalias antes de publicar.',
+    href: resolve('sobre'),
+  },
+  {
+    label: 'Para desenvolvedores',
+    blurb: 'URLs estáveis em Python, R e JS — sem chave de API.',
+    href: resolve('desenvolvedores'),
+  },
+  {
+    label: 'Status do arquivo',
+    blurb: 'Última sincronização com o PNCP e o Internet Archive.',
+    href: resolve('status'),
+  },
+  {
+    label: 'Datasets Parquet',
+    blurb: 'Manifesto CSV com partição, URL e hash no Internet Archive.',
+    href: IA_MANIFEST_URL,
+    external: true,
+  },
+];
 ---
 
 <Layout
@@ -25,11 +66,10 @@ import JourneyPicker from '../components/JourneyPicker.astro';
   <!-- 3. What you can monitor — compact, citizen-legible prompts. -->
   <MonitorGrid />
 
-  <!-- 4. Trust layer: archive, citability, analysis (down-toned manifesto). -->
+  <!-- 4. Trust layer: archive, citability, analysis. -->
   <TrustStrip />
 
-  <!-- 5. Sinal do arquivo: small metrics strip so the infrastructure story
-       is still visible without dominating the top fold. -->
+  <!-- 5. Sinal do arquivo: preservation signal backed by sync_stats.json. -->
   <section class="signal-strip" aria-labelledby="signal-title">
     <div class="container">
       <header class="signal-head">
@@ -40,22 +80,36 @@ import JourneyPicker from '../components/JourneyPicker.astro';
     </div>
   </section>
 
-  <!-- 6. Utilidades avançadas: power-user search, developer/explorador/status. -->
+  <!-- 6. Utilidades avançadas: compact secondary entry points. Demoted link
+       grid — no second hero, no second search box. -->
   <section class="tools-strip" aria-labelledby="tools-title">
     <div class="container">
       <header class="tools-head">
         <span class="kicker">Utilidades avançadas</span>
-        <h2 id="tools-title">Para quem já sabe o que busca</h2>
+        <h2 id="tools-title">Outras entradas no arquivo</h2>
         <p class="tools-sub">
-          Se você chegou com um CNPJ, um ID PNCP ou um código IBGE, pule direto para a evidência.
+          Para quem já sabe o que procurar: análise, dados brutos e metodologia.
         </p>
       </header>
-      <SearchHero client:idle />
+      <ul class="tools-grid">
+        {TOOLS.map((tool) => (
+          <li class="tool-card">
+            <a
+              href={tool.href}
+              rel={tool.external ? 'noopener' : undefined}
+              target={tool.external ? '_blank' : undefined}
+            >
+              <span class="tool-label">
+                {tool.label}
+                {tool.external && <span aria-hidden="true"> ↗</span>}
+              </span>
+              <span class="tool-blurb">{tool.blurb}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
     </div>
   </section>
-
-  <!-- 7. Jornadas por perfil: moved below the fold as secondary discovery. -->
-  <JourneyPicker />
 </Layout>
 
 <style>
@@ -76,6 +130,7 @@ import JourneyPicker from '../components/JourneyPicker.astro';
     font-size: clamp(24px, 2.4vw, 32px);
     letter-spacing: -0.02em;
   }
+
   .tools-strip {
     padding: var(--space-8) 0;
     background: var(--neutral-50);
@@ -97,5 +152,42 @@ import JourneyPicker from '../components/JourneyPicker.astro';
     color: var(--neutral-500);
     font-size: var(--text-md);
     line-height: 1.6;
+  }
+
+  .tools-grid {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: var(--space-3);
+  }
+  .tool-card {
+    background: var(--neutral-0);
+    border: 1px solid var(--neutral-100);
+  }
+  .tool-card a {
+    display: grid;
+    gap: var(--space-1);
+    padding: var(--space-4);
+    color: inherit;
+    text-decoration: none;
+    height: 100%;
+    border-left: 3px solid transparent;
+    transition: border-color var(--duration-fast) var(--ease);
+  }
+  .tool-card a:hover {
+    border-left-color: var(--bulcao-accent);
+  }
+  .tool-label {
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: var(--text-md);
+    color: var(--bulcao-fg);
+  }
+  .tool-blurb {
+    font-size: var(--text-sm);
+    line-height: 1.5;
+    color: var(--neutral-500);
   }
 </style>
