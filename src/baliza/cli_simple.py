@@ -301,23 +301,29 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                         total_pages: int | None = None
                         if sentinel.exists():
                             p1 = raw_month_dir / "contratos_p1.json"
-                            if p1.exists() and p1.stat().st_size > 0:
+                            regression_reason: str | None = None
+                            if not p1.exists() or p1.stat().st_size == 0:
+                                regression_reason = "page1_missing"
+                            else:
                                 try:
                                     with open(p1) as fh:
                                         _d = json.load(fh)
+                                except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+                                    regression_reason = "page1_corrupt"
+                                else:
                                     if isinstance(_d, dict) and isinstance(
                                         _d.get("totalPaginas"), int
                                     ):
                                         total_pages = _d["totalPaginas"]
-                                except (OSError, json.JSONDecodeError, UnicodeDecodeError):
-                                    total_pages = None
+                                    else:
+                                        regression_reason = "page1_schema_invalid"
                             if total_pages is None:
                                 # Sentinel exists but page 1 is gone/bad.
                                 # Drop the sentinel and fall back to probe.
                                 logger.warning(
                                     "sentinel_cache_regressed",
                                     month=month_str,
-                                    reason="page1_unreadable",
+                                    reason=regression_reason,
                                 )
                                 try:
                                     sentinel.unlink()
