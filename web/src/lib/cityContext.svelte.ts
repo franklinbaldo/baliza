@@ -25,7 +25,6 @@ export interface ActiveCity extends City {
 export interface ResolveOpts {
   urlParams?: URLSearchParams | null;
   storage?: Storage | null;
-  now?: () => ActiveCity;
 }
 
 // IBGE municipality codes are exactly 7 digits. UF sigla is two uppercase
@@ -108,7 +107,13 @@ export function setCity(next: City, source: CitySource = 'storage'): void {
   cityState.source = source;
   if (typeof window === 'undefined') return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(clean));
+    if (source === 'default') {
+      // The default lens is not a user preference; remove any stale entry so
+      // the next reload resolves back to source: 'default' instead of 'storage'.
+      window.localStorage.removeItem(STORAGE_KEY);
+    } else {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(clean));
+    }
   } catch {
     // Private mode / quota: keep the in-memory state, just don't persist.
   }

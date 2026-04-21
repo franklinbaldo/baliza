@@ -4,7 +4,6 @@
     cityState,
     hydrateCityContext,
     setCity,
-    clearStoredCity,
     DEFAULT_CITY,
   } from '../lib/cityContext.svelte';
   import {
@@ -123,13 +122,21 @@
   }
 
   function resetToDefault() {
-    clearStoredCity();
+    // setCity(_, 'default') clears the storage entry internally so a reload
+    // resolves back to source: 'default' instead of lingering on 'storage'.
     setCity(DEFAULT_CITY, 'default');
     onselect?.({ ...DEFAULT_CITY });
   }
 
   $effect(() => {
     if (autofocus && inputEl) inputEl.focus();
+  });
+
+  // Cancel any in-flight IBGE request and pending debounce on unmount so a
+  // late response can't write results into a torn-down component.
+  $effect(() => () => {
+    if (debounce) clearTimeout(debounce);
+    if (abortCtrl) abortCtrl.abort();
   });
 </script>
 
@@ -141,7 +148,7 @@
     <strong>{cityState.nome}{cityState.uf ? ` / ${cityState.uf}` : ''}</strong>
     {#if cityState.source !== 'default'}
       <button type="button" class="link" onclick={resetToDefault}>
-        usar Porto Velho
+        usar {DEFAULT_CITY.nome}
       </button>
     {/if}
   </div>

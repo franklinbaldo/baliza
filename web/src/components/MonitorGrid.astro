@@ -2,14 +2,22 @@
 // Compact "o que dá para monitorar" grid. Each cell is a real internal link;
 // the Bulcão tile strip is a single structural accent per card, not decoration
 // stacked on top of content.
+import { DEFAULT_CITY } from '../lib/cityContext.svelte';
+
 const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
 const resolve = (href: string) => `${BASE}${href.replace(/^\//, '')}`;
+
+// /municipio and /orgao render EntityNotFound without their query params, so
+// static homepage CTAs land a cold visitor on the default-lens city page.
+// Users who have already picked a city get the personalized view in CityPulse
+// above; this grid is the "what else you can do" showcase.
+const DEFAULT_CITY_HREF = `municipio?ibge=${DEFAULT_CITY.ibge}`;
 
 const ITEMS = [
   {
     title: 'Contratos recentes',
     question: 'O que a prefeitura está comprando esta semana?',
-    href: 'municipio',
+    href: DEFAULT_CITY_HREF,
     tile: 't1',
   },
   {
@@ -21,7 +29,7 @@ const ITEMS = [
   {
     title: 'Novas contratações por órgão',
     question: 'Qual secretaria publicou mais nos últimos 30 dias?',
-    href: 'orgao',
+    href: DEFAULT_CITY_HREF,
     tile: 't2',
   },
   {
