@@ -5,7 +5,8 @@
   import { prefetchArchive } from '../lib/parquetFallback';
   import { createListQuery } from '../lib/createListQuery';
   import { fetchPublicacaoList } from '../lib/pncpPublicacao';
-  import { getUserCoordinates, getCityFromCoords, getIBGECode } from '../lib/geo';
+  import { getUserCoordinates, getCityFromCoords, getIBGECode, ufNomeToSigla } from '../lib/geo';
+  import { setCity } from '../lib/cityContext.svelte';
   import type { PNCPContract } from '../lib/pncp';
   import type { ArchivedContrato } from '../lib/archive/schema';
   import { formatDate, formatParticao } from '../lib/format';
@@ -84,6 +85,9 @@
       const code = await getIBGECode(cityData.city, cityData.state);
       if (!code) throw new Error('Não foi possível localizar o código IBGE para este município.');
       cityInfo = { name: cityData.city, ibge: code };
+      // Keep the shared homepage context in sync so the hero and nav follow
+      // the user's detected location without requiring a second picker step.
+      setCity({ ibge: code, nome: cityData.city, uf: ufNomeToSigla(cityData.state) }, 'storage');
       geoStatus = 'ready';
     } catch (err) {
       console.error(err);

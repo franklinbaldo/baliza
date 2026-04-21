@@ -1,0 +1,150 @@
+---
+// Compact "o que dá para monitorar" grid. Each cell is a real internal link;
+// the Bulcão tile strip is a single structural accent per card, not decoration
+// stacked on top of content.
+const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+const resolve = (href: string) => `${BASE}${href.replace(/^\//, '')}`;
+
+const ITEMS = [
+  {
+    title: 'Contratos recentes',
+    question: 'O que a prefeitura está comprando esta semana?',
+    href: 'municipio',
+    tile: 't1',
+  },
+  {
+    title: 'Concentração de fornecedores',
+    question: 'Um CNPJ reaparece com frequência em diferentes órgãos?',
+    href: 'explorador',
+    tile: 't3',
+  },
+  {
+    title: 'Novas contratações por órgão',
+    question: 'Qual secretaria publicou mais nos últimos 30 dias?',
+    href: 'orgao',
+    tile: 't2',
+  },
+  {
+    title: 'Atas de registro de preços',
+    question: 'Quais compromissos vigentes a cidade mantém com fornecedores?',
+    href: 'atas',
+    tile: 't4',
+  },
+  {
+    title: 'Dispensas e inexigibilidades',
+    question: 'Houve pico de contratação sem concorrência?',
+    href: 'explorador',
+    tile: 't3',
+  },
+  {
+    title: 'Variações atípicas no valor',
+    question: 'Um fornecedor cobra muito mais caro que a média do mercado?',
+    href: 'explorador',
+    tile: 't1',
+  },
+];
+---
+
+<section class="monitor-section" aria-labelledby="monitor-title">
+  <div class="container">
+    <header class="monitor-head">
+      <span class="kicker">O que é possível monitorar</span>
+      <h2 id="monitor-title">Perguntas que Baliza ajuda a responder</h2>
+      <p class="monitor-sub">
+        São os mesmos dados públicos do PNCP, organizados para que você saia
+        com uma resposta em vez de uma tabela crua.
+      </p>
+    </header>
+
+    <ul class="monitor-grid">
+      {ITEMS.map((item) => (
+        <li class="monitor-card">
+          <a href={resolve(item.href)}>
+            <span class="tile" aria-hidden="true">
+              <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+                <use href={`#${item.tile}`} />
+              </svg>
+            </span>
+            <span class="card-body">
+              <span class="card-title">{item.title}</span>
+              <span class="card-q">{item.question}</span>
+            </span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  </div>
+</section>
+
+<style>
+  .monitor-section {
+    padding: var(--space-8) 0;
+    background: var(--neutral-0);
+  }
+  .monitor-head {
+    max-width: 640px;
+    margin-bottom: var(--space-6);
+    display: grid;
+    gap: var(--space-2);
+  }
+  .monitor-head h2 {
+    font-family: var(--font-display);
+    font-weight: 300;
+    font-size: clamp(28px, 3vw, 40px);
+    letter-spacing: -0.02em;
+  }
+  .monitor-sub {
+    color: var(--neutral-500);
+    font-size: var(--text-md);
+    line-height: 1.6;
+  }
+  .monitor-grid {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: var(--space-3);
+  }
+  .monitor-card {
+    border: 1px solid var(--neutral-100);
+    background: var(--neutral-0);
+    transition: all var(--duration-fast) var(--ease);
+  }
+  .monitor-card:hover {
+    border-color: var(--bulcao-accent);
+    transform: translate(-2px, -2px);
+    box-shadow: 3px 3px 0 var(--bulcao-accent);
+  }
+  .monitor-card a {
+    display: grid;
+    grid-template-rows: 14px 1fr;
+    gap: var(--space-3);
+    padding: 0 0 var(--space-4);
+    color: inherit;
+    height: 100%;
+  }
+  .tile {
+    display: block;
+    background: var(--bulcao-bg);
+    height: 14px;
+    overflow: hidden;
+  }
+  .tile svg { width: 100%; height: 60px; display: block; }
+  .card-body {
+    padding: 0 var(--space-4);
+    display: grid;
+    gap: var(--space-2);
+  }
+  .card-title {
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: var(--text-md);
+    color: var(--bulcao-fg);
+  }
+  .card-q {
+    font-size: var(--text-sm);
+    line-height: 1.5;
+    color: var(--neutral-500);
+  }
+</style>

@@ -1,38 +1,101 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import SearchHero from '../components/SearchHero.svelte';
+import CityHero from '../components/CityHero.svelte';
+import CityPulse from '../components/CityPulse.svelte';
+import MonitorGrid from '../components/MonitorGrid.astro';
+import TrustStrip from '../components/TrustStrip.astro';
+import OrnamentBand from '../components/OrnamentBand.astro';
 import Dashboard from '../components/Dashboard.svelte';
+import SearchHero from '../components/SearchHero.svelte';
 import JourneyPicker from '../components/JourneyPicker.astro';
-import ProjectAnatomy from '../components/ProjectAnatomy.astro';
-import LocalBids from '../components/LocalBids.svelte';
 ---
 
 <Layout
-  title="Home"
-  description="Baliza: memória permanente das contratações públicas brasileiras. Parquet imutável no Internet Archive, SQL no navegador, permalinks citáveis."
+  title="Baliza — contratações públicas da sua cidade"
+  description="Baliza: painel civic das contratações públicas brasileiras. Acompanhe o que sua cidade está comprando no PNCP, com snapshots diários no Internet Archive, links estáveis e SQL aberto no navegador."
 >
-  <!-- 1. Hero + busca universal (CNPJ, IBGE, ID PNCP, objeto) -->
-  <SearchHero client:load />
+  <!-- 1. Hero: city-first. Defaults to Porto Velho, RO until the visitor picks. -->
+  <CityHero client:load />
 
-  <!-- 2. Six-journey entry — the cascade principle from VISION.md, above the fold -->
-  <JourneyPicker />
+  <!-- 2. Immediate utility: real recent activity for the active city. -->
+  <CityPulse client:load />
 
-  <!-- 3. Outcome-framed monitor (permanence, citability) -->
-  <section class="monitor-section container">
-    <Dashboard client:visible />
+  <OrnamentBand variant="wave" height={36} />
+
+  <!-- 3. What you can monitor — compact, citizen-legible prompts. -->
+  <MonitorGrid />
+
+  <!-- 4. Trust layer: archive, citability, analysis (down-toned manifesto). -->
+  <TrustStrip />
+
+  <!-- 5. Sinal do arquivo: small metrics strip so the infrastructure story
+       is still visible without dominating the top fold. -->
+  <section class="signal-strip" aria-labelledby="signal-title">
+    <div class="container">
+      <header class="signal-head">
+        <span class="kicker">Sinal do arquivo</span>
+        <h2 id="signal-title">O que Baliza já preservou</h2>
+      </header>
+      <Dashboard client:visible />
+    </div>
   </section>
 
-  <!-- 4. Why Baliza exists -->
-  <ProjectAnatomy />
+  <!-- 6. Utilidades avançadas: power-user search, developer/explorador/status. -->
+  <section class="tools-strip" aria-labelledby="tools-title">
+    <div class="container">
+      <header class="tools-head">
+        <span class="kicker">Utilidades avançadas</span>
+        <h2 id="tools-title">Para quem já sabe o que busca</h2>
+        <p class="tools-sub">
+          Se você chegou com um CNPJ, um ID PNCP ou um código IBGE, pule direto para a evidência.
+        </p>
+      </header>
+      <SearchHero client:idle />
+    </div>
+  </section>
 
-  <!-- 5. Local utility -->
-  <LocalBids client:idle />
+  <!-- 7. Jornadas por perfil: moved below the fold as secondary discovery. -->
+  <JourneyPicker />
 </Layout>
 
 <style>
-  .monitor-section {
-    padding: var(--space-8) 0 var(--space-8);
-    position: relative;
-    z-index: 20;
+  .signal-strip {
+    padding: var(--space-7) 0;
+    background: var(--neutral-0);
+    border-bottom: 1px solid var(--neutral-100);
+  }
+  .signal-head {
+    max-width: 640px;
+    margin-bottom: var(--space-4);
+    display: grid;
+    gap: var(--space-2);
+  }
+  .signal-head h2 {
+    font-family: var(--font-display);
+    font-weight: 300;
+    font-size: clamp(24px, 2.4vw, 32px);
+    letter-spacing: -0.02em;
+  }
+  .tools-strip {
+    padding: var(--space-8) 0;
+    background: var(--neutral-50);
+    border-top: 1px solid var(--neutral-100);
+  }
+  .tools-head {
+    max-width: 640px;
+    margin-bottom: var(--space-5);
+    display: grid;
+    gap: var(--space-2);
+  }
+  .tools-head h2 {
+    font-family: var(--font-display);
+    font-weight: 300;
+    font-size: clamp(24px, 2.4vw, 32px);
+    letter-spacing: -0.02em;
+  }
+  .tools-sub {
+    color: var(--neutral-500);
+    font-size: var(--text-md);
+    line-height: 1.6;
   }
 </style>

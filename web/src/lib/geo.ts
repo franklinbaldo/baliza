@@ -44,6 +44,29 @@ export async function getCityFromCoords(lat: number, lng: number): Promise<CityR
   return { city, state };
 }
 
+// Nominatim and IBGE both return the UF as a full Portuguese name
+// ("Rondônia", "São Paulo"). The rest of Baliza stores UF as the two-letter
+// sigla, so everything that calls into either API passes the response
+// through this table before writing it anywhere else.
+const UF_NAME_TO_SIGLA: Record<string, string> = {
+  acre: 'AC', alagoas: 'AL', amapá: 'AP', amazonas: 'AM', bahia: 'BA',
+  ceará: 'CE', 'distrito federal': 'DF', 'espírito santo': 'ES',
+  goiás: 'GO', maranhão: 'MA', 'mato grosso': 'MT', 'mato grosso do sul': 'MS',
+  'minas gerais': 'MG', pará: 'PA', paraíba: 'PB', paraná: 'PR',
+  pernambuco: 'PE', piauí: 'PI', 'rio de janeiro': 'RJ',
+  'rio grande do norte': 'RN', 'rio grande do sul': 'RS', rondônia: 'RO',
+  roraima: 'RR', 'santa catarina': 'SC', 'são paulo': 'SP',
+  sergipe: 'SE', tocantins: 'TO',
+};
+
+export function ufNomeToSigla(name: string | undefined | null): string {
+  if (!name) return '';
+  const key = name.trim().toLowerCase();
+  const mapped = UF_NAME_TO_SIGLA[key];
+  if (mapped) return mapped;
+  return name.trim().length === 2 ? name.trim().toUpperCase() : '';
+}
+
 export async function getIBGECode(cityName: string, stateName: string): Promise<string | null> {
   const url = `https://servicodados.ibge.gov.br/api/v1/localidades/municipios?nome=${encodeURIComponent(cityName)}`;
   const res = await fetch(url);
