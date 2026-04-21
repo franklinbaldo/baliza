@@ -30,8 +30,8 @@ const isActive = (path: string) => {
 
 <style>
   .nav {
-    background: var(--color-base-100);
-    border-bottom: 1px solid var(--color-base-300);
+    background: var(--neutral-0);
+    border-bottom: 1px solid var(--neutral-100);
     height: 4.5rem;
     display: flex;
     align-items: center;
@@ -44,25 +44,26 @@ const isActive = (path: string) => {
     justify-content: space-between;
     align-items: center;
     width: 100%;
-    gap: var(--space-sm);
+    gap: var(--space-4);
   }
   .logo {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     text-decoration: none;
-    color: var(--color-base-content);
-    font-size: var(--font-size-lg);
+    color: var(--neutral-900);
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
     flex-shrink: 0;
   }
   .logo-accent {
-    color: var(--color-primary);
-    font-weight: 700;
+    color: var(--bulcao-accent);
+    font-weight: 500;
   }
   .nav-links {
     list-style: none;
     display: flex;
-    gap: var(--space-md);
+    gap: var(--space-6);
     overflow-x: auto; /* Allow horizontal scroll on very small screens instead of breaking layout */
     -webkit-overflow-scrolling: touch;
     padding: 0.5rem 0;
@@ -70,25 +71,26 @@ const isActive = (path: string) => {
   }
   .nav-links a {
     text-decoration: none;
-    color: var(--color-secondary);
-    font-weight: 600;
-    font-size: var(--font-size-sm);
+    color: var(--neutral-500);
+    font-family: var(--font-body);
+    font-weight: 500;
+    font-size: var(--text-sm);
     transition: var(--transition-base);
     white-space: nowrap;
     border-bottom: 2px solid transparent;
   }
   .nav-links a:hover, .nav-links a.active {
-    color: var(--color-primary);
+    color: var(--bulcao-accent);
   }
   .nav-links a.active {
-    border-bottom-color: var(--color-primary);
+    border-bottom-color: var(--bulcao-accent);
   }
 
   /* Mobile Adjustments */
   @media (max-width: 600px) {
     .nav { height: auto; padding: 0.75rem 0; }
     .nav-content { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
-    .nav-links { width: 100%; gap: var(--space-sm); justify-content: flex-start; }
+    .nav-links { width: 100%; gap: var(--space-4); justify-content: flex-start; }
     .logo { font-size: 1.1rem; }
   }
 </style>
