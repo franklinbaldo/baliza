@@ -58,5 +58,7 @@
     border-color: var(--bulcao-accent);
     box-shadow: 2px 2px 0 var(--bulcao-accent);
     transform: translate(-1px, -1px);
+    outline: 2px solid transparent;
+    outline-offset: 2px;
   }
 </style>

@@ -9,7 +9,7 @@
   let { title, message, actionHref, actionLabel }: Props = $props();
 </script>
 
-<div class="card empty-state">
+<div class="card empty-state" role="status" aria-live="polite">
   <h3>{title}</h3>
   <p>{message}</p>
   {#if actionHref && actionLabel}

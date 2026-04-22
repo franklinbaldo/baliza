@@ -1,6 +1,8 @@
 <script lang="ts">
   import { cityState, hydrateCityContext } from '../lib/cityContext.svelte';
 
+  let { isActive = false } = $props();
+
   const BASE = '/baliza/';
   hydrateCityContext();
 
@@ -12,7 +14,7 @@
   );
 </script>
 
-<a {href} class="city-nav-link" aria-label={`Painel do município de ${cityState.nome}`}>
+<a {href} class="city-nav-link" aria-label={`Painel do município de ${cityState.nome}`} aria-current={isActive ? 'page' : undefined}>
   {label}
 </a>
 

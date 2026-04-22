@@ -8,7 +8,7 @@
   let { title, message, level = 'info' }: Props = $props();
 </script>
 
-<div class="alert level-{level}" role="alert">
+<div class="alert level-{level}" role={level === 'error' || level === 'warning' ? 'alert' : 'status'} aria-live={level === 'error' || level === 'warning' ? 'assertive' : 'polite'}>
   <div>
     <strong>{title}</strong>
     <div class="alert-message">{message}</div>
