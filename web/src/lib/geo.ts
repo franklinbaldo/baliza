@@ -67,6 +67,19 @@ export function ufNomeToSigla(name: string | undefined | null): string {
   return name.trim().length === 2 ? name.trim().toUpperCase() : '';
 }
 
+import ibgeData from './ibge-data.json';
+
+export interface MunicipalityInfo {
+  nome: string;
+  uf: string;
+  populacao: number;
+}
+
+export function getMunicipalityInfo(ibge: string): MunicipalityInfo | null {
+  const data = ibgeData as Record<string, MunicipalityInfo>;
+  return data[ibge] || null;
+}
+
 export async function getIBGECode(cityName: string, stateName: string): Promise<string | null> {
   const url = `https://servicodados.ibge.gov.br/api/v1/localidades/municipios?nome=${encodeURIComponent(cityName)}`;
   const res = await fetch(url);

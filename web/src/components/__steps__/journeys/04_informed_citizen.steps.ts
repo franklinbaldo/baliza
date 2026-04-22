@@ -4,9 +4,11 @@ import { vi, expect } from 'vitest';
 import { tick } from 'svelte';
 import { render, noop, plannedStep } from './_shared';
 import ContractDetailViewRaw from '../../ContractDetailView.svelte';
+import CityDetailViewRaw from '../../CityDetailView.svelte';
 import * as iaManifestModule from '../../../lib/ia-manifest';
 
 const ContractDetailView = ContractDetailViewRaw as unknown as Parameters<typeof render>[0];
+const CityDetailView = CityDetailViewRaw as unknown as Parameters<typeof render>[0];
 
 const feature = await loadFeature('features/journeys/04_informed_citizen.feature');
 
@@ -130,10 +132,32 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   });
 
   Scenario('Geographic context is shown when available', ({ Given, Then }) => {
-    Given('the user opens "/municipio?ibge=3550308"', noop);
-    Then('the user sees the municipality population and the state it belongs to', () =>
-      plannedStep('IBGE-based geo lookup on the municipality page'),
-    );
+    Given('the user opens "/municipio?ibge=3550308"', async () => {
+      window.history.replaceState({}, '', '/?ibge=3550308');
+      global.fetch = vi
+        .fn()
+        .mockImplementation(async () => new Response(JSON.stringify({
+          data: [{
+            numeroControlePNCP: 'dummy',
+            dataPublicacaoPncp: '2024-01-01',
+            objetoContratacao: 'dummy',
+            orgaoEntidade: { razaoSocial: 'A', cnpj: 'B' },
+            unidadeOrgao: { nomeUnidade: 'C' }
+          }]
+        }), { status: 200 }));
+      render(CityDetailView);
+      await tick();
+    });
+
+    Then('the user sees the municipality population and the state it belongs to', async () => {
+      await waitFor(
+        () => {
+          const meta = screen.getByTestId('city-meta');
+          expect(meta.textContent).toContain('População: 11.451.999');
+        },
+        { timeout: 2000 }
+      );
+    });
   });
 
   Scenario(
