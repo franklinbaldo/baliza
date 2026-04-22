@@ -118,6 +118,8 @@ def _is_retryable_error(exc: BaseException) -> bool:
         return exc.response.status_code == 429 or exc.response.status_code >= 500
     if isinstance(exc, (httpx.ConnectError, httpx.TimeoutException)):
         return True
+    if isinstance(exc, RetryablePayloadError):
+        return True
 
     # DO NOT retry on validation errors
     if isinstance(exc, ValueError):
@@ -130,6 +132,15 @@ def _validate_resource(resource: str):
     """Prevent path traversal and injection by validating resource name."""
     if not re.match(r"^[a-zA-Z0-9_]+$", resource):
         raise ValueError(f"Invalid resource path: {resource}")
+
+
+class RetryablePayloadError(ValueError):
+    """Raised when PNCP returns a syntactically invalid payload.
+
+    We observe occasional empty/HTML upstream bodies with HTTP 200 while the
+    endpoint is under stress. Those payloads are transient in practice and
+    should participate in tenacity retries.
+    """
 
 
 class PNCPExtractor:
@@ -223,7 +234,17 @@ class PNCPExtractor:
                     text=True,
                     check=True,
                 )
-                data = json.loads(result.stdout)
+                payload = result.stdout.strip()
+                if not payload:
+                    raise RetryablePayloadError(
+                        f"Empty response body for {resource} page {page}"
+                    )
+                try:
+                    data = json.loads(payload)
+                except json.JSONDecodeError as e:
+                    raise RetryablePayloadError(
+                        f"Invalid JSON response for {resource} page {page}: {e}"
+                    ) from e
                 self._save_raw(resource, start_date, page, data)
                 return data
             except Exception:
@@ -238,8 +259,15 @@ class PNCPExtractor:
                 content += chunk
                 if len(content) > max_size:
                     raise ValueError(f"Response too large: {len(content)} bytes")
-
-        data = json.loads(content)
+        payload = content.strip()
+        if not payload:
+            raise RetryablePayloadError(f"Empty response body for {resource} page {page}")
+        try:
+            data = json.loads(payload)
+        except json.JSONDecodeError as e:
+            raise RetryablePayloadError(
+                f"Invalid JSON response for {resource} page {page}: {e}"
+            ) from e
         self._save_raw(resource, start_date, page, data)
         return data
 
