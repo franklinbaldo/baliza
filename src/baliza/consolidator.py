@@ -198,14 +198,24 @@ class IAConsolidator:
             with duckdb.connect(":memory:") as con:
                 con.execute("INSTALL httpfs; LOAD httpfs;")
                 console.print(f"  Merging {len(daily_urls)} files via httpfs...")
-                con.execute(f"""
-                    COPY (
-                        SELECT *
-                        FROM read_parquet([{url_list}])
-                        ORDER BY cnpj_orgao, data_publicacao DESC, numero_controle_pncp
-                    ) TO '{output_path}'
-                    ({DUCKDB_PARQUET_COPY_OPTIONS})
-                """)
+                try:
+                    con.execute(f"""
+                        COPY (
+                            SELECT *
+                            FROM read_parquet([{url_list}])
+                            ORDER BY cnpj_orgao, data_publicacao DESC, numero_controle_pncp
+                        ) TO '{output_path}'
+                        ({DUCKDB_PARQUET_COPY_OPTIONS})
+                    """)
+                except Exception as e:
+                    if "404" in str(e) or "Not Found" in str(e):
+                        console.print(
+                            f"[yellow]⚠ Skipping {year}: one or more source files "
+                            f"returned HTTP 404 (file may have been removed from IA). "
+                            f"Will retry on a future run.[/yellow]"
+                        )
+                        return False
+                    raise
 
                 size_mb = output_path.stat().st_size / 1_048_576
                 console.print(
