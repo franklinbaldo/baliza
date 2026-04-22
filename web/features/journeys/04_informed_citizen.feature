@@ -34,7 +34,7 @@ Feature: Journey 4 — Informed citizen
     Given the user opens "/contratacao?id=00000000000191-1-000001/2024"
     Then the user sees the snapshot date of the underlying Parquet within the page header
 
-  @planned @plain-language
+  @green @plain-language
   Scenario: Geographic context is shown when available
     # Planned: no geo enrichment today. Static-compatible — a bundled
     # IBGE code → municipality/state/region lookup (JSON) is enough.

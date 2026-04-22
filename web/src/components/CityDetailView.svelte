@@ -14,6 +14,7 @@
   import StatCard from './StatCard.svelte';
   import LookbackWindow from './LookbackWindow.svelte';
   import { DEFAULT_SINCE_DAYS } from '../lib/pncpPublicacao';
+  import { getMunicipalityInfo } from '../lib/geo';
 
   setQueryClientContext(getQueryClient());
 
@@ -53,6 +54,7 @@
     name: string;
     uf: string;
     ibge: string;
+    populacao?: number;
     contracts: PNCPContract[];
     archived?: { dataParticao: string | null };
   }
@@ -92,16 +94,18 @@
           { codigoMunicipioIbge: ibge },
           { sinceDays: dias },
         );
-        const cityName = contracts[0]?.municipio?.nomeMunicipio || contracts[0]?.unidadeOrgao?.municipioNome || "Município";
-        const uf = contracts[0]?.unidadeOrgao?.ufSigla || "";
-        return { name: cityName, uf, ibge, contracts };
+        const info = getMunicipalityInfo(ibge);
+        const cityName = info?.nome || contracts[0]?.municipio?.nomeMunicipio || contracts[0]?.unidadeOrgao?.municipioNome || "Município";
+        const uf = info?.uf || contracts[0]?.unidadeOrgao?.ufSigla || "";
+        return { name: cityName, uf, ibge, populacao: info?.populacao, contracts };
       },
       buildFromArchive: ({ rows, dataParticao }) => {
         const contracts = rows.map(archivedRowToContract);
+        const info = getMunicipalityInfo(ibge);
         const first = rows[0];
-        const cityName = first?.municipio_nome ?? 'Município';
-        const uf = first?.uf_sigla ?? '';
-        return { name: cityName, uf, ibge, contracts, archived: { dataParticao } };
+        const cityName = info?.nome || (first?.municipio_nome ?? 'Município');
+        const uf = info?.uf || (first?.uf_sigla ?? '');
+        return { name: cityName, uf, ibge, populacao: info?.populacao, contracts, archived: { dataParticao } };
       },
     }),
   );
@@ -144,8 +148,11 @@
         <svg width="32" height="32" aria-hidden="true" style="margin-right: 12px; flex-shrink: 0; fill: currentColor;"><use href="#t3"/></svg>
         <h1>{data.name} / {data.uf}</h1>
       </div>
-      <div class="meta-row">
+      <div class="meta-row" data-testid="city-meta">
         <span>Cód. IBGE: {data.ibge}</span>
+        {#if data.populacao}
+          <span>População: {data.populacao.toLocaleString('pt-BR')}</span>
+        {/if}
         <span>Fonte: {data.archived ? 'Arquivo Parquet (IA)' : 'PNCP V1'}</span>
       </div>
     </header>
