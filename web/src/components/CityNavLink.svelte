@@ -33,4 +33,8 @@
     color: var(--bulcao-accent);
     border-bottom-color: var(--bulcao-accent);
   }
+  .city-nav-link:focus-visible {
+    color: var(--bulcao-accent);
+    border-bottom-color: var(--bulcao-accent);
+  }
 </style>
