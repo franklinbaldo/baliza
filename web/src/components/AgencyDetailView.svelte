@@ -1,3 +1,4 @@
+
 <script lang="ts">
   import { createQuery, setQueryClientContext } from '@tanstack/svelte-query';
   import { getQueryClient } from '../lib/queryClient';
@@ -12,7 +13,8 @@
   import AlertBanner from './AlertBanner.svelte';
   import EmptyState from './EmptyState.svelte';
   import LookbackWindow from './LookbackWindow.svelte';
-  import { DEFAULT_SINCE_DAYS } from '../lib/pncpPublicacao';
+    import { DEFAULT_SINCE_DAYS } from '../lib/pncpPublicacao';
+  import { addWatch, isWatched, hydrateWatches } from '../lib/watchStore.svelte';
 
   setQueryClientContext(getQueryClient());
 
@@ -46,7 +48,10 @@
 
   $effect(() => {
     if (cnpj) prefetchArchive('contratos');
+    hydrateWatches();
   });
+
+  const isAgencyWatched = $derived(isWatched('agency', cnpj));
 
   interface SupplierTally {
     name: string;
@@ -221,14 +226,25 @@
       />
     {/if}
     <header class="hub-header">
-      <span class="kicker">🏛️ ÓRGÃO / ENTIDADE</span>
-      <div style="display:flex; align-items:center;">
-        <svg width="32" height="32" aria-hidden="true" style="margin-right: 12px; flex-shrink: 0; fill: currentColor;"><use href="#t4"/></svg>
-        <h1>{data.name}</h1>
-      </div>
-      <div class="meta-row">
-        <span>CNPJ: {data.cnpj}</span>
-        <span>Fonte: {data.archived ? 'Arquivo Parquet (IA)' : 'PNCP V1'}</span>
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; width: 100%;">
+        <div>
+          <span class="kicker">🏛️ ÓRGÃO / ENTIDADE</span>
+          <div style="display:flex; align-items:center;">
+            <svg width="32" height="32" aria-hidden="true" style="margin-right: 12px; flex-shrink: 0; fill: currentColor;"><use href="#t4"/></svg>
+            <h1>{data.name}</h1>
+          </div>
+          <div class="meta-row">
+            <span>CNPJ: {data.cnpj}</span>
+            <span>Fonte: {data.archived ? 'Arquivo Parquet (IA)' : 'PNCP V1'}</span>
+          </div>
+        </div>
+        <button
+          class="btn btn-outline"
+          onclick={() => addWatch('agency', data.cnpj, data.name)}
+          disabled={isAgencyWatched}
+        >
+          {isAgencyWatched ? '✓ Acompanhando' : 'Receber alertas deste órgão'}
+        </button>
       </div>
     </header>
 
