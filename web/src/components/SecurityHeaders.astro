@@ -1,0 +1,20 @@
+---
+/**
+ * Renders the site's <meta> security policies. Must be the first child of
+ * <head> so the browser parses the CSP before evaluating any inline script.
+ *
+ * Not enforced here (meta tag is ignored by the spec for these, and GitHub
+ * Pages doesn't let us set real HTTP headers):
+ *   - Content-Security-Policy: frame-ancestors
+ *   - X-Frame-Options
+ *   - Permissions-Policy
+ * The site intentionally stays embeddable — third-party iframes use
+ * ?embed=true — so losing frame-ancestors is acceptable.
+ */
+import { buildCsp, REFERRER_POLICY } from '../lib/security-headers';
+
+const csp = buildCsp();
+---
+
+<meta http-equiv="Content-Security-Policy" content={csp} />
+<meta name="referrer" content={REFERRER_POLICY} />
