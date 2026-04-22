@@ -137,7 +137,7 @@ class PNCPExtractor:
 
     def __init__(
         self,
-        engine: BalizaEngine,
+        engine: BalizaEngine | None = None,
         base_url: str = "https://pncp.gov.br/api/consulta/v1",
         use_curl: bool = False,
     ):
@@ -320,6 +320,9 @@ class PNCPExtractor:
 
     def ingest_range(self, start_date: datetime) -> dict[str, int]:
         """Validate and ingest all raw JSON files for a specific month/range into the shared engine."""
+        if self.engine is None:
+            raise RuntimeError("ingest_range requires an engine — construct PNCPExtractor(engine=...)")
+
         month_str = start_date.strftime("%Y-%m")
         raw_dir = Path("data/raw") / month_str
 
@@ -370,6 +373,8 @@ class PNCPExtractor:
 
     def export_quarantine(self, extraction_date: datetime, output_path: Path) -> bool:
         """Export session quarantine to CSV if not empty."""
+        if self.engine is None:
+            raise RuntimeError("export_quarantine requires an engine — construct PNCPExtractor(engine=...)")
         try:
             q_table = self.engine.get_table("quarantine", schema="baliza_state")
             # Filter for current date if possible, but in stateless per-day loop,

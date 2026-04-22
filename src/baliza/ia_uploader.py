@@ -49,6 +49,12 @@ MANIFEST_FIELDNAMES = [
     "bloom_filter_columns",
     "sha256",
     "file_size_bytes",
+    # v3 fields — two-phase pipeline tracking (mirror then build)
+    "mirror_uploaded_at",
+    "raw_zip_sha256",
+    "raw_zip_size_bytes",
+    "parquet_uploaded_at",
+    "parquet_schema_version",
 ]
 
 
@@ -253,9 +259,9 @@ class MonthlyExporter:
 class IAUploader:
     """Stateless uploader using a remote CSV manifest as source of truth."""
 
-    def __init__(self, engine: BalizaEngine) -> None:
+    def __init__(self, engine: BalizaEngine | None = None) -> None:
         self.engine = engine
-        self.exporter = MonthlyExporter(engine)
+        self.exporter = MonthlyExporter(engine) if engine else None
         self.manifest_item_id = "baliza-pncp-manifest"
 
     def _read_manifest_from_ia(self) -> list[dict[str, Any]]:
@@ -280,6 +286,218 @@ class IAUploader:
                     continue
         return dates
 
+    def _upsert_manifest_row(
+        self,
+        month_str: str,
+        fields: dict[str, Any],
+        access_key: str,
+        secret_key: str,
+    ) -> None:
+        """Read manifest, merge fields into the canonical row for month_str, write back.
+
+        If no canonical row exists for the month, creates one with safe defaults.
+        Existing fields not present in ``fields`` are preserved (merge, not replace).
+        Uses the strict reader — transient read failures abort rather than wipe the live manifest.
+        """
+        manifest = read_manifest_from_ia()
+        item_id = f"baliza-pncp-{month_str}"
+
+        existing_idx: int | None = None
+        for i, row in enumerate(manifest):
+            if (
+                row.get("data_particao") == month_str
+                and row.get("table_name") == "contratos"
+                and row.get("file_type", "") in ("", "monthly_canonical")
+            ):
+                existing_idx = i
+                break
+
+        now = datetime.now().isoformat()
+        if existing_idx is not None:
+            manifest[existing_idx] = {**manifest[existing_idx], **fields}
+        else:
+            new_row: dict[str, Any] = {
+                "data_particao": month_str,
+                "table_name": "contratos",
+                "row_count": 0,
+                "quarantine_count": 0,
+                "ia_item_id": item_id,
+                "raw_zip_url": f"https://archive.org/download/{item_id}/raw-{month_str}.zip",
+                "parquet_url": "",
+                "quarantine_url": "",
+                "uploaded_at": now,
+                "file_type": "monthly_canonical",
+                "uf_sigla": "",
+                "sort_key": _CONTRATOS_SORT_KEY,
+                "row_group_size": PARQUET_ROW_GROUP_SIZE,
+                "bloom_filter_columns": _CONTRATOS_BLOOM_FILTER_COLUMNS,
+                "sha256": "",
+                "file_size_bytes": 0,
+                "mirror_uploaded_at": "",
+                "raw_zip_sha256": "",
+                "raw_zip_size_bytes": 0,
+                "parquet_uploaded_at": "",
+                "parquet_schema_version": "",
+            }
+            new_row.update(fields)
+            manifest.append(new_row)
+
+        write_manifest_to_ia(manifest, access_key, secret_key)
+
+    def upload_raw_zip(
+        self,
+        start_date: date,
+        raw_dir: Path,
+        ia_access_key: str,
+        ia_secret_key: str,
+    ) -> bool:
+        """Zip raw JSON pages and upload to the monthly IA item; update manifest mirror fields.
+
+        Does NOT ingest or export Parquet. Cleans up raw_dir on success so the
+        next run fetches fresh from IA (or GHA cache). Returns True on success.
+        """
+        month_str = start_date.strftime("%Y-%m")
+        item_id = f"baliza-pncp-{month_str}"
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            temp_path = Path(tmp_dir)
+            zip_path = temp_path / f"raw-{month_str}.zip"
+            shutil.make_archive(str(zip_path.with_suffix("")), "zip", raw_dir)
+
+            raw_zip_sha256 = _sha256(zip_path)
+            raw_zip_size = zip_path.stat().st_size
+
+            console.print(f"  Uploading raw ZIP for {month_str} to {item_id}...")
+            ia.upload(
+                item_id,
+                files={zip_path.name: str(zip_path)},
+                access_key=ia_access_key,
+                secret_key=ia_secret_key,
+                metadata={
+                    "title": f"Baliza PNCP Data {month_str}",
+                    "description": f"Raw JSON mirror of PNCP contracts - {month_str}",
+                    "mediatype": "data",
+                    "collection": "opensource_media",
+                },
+                retries=3,
+            )
+
+        raw_zip_url = f"https://archive.org/download/{item_id}/raw-{month_str}.zip"
+        now = datetime.now().isoformat()
+        success = False
+        try:
+            self._upsert_manifest_row(
+                month_str,
+                {
+                    "raw_zip_url": raw_zip_url,
+                    "mirror_uploaded_at": now,
+                    "raw_zip_sha256": raw_zip_sha256,
+                    "raw_zip_size_bytes": raw_zip_size,
+                    "uploaded_at": now,
+                },
+                ia_access_key,
+                ia_secret_key,
+            )
+            success = True
+        except Exception as e:
+            console.print(f"[red]✗ Manifest update failed for {month_str}: {e}[/red]")
+
+        if success and raw_dir.exists():
+            shutil.rmtree(raw_dir)
+            console.print(f"[green]✓ {month_str} mirrored and local pages cleaned.[/green]")
+        else:
+            console.print(
+                f"[yellow]⚠ {month_str} ZIP uploaded but NOT cleaned due to manifest error.[/yellow]"
+            )
+        return success
+
+    def upload_parquet(  # noqa: PLR0913
+        self,
+        start_date: date,
+        ia_access_key: str,
+        ia_secret_key: str,
+        quarantine_stats: dict[str, int] | None = None,
+        quarantine_csv: Path | None = None,
+        schema_version: str = "",
+    ) -> bool:
+        """Export Parquet from engine and upload to the monthly IA item; update manifest.
+
+        Requires engine to be set. Does NOT touch raw JSON pages.
+        Returns True on success.
+        """
+        if self.engine is None or self.exporter is None:
+            raise RuntimeError("upload_parquet requires an engine — construct IAUploader(engine=...)")
+
+        month_str = start_date.strftime("%Y-%m")
+        item_id = f"baliza-pncp-{month_str}"
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            temp_path = Path(tmp_dir)
+            exported_files = self.exporter.export_month(start_date, temp_path)
+
+            files_to_upload: dict[str, str] = {}
+            if quarantine_csv and quarantine_csv.exists():
+                files_to_upload[quarantine_csv.name] = str(quarantine_csv)
+            for _table, path in exported_files.items():
+                files_to_upload[path.name] = str(path)
+
+            if not files_to_upload:
+                console.print(f"[yellow]⚠ Nothing to upload for {month_str}[/yellow]")
+                return False
+
+            parquet_filename = f"contratos-{month_str}.parquet"
+            parquet_local = files_to_upload.get(parquet_filename)
+            parquet_sha256 = ""
+            parquet_size = 0
+            if parquet_local and Path(parquet_local).exists():
+                parquet_sha256 = _sha256(Path(parquet_local))
+                parquet_size = Path(parquet_local).stat().st_size
+
+            console.print(f"  Uploading Parquet for {month_str} to {item_id}...")
+            ia.upload(
+                item_id,
+                files=files_to_upload,
+                access_key=ia_access_key,
+                secret_key=ia_secret_key,
+                metadata={
+                    "title": f"Baliza PNCP Data {month_str}",
+                    "description": f"Consolidated monthly data for PNCP contracts - {month_str}",
+                    "mediatype": "data",
+                    "collection": "opensource_media",
+                },
+                retries=3,
+            )
+
+        now = datetime.now().isoformat()
+        success = False
+        try:
+            q_count = quarantine_stats.get("quarantine", 0) if quarantine_stats else 0
+            self._upsert_manifest_row(
+                month_str,
+                {
+                    "parquet_url": f"https://archive.org/download/{item_id}/{parquet_filename}",
+                    "sha256": parquet_sha256,
+                    "file_size_bytes": parquet_size,
+                    "row_count": quarantine_stats.get("valid", 0) if quarantine_stats else 0,
+                    "quarantine_count": q_count,
+                    "quarantine_url": (
+                        f"https://archive.org/download/{item_id}/quarentena-{month_str}.csv"
+                        if q_count > 0
+                        else ""
+                    ),
+                    "parquet_uploaded_at": now,
+                    "parquet_schema_version": schema_version,
+                    "uploaded_at": now,
+                },
+                ia_access_key,
+                ia_secret_key,
+            )
+            success = True
+        except Exception as e:
+            console.print(f"[red]✗ Manifest update failed for {month_str}: {e}[/red]")
+
+        return success
+
     def upload_month(  # noqa: PLR0913
         self,
         start_date: date,
@@ -290,6 +508,9 @@ class IAUploader:
         quarantine_csv: Path | None = None,
     ) -> None:
         """Export, Zip, and Upload monthly consolidated data to Internet Archive, then cleanup."""
+        if self.engine is None or self.exporter is None:
+            raise RuntimeError("upload_month requires an engine — construct IAUploader(engine=...)")
+
         month_str = start_date.strftime("%Y-%m")
         item_id = f"baliza-pncp-{month_str}"
 

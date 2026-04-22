@@ -1,0 +1,85 @@
+name: PNCP Backfill
+
+# Regenerate Parquet files from existing raw ZIPs on Internet Archive.
+# Run this when the Parquet schema changes (SCHEMA_VERSION bump) to rebuild
+# all historical months from the raw JSON mirror without re-fetching from PNCP.
+#
+# Runs independently from the regular cron — trigger manually via workflow_dispatch.
+on:
+  workflow_dispatch:
+    inputs:
+      start_year:
+        description: 'Earliest year to backfill (e.g. 2023)'
+        required: false
+        default: '2023'
+      dry_run:
+        description: 'Ingest and validate without uploading'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: pncp-backfill
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  backfill:
+    name: Backfill Parquet from raw ZIPs
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - name: Run backfill
+        env:
+          IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
+          IA_SECRET_KEY: ${{ secrets.IA_SECRET_KEY }}
+        run: |
+          DRY_RUN_FLAG=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            DRY_RUN_FLAG="--dry-run"
+          fi
+          uv run baliza build \
+            --backfill \
+            --start-date "${{ inputs.start_year }}-01-01" \
+            --workers 2 \
+            $DRY_RUN_FLAG
+
+  report-failure:
+    name: Report backfill failure
+    if: ${{ failure() }}
+    needs: backfill
+    runs-on: ubuntu-latest
+    steps:
+      - name: Open issue for failure
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const runId = context.runId;
+            const runUrl = `${context.payload.repository.html_url}/actions/runs/${runId}`;
+            const identifier = `run_id:${runId}`;
+
+            const search = await github.rest.search.issuesAndPullRequests({
+              q: `repo:${owner}/${repo} "${identifier}" state:open type:issue`
+            });
+            if (search.data.total_count > 0) return;
+
+            await github.rest.issues.create({
+              owner,
+              repo,
+              title: `🚨 Falha no workflow "PNCP Backfill" (run #${context.runNumber})`,
+              body: [
+                '@codex há uma falha no workflow de backfill.',
+                '',
+                `- **Workflow**: PNCP Backfill`,
+                `- **Execução**: [#${context.runNumber}](${runUrl})`,
+                `- **Identificador**: ${identifier}`,
+              ].join('\n'),
+              labels: ['ci-failure']
+            });
