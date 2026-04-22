@@ -542,8 +542,20 @@ def mirror_cmd(  # noqa: PLR0913
     total_fetched = 0
     error_count = 0
 
+    def _collect_mirror(f: concurrent.futures.Future, m: Any) -> None:
+        nonlocal total_fetched, error_count
+        try:
+            r = f.result()
+            total_fetched += int(r.get("pages_fetched", 0))
+            if not dry_run and not r.get("uploaded"):
+                error_count += 1
+                console.print(f"[red]✗ {m.strftime('%Y-%m')}: upload failed (manifest error?)[/red]")
+        except Exception as e:
+            error_count += 1
+            console.print(f"[red]✗ {m.strftime('%Y-%m')}: {e}[/red]")
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
-        futures = {}
+        futures: dict[concurrent.futures.Future, Any] = {}
         for target_month in batch:
             elapsed = (datetime.now() - start_time_exec).total_seconds() / 60
             if limit_minutes and elapsed >= limit_minutes:
@@ -553,8 +565,8 @@ def mirror_cmd(  # noqa: PLR0913
                 done, _ = concurrent.futures.wait(
                     futures.keys(), timeout=0.1, return_when=concurrent.futures.FIRST_COMPLETED
                 )
-                for f in done:
-                    futures.pop(f)
+                for completed in done:
+                    _collect_mirror(completed, futures.pop(completed))
             f = executor.submit(
                 mirror_month,
                 target_month,
@@ -566,13 +578,8 @@ def mirror_cmd(  # noqa: PLR0913
             )
             futures[f] = target_month
         concurrent.futures.wait(futures.keys())
-        for f, m in futures.items():
-            try:
-                r = f.result()
-                total_fetched += int(r.get("pages_fetched", 0))
-            except Exception as e:
-                error_count += 1
-                console.print(f"[red]✗ {m.strftime('%Y-%m')}: {e}[/red]")
+        for f, m in list(futures.items()):
+            _collect_mirror(f, m)
 
     console.print(
         f"\n[green]✓ Mirror done[/green] — {total_fetched} pages fetched, "
@@ -634,8 +641,21 @@ def build_cmd(  # noqa: PLR0913
     total_quarantine = 0
     error_count = 0
 
+    def _collect_build(f: concurrent.futures.Future, m: Any) -> None:
+        nonlocal total_valid, total_quarantine, error_count
+        try:
+            r = f.result()
+            total_valid += int(r.get("valid", 0))
+            total_quarantine += int(r.get("quarantine", 0))
+            if not dry_run and not r.get("uploaded"):
+                error_count += 1
+                console.print(f"[red]✗ {m.strftime('%Y-%m')}: upload failed (manifest error?)[/red]")
+        except Exception as e:
+            error_count += 1
+            console.print(f"[red]✗ {m.strftime('%Y-%m')}: {e}[/red]")
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
-        futures = {}
+        futures: dict[concurrent.futures.Future, Any] = {}
         for target_month in batch:
             elapsed = (datetime.now() - start_time_exec).total_seconds() / 60
             if limit_minutes and elapsed >= limit_minutes:
@@ -645,8 +665,8 @@ def build_cmd(  # noqa: PLR0913
                 done, _ = concurrent.futures.wait(
                     futures.keys(), timeout=0.1, return_when=concurrent.futures.FIRST_COMPLETED
                 )
-                for f in done:
-                    futures.pop(f)
+                for completed in done:
+                    _collect_build(completed, futures.pop(completed))
             f = executor.submit(
                 build_month,
                 target_month,
@@ -657,14 +677,8 @@ def build_cmd(  # noqa: PLR0913
             )
             futures[f] = target_month
         concurrent.futures.wait(futures.keys())
-        for f, m in futures.items():
-            try:
-                r = f.result()
-                total_valid += int(r.get("valid", 0))
-                total_quarantine += int(r.get("quarantine", 0))
-            except Exception as e:
-                error_count += 1
-                console.print(f"[red]✗ {m.strftime('%Y-%m')}: {e}[/red]")
+        for f, m in list(futures.items()):
+            _collect_build(f, m)
 
     console.print(
         f"\n[green]✓ Build done[/green] — {total_valid:,} records, "
