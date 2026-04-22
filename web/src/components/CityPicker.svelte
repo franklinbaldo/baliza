@@ -158,6 +158,7 @@
     <input
       class="input-modernist"
       type="search"
+      role="combobox"
       placeholder="Digite o nome da cidade (ex.: Porto Velho, Manaus, Recife)"
       aria-label="Buscar município"
       aria-autocomplete="list"
