@@ -10,6 +10,7 @@
   import type { ArchivedContrato } from '../lib/archive/schema';
   import { parsePncpId, PNCP_ID_EXAMPLE } from '../lib/pncpId';
   import { getLatestParquetInfo } from '../lib/ia-manifest';
+  import { addWatch, isWatched, hydrateWatches } from '../lib/watchStore.svelte';
   import EntityNotFound from './EntityNotFound.svelte';
   import AlertBanner from './AlertBanner.svelte';
   import Glossary from './Glossary.svelte';
@@ -28,7 +29,10 @@
 
   $effect(() => {
     if (parsedId) prefetchArchive('contratos');
+    hydrateWatches();
   });
+
+
 
   // Supplier data lives in the Parquet schema (`ni_fornecedor`,
   // `nome_razao_social_fornecedor`) but not in the PNCP consulta endpoint.
@@ -90,6 +94,7 @@
   );
 
   const data = $derived(contractQuery.data);
+  const isSupplierWatched = $derived(data?.supplierCnpj ? isWatched('supplier', data.supplierCnpj) : false);
   const loading = $derived(contractQuery.isFetching);
   const error = $derived(contractQuery.error instanceof Error ? contractQuery.error : null);
 
@@ -160,25 +165,37 @@
       </div>
 
       {#snippet plainLanguageSummary()}
-        <p class="plain-summary" data-testid="plain-language-summary">
-          {#if data.orgaoEntidade?.razaoSocial}
-            <strong>{data.orgaoEntidade.razaoSocial}</strong>
-          {:else}
-            Um órgão público
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; width: 100%; gap: var(--space-4);">
+          <p class="plain-summary" data-testid="plain-language-summary" style="margin:0;">
+            {#if data.orgaoEntidade?.razaoSocial}
+              <strong>{data.orgaoEntidade.razaoSocial}</strong>
+            {:else}
+              Um órgão público
+            {/if}
+            contratou
+            {#if data.supplierName || data.supplierCnpj}
+              <strong>{data.supplierName ?? data.supplierCnpj}</strong>
+            {:else}
+              um fornecedor (ainda não identificado no snapshot)
+            {/if}
+            {#if data.valorTotalEstimado != null}
+              pelo valor de <strong>{formatBRL(data.valorTotalEstimado)}</strong>
+            {:else}
+              com valor não informado
+            {/if}
+            para <strong>{data.objetoContratacao || 'um objeto não descrito'}</strong>{data.modalidadeNome ? `, via ${data.modalidadeNome}` : ''}.
+          </p>
+          {#if data.supplierCnpj}
+            <button
+              class="btn btn-outline"
+              style="flex-shrink: 0;"
+              onclick={() => addWatch('supplier', data.supplierCnpj!, data.supplierName ?? data.supplierCnpj!)}
+              disabled={isSupplierWatched}
+            >
+              {isSupplierWatched ? '✓ Acompanhando' : 'Acompanhar este fornecedor'}
+            </button>
           {/if}
-          contratou
-          {#if data.supplierName || data.supplierCnpj}
-            <strong>{data.supplierName ?? data.supplierCnpj}</strong>
-          {:else}
-            um fornecedor (ainda não identificado no snapshot)
-          {/if}
-          {#if data.valorTotalEstimado != null}
-            pelo valor de <strong>{formatBRL(data.valorTotalEstimado)}</strong>
-          {:else}
-            com valor não informado
-          {/if}
-          para <strong>{data.objetoContratacao || 'um objeto não descrito'}</strong>{data.modalidadeNome ? `, via ${data.modalidadeNome}` : ''}.
-        </p>
+        </div>
       {/snippet}
       {@render plainLanguageSummary()}
     </header>
