@@ -208,7 +208,7 @@ class IAConsolidator:
                         ({DUCKDB_PARQUET_COPY_OPTIONS})
                     """)
                 except Exception as e:
-                    if "404" in str(e) or "Not Found" in str(e):
+                    if "HTTP 404" in str(e):
                         console.print(
                             f"[yellow]⚠ Skipping {year}: one or more source files "
                             f"returned HTTP 404 (file may have been removed from IA). "
