@@ -9,6 +9,8 @@ import {
   buildCsp,
 } from './security-headers';
 
+const SELF_FILE = 'security-headers.ts';
+
 describe('buildCsp', () => {
   it('emits every declared directive exactly once', () => {
     const csp = buildCsp();
@@ -60,6 +62,10 @@ describe('connect-src covers every external origin the client code contacts', ()
       if (!name.isFile()) continue;
       if (!(name.name.endsWith('.ts') || name.name.endsWith('.svelte'))) continue;
       if (name.name.endsWith('.test.ts')) continue;
+      // The policy file itself references every allow-listed host as string
+      // literals — skipping it avoids circular self-checks (those hosts are
+      // covered via style-src/font-src/script-src, not connect-src).
+      if (name.name === SELF_FILE) continue;
       out.push(full);
     }
     return out;
@@ -104,6 +110,44 @@ describe('connect-src covers every external origin the client code contacts', ()
         isAllowed(host),
         `Host ${host} was referenced in src/lib/** but is not covered by CONNECT_SRC in security-headers.ts. ` +
           `Add it to CONNECT_SRC or, if it is only mentioned in documentation, to IGNORED_HOSTS in this test.`,
+      ).toBe(true);
+    });
+  }
+});
+
+describe('style-src covers every external origin referenced from CSS', () => {
+  // CSS @import / url() hits are subject to style-src, not connect-src. A
+  // missing allow-list entry here makes Google Fonts (or any other web font
+  // provider wired in via @import) silently fall back to system fonts in
+  // production.
+  const stylesDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'styles');
+
+  function findCssFiles(dir: string): string[] {
+    const out: string[] = [];
+    for (const name of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, name.name);
+      if (name.isDirectory()) out.push(...findCssFiles(full));
+      else if (name.isFile() && name.name.endsWith('.css')) out.push(full);
+    }
+    return out;
+  }
+
+  const importRe = /@import\s+url\(\s*["']?(https:\/\/([a-z0-9.\-]+)[^"')]*)["']?\s*\)/gi;
+  const cssHosts = new Set<string>();
+  for (const file of findCssFiles(stylesDir)) {
+    const src = readFileSync(file, 'utf8');
+    let m: RegExpExecArray | null;
+    while ((m = importRe.exec(src)) !== null) cssHosts.add(m[2].toLowerCase());
+  }
+
+  const styleSrc = CSP_DIRECTIVES['style-src'];
+  for (const host of cssHosts) {
+    it(`allows ${host} in style-src`, () => {
+      expect(
+        styleSrc.includes(`https://${host}`),
+        `Host ${host} is @imported from a CSS file under src/styles/ but is not covered by style-src ` +
+          `in security-headers.ts. Add https://${host} to style-src, and if the import chain references ` +
+          `other hosts (e.g. font files), add them to font-src too.`,
       ).toBe(true);
     });
   }
