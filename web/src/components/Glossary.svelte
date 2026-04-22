@@ -9,14 +9,24 @@
   let { term, children }: Props = $props();
 
   const entry = $derived(lookupGlossary(term));
+  const tooltipId = $derived.by(() => {
+    const raw = (term ?? entry?.term ?? 'term').toString();
+    const normalized = raw
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+
+    return `glossary-tooltip-${normalized || 'term'}`;
+  });
 </script>
 
 {#if entry}
-  <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-  <span class="glossary-wrap" data-testid="glossary-term" tabindex="0">
+  <button class="glossary-wrap" data-testid="glossary-term" type="button" aria-describedby={tooltipId}>
     {#if children}{@render children()}{:else}{term}{/if}
-    <span class="glossary-tooltip" role="tooltip">{entry.plain}</span>
-  </span>
+    <span class="glossary-tooltip" id={tooltipId} role="tooltip">{entry.plain}</span>
+  </button>
 {:else if children}
   {@render children()}
 {:else}
@@ -26,7 +36,15 @@
 <style>
   .glossary-wrap {
     position: relative;
+    display: inline;
+    padding: 0;
+    margin: 0;
+    border: none;
     border-bottom: 1px dotted var(--color-secondary);
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: inherit;
     cursor: help;
     outline: none;
   }
