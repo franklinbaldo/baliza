@@ -610,9 +610,6 @@ def build_cmd(  # noqa: PLR0913, PLR0915
     backfill: bool = typer.Option(
         False, "--backfill", help="Rebuild all months with outdated schema version"
     ),
-    allow_row_regression: bool = typer.Option(
-        False, "--allow-row-regression", help="Allow row count to decrease during backfill"
-    ),
 ) -> None:
     """Download raw ZIPs from IA, ingest, and upload Parquet (Phase 2 of two-phase pipeline).
 
