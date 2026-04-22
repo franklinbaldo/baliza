@@ -29,11 +29,13 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 
+from .builder import _pending_build_months, build_month
 from .consolidator import IAConsolidator
 from .engine import BalizaEngine
 from .extractor import FETCHED_SENTINEL, PNCPExtractor, _validate_resource
 from .ia_uploader import IAUploader
 from .logging import configure_logging
+from .mirror import _pending_mirror_months, mirror_month
 
 logger = structlog.get_logger()
 
@@ -112,7 +114,14 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
             try:
                 # manifest dates in monthly strategy are strings "YYYY-MM"
                 raw_manifest = uploader._read_manifest_from_ia()
-                uploaded = {row["data_particao"] for row in raw_manifest if row.get("data_particao")}
+                # A month is "done" only when its Parquet is on IA (parquet_url non-empty).
+                # Months that went through `mirror` only have raw_zip_url set — they still
+                # need `build` (or `sync`) to produce the Parquet.
+                uploaded = {
+                    row["data_particao"]
+                    for row in raw_manifest
+                    if row.get("data_particao") and row.get("parquet_url")
+                }
             except Exception as e:
                 console.print(
                     f"[yellow]⚠ Could not read IA manifest (starting fresh): {e}[/yellow]"
@@ -486,6 +495,187 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
     # `report-failure` job fires. Consolidation errors and per-month
     # extraction errors are both sync-level failures.
     if consolidation_error is not None or error_count > 0:
+        raise typer.Exit(1)
+
+
+@app.command("mirror")
+def mirror_cmd(  # noqa: PLR0913
+    batch_size: int | None = typer.Option(
+        None, "--batch-size", "-n", help="Max months to mirror (None for all)"
+    ),
+    start_date: str = typer.Option("2023-01-01", "--start-date", help="Oldest date to backfill"),
+    force_month: str | None = typer.Option(
+        None, "--force-month", help="Target a specific month (YYYY-MM) regardless of manifest"
+    ),
+    limit_minutes: int = typer.Option(
+        0, "--limit-minutes", help="Stop after this many minutes (0 = no limit)"
+    ),
+    workers: int = typer.Option(4, "--workers", "-w", help="Parallel workers"),
+    no_curl: bool = typer.Option(False, "--no-curl", help="Opt-out of system cURL"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Fetch only, skip upload"),
+) -> None:
+    """Fetch PNCP JSON pages and upload monthly ZIPs to IA (no DuckDB, no Parquet).
+
+    Phase 1 of the two-phase pipeline.  Use 'build' to turn the ZIPs into Parquet.
+    """
+    start_time_exec = datetime.now()
+    ia_access_key = os.environ.get("IA_ACCESS_KEY") or os.environ.get("IAS3_ACCESS_KEY")
+    ia_secret_key = os.environ.get("IA_SECRET_KEY") or os.environ.get("IAS3_SECRET_KEY")
+
+    if not dry_run and (not ia_access_key or not ia_secret_key):
+        console.print("[red]✗ Missing IA keys in environment.[/red]")
+        raise typer.Exit(1)
+
+    if force_month:
+        batch = [datetime.strptime(force_month, "%Y-%m").date()]
+    else:
+        start = datetime.strptime(start_date, "%Y-%m-%d").date()
+        with console.status("[bold green]Checking IA manifest for pending months...[/bold green]"):
+            batch = _pending_mirror_months(start, batch_size)
+
+    if not batch:
+        console.print("[green]✓ All months already mirrored.[/green]")
+        return
+
+    console.print(f"[cyan]Mirror: {len(batch)} month(s) to process[/cyan]")
+
+    total_fetched = 0
+    error_count = 0
+
+    import concurrent.futures
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {}
+        for target_month in batch:
+            elapsed = (datetime.now() - start_time_exec).total_seconds() / 60
+            if limit_minutes and elapsed >= limit_minutes:
+                console.print(f"[yellow]⚠ Time limit ({limit_minutes}m) reached.[/yellow]")
+                break
+            while len(futures) >= workers:
+                done, _ = concurrent.futures.wait(
+                    futures.keys(), timeout=0.1, return_when=concurrent.futures.FIRST_COMPLETED
+                )
+                for f in done:
+                    futures.pop(f)
+            f = executor.submit(
+                mirror_month,
+                target_month,
+                ia_access_key=ia_access_key or "",
+                ia_secret_key=ia_secret_key or "",
+                use_curl=not no_curl,
+                dry_run=dry_run,
+                log_fn=lambda msg: console.log(f"[dim]{msg}[/dim]"),
+            )
+            futures[f] = target_month
+        concurrent.futures.wait(futures.keys())
+        for f, m in futures.items():
+            try:
+                r = f.result()
+                total_fetched += int(r.get("pages_fetched", 0))
+            except Exception as e:
+                error_count += 1
+                console.print(f"[red]✗ {m.strftime('%Y-%m')}: {e}[/red]")
+
+    console.print(
+        f"\n[green]✓ Mirror done[/green] — {total_fetched} pages fetched, "
+        f"{error_count} errors, {(datetime.now() - start_time_exec).total_seconds():.1f}s"
+    )
+    if error_count:
+        raise typer.Exit(1)
+
+
+@app.command("build")
+def build_cmd(  # noqa: PLR0913
+    batch_size: int | None = typer.Option(
+        None, "--batch-size", "-n", help="Max months to build (None for all)"
+    ),
+    start_date: str = typer.Option("2023-01-01", "--start-date", help="Oldest date to backfill"),
+    force_month: str | None = typer.Option(
+        None, "--force-month", help="Target a specific month (YYYY-MM) regardless of manifest"
+    ),
+    limit_minutes: int = typer.Option(
+        0, "--limit-minutes", help="Stop after this many minutes (0 = no limit)"
+    ),
+    workers: int = typer.Option(2, "--workers", "-w", help="Parallel workers (DuckDB is CPU-heavy)"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Ingest only, skip upload"),
+    backfill: bool = typer.Option(
+        False, "--backfill", help="Rebuild all months with outdated schema version"
+    ),
+    allow_row_regression: bool = typer.Option(
+        False, "--allow-row-regression", help="Allow row count to decrease during backfill"
+    ),
+) -> None:
+    """Download raw ZIPs from IA, ingest, and upload Parquet (Phase 2 of two-phase pipeline).
+
+    Normal mode: processes months that were mirrored but not yet built.
+    --backfill: rebuilds all months whose parquet_schema_version differs from the current code.
+    """
+    start_time_exec = datetime.now()
+    ia_access_key = os.environ.get("IA_ACCESS_KEY") or os.environ.get("IAS3_ACCESS_KEY")
+    ia_secret_key = os.environ.get("IA_SECRET_KEY") or os.environ.get("IAS3_SECRET_KEY")
+
+    if not dry_run and (not ia_access_key or not ia_secret_key):
+        console.print("[red]✗ Missing IA keys in environment.[/red]")
+        raise typer.Exit(1)
+
+    if force_month:
+        batch = [datetime.strptime(force_month, "%Y-%m").date()]
+    else:
+        start = datetime.strptime(start_date, "%Y-%m-%d").date()
+        with console.status("[bold green]Checking IA manifest for months to build...[/bold green]"):
+            batch = _pending_build_months(start, batch_size, backfill=backfill)
+
+    if not batch:
+        console.print("[green]✓ Nothing to build.[/green]")
+        return
+
+    mode = "backfill" if backfill else "build"
+    console.print(f"[cyan]{mode.capitalize()}: {len(batch)} month(s) to process[/cyan]")
+
+    total_valid = 0
+    total_quarantine = 0
+    error_count = 0
+
+    import concurrent.futures
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {}
+        for target_month in batch:
+            elapsed = (datetime.now() - start_time_exec).total_seconds() / 60
+            if limit_minutes and elapsed >= limit_minutes:
+                console.print(f"[yellow]⚠ Time limit ({limit_minutes}m) reached.[/yellow]")
+                break
+            while len(futures) >= workers:
+                done, _ = concurrent.futures.wait(
+                    futures.keys(), timeout=0.1, return_when=concurrent.futures.FIRST_COMPLETED
+                )
+                for f in done:
+                    futures.pop(f)
+            f = executor.submit(
+                build_month,
+                target_month,
+                ia_access_key=ia_access_key or "",
+                ia_secret_key=ia_secret_key or "",
+                dry_run=dry_run,
+                log_fn=lambda msg: console.log(f"[dim]{msg}[/dim]"),
+            )
+            futures[f] = target_month
+        concurrent.futures.wait(futures.keys())
+        for f, m in futures.items():
+            try:
+                r = f.result()
+                total_valid += int(r.get("valid", 0))
+                total_quarantine += int(r.get("quarantine", 0))
+            except Exception as e:
+                error_count += 1
+                console.print(f"[red]✗ {m.strftime('%Y-%m')}: {e}[/red]")
+
+    console.print(
+        f"\n[green]✓ Build done[/green] — {total_valid:,} records, "
+        f"{total_quarantine:,} quarantined, {error_count} errors, "
+        f"{(datetime.now() - start_time_exec).total_seconds():.1f}s"
+    )
+    if error_count:
         raise typer.Exit(1)
 
 
