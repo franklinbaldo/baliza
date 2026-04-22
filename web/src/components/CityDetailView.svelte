@@ -96,6 +96,12 @@
   const data = $derived(cityQuery.data);
   const loading = $derived(cityQuery.isFetching);
   const error = $derived(cityQuery.error instanceof Error ? cityQuery.error : null);
+  const errorTitle = $derived.by(() => {
+    if (!error) return 'Erro ao carregar município';
+    return error.message.includes('Arquivo histórico indisponível')
+      ? 'Dados do município indisponíveis no momento'
+      : 'Município não encontrado';
+  });
 </script>
 
 <div class="city-detail container">
@@ -112,7 +118,7 @@
     </div>
   {:else if error}
     <div class="error-wrap">
-      <AlertBanner title="Município não encontrado" message={error.message} level="error" />
+      <AlertBanner title={errorTitle} message={error.message} level="error" />
       <div class="back-row">
         <a href={resolve('')} class="btn btn-outline">Voltar à busca</a>
       </div>
