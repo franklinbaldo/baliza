@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
 from baliza.engine import BalizaEngine
-from baliza.extractor import PAGE_SIZE, PNCPExtractor
+from baliza.extractor import PAGE_SIZE, PNCPExtractor, RetryablePayloadError, _is_retryable_error
 
 
 class TestPNCPExtractorV2(unittest.TestCase):
@@ -206,6 +206,10 @@ class TestPNCPExtractorV2(unittest.TestCase):
                 mock_stream.assert_called_once()
                 self.assertEqual(result, fresh_data)
                 self.assertEqual(json.loads(cache_file.read_text()), fresh_data)
+
+    def test_retryable_payload_error_is_marked_retryable(self):
+        """Malformed upstream payloads should trigger retry logic."""
+        self.assertTrue(_is_retryable_error(RetryablePayloadError("empty body")))
 
     def test_ingest_range_drops_corrupt_cache_files(self):
         """Since fetch_page no longer re-validates cached JSON on every call,
