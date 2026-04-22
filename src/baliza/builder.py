@@ -19,7 +19,7 @@ import structlog
 from .daily_exporter import SCHEMA_VERSION
 from .engine import BalizaEngine
 from .extractor import PNCPExtractor
-from .ia_uploader import IAUploader, try_read_manifest_from_ia
+from .ia_uploader import IAUploader, read_manifest_from_ia
 
 logger = structlog.get_logger()
 
@@ -41,7 +41,7 @@ def _pending_build_months(
         (or Parquet missing).  This includes months uploaded via the old monolithic
         ``sync`` command that already have a ZIP on IA.
     """
-    raw_manifest = try_read_manifest_from_ia()
+    raw_manifest = read_manifest_from_ia()  # strict: raises ManifestReadError on failure
     today = date.today()
     last_month = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
     start = start_date.replace(day=1)

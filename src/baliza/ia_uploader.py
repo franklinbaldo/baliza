@@ -441,11 +441,15 @@ class IAUploader:
             for _table, path in exported_files.items():
                 files_to_upload[path.name] = str(path)
 
-            if not files_to_upload:
-                console.print(f"[yellow]⚠ Nothing to upload for {month_str}[/yellow]")
+            parquet_filename = f"contratos-{month_str}.parquet"
+            if parquet_filename not in files_to_upload:
+                # No Parquet produced (zero valid rows) — don't write a broken parquet_url
+                # to the manifest. The quarantine CSV can still be uploaded independently.
+                console.print(
+                    f"[yellow]⚠ No Parquet file produced for {month_str} — skipping upload[/yellow]"
+                )
                 return False
 
-            parquet_filename = f"contratos-{month_str}.parquet"
             parquet_local = files_to_upload.get(parquet_filename)
             parquet_sha256 = ""
             parquet_size = 0
