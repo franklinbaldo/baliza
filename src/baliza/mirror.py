@@ -15,14 +15,14 @@ from pathlib import Path
 import structlog
 
 from .extractor import FETCHED_SENTINEL, PNCPExtractor, _validate_resource
-from .ia_uploader import IAUploader, try_read_manifest_from_ia
+from .ia_uploader import IAUploader, read_manifest_from_ia
 
 logger = structlog.get_logger()
 
 
 def _pending_mirror_months(start_date: date, batch_size: int | None) -> list[date]:
     """Return months not yet mirrored (no raw_zip_url in manifest), newest-first."""
-    raw_manifest = try_read_manifest_from_ia()
+    raw_manifest = read_manifest_from_ia()  # strict: raises ManifestReadError on failure
     # A month is "mirrored" if it has a non-empty raw_zip_url in its canonical row.
     mirrored: set[str] = {
         row["data_particao"]

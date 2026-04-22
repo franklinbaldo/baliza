@@ -530,8 +530,12 @@ def mirror_cmd(  # noqa: PLR0913
         batch = [datetime.strptime(force_month, "%Y-%m").date()]
     else:
         start = datetime.strptime(start_date, "%Y-%m-%d").date()
-        with console.status("[bold green]Checking IA manifest for pending months...[/bold green]"):
-            batch = _pending_mirror_months(start, batch_size)
+        try:
+            with console.status("[bold green]Checking IA manifest for pending months...[/bold green]"):
+                batch = _pending_mirror_months(start, batch_size)
+        except Exception as e:
+            console.print(f"[red]✗ Cannot read IA manifest: {e}[/red]")
+            raise typer.Exit(1) from None
 
     if not batch:
         console.print("[green]✓ All months already mirrored.[/green]")
@@ -590,7 +594,7 @@ def mirror_cmd(  # noqa: PLR0913
 
 
 @app.command("build")
-def build_cmd(  # noqa: PLR0913
+def build_cmd(  # noqa: PLR0913, PLR0915
     batch_size: int | None = typer.Option(
         None, "--batch-size", "-n", help="Max months to build (None for all)"
     ),
@@ -627,8 +631,12 @@ def build_cmd(  # noqa: PLR0913
         batch = [datetime.strptime(force_month, "%Y-%m").date()]
     else:
         start = datetime.strptime(start_date, "%Y-%m-%d").date()
-        with console.status("[bold green]Checking IA manifest for months to build...[/bold green]"):
-            batch = _pending_build_months(start, batch_size, backfill=backfill)
+        try:
+            with console.status("[bold green]Checking IA manifest for months to build...[/bold green]"):
+                batch = _pending_build_months(start, batch_size, backfill=backfill)
+        except Exception as e:
+            console.print(f"[red]✗ Cannot read IA manifest: {e}[/red]")
+            raise typer.Exit(1) from None
 
     if not batch:
         console.print("[green]✓ Nothing to build.[/green]")
