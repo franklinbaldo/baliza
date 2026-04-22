@@ -71,7 +71,7 @@ describe('connect-src covers every external origin the client code contacts', ()
     return out;
   }
 
-  const urlRe = /https:\/\/([a-z0-9.\-*]+)/gi;
+  const urlRe = /https:\/\/([a-z0-9.*-]+)/gi;
   const foundHosts = new Set<string>();
   for (const file of walk(srcDir)) {
     const src = readFileSync(file, 'utf8');
@@ -132,7 +132,7 @@ describe('style-src covers every external origin referenced from CSS', () => {
     return out;
   }
 
-  const importRe = /@import\s+url\(\s*["']?(https:\/\/([a-z0-9.\-]+)[^"')]*)["']?\s*\)/gi;
+  const importRe = /@import\s+url\(\s*["']?(https:\/\/([a-z0-9.-]+)[^"')]*)["']?\s*\)/gi;
   const cssHosts = new Set<string>();
   for (const file of findCssFiles(stylesDir)) {
     const src = readFileSync(file, 'utf8');
