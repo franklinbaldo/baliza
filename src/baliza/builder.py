@@ -66,11 +66,9 @@ def _pending_build_months(
             # Rebuild if schema version is absent or outdated
             if row.get("parquet_schema_version") != SCHEMA_VERSION:
                 pending.append(month_date)
-        else:
-            # Only process months that went through mirror (have mirror_uploaded_at)
-            # but have not yet been built
-            if row.get("mirror_uploaded_at") and not row.get("parquet_uploaded_at"):
-                pending.append(month_date)
+        elif row.get("mirror_uploaded_at") and not row.get("parquet_uploaded_at"):
+            # Only process months that went through mirror but have not yet been built
+            pending.append(month_date)
 
     pending.sort(reverse=True)
     return pending[:batch_size] if batch_size else pending

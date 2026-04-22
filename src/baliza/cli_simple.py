@@ -542,8 +542,6 @@ def mirror_cmd(  # noqa: PLR0913
     total_fetched = 0
     error_count = 0
 
-    import concurrent.futures
-
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
         futures = {}
         for target_month in batch:
@@ -635,8 +633,6 @@ def build_cmd(  # noqa: PLR0913
     total_valid = 0
     total_quarantine = 0
     error_count = 0
-
-    import concurrent.futures
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
         futures = {}
