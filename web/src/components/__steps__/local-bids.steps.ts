@@ -276,8 +276,8 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     Then('I should see an info banner about PNCP indisponível', async () => {
       await waitFor(
         () => {
-          const alert = screen.getByRole('alert');
-          expect(alert.textContent).toMatch(/PNCP indisponível/i);
+          const status = screen.getByRole('status');
+          expect(status.textContent).toMatch(/PNCP indisponível/i);
         },
         { timeout: 3000 },
       );
