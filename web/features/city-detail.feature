@@ -43,8 +43,9 @@ Feature: City Detail View
     When the city detail view mounts
     Then every PNCP consulta URL should include dataInicial, dataFinal, codigoModalidadeContratacao and pagina
 
-  Scenario: Lookback window dias=30 narrows the publicação date range
-    Given the URL has ibge "1721000" and dias "30"
+  Scenario: City query uses yesterday-only publication window
+    Given the URL has ibge "1721000"
     And the PNCP API returns 0 contracts
     When the city detail view mounts
-    Then every PNCP consulta URL should span 30 days between dataInicial and dataFinal
+    Then every PNCP consulta URL should span 1 day between dataInicial and dataFinal
+    And every PNCP consulta URL should set dataFinal to yesterday

@@ -24,6 +24,8 @@ export interface PublicacaoFilters {
 
 export interface PublicacaoOpts {
   sinceDays?: number;
+  /** Shift the query window end date backwards (e.g. 1 = yesterday). */
+  endDaysAgo?: number;
   /**
    * PNCP enforces 10 ≤ tamanhoPagina ≤ 50. Values outside that range are
    * clamped (not rejected) because the call would otherwise 400. Callers
@@ -69,10 +71,17 @@ export async function fetchPublicacaoList(
   filters: PublicacaoFilters,
   opts: PublicacaoOpts = {},
 ): Promise<PNCPContract[]> {
-  const { sinceDays = DEFAULT_SINCE_DAYS, tamanhoPagina = 10, modalidades = DEFAULT_MODALIDADES, now = new Date() } = opts;
+  const {
+    sinceDays = DEFAULT_SINCE_DAYS,
+    endDaysAgo = 0,
+    tamanhoPagina = 10,
+    modalidades = DEFAULT_MODALIDADES,
+    now = new Date(),
+  } = opts;
   const clamped = Math.max(10, Math.min(50, tamanhoPagina));
   const end = new Date(now);
-  const start = new Date(now);
+  end.setUTCDate(end.getUTCDate() - Math.max(0, endDaysAgo));
+  const start = new Date(end);
   start.setUTCDate(start.getUTCDate() - sinceDays);
   const dataInicial = yyyymmdd(start);
   const dataFinal = yyyymmdd(end);
