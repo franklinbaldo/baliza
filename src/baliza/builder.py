@@ -87,7 +87,7 @@ def _download_raw_zip(item_id: str, month_str: str, dest: Path) -> Path:
     return zip_path
 
 
-def build_month(
+def build_month(  # noqa: PLR0915
     start_of_month: date,
     *,
     ia_access_key: str,
@@ -134,11 +134,16 @@ def build_month(
                 return result
             raise
 
-        # 2. Extract to raw_dir structure
+        # 2. Extract to raw_dir structure — validate member paths to prevent traversal
         raw_dir = tmp_path / "raw" / month_str
         raw_dir.mkdir(parents=True)
+        resolved_raw_dir = raw_dir.resolve()
         with zipfile.ZipFile(zip_path) as zf:
-            zf.extractall(raw_dir)
+            for member in zf.infolist():
+                target = (raw_dir / member.filename).resolve()
+                if not target.is_relative_to(resolved_raw_dir):
+                    raise ValueError(f"Unsafe ZIP entry (path traversal): {member.filename}")
+                zf.extract(member, raw_dir)
 
         # Temporarily move raw_dir to data/raw/{month_str} so PNCPExtractor
         # ingest_range (which hardcodes data/raw/{month_str}) can find the files.
