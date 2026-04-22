@@ -1,12 +1,12 @@
 <script lang="ts">
   import { cityState, hydrateCityContext } from '../lib/cityContext.svelte';
+  import { resolve } from '../lib/baseUrl';
 
   let { isActive = false } = $props();
 
-  const BASE = '/baliza/';
   hydrateCityContext();
 
-  const href = $derived(`${BASE}municipio?ibge=${cityState.ibge}`);
+  const href = $derived(resolve(`municipio?ibge=${cityState.ibge}`));
   const label = $derived(
     cityState.nome
       ? `Município · ${cityState.nome}${cityState.uf ? '/' + cityState.uf : ''}`

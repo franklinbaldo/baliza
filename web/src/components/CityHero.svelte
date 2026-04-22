@@ -1,13 +1,12 @@
 <script lang="ts">
   import CityPicker from './CityPicker.svelte';
   import { cityState, hydrateCityContext } from '../lib/cityContext.svelte';
-
-  const BASE = '/baliza/';
+  import { resolve } from '../lib/baseUrl';
 
   hydrateCityContext();
 
   let pickerOpen = $state(false);
-  const dashboardHref = $derived(`${BASE}municipio?ibge=${cityState.ibge}`);
+  const dashboardHref = $derived(resolve(`municipio?ibge=${cityState.ibge}`));
   const sourceLabel = $derived(
     cityState.source === 'default'
       ? 'Cidade inicial · trocar para a sua'

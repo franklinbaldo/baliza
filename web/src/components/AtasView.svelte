@@ -9,6 +9,7 @@
   } from '../lib/parquetFallback';
   import type { ArchivedContrato } from '../lib/archive/schema';
   import { formatBRL, formatDate } from '../lib/format';
+  import { resolve } from '../lib/baseUrl';
   import AlertBanner from './AlertBanner.svelte';
   import EmptyState from './EmptyState.svelte';
 
@@ -124,7 +125,7 @@
     <section class="atas-list" data-testid="atas-list">
       {#each rows as row (row.numero_controle_pncp ?? `${row.cnpj_orgao}-${row.sequencial_contrato}`)}
         <a
-          href={`/baliza/contratacao?id=${row.numero_controle_pncp ?? ''}`}
+          href={resolve(`contratacao?id=${row.numero_controle_pncp ?? ''}`)}
           class="ata-card"
         >
           <div class="ata-header">

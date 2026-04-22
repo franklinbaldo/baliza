@@ -3,6 +3,7 @@
   import AlertBanner from './AlertBanner.svelte';
   import { SyncStatsSchema, type SyncStats } from '../schema';
   import { formatInteger, formatRelativeTime } from '../lib/format';
+  import { resolve } from '../lib/baseUrl';
   import { onMount } from 'svelte';
 
   let stats = $state<SyncStats | null>(null);
@@ -13,7 +14,7 @@
     loading = true;
     error = null;
     try {
-      const res = await fetch('/baliza/data/sync_stats.json');
+      const res = await fetch(resolve('data/sync_stats.json'));
       if (!res.ok) throw new Error('Falha ao obter os dados pré-compilados pelo DuckDB.');
       const raw = await res.json();
       stats = SyncStatsSchema.parse(raw);
@@ -58,7 +59,7 @@
       value={formatInteger(stats.total_quarantine)}
       tone="warning"
       hint="anomalias sinalizadas — entenda o critério"
-      href="/baliza/sobre#quarentena"
+      href={resolve('sobre#quarentena')}
     />
   </div>
 {/if}
