@@ -58,4 +58,4 @@ for (const [token, meta] of hashes) {
   console.log();
 }
 console.log('# Paste the tokens above into SCRIPT_SRC_HASHES in');
-console.log('# web/src/components/SecurityHeaders.astro.');
+console.log('# web/src/lib/security-headers.ts.');
