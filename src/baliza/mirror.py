@@ -48,7 +48,7 @@ def _pending_mirror_months(start_date: date, batch_size: int | None) -> list[dat
     return pending[:batch_size] if batch_size else pending
 
 
-def mirror_month(
+def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
     start_of_month: date,
     *,
     ia_access_key: str,
