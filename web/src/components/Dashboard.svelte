@@ -46,7 +46,7 @@
     <StatCard
       title="Contratos citáveis"
       value={formatInteger(stats.total_contracts)}
-      hint="cada um com permalink e snapshot imutável"
+      hint="cada um com permalink e snapshot arquivado"
     />
     <StatCard
       title="Dias no Internet Archive"
