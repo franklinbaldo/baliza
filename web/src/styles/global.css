@@ -241,6 +241,26 @@ h3 { font-size: var(--text-xl); }
   border-radius: var(--radius-0);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .cg-pulse,
+  .skeleton {
+    animation: none !important;
+    background-image: none;
+  }
+}
+
 /* ============================================================
    ACCESSIBILITY
    ============================================================ */

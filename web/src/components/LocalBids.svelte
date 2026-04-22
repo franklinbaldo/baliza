@@ -226,6 +226,11 @@
   }
 
   @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    .spinner {
+      animation: none;
+    }
+  }
 
   .skeleton-wrap { display: grid; gap: var(--space-2); }
   .skeleton-heading { height: 1.25rem; width: 55%; border-radius: var(--radius-0); }

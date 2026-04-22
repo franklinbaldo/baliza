@@ -98,6 +98,12 @@
     0%, 100% { opacity: 0.6; }
     50% { opacity: 1; }
   }
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton-row {
+      animation: none;
+      opacity: 0.85;
+    }
+  }
   .table-scroll {
     overflow-x: auto;
     border: 1px solid var(--color-base-300);
