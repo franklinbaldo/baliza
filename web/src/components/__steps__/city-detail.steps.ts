@@ -243,9 +243,9 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     });
   });
 
-  Scenario('Lookback window dias=30 narrows the publicação date range', ({ Given, And, When, Then }) => {
-    Given('the URL has ibge "1721000" and dias "30"', () => {
-      setUrlQuery('ibge=1721000&dias=30');
+  Scenario('City query uses yesterday-only publication window', ({ Given, And, When, Then }) => {
+    Given('the URL has ibge "1721000"', () => {
+      setUrlQuery('ibge=1721000');
     });
 
     And('the PNCP API returns 0 contracts', () => {
@@ -259,7 +259,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       await tick();
     });
 
-    Then('every PNCP consulta URL should span 30 days between dataInicial and dataFinal', async () => {
+    Then('every PNCP consulta URL should span 1 day between dataInicial and dataFinal', async () => {
       await waitFor(
         () => {
           const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
@@ -269,7 +269,29 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
             const ini = /dataInicial=(\d{8})/.exec(url)?.[1];
             const fim = /dataFinal=(\d{8})/.exec(url)?.[1];
             expect(ini && fim).toBeTruthy();
-            expect(daysBetweenYyyymmdd(ini as string, fim as string)).toBe(30);
+            expect(daysBetweenYyyymmdd(ini as string, fim as string)).toBe(1);
+          }
+        },
+        { timeout: 2000 },
+      );
+    });
+
+    And('every PNCP consulta URL should set dataFinal to yesterday', async () => {
+      await waitFor(
+        () => {
+          const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
+          expect(fetchMock.mock.calls.length).toBeGreaterThan(0);
+          const now = new Date();
+          now.setUTCDate(now.getUTCDate() - 1);
+          const expected = [
+            now.getUTCFullYear(),
+            String(now.getUTCMonth() + 1).padStart(2, '0'),
+            String(now.getUTCDate()).padStart(2, '0'),
+          ].join('');
+          for (const call of fetchMock.mock.calls) {
+            const url = typeof call[0] === 'string' ? call[0] : (call[0] as Request).url;
+            const fim = /dataFinal=(\d{8})/.exec(url)?.[1];
+            expect(fim).toBe(expected);
           }
         },
         { timeout: 2000 },

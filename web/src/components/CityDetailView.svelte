@@ -12,8 +12,6 @@
   import AlertBanner from './AlertBanner.svelte';
   import EmptyState from './EmptyState.svelte';
   import StatCard from './StatCard.svelte';
-  import LookbackWindow from './LookbackWindow.svelte';
-  import { DEFAULT_SINCE_DAYS } from '../lib/pncpPublicacao';
   import { getMunicipalityInfo } from '../lib/geo';
 
   setQueryClientContext(getQueryClient());
@@ -27,24 +25,8 @@
         : ''),
   );
 
-  const ALLOWED_DIAS = new Set([30, 90, 180, 365]);
-
-  function readDiasFromUrl(): number {
-    if (typeof window === 'undefined') return DEFAULT_SINCE_DAYS;
-    const raw = new URLSearchParams(window.location.search).get('dias');
-    const parsed = raw ? Number(raw) : NaN;
-    return ALLOWED_DIAS.has(parsed) ? parsed : DEFAULT_SINCE_DAYS;
-  }
-
-  let dias = $state<number>(readDiasFromUrl());
-
-  function updateDias(next: number) {
-    dias = next;
-    if (typeof window === 'undefined') return;
-    const entries = Object.fromEntries(new URLSearchParams(window.location.search));
-    const params = new URLSearchParams({ ...entries, dias: String(next) });
-    window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
-  }
+  const CITY_LOOKBACK_DAYS = 1;
+  const CITY_END_DAYS_AGO = 1;
 
   $effect(() => {
     if (ibge) prefetchArchive('contratos');
@@ -80,7 +62,7 @@
 
   const cityQuery = createQuery(() =>
     createListQuery<CityView | null>({
-      queryKey: QUERY_KEYS.municipio(ibge, dias),
+      queryKey: QUERY_KEYS.municipio(ibge, CITY_LOOKBACK_DAYS),
       enabled: !!ibge,
       archive: {
         column: 'codigo_ibge',
@@ -92,7 +74,7 @@
         if (!ibge) return null;
         const contracts = await fetchPublicacaoList(
           { codigoMunicipioIbge: ibge },
-          { sinceDays: dias },
+          { sinceDays: CITY_LOOKBACK_DAYS, endDaysAgo: CITY_END_DAYS_AGO, tamanhoPagina: 10 },
         );
         const info = getMunicipalityInfo(ibge);
         const cityName = info?.nome || contracts[0]?.municipio?.nomeMunicipio || contracts[0]?.unidadeOrgao?.municipioNome || "Município";
@@ -159,7 +141,6 @@
 
     <div class="stats-row">
       <StatCard title="Contratações Recentes" value={data.contracts.length} />
-      <LookbackWindow value={dias} onchange={updateDias} />
     </div>
 
     {#if data.contracts.length === 0}
