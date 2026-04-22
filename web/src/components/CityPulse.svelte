@@ -347,7 +347,8 @@
     color: inherit;
   }
   .col-list li:last-child a { border-bottom: none; }
-  .col-list a:hover {
+  .col-list a:hover,
+  .col-list a:focus-visible {
     color: var(--bulcao-accent);
   }
   .row-meta {
@@ -410,7 +411,8 @@
     border-bottom: 2px solid transparent;
     padding: 2px 0;
   }
-  .col-more:hover {
+  .col-more:hover,
+  .col-more:focus-visible {
     border-bottom-color: var(--bulcao-accent);
   }
   .pulse-col--actions .col-head { border-bottom-color: var(--bulcao-support); }
@@ -428,7 +430,8 @@
     border: 1px solid var(--neutral-100);
     color: inherit;
   }
-  .action-list a:hover {
+  .action-list a:hover,
+  .action-list a:focus-visible {
     border-color: var(--bulcao-support);
     background: var(--neutral-0);
   }

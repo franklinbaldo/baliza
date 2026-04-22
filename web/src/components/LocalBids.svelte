@@ -260,6 +260,10 @@
     background: var(--neutral-100);
     border-color: var(--bulcao-accent);
   }
+  .bid-card:focus-visible {
+    background: var(--neutral-100);
+    border-color: var(--bulcao-accent);
+  }
 
   .bid-meta {
     display: flex;
