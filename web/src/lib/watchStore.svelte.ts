@@ -1,3 +1,4 @@
+import { SvelteDate } from "svelte/reactivity";
 export type WatchType = 'agency' | 'supplier' | 'query';
 
 export interface WatchEntry {
@@ -54,8 +55,9 @@ export function addWatch(type: WatchType, filter: string, label: string) {
     id,
     type,
     filter,
+
     label,
-    createdAt: new Date().toISOString()
+    createdAt: new SvelteDate().toISOString()
   };
 
   watchState.entries = [...watchState.entries, newWatch];
