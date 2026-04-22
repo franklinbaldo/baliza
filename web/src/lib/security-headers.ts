@@ -50,9 +50,11 @@ export const CONNECT_SRC: readonly string[] = [
 export const CSP_DIRECTIVES: Record<string, readonly string[]> = {
   'default-src': ["'self'"],
   'script-src': ["'self'", "'wasm-unsafe-eval'", 'https://cdn.jsdelivr.net', ...SCRIPT_SRC_HASHES],
-  'style-src': ["'self'", "'unsafe-inline'"],
+  // Google Fonts: global.css @imports fonts.googleapis.com, which itself
+  // references font files from fonts.gstatic.com via @font-face rules.
+  'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
   'img-src': ["'self'", 'data:', 'https:'],
-  'font-src': ["'self'"],
+  'font-src': ["'self'", 'https://fonts.gstatic.com'],
   'connect-src': CONNECT_SRC,
   'worker-src': ["'self'", 'blob:'],
   'object-src': ["'none'"],
