@@ -46,7 +46,7 @@ def _pending_build_months(
     last_month = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
     start = start_date.replace(day=1)
 
-    pending: list[date] = []
+    pending_set: set[date] = set()
     for row in raw_manifest:
         part = row.get("data_particao") or ""
         if not part:
@@ -65,12 +65,12 @@ def _pending_build_months(
         if backfill:
             # Rebuild if schema version is absent or outdated
             if row.get("parquet_schema_version") != SCHEMA_VERSION:
-                pending.append(month_date)
+                pending_set.add(month_date)
         elif row.get("mirror_uploaded_at") and not row.get("parquet_uploaded_at"):
             # Only process months that went through mirror but have not yet been built
-            pending.append(month_date)
+            pending_set.add(month_date)
 
-    pending.sort(reverse=True)
+    pending = sorted(pending_set, reverse=True)
     return pending[:batch_size] if batch_size else pending
 
 
