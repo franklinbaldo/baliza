@@ -31,6 +31,10 @@ jobs:
         run: npm ci
         working-directory: web
 
+      - name: Audit runtime dependencies
+        run: npm audit --omit=dev --audit-level=high
+        working-directory: web
+
       - name: Lint & Check
         run: |
           npm run lint
@@ -44,9 +48,6 @@ jobs:
       - name: Build Portal
         run: npm run build
         working-directory: web
-        env:
-          IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
-          IA_SECRET_KEY: ${{ secrets.IA_SECRET_KEY }}
 
       - name: Upload artifact
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
