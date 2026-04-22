@@ -11,6 +11,7 @@
   import { parsePncpId, PNCP_ID_EXAMPLE } from '../lib/pncpId';
   import { getLatestParquetInfo } from '../lib/ia-manifest';
   import { addWatch, isWatched, hydrateWatches } from '../lib/watchStore.svelte';
+  import { resolve } from '../lib/baseUrl';
   import EntityNotFound from './EntityNotFound.svelte';
   import AlertBanner from './AlertBanner.svelte';
   import Glossary from './Glossary.svelte';
@@ -137,7 +138,7 @@
     <div class="error-wrap">
       <AlertBanner title="Contratação não encontrada" message={error.message} level="error" />
       <div class="back-row">
-        <a href="/baliza/" class="btn btn-outline">Voltar à busca</a>
+        <a href={resolve('')} class="btn btn-outline">Voltar à busca</a>
       </div>
     </div>
   {:else if data}
@@ -221,7 +222,7 @@
             <dt>Razão Social</dt>
             <dd>
               {#if data.orgaoEntidade?.cnpj}
-                <a href={`/baliza/orgao?cnpj=${data.orgaoEntidade.cnpj}`} class="inline-link">
+                <a href={resolve(`orgao?cnpj=${data.orgaoEntidade.cnpj}`)} class="inline-link">
                   {data.orgaoEntidade.razaoSocial || '—'}
                 </a>
               {:else}
@@ -235,7 +236,7 @@
             <dt>Município</dt>
             <dd>
               {#if data.unidadeOrgao?.codigoMunicipioIbge}
-                <a href={`/baliza/municipio?ibge=${data.unidadeOrgao.codigoMunicipioIbge}`} class="inline-link">
+                <a href={resolve(`municipio?ibge=${data.unidadeOrgao.codigoMunicipioIbge}`)} class="inline-link">
                   {data.unidadeOrgao?.municipioNome || '—'}{data.unidadeOrgao?.ufSigla ? ` / ${data.unidadeOrgao.ufSigla}` : ''}
                 </a>
               {:else}

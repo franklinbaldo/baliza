@@ -10,6 +10,7 @@
   import type { PNCPContract } from '../lib/pncp';
   import type { ArchivedContrato } from '../lib/archive/schema';
   import { formatDate, formatParticao } from '../lib/format';
+  import { resolve } from '../lib/baseUrl';
   import AlertBanner from './AlertBanner.svelte';
   import EmptyState from './EmptyState.svelte';
 
@@ -122,7 +123,7 @@
       <EmptyState
         title="Acesso à localização negado"
         message="Para usar o Radar Local, permita o acesso à localização nas configurações do navegador."
-        actionHref="/baliza/"
+        actionHref={resolve('')}
         actionLabel="Buscar manualmente"
       />
 
@@ -166,7 +167,7 @@
           {:else}
             <div class="bids-list">
               {#each data.contracts as bid (bid.numeroControlePNCP)}
-                <a href={`/baliza/contratacao?id=${bid.numeroControlePNCP}`} class="bid-card">
+                <a href={resolve(`contratacao?id=${bid.numeroControlePNCP}`)} class="bid-card">
                   <div class="bid-meta">
                     <span class="bid-id">#{bid.numeroControlePNCP}</span>
                     <span class="bid-date">{formatDate(bid.dataPublicacaoPncp)}</span>

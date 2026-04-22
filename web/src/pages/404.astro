@@ -1,5 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import { resolve } from '../lib/baseUrl';
 ---
 
 <Layout title="404: Não Encontrado" description="Ops! Esta página não existe no radar do Baliza.">
@@ -9,7 +10,7 @@ import Layout from '../layouts/Layout.astro';
     <p>A página que você procura não foi localizada ou foi movida para uma nova órbita de transparência.</p>
     
     <div class="actions">
-      <a href="/baliza/" class="btn btn-primary">Voltar ao Radar</a>
+      <a href={resolve('')} class="btn btn-primary">Voltar ao Radar</a>
     </div>
   </div>
 </Layout>

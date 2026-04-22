@@ -1,5 +1,6 @@
 <script lang="ts">
   import { fade } from 'svelte/transition';
+  import { resolve } from '../lib/baseUrl';
 
   interface Props {
     id: string;
@@ -19,8 +20,8 @@
       <p class="message">{error}</p>
       
       <div class="actions">
-        <a href="/baliza/" class="btn btn-primary">Voltar para a Busca</a>
-        <a href="/baliza/sobre" class="btn btn-outline">Metodologia e Dados</a>
+        <a href={resolve('')} class="btn btn-primary">Voltar para a Busca</a>
+        <a href={resolve('sobre')} class="btn btn-outline">Metodologia e Dados</a>
       </div>
     </div>
   </div>

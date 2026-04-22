@@ -9,10 +9,9 @@
   import type { ArchivedContrato } from '../lib/archive/schema';
   import { formatDate, formatParticao } from '../lib/format';
   import { cityState, hydrateCityContext } from '../lib/cityContext.svelte';
+  import { resolve } from '../lib/baseUrl';
   import AlertBanner from './AlertBanner.svelte';
   import EmptyState from './EmptyState.svelte';
-
-  const BASE = '/baliza/';
 
   setQueryClientContext(getQueryClient());
   hydrateCityContext();
@@ -169,7 +168,7 @@
             <ul class="col-list">
               {#each recent as bid (bid.numeroControlePNCP)}
                 <li>
-                  <a href={`${BASE}contratacao?id=${bid.numeroControlePNCP}`}>
+                  <a href={resolve(`contratacao?id=${bid.numeroControlePNCP}`)}>
                     <span class="row-meta">
                       <span class="row-date">{formatDate(bid.dataPublicacaoPncp)}</span>
                       {#if bid.modalidadeNome}
@@ -184,7 +183,7 @@
             </ul>
           {/if}
           <footer class="col-foot">
-            <a class="col-more" href={`${BASE}municipio?ibge=${ibge}`}>
+            <a class="col-more" href={resolve(`municipio?ibge=${ibge}`)}>
               Ver painel completo →
             </a>
           </footer>
@@ -201,7 +200,7 @@
             <ul class="col-list">
               {#each topOrgaos as org (org.cnpj)}
                 <li>
-                  <a href={`${BASE}orgao?cnpj=${org.cnpj}`}>
+                  <a href={resolve(`orgao?cnpj=${org.cnpj}`)}>
                     <span class="row-count">{org.count}</span>
                     <span class="row-obj">{org.razaoSocial}</span>
                     <span class="row-org">CNPJ {org.cnpj}</span>
@@ -214,7 +213,7 @@
             </p>
           {/if}
           <footer class="col-foot">
-            <a class="col-more" href={`${BASE}explorador`}>
+            <a class="col-more" href={resolve('explorador')}>
               Comparar no explorador →
             </a>
           </footer>

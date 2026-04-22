@@ -6,6 +6,7 @@
   import type { PNCPContract } from '../lib/pncp';
   import { fetchPublicacaoList } from '../lib/pncpPublicacao';
   import { formatBRL, formatDate, formatParticao } from '../lib/format';
+  import { resolve } from '../lib/baseUrl';
   import { createListQuery } from '../lib/createListQuery';
   import type { ArchivedContrato } from '../lib/archive/schema';
   import EntityNotFound from './EntityNotFound.svelte';
@@ -113,7 +114,7 @@
     <div class="error-wrap">
       <AlertBanner title="Município não encontrado" message={error.message} level="error" />
       <div class="back-row">
-        <a href="/baliza/" class="btn btn-outline">Voltar à busca</a>
+        <a href={resolve('')} class="btn btn-outline">Voltar à busca</a>
       </div>
     </div>
   {:else if data}
@@ -147,14 +148,14 @@
       <EmptyState
         title="Nenhuma contratação recente"
         message="O PNCP não retornou contratações recentes para este município."
-        actionHref="/baliza/"
+        actionHref={resolve('')}
         actionLabel="Voltar à busca"
       />
     {:else}
       <section class="recent-list">
         <h3>Contratações Recentes neste Município</h3>
         {#each data.contracts as item (item.numeroControlePNCP)}
-          <a href={`/baliza/contratacao?id=${item.numeroControlePNCP}`} class="bid-link-card">
+          <a href={resolve(`contratacao?id=${item.numeroControlePNCP}`)} class="bid-link-card">
             <div class="bid-header">
               <span class="bid-id">{item.numeroControlePNCP}</span>
               <span class="bid-date">{formatDate(item.dataPublicacaoPncp)}</span>

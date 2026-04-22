@@ -10,6 +10,7 @@
   } from '../lib/parquetFallback';
   import type { PNCPContract } from '../lib/pncp';
   import { formatBRL, formatDate, formatParticao } from '../lib/format';
+  import { resolve } from '../lib/baseUrl';
   import type { ArchivedContrato } from '../lib/archive/schema';
   import EntityNotFound from './EntityNotFound.svelte';
   import AlertBanner from './AlertBanner.svelte';
@@ -195,7 +196,7 @@
     <div class="error-wrap">
       <AlertBanner title="Fornecedor não encontrado" message={error.message} level="error" />
       <div class="back-row">
-        <a href="/baliza/" class="btn btn-outline">Voltar à busca</a>
+        <a href={resolve('')} class="btn btn-outline">Voltar à busca</a>
       </div>
     </div>
   {:else if data}
@@ -222,7 +223,7 @@
       <EmptyState
         title="Nenhum contrato arquivado"
         message="O arquivo consolidado não registra contratos para este CNPJ de fornecedor."
-        actionHref="/baliza/"
+        actionHref={resolve('')}
         actionLabel="Voltar à busca"
       />
     {:else}
@@ -259,7 +260,7 @@
           <h3>Histórico de contratações (últimos 50 do arquivo)</h3>
         </div>
         {#each data.contracts as item (item.numeroControlePNCP)}
-          <a href={`/baliza/contratacao?id=${item.numeroControlePNCP}`} class="bid-link-card">
+          <a href={resolve(`contratacao?id=${item.numeroControlePNCP}`)} class="bid-link-card">
             <div class="bid-header">
               <span class="bid-id">{item.numeroControlePNCP}</span>
               <span class="bid-date">{formatDate(item.dataPublicacaoPncp)}</span>
