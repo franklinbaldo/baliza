@@ -1,6 +1,7 @@
 name: PNCP Sync
 
 on:
+  # Policy: prioritize freshness over replaying old schedule ticks.
   schedule:
     - cron: '*/30 * * * *'
   workflow_dispatch:
@@ -16,8 +17,10 @@ on:
         default: false
 
 concurrency:
-  group: pncp-sync
-  cancel-in-progress: false
+  # Policy: cron runs share one group so stale queued/in-flight ticks are canceled.
+  # Manual dispatch runs use per-run groups so they are never canceled by schedule activity.
+  group: ${{ github.event_name == 'schedule' && 'pncp-sync-schedule' || format('pncp-sync-dispatch-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'schedule' }}
 
 permissions:
   contents: read
