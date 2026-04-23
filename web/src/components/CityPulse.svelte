@@ -226,25 +226,25 @@
           </header>
           <ul class="action-list">
             <li>
-              <a href={`${BASE}municipio?ibge=${ibge}&dias=90`}>
+              <a href={resolve(`municipio?ibge=${ibge}&dias=90`)}>
                 <strong>Contratações dos últimos 90 dias</strong>
                 <span>Panorama trimestral do município</span>
               </a>
             </li>
             <li>
-              <a href={`${BASE}atas?objeto=${encodeURIComponent(cityState.nome)}`}>
+              <a href={resolve(`atas?objeto=${encodeURIComponent(cityState.nome)}`)}>
                 <strong>Atas de registro de preços</strong>
                 <span>Compromissos vigentes que podem ser aderidos</span>
               </a>
             </li>
             <li>
-              <a href={`${BASE}explorador`}>
+              <a href={resolve('explorador')}>
                 <strong>SQL no explorador</strong>
                 <span>Consultas abertas sobre o Parquet arquivado</span>
               </a>
             </li>
             <li>
-              <a href={`${BASE}sobre#quarentena`}>
+              <a href={resolve('sobre#quarentena')}>
                 <strong>Critérios de quarentena</strong>
                 <span>Como Baliza sinaliza anomalias</span>
               </a>
