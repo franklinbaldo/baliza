@@ -42,6 +42,11 @@ def _consolidated_file_name(year: int) -> str:
     return f"contratos-{year}.parquet"
 
 
+def _requires_httpfs(paths_or_urls: list[str]) -> bool:
+    """DuckDB needs httpfs only when reading remote URLs."""
+    return any(value.startswith(("http://", "https://", "s3://")) for value in paths_or_urls)
+
+
 def _parse_iso_mtime(value: str) -> datetime.datetime | None:
     """Parse an ISO 8601 uploaded_at string. Returns None when unparseable."""
     if not value:
@@ -137,7 +142,7 @@ class IAConsolidator:
         except Exception:
             return False
 
-    def consolidate_year(
+    def consolidate_year(  # noqa: PLR0912
         self,
         year: int,
         ia_access_key: str,
@@ -196,8 +201,9 @@ class IAConsolidator:
             url_list = ", ".join(f"'{u}'" for u in daily_urls)
 
             with duckdb.connect(":memory:") as con:
-                con.execute("INSTALL httpfs; LOAD httpfs;")
-                console.print(f"  Merging {len(daily_urls)} files via httpfs...")
+                if _requires_httpfs(daily_urls):
+                    self._load_httpfs_extension(con)
+                console.print(f"  Merging {len(daily_urls)} files via DuckDB...")
                 try:
                     con.execute(f"""
                         COPY (
@@ -280,6 +286,15 @@ class IAConsolidator:
 
         console.print(f"[green]✓ {year} consolidated uploaded ({size_mb:.1f} MB).[/green]")
         return True
+
+    @staticmethod
+    def _load_httpfs_extension(con: duckdb.DuckDBPyConnection) -> None:
+        """Load DuckDB httpfs, installing only when not already available."""
+        try:
+            con.execute("LOAD httpfs;")
+        except duckdb.Error:
+            con.execute("INSTALL httpfs;")
+            con.execute("LOAD httpfs;")
 
     @staticmethod
     def _build_per_uf_shards(

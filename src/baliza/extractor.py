@@ -173,39 +173,9 @@ class PNCPExtractor:
     ) -> dict[str, Any]:
         """Fetch a single page from the PNCP API with resumption support."""
         _validate_resource(resource)
-        # For directory naming, use YYYY-MM
-        month_str = start_date.strftime("%Y-%m")
-        filename = Path(f"data/raw/{month_str}/{resource}_p{page}.json")
-
-        # RESUMABILITY: trust a non-empty cached file that parses as a dict
-        # containing the PNCP page shape. Unparseable bytes, wrong top-level
-        # type, or a dict missing the expected keys (e.g. cached `{}` or
-        # `[]`) all self-heal via unlink + fallthrough — probe_range always
-        # goes through here for page 1, so a silently-wrong cache would
-        # either make probe_range report total_pages=1 and skip real pages
-        # or crash with AttributeError.
-        if filename.exists() and filename.stat().st_size > 0:
-            try:
-                with open(filename) as f:
-                    data = json.load(f)
-            except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
-                logger.warning("corrupt_cache_found", file=str(filename), error=str(e))
-                try:
-                    filename.unlink()
-                except OSError:
-                    pass
-            else:
-                if isinstance(data, dict) and ("data" in data or "totalPaginas" in data):
-                    return data
-                logger.warning(
-                    "corrupt_cache_found",
-                    file=str(filename),
-                    error="schema mismatch (no 'data' or 'totalPaginas' key)",
-                )
-                try:
-                    filename.unlink()
-                except OSError:
-                    pass
+        cached_data = self._load_cached_page(resource=resource, start_date=start_date, page=page)
+        if cached_data is not None:
+            return cached_data
 
         start_str = start_date.strftime("%Y%m%d")
         end_str = end_date.strftime("%Y%m%d")
@@ -219,37 +189,86 @@ class PNCPExtractor:
         logger.info("fetching_page_params", resource=resource, url=url, params=params)
 
         if self.use_curl:
-            try:
-                result = subprocess.run(
-                    [
-                        "curl",
-                        "-s",
-                        "-H",
-                        "accept: */*",
-                        "-H",
-                        f"User-Agent: {self.headers['User-Agent']}",
-                        f"{url}?dataInicial={start_str}&dataFinal={end_str}&pagina={page}&tamanhoPagina={PAGE_SIZE}",
-                    ],
-                    capture_output=True,
-                    text=True,
-                    check=True,
-                )
-                payload = result.stdout.strip()
-                if not payload:
-                    raise RetryablePayloadError(
-                        f"Empty response body for {resource} page {page}"
-                    )
-                try:
-                    data = json.loads(payload)
-                except json.JSONDecodeError as e:
-                    raise RetryablePayloadError(
-                        f"Invalid JSON response for {resource} page {page}: {e}"
-                    ) from e
-                self._save_raw(resource, start_date, page, data)
-                return data
-            except Exception:
-                raise
+            data = self._fetch_with_curl(
+                resource=resource,
+                page=page,
+                url=url,
+                start_str=start_str,
+                end_str=end_str,
+            )
+        else:
+            data = self._fetch_with_httpx(
+                resource=resource,
+                page=page,
+                url=url,
+                params=params,
+            )
+        self._save_raw(resource, start_date, page, data)
+        return data
 
+    def _cache_filename(self, resource: str, start_date: datetime, page: int) -> Path:
+        month_str = start_date.strftime("%Y-%m")
+        return Path(f"data/raw/{month_str}/{resource}_p{page}.json")
+
+    def _load_cached_page(
+        self, resource: str, start_date: datetime, page: int
+    ) -> dict[str, Any] | None:
+        """Return cached page when valid; otherwise heal corrupt cache and refetch."""
+        filename = self._cache_filename(resource=resource, start_date=start_date, page=page)
+        if not (filename.exists() and filename.stat().st_size > 0):
+            return None
+
+        try:
+            with open(filename) as f:
+                data = json.load(f)
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
+            logger.warning("corrupt_cache_found", file=str(filename), error=str(e))
+            self._unlink_if_exists(filename)
+            return None
+
+        if isinstance(data, dict) and ("data" in data or "totalPaginas" in data):
+            return data
+
+        logger.warning(
+            "corrupt_cache_found",
+            file=str(filename),
+            error="schema mismatch (no 'data' or 'totalPaginas' key)",
+        )
+        self._unlink_if_exists(filename)
+        return None
+
+    def _unlink_if_exists(self, filename: Path) -> None:
+        try:
+            filename.unlink()
+        except OSError:
+            pass
+
+    def _fetch_with_curl(
+        self, resource: str, page: int, url: str, start_str: str, end_str: str
+    ) -> dict[str, Any]:
+        result = subprocess.run(
+            [
+                "curl",
+                "-s",
+                "-H",
+                "accept: */*",
+                "-H",
+                f"User-Agent: {self.headers['User-Agent']}",
+                f"{url}?dataInicial={start_str}&dataFinal={end_str}&pagina={page}&tamanhoPagina={PAGE_SIZE}",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return self._parse_json_payload(
+            payload=result.stdout.strip(),
+            resource=resource,
+            page=page,
+        )
+
+    def _fetch_with_httpx(
+        self, resource: str, page: int, url: str, params: dict[str, str | int]
+    ) -> dict[str, Any]:
         # PROTECT AGAINST DOS: Stream response and check size
         max_size = 15 * 1024 * 1024  # 15MB limit
         content = b""
@@ -259,17 +278,17 @@ class PNCPExtractor:
                 content += chunk
                 if len(content) > max_size:
                     raise ValueError(f"Response too large: {len(content)} bytes")
-        payload = content.strip()
+        return self._parse_json_payload(payload=content.strip(), resource=resource, page=page)
+
+    def _parse_json_payload(self, payload: str | bytes, resource: str, page: int) -> dict[str, Any]:
         if not payload:
             raise RetryablePayloadError(f"Empty response body for {resource} page {page}")
         try:
-            data = json.loads(payload)
+            return json.loads(payload)
         except json.JSONDecodeError as e:
             raise RetryablePayloadError(
                 f"Invalid JSON response for {resource} page {page}: {e}"
             ) from e
-        self._save_raw(resource, start_date, page, data)
-        return data
 
     def _save_raw(self, resource: str, start_date: datetime, page: int, data: dict[str, Any]):
         """Save raw JSON payload to disk with deterministic name."""
