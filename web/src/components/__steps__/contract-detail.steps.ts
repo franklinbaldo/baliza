@@ -195,14 +195,14 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
 
     And('I should see a link to the agency page with cnpj "00000000000191"', () => {
       const link = document.querySelector(
-        'a[href="/baliza/orgao?cnpj=00000000000191"]',
+        'a[href="/orgao?cnpj=00000000000191"]',
       );
       expect(link).toBeTruthy();
     });
 
     And('I should see a link to the municipality page with ibge "3550308"', () => {
       const link = document.querySelector(
-        'a[href="/baliza/municipio?ibge=3550308"]',
+        'a[href="/municipio?ibge=3550308"]',
       );
       expect(link).toBeTruthy();
     });

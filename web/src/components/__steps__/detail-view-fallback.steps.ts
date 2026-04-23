@@ -80,7 +80,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     Then('I should see an info banner about PNCP indisponível', async () => {
       await waitFor(
         () => {
-          const alert = screen.getByRole('alert');
+          const alert = screen.getByRole('status');
           expect(alert.textContent).toMatch(/PNCP indisponível/i);
         },
         { timeout: 2000 },
@@ -176,7 +176,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     Then('I should see an info banner about PNCP indisponível', async () => {
       await waitFor(
         () => {
-          const alert = screen.getByRole('alert');
+          const alert = screen.getByRole('status');
           expect(alert.textContent).toMatch(/PNCP indisponível/i);
         },
         { timeout: 2000 },
@@ -236,7 +236,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     Then('I should see an info banner about PNCP indisponível', async () => {
       await waitFor(
         () => {
-          const alert = screen.getByRole('alert');
+          const alert = screen.getByRole('status');
           expect(alert.textContent).toMatch(/PNCP indisponível/i);
         },
         { timeout: 2000 },
@@ -300,7 +300,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     Then('I should see an info banner about PNCP indisponível', async () => {
       await waitFor(
         () => {
-          const alert = screen.getByRole('alert');
+          const alert = screen.getByRole('status');
           expect(alert.textContent).toMatch(/PNCP indisponível/i);
         },
         { timeout: 2000 },
@@ -336,7 +336,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     Then('I should see an info banner about PNCP indisponível', async () => {
       await waitFor(
         () => {
-          const alert = screen.getByRole('alert');
+          const alert = screen.getByRole('status');
           expect(alert.textContent).toMatch(/PNCP indisponível/i);
         },
         { timeout: 2000 },
@@ -373,7 +373,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     Then('I should see an info banner about PNCP indisponível', async () => {
       await waitFor(
         () => {
-          const alert = screen.getByRole('alert');
+          const alert = screen.getByRole('status');
           expect(alert.textContent).toMatch(/PNCP indisponível/i);
         },
         { timeout: 2000 },

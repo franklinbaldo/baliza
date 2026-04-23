@@ -79,7 +79,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
 
     Then('the "Em quarentena" card should link to "/baliza/sobre#quarentena"', () => {
       const link = screen.getByRole('link', { name: /em quarentena/i });
-      expect(link.getAttribute('href')).toBe('/baliza/sobre#quarentena');
+      expect(link.getAttribute('href')).toBe('/sobre#quarentena');
     });
   });
 
