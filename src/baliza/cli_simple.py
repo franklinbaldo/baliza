@@ -32,6 +32,7 @@ from rich.progress import (
 from .builder import _pending_build_months, build_month
 from .consolidator import IAConsolidator
 from .constants import (
+    RESOURCE_CONTRATOS,
     clamp_to_known_data_start_month,
     known_data_start_month,
     month_predates_known_data,
@@ -49,6 +50,7 @@ console = Console()
 
 
 def _forced_month_or_empty(resource: str, force_month: str) -> list[date]:
+    """Return a one-month batch, or an intentional no-op for pre-history months."""
     forced = datetime.strptime(force_month, "%Y-%m").date()
     if month_predates_known_data(resource, forced):
         console.print(
@@ -105,7 +107,7 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
     try:
         # Default resource for sync is 'contratos' inside PNCPExtractor
         # But we check it here if needed.
-        _validate_resource("contratos")
+        _validate_resource(RESOURCE_CONTRATOS)
     except ValueError as e:
         print(str(e))
         sys.stdout.flush()
@@ -123,7 +125,7 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
     # (if enabled) the up-front consolidation catch-up below.
     raw_manifest: list[dict] = []
     if force_month:
-        batch = _forced_month_or_empty("contratos", force_month)
+        batch = _forced_month_or_empty(RESOURCE_CONTRATOS, force_month)
         uploaded: set[str] = set()
     else:
         with console.status("[bold green]Checking IA manifest for pending months...[/bold green]"):
@@ -145,9 +147,9 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                 uploaded = set()
 
             start = clamp_to_known_data_start_month(
-                "contratos", datetime.strptime(start_date, "%Y-%m-%d").date()
+                RESOURCE_CONTRATOS, datetime.strptime(start_date, "%Y-%m-%d").date()
             )
-            
+
             today = date.today()
             # End is the previous month
             last_month_end = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
@@ -158,7 +160,7 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                 month_key = curr.strftime("%Y-%m")
                 if month_key not in uploaded:
                     pending_months.append(curr)
-                
+
                 # Advance to next month
                 if curr.month == 12:
                     curr = curr.replace(year=curr.year + 1, month=1)
@@ -237,7 +239,7 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
         overall_task = progress.add_task(
             "[bold white]Overall Sync Progress (Months)[/bold white]", total=len(batch)
         )
-        
+
         month_tasks: dict[str, TaskID] = {}
 
         # Use pool for parallel scraping
@@ -246,7 +248,7 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
 
             def process_month_full(start_of_month: date):  # noqa: PLR0912, PLR0915
                 nonlocal total_records, quarantine_count, error_count
-                
+
                 month_str = start_of_month.strftime("%Y-%m")
                 # Calculate end of month
                 if start_of_month.month == 12:
@@ -257,11 +259,11 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
 
                 # THREAD-SAFE ENGINE: Each worker gets its own connection
                 thread_engine = engine.connect_thread_safe()
-                
+
                 # 1. Lifecycle Progress Bar Start
                 tid = progress.add_task(f"Month {month_str} [Probing]", total=3, completed=0)
                 month_tasks[month_str] = tid
-                
+
                 try:
                     raw_month_dir = Path("data/raw") / month_str
                     sentinel = raw_month_dir / FETCHED_SENTINEL
@@ -357,7 +359,7 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
 
                         if total_pages is None:
                             res = extractor.probe_range(
-                                "contratos", month_start_dt, month_end_dt
+                                RESOURCE_CONTRATOS, month_start_dt, month_end_dt
                             )
                             total_pages = res["total_pages"]
 
@@ -416,7 +418,7 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                                     description=f"Month {month_str} [Pages {i}/{len(missing_pages)}]",
                                 )
                                 extractor.fetch_page(
-                                    "contratos", month_start_dt, month_end_dt, p
+                                    RESOURCE_CONTRATOS, month_start_dt, month_end_dt, p
                                 )
                                 progress.update(tid, advance=1)
 
@@ -447,13 +449,13 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                                 )
                         else:
                             progress.console.log(f"[yellow]Dry-run: {month_str} verified ({stats['valid']} records)[/yellow]")
-                        
+
                         # Step complete
                         progress.update(tid, advance=1)
 
                         if q_csv.exists():
                             q_csv.unlink()
-                            
+
                     progress.update(overall_task, advance=1)
                 except ValueError as e:
                     if "Invalid resource path" in str(e):
@@ -543,14 +545,14 @@ def mirror_cmd(  # noqa: PLR0913
         raise typer.Exit(1)
 
     if force_month:
-        batch = _forced_month_or_empty("contratos", force_month)
+        batch = _forced_month_or_empty(RESOURCE_CONTRATOS, force_month)
     else:
         start = clamp_to_known_data_start_month(
-            "contratos", datetime.strptime(start_date, "%Y-%m-%d").date()
+            RESOURCE_CONTRATOS, datetime.strptime(start_date, "%Y-%m-%d").date()
         )
         try:
             with console.status("[bold green]Checking IA manifest for pending months...[/bold green]"):
-                batch = _pending_mirror_months(start, batch_size)
+                batch = _pending_mirror_months(start, batch_size, resource=RESOURCE_CONTRATOS)
         except Exception as e:
             console.print(f"[red]✗ Cannot read IA manifest: {e}[/red]")
             raise typer.Exit(1) from None
@@ -643,14 +645,16 @@ def build_cmd(  # noqa: PLR0913, PLR0915
         raise typer.Exit(1)
 
     if force_month:
-        batch = _forced_month_or_empty("contratos", force_month)
+        batch = _forced_month_or_empty(RESOURCE_CONTRATOS, force_month)
     else:
         start = clamp_to_known_data_start_month(
-            "contratos", datetime.strptime(start_date, "%Y-%m-%d").date()
+            RESOURCE_CONTRATOS, datetime.strptime(start_date, "%Y-%m-%d").date()
         )
         try:
             with console.status("[bold green]Checking IA manifest for months to build...[/bold green]"):
-                batch = _pending_build_months(start, batch_size, backfill=backfill)
+                batch = _pending_build_months(
+                    start, batch_size, resource=RESOURCE_CONTRATOS, backfill=backfill
+                )
         except Exception as e:
             console.print(f"[red]✗ Cannot read IA manifest: {e}[/red]")
             raise typer.Exit(1) from None
@@ -716,7 +720,9 @@ def build_cmd(  # noqa: PLR0913, PLR0915
 
 @app.command("verify")
 def verify(
-    resource: str = typer.Option("contratos", "--resource", "-r", help="Resource to verify"),
+    resource: str = typer.Option(
+        RESOURCE_CONTRATOS, "--resource", "-r", help="Resource to verify"
+    ),
     start: str = typer.Option(..., "--start", help="Start date (YYYY-MM-DD)"),
     end: str = typer.Option(..., "--end", help="End date (YYYY-MM-DD)"),
 ) -> None:
@@ -746,7 +752,7 @@ def verify(
             month_key = curr.strftime("%Y-%m")
             if month_key not in uploaded_months:
                 gaps.append(month_key)
-            
+
             # Next month
             if curr.month == 12:
                 curr = curr.replace(year=curr.year + 1, month=1)
