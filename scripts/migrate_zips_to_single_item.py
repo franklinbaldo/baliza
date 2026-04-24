@@ -1,7 +1,8 @@
 """Migrate raw ZIPs from per-month IA items to a single baliza-pncp-raw item.
 
-Internet Archive does not support server-side copy/move. This script streams
-each ZIP directly from the old item to the new one without writing to disk.
+Internet Archive does not support server-side copy/move. This script downloads
+each ZIP to a temp file and re-uploads to the new item, streaming in chunks to
+avoid loading large files into memory.
 
 Usage:
     IA_ACCESS_KEY=... IA_SECRET_KEY=... uv run python scripts/migrate_zips_to_single_item.py
@@ -10,19 +11,19 @@ Usage:
 """
 from __future__ import annotations
 
+import argparse
 import os
 import sys
-import argparse
-from datetime import datetime
+import tempfile
+from pathlib import Path
 
 import httpx
 import internetarchive as ia
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, DownloadColumn, TransferSpeedColumn
 
 # Add project src to path
-sys.path.insert(0, str(__import__("pathlib").Path(__file__).parent.parent / "src"))
-from baliza.ia_uploader import read_manifest_from_ia, write_manifest_to_ia, MANIFEST_ITEM_ID
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+from baliza.ia_uploader import read_manifest_from_ia, write_manifest_to_ia
 
 console = Console()
 
@@ -74,34 +75,30 @@ def stream_copy_zip(
         console.print(f"  [yellow][dry-run] would copy {zip_name} → {RAW_ITEM_ID}[/yellow]")
         return True
 
-    console.print(f"  [cyan]Streaming {zip_name} to {RAW_ITEM_ID}...[/cyan]")
+    console.print(f"  [cyan]Copying {zip_name} to {RAW_ITEM_ID}...[/cyan]")
 
     try:
-        # Resolve IA redirect first
-        with httpx.Client(follow_redirects=True) as client:
-            # HEAD to get content-length
-            head = client.head(source_url)
-            total_bytes = int(head.headers.get("content-length", 0))
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir) / zip_name
 
-            # Stream GET
-            with client.stream("GET", source_url) as resp:
-                resp.raise_for_status()
+            # Stream download to temp file — avoids loading the full ZIP into memory
+            with httpx.Client(follow_redirects=True, timeout=300.0) as client:
+                with client.stream("GET", source_url) as resp:
+                    resp.raise_for_status()
+                    with open(tmp_path, "wb") as f:
+                        for chunk in resp.iter_bytes(chunk_size=1 << 20):
+                            f.write(chunk)
 
-                # internetarchive.upload accepts a file-like object
-                # We wrap the iterator in a BytesIO-compatible reader
-                content = resp.read()  # reads full body into memory
+            size_mb = tmp_path.stat().st_size / 1024 / 1024
 
-        # Upload streamed bytes
-        import io
-        ia.upload(
-            RAW_ITEM_ID,
-            files={zip_name: io.BytesIO(content)},
-            access_key=access_key,
-            secret_key=secret_key,
-            metadata=RAW_ITEM_METADATA,
-            retries=3,
-        )
-        size_mb = len(content) / 1024 / 1024
+            ia.upload(
+                RAW_ITEM_ID,
+                files={zip_name: str(tmp_path)},
+                access_key=access_key,
+                secret_key=secret_key,
+                metadata=RAW_ITEM_METADATA,
+                retries=3,
+            )
         console.print(f"  [green]✓ {zip_name} uploaded ({size_mb:.1f} MB)[/green]")
         return True
 
@@ -138,7 +135,7 @@ def update_manifest_urls(
         console.print("[dim]No manifest rows needed updating[/dim]")
 
 
-def main() -> None:
+def main() -> None:  # noqa: PLR0912
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dry-run", action="store_true", help="Show what would be done without uploading")
     parser.add_argument("--force-month", help="Migrate only this month (YYYY-MM)")
@@ -152,7 +149,7 @@ def main() -> None:
         console.print("[red]✗ IA_ACCESS_KEY and IA_SECRET_KEY must be set[/red]")
         sys.exit(1)
 
-    console.print(f"[bold]Reading manifest from IA...[/bold]")
+    console.print("[bold]Reading manifest from IA...[/bold]")
     manifest = read_manifest_from_ia()
 
     # Collect months that have a raw_zip_url in the old per-month items
