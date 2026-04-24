@@ -11,10 +11,12 @@ interface Props {
   canonicalURL?: URL;
 }
 
+const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+
 const {
   title,
   description = "Baliza: Monitoramento diário das contratações públicas brasileiras. Transparência, preservação e dados abertos do PNCP.",
-  image = "/baliza/og-image.png",
+  image = `${BASE}og-image.png`,
   canonicalURL = new URL(Astro.url.pathname, Astro.site),
 } = Astro.props;
 
@@ -24,7 +26,7 @@ const fullTitle = `${title} | Baliza Monitor`;
 <!-- Global Metadata -->
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<link rel="icon" type="image/svg+xml" href="/baliza/favicon.svg" />
+<link rel="icon" type="image/svg+xml" href={`${BASE}favicon.svg`} />
 <meta name="generator" content={Astro.generator} />
 
 <!-- Canonical URL -->

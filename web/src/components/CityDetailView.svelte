@@ -26,6 +26,8 @@
         : ''),
   );
 
+  const ibgeValid = $derived(/^\d{7}$/.test(ibge));
+
   const CITY_LOOKBACK_DAYS = 1;
   const CITY_END_DAYS_AGO = 1;
 
@@ -107,6 +109,12 @@
 <div class="city-detail container">
   {#if !ibge}
     <EntityNotFound id="ausente" type="município" />
+  {:else if !ibgeValid}
+    <EntityNotFound
+      id={ibge}
+      type="município"
+      error="Código IBGE fora do formato esperado: 7 dígitos numéricos."
+    />
   {:else if loading}
     <div class="skeleton-wrap" aria-busy="true" aria-label="Carregando dados do município">
       <div class="skeleton skeleton-title"></div>

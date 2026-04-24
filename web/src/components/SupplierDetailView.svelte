@@ -27,6 +27,8 @@
         : ''),
   );
 
+  const cnpjValid = $derived(/^\d{14}$/.test(cnpj));
+
   $effect(() => {
     if (cnpj) prefetchArchive('contratos');
   });
@@ -184,6 +186,12 @@
 <div class="supplier-detail container">
   {#if !cnpj}
     <EntityNotFound id="ausente" type="fornecedor" />
+  {:else if !cnpjValid}
+    <EntityNotFound
+      id={cnpj}
+      type="fornecedor"
+      error="CNPJ fora do formato esperado: 14 dígitos numéricos, sem pontos, traços ou barras."
+    />
   {:else if loading}
     <div class="skeleton-wrap" aria-busy="true" aria-label="Carregando dados do fornecedor">
       <div class="skeleton skeleton-title"></div>
