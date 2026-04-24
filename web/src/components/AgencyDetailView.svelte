@@ -395,10 +395,10 @@
   .recent-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-sm); }
   .bid-link-card {
     display: block; text-decoration: none; color: inherit; background: var(--color-base-100);
-    padding: var(--space-md); border-radius: var(--radius-sm); border: 1px solid var(--color-base-300);
-    transition: transform 0.2s, border-color 0.2s;
+    padding: var(--space-md); border-radius: 0; border: 1px solid var(--color-base-300);
+    transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
   }
-  .bid-link-card:hover { transform: translateX(5px); border-color: var(--color-primary); }
+  .bid-link-card:hover, .bid-link-card:focus-visible { transform: translate(-2px, -2px); border-color: var(--color-primary); box-shadow: 4px 4px 0 var(--color-primary); }
   .bid-header { display: flex; justify-content: space-between; margin-bottom: var(--space-sm); font-size: 0.75rem; font-family: var(--font-mono); color: var(--color-secondary); }
   .bid-obj { font-size: var(--font-size-sm); line-height: 1.5; margin-bottom: var(--space-sm); }
   .bid-footer { text-align: right; font-weight: 800; color: var(--color-primary); }

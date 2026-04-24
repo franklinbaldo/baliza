@@ -187,8 +187,9 @@ hr { border: 0; border-top: 1px solid var(--neutral-200); margin: 0; }
 ::selection { background: var(--bulcao-accent); color: var(--bulcao-bg); }
 
 *:focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid transparent;
   outline-offset: 2px;
+  box-shadow: 4px 4px 0 var(--color-primary);
 }
 
 h1, h2, h3, h4, h5, h6 {
