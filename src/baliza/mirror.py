@@ -1,9 +1,8 @@
 """Raw mirror: fetch PNCP JSON pages and upload monthly ZIPs to Internet Archive.
 
-No DuckDB, no Parquet — purely a data capture step. The resulting ZIP at
-archive.org/download/baliza-pncp-{YYYY-MM}/raw-{YYYY-MM}.zip is a navigable
-mirror of the PNCP API responses (each contratos_p{N}.json accessible as a
-direct URL).
+No DuckDB, no Parquet — purely a data capture step. All ZIPs land in the single
+item baliza-pncp-raw as raw-{YYYY-MM}.zip, making the full history discoverable
+from one URL: archive.org/details/baliza-pncp-raw
 """
 
 from __future__ import annotations
@@ -16,7 +15,7 @@ import structlog
 
 from .constants import RESOURCE_CONTRATOS, clamp_to_known_data_start_month
 from .extractor import FETCHED_SENTINEL, PNCPExtractor, _validate_resource
-from .ia_uploader import IAUploader, read_manifest_from_ia
+from .ia_uploader import IAUploader, RAW_ITEM_ID, read_manifest_from_ia
 
 logger = structlog.get_logger()
 
@@ -27,9 +26,13 @@ def _pending_mirror_months(
     *,
     resource: str = RESOURCE_CONTRATOS,
 ) -> list[date]:
-    """Return months not yet mirrored (no raw_zip_url in manifest), newest-first."""
+    """Return months to mirror, newest-first.
+
+    Past months are included only when they have no raw_zip_url in the manifest.
+    The current month is always included — its ZIP grows daily as new pages arrive.
+    """
     raw_manifest = read_manifest_from_ia()  # strict: raises ManifestReadError on failure
-    # A month is "mirrored" if it has a non-empty raw_zip_url in its canonical row.
+    # A past month is "done" when it has a non-empty raw_zip_url.
     mirrored: set[str] = {
         row["data_particao"]
         for row in raw_manifest
@@ -37,18 +40,24 @@ def _pending_mirror_months(
     }
 
     today = date.today()
-    last_month = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
+    current_month = today.replace(day=1)
+    last_complete_month = (current_month - timedelta(days=1)).replace(day=1)
     start = clamp_to_known_data_start_month(resource, start_date)
 
     pending: list[date] = []
+
+    # Past months: only if not yet mirrored
     curr = start
-    while curr <= last_month:
+    while curr <= last_complete_month:
         if curr.strftime("%Y-%m") not in mirrored:
             pending.append(curr)
         if curr.month == 12:
             curr = curr.replace(year=curr.year + 1, month=1)
         else:
             curr = curr.replace(month=curr.month + 1)
+
+    # Current month: always include (daily incremental updates)
+    pending.append(current_month)
 
     pending.sort(reverse=True)
     return pending[:batch_size] if batch_size else pending
@@ -62,6 +71,7 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
     use_curl: bool = False,
     dry_run: bool = False,
     log_fn: object = None,
+    is_current_month: bool = False,
 ) -> dict[str, object]:
     """Fetch all PNCP JSON pages for a month, zip them, and upload to IA.
 
@@ -72,6 +82,9 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
         use_curl: Use system cURL instead of httpx.
         dry_run: Skip actual upload (verify only).
         log_fn: Optional callable(str) for progress messages.
+        is_current_month: When True, keeps local page cache after upload (so
+            tomorrow's run only fetches new pages) and removes the sentinel so
+            the next run re-probes totalPaginas from the API.
 
     Returns:
         Dict with keys: ``month``, ``pages_fetched``, ``pages_cached``, ``uploaded``.
@@ -155,6 +168,27 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
             res = extractor.probe_range(RESOURCE_CONTRATOS, month_start_dt, month_end_dt)
             total_pages = res["total_pages"]
 
+        # For the current month, the last cached page may be incomplete —
+        # new contracts published after the previous run fill that page
+        # further before a new page opens. Always invalidate it so it gets
+        # re-fetched with the latest data.
+        if is_current_month:
+            cached_page_nums = [
+                p for p in range(1, total_pages + 1) if _page_is_cached(p)
+            ]
+            if cached_page_nums:
+                last_cached = max(cached_page_nums)
+                last_cached_path = raw_month_dir / f"contratos_p{last_cached}.json"
+                try:
+                    last_cached_path.unlink()
+                    logger.info(
+                        "current_month_last_page_invalidated",
+                        month=month_str,
+                        page=last_cached,
+                    )
+                except OSError:
+                    pass
+
         missing_pages = [p for p in range(1, total_pages + 1) if not _page_is_cached(p)]
         cached_count = total_pages - len(missing_pages)
         result["pages_cached"] = cached_count
@@ -186,7 +220,20 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
 
     uploader = IAUploader(engine=None)
     uploaded = uploader.upload_raw_zip(
-        start_of_month, raw_month_dir, ia_access_key, ia_secret_key
+        start_of_month,
+        raw_month_dir,
+        ia_access_key,
+        ia_secret_key,
+        keep_raw_dir=is_current_month,
     )
     result["uploaded"] = uploaded
+
+    # For the current month: remove the sentinel after upload so the next
+    # daily run re-probes totalPaginas and picks up newly published pages.
+    if is_current_month and uploaded:
+        try:
+            sentinel.unlink(missing_ok=True)
+        except OSError:
+            pass
+
     return result

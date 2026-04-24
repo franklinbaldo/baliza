@@ -591,6 +591,7 @@ def mirror_cmd(  # noqa: PLR0913
                 )
                 for completed in done:
                     _collect_mirror(completed, futures.pop(completed))
+            current_month = date.today().replace(day=1)
             f = executor.submit(
                 mirror_month,
                 target_month,
@@ -599,6 +600,7 @@ def mirror_cmd(  # noqa: PLR0913
                 use_curl=not no_curl,
                 dry_run=dry_run,
                 log_fn=lambda msg: console.log(f"[dim]{msg}[/dim]"),
+                is_current_month=(target_month == current_month),
             )
             futures[f] = target_month
         concurrent.futures.wait(futures.keys())
