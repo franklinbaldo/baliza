@@ -23,35 +23,23 @@ from rich.console import Console
 
 # Add project src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-from baliza.ia_uploader import read_manifest_from_ia, write_manifest_to_ia
+from baliza.ia_uploader import (
+    RAW_ITEM_ID,
+    RAW_ITEM_METADATA,
+    read_manifest_from_ia,
+    write_manifest_to_ia,
+)
 
 console = Console()
 
-RAW_ITEM_ID = "baliza-pncp-raw"
-RAW_ITEM_METADATA = {
-    "title": "Baliza PNCP — Raw JSON Mirror (all months)",
-    "description": (
-        "Complete mirror of PNCP (Portal Nacional de Contratações Públicas) API responses. "
-        "Each raw-YYYY-MM.zip contains the raw JSON pages fetched from the contratos endpoint "
-        "for that month. Part of the Baliza open data project."
-    ),
-    "mediatype": "data",
-    "subject": ["PNCP", "contratos", "licitações", "governo", "Brasil", "open data"],
-    "creator": "Baliza",
-    "language": "pt",
-}
 
-
-def already_in_new_item(month_str: str) -> bool:
-    """Check if raw-YYYY-MM.zip already exists in baliza-pncp-raw."""
+def fetch_existing_zips() -> set[str]:
+    """Return the set of zip filenames already present in baliza-pncp-raw."""
     try:
         item = ia.get_item(RAW_ITEM_ID)
-        for f in item.get_files():
-            if f.name == f"raw-{month_str}.zip":
-                return True
+        return {f.name for f in item.get_files() if f.name.endswith(".zip")}
     except Exception:
-        pass
-    return False
+        return set()
 
 
 def stream_copy_zip(
@@ -59,15 +47,16 @@ def stream_copy_zip(
     source_url: str,
     access_key: str,
     secret_key: str,
+    existing_zips: set[str],
     dry_run: bool = False,
 ) -> bool:
-    """Stream a ZIP from source_url and upload to baliza-pncp-raw.
+    """Download a ZIP from source_url to a temp file and upload to baliza-pncp-raw.
 
     Returns True on success.
     """
     zip_name = f"raw-{month_str}.zip"
 
-    if already_in_new_item(month_str):
+    if zip_name in existing_zips:
         console.print(f"  [dim]{month_str}: already in {RAW_ITEM_ID}, skipping[/dim]")
         return True
 
@@ -184,11 +173,14 @@ def main() -> None:  # noqa: PLR0912
 
     console.print()
 
+    # Fetch the destination file list once — avoids N IA API calls (one per month)
+    existing_zips: set[str] = set() if args.dry_run else fetch_existing_zips()
+
     migrated: list[str] = []
     errors: list[str] = []
 
     for month_str, source_url in to_migrate:
-        ok = stream_copy_zip(month_str, source_url, access_key or "", secret_key or "", dry_run=args.dry_run)
+        ok = stream_copy_zip(month_str, source_url, access_key or "", secret_key or "", existing_zips, dry_run=args.dry_run)
         if ok:
             migrated.append(month_str)
         else:

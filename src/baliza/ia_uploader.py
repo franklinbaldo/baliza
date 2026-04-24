@@ -30,6 +30,19 @@ _CONTRATOS_BLOOM_FILTER_COLUMNS = (
 
 MANIFEST_ITEM_ID = "baliza-pncp-manifest"
 RAW_ITEM_ID = "baliza-pncp-raw"
+RAW_ITEM_METADATA = {
+    "title": "Baliza PNCP — Raw JSON Mirror (all months)",
+    "description": (
+        "Complete mirror of PNCP (Portal Nacional de Contratações Públicas) API responses. "
+        "Each raw-YYYY-MM.zip contains the raw JSON pages fetched from the contratos endpoint "
+        "for that month. Part of the Baliza open data project."
+    ),
+    "mediatype": "data",
+    "collection": "opensource_media",
+    "subject": ["PNCP", "contratos", "licitações", "governo", "Brasil", "open data"],
+    "creator": "Baliza",
+    "language": "pt",
+}
 
 # Union of v1 + v2 fieldnames — DictWriter with extrasaction="ignore"
 # happily writes blanks for legacy rows missing v2 columns.
@@ -374,12 +387,7 @@ class IAUploader:
                 files={zip_path.name: str(zip_path)},
                 access_key=ia_access_key,
                 secret_key=ia_secret_key,
-                metadata={
-                    "title": "Baliza PNCP — Raw JSON Mirror (all months)",
-                    "description": "Complete mirror of PNCP API responses. Each raw-YYYY-MM.zip contains raw JSON pages for that month.",
-                    "mediatype": "data",
-                    "collection": "opensource_media",
-                },
+                metadata=RAW_ITEM_METADATA,
                 retries=3,
             )
 

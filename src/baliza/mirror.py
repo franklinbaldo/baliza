@@ -71,7 +71,7 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
     use_curl: bool = False,
     dry_run: bool = False,
     log_fn: object = None,
-    is_current_month: bool = False,
+    is_current_month: bool | None = None,
 ) -> dict[str, object]:
     """Fetch all PNCP JSON pages for a month, zip them, and upload to IA.
 
@@ -84,11 +84,14 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
         log_fn: Optional callable(str) for progress messages.
         is_current_month: When True, keeps local page cache after upload (so
             tomorrow's run only fetches new pages) and removes the sentinel so
-            the next run re-probes totalPaginas from the API.
+            the next run re-probes totalPaginas from the API. Auto-detected
+            when None (default).
 
     Returns:
         Dict with keys: ``month``, ``pages_fetched``, ``pages_cached``, ``uploaded``.
     """
+    if is_current_month is None:
+        is_current_month = (start_of_month == date.today().replace(day=1))
     _validate_resource(RESOURCE_CONTRATOS)
 
     month_str = start_of_month.strftime("%Y-%m")

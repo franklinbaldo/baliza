@@ -31,6 +31,7 @@ def _pending_build_months(
     *,
     resource: str = RESOURCE_CONTRATOS,
     backfill: bool = False,
+    manifest: list[dict] | None = None,
 ) -> list[date]:
     """Return months that need a Parquet build, newest-first.
 
@@ -43,7 +44,7 @@ def _pending_build_months(
         (or Parquet missing).  This includes months uploaded via the old monolithic
         ``sync`` command that already have a ZIP on IA.
     """
-    raw_manifest = read_manifest_from_ia()  # strict: raises ManifestReadError on failure
+    raw_manifest = manifest if manifest is not None else read_manifest_from_ia()
     today = date.today()
     last_month = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
     start = clamp_to_known_data_start_month(resource, start_date)
@@ -88,13 +89,14 @@ def _download_raw_zip(zip_url: str, month_str: str, dest: Path) -> Path:
     return zip_path
 
 
-def build_month(  # noqa: PLR0915
+def build_month(  # noqa: PLR0913, PLR0915
     start_of_month: date,
     *,
     ia_access_key: str,
     ia_secret_key: str,
     dry_run: bool = False,
     log_fn: object = None,
+    manifest: list[dict] | None = None,
 ) -> dict[str, object]:
     """Download the raw ZIP from IA, ingest into DuckDB, export and upload Parquet.
 
@@ -104,6 +106,9 @@ def build_month(  # noqa: PLR0915
         ia_secret_key: IA S3-like secret key.
         dry_run: Skip actual upload (ingest and export only).
         log_fn: Optional callable(str) for progress messages.
+        manifest: Pre-fetched manifest rows. When None, fetches from IA.
+            Pass this when building multiple months to avoid one network
+            call per month.
 
     Returns:
         Dict with keys: ``month``, ``valid``, ``quarantine``, ``uploaded``.
@@ -123,9 +128,9 @@ def build_month(  # noqa: PLR0915
 
     # Resolve raw_zip_url from manifest — decoupled from item naming so it
     # works whether the ZIP lives in baliza-pncp-raw or a per-month item.
-    manifest = read_manifest_from_ia()
+    rows = manifest if manifest is not None else read_manifest_from_ia()
     manifest_row = next(
-        (r for r in manifest if r.get("data_particao") == month_str and r.get("raw_zip_url")),
+        (r for r in rows if r.get("data_particao") == month_str and r.get("raw_zip_url")),
         None,
     )
     if not manifest_row:
