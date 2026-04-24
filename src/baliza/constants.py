@@ -27,9 +27,16 @@ def known_data_start_month(resource: str) -> date:
 
 
 def clamp_to_known_data_start_month(resource: str, start: date) -> date:
-    """Clamp a requested start date to the first possible source-data month."""
+    """Clamp a requested start date to the first possible source-data month.
+
+    If no data-start is configured for the resource, returns the month-normalised
+    start unchanged so callers never crash on resources not yet in the registry.
+    """
     start_month = start.replace(day=1)
-    return max(start_month, known_data_start_month(resource))
+    floor = PNCP_RESOURCE_DATA_STARTS.get(resource)
+    if floor is None:
+        return start_month
+    return max(start_month, floor.replace(day=1))
 
 
 def month_predates_known_data(resource: str, month: date) -> bool:

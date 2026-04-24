@@ -34,3 +34,7 @@ def test_month_predates_known_data():
 def test_unknown_resource_raises_descriptive_error():
     with pytest.raises(ValueError, match="No known PNCP data start configured"):
         known_data_start_month("atas")
+
+
+def test_clamp_to_known_data_start_month_unknown_resource_passes_through():
+    assert clamp_to_known_data_start_month("atas", date(2020, 1, 15)) == date(2020, 1, 1)
