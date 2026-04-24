@@ -184,6 +184,8 @@
 
   {#if loading}
     <p class="status" aria-live="polite">Buscando municípios…</p>
+  {:else if query.trim().length === 1}
+    <p class="status" aria-live="polite">Digite ao menos 2 letras para buscar.</p>
   {/if}
 
   {#if geoStatus === 'denied'}

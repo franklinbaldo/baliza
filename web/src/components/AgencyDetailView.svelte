@@ -28,6 +28,8 @@
         : ''),
   );
 
+  const cnpjValid = $derived(/^\d{14}$/.test(cnpj));
+
   const ALLOWED_DIAS = new Set([30, 90, 180, 365]);
 
   function readDiasFromUrl(): number {
@@ -203,6 +205,12 @@
 <div class="agency-detail container">
   {#if !cnpj}
     <EntityNotFound id="ausente" type="órgão" />
+  {:else if !cnpjValid}
+    <EntityNotFound
+      id={cnpj}
+      type="órgão"
+      error="CNPJ fora do formato esperado: 14 dígitos numéricos, sem pontos, traços ou barras."
+    />
   {:else if loading}
     <div class="skeleton-wrap" aria-busy="true" aria-label="Carregando dados do órgão">
       <div class="skeleton skeleton-title"></div>
