@@ -15,7 +15,7 @@ import structlog
 
 from .constants import RESOURCE_CONTRATOS, clamp_to_known_data_start_month
 from .extractor import FETCHED_SENTINEL, PNCPExtractor, _validate_resource
-from .ia_uploader import IAUploader, RAW_ITEM_ID, read_manifest_from_ia
+from .ia_uploader import IAUploader, read_manifest_from_ia
 
 logger = structlog.get_logger()
 
