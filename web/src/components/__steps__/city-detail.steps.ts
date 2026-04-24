@@ -35,9 +35,9 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       await tick();
     });
 
-    Then('I should see "MUNICÍPIO não encontrada"', async () => {
+    Then('I should see "MUNICÍPIO não encontrado"', async () => {
       await waitFor(() =>
-        expect(screen.getByText('MUNICÍPIO não encontrada')).toBeTruthy(),
+        expect(screen.getByText('MUNICÍPIO não encontrado')).toBeTruthy(),
       );
     });
   });

@@ -66,3 +66,14 @@ export function formatParticao(input: string | null | undefined): string {
 export function normalizeSearchInput(raw: string): string {
   return raw.replace(ZERO_WIDTH, '').trim();
 }
+
+// Only appends the ellipsis when the input is actually longer than the cap.
+// Previous call sites used `s.substring(0, n) + "..."` which produced
+// "Merenda escolar..." for a 15-char string — a sloppy visual tell.
+export function truncate(
+  s: string | null | undefined,
+  max: number,
+): string {
+  if (!s) return '';
+  return s.length > max ? `${s.slice(0, max).trimEnd()}…` : s;
+}

@@ -5,7 +5,7 @@ Feature: Agency Detail View
   Scenario: Missing CNPJ shows EntityNotFound
     Given the URL has no cnpj parameter
     When the agency detail view mounts
-    Then I should see "ÓRGÃO não encontrada"
+    Then I should see "ÓRGÃO não encontrado"
 
   Scenario: Fetch pending shows skeleton
     Given the URL has cnpj "00000000000191"

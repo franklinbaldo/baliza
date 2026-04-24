@@ -9,7 +9,7 @@
   import { setCity } from '../lib/cityContext.svelte';
   import type { PNCPContract } from '../lib/pncp';
   import type { ArchivedContrato } from '../lib/archive/schema';
-  import { formatDate, formatParticao } from '../lib/format';
+  import { formatDate, formatParticao, truncate } from '../lib/format';
   import { resolve } from '../lib/baseUrl';
   import AlertBanner from './AlertBanner.svelte';
   import EmptyState from './EmptyState.svelte';
@@ -172,7 +172,7 @@
                     <span class="bid-id">#{bid.numeroControlePNCP}</span>
                     <span class="bid-date">{formatDate(bid.dataPublicacaoPncp)}</span>
                   </div>
-                  <p class="bid-obj">{bid.objetoContratacao.substring(0, 100)}...</p>
+                  <p class="bid-obj">{truncate(bid.objetoContratacao, 100)}</p>
                 </a>
               {/each}
             </div>
