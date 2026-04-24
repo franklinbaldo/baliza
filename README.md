@@ -36,14 +36,14 @@ Baliza V2 collapses the pipeline into a single omnibus command. The scheduled Gi
 ### `sync` — Extract missing months, upload to IA, consolidate
 
 ```bash
-baliza sync --start-date 2023-01-01
+baliza sync --start-date 2021-09-01
 ```
 
 Walks backwards from the previous month to `--start-date`, skipping months already present on Internet Archive (source of truth is the remote `manifest.csv`). For each missing month it extracts from PNCP, uploads the monthly Parquet snapshot to IA, and — once the run finishes with new data — rebuilds the annual consolidated archives.
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--start-date` | `2023-01-01` | Oldest date to backfill to |
+| `--start-date` | `2021-09-01` | Oldest date to backfill to. `contratos` data starts on 2021-09-06, so earlier dates are clamped to the 2021-09 monthly partition. |
 | `--batch-size, -n` | all pending | Max months to sync in one run |
 | `--force-month` | — | Target a specific month (YYYY-MM) regardless of manifest |
 | `--limit-minutes` | `0` (no limit) | Stop after N minutes (for CI deadlines) |
