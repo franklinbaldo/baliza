@@ -9,7 +9,7 @@
     queryParquetFallback,
   } from '../lib/parquetFallback';
   import type { PNCPContract } from '../lib/pncp';
-  import { formatBRL, formatDate, formatParticao } from '../lib/format';
+  import { formatBRL, formatDate, formatParticao, truncate } from '../lib/format';
   import { resolve } from '../lib/baseUrl';
   import type { ArchivedContrato } from '../lib/archive/schema';
   import EntityNotFound from './EntityNotFound.svelte';
@@ -273,7 +273,7 @@
               <span class="bid-id">{item.numeroControlePNCP}</span>
               <span class="bid-date">{formatDate(item.dataPublicacaoPncp)}</span>
             </div>
-            <p class="bid-obj">{item.objetoContratacao.substring(0, 150)}...</p>
+            <p class="bid-obj">{truncate(item.objetoContratacao, 150)}</p>
             <div class="bid-footer">
               <span class="buyer">{item.orgaoEntidade.razaoSocial}</span>
               <span class="valor">{formatBRL(item.valorTotalEstimado)}</span>

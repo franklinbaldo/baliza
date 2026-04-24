@@ -46,9 +46,9 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       await tick();
     });
 
-    Then('I should see "FORNECEDOR não encontrada"', async () => {
+    Then('I should see "FORNECEDOR não encontrado"', async () => {
       await waitFor(() =>
-        expect(screen.getByText('FORNECEDOR não encontrada')).toBeTruthy(),
+        expect(screen.getByText('FORNECEDOR não encontrado')).toBeTruthy(),
       );
     });
   });

@@ -363,7 +363,7 @@
   .fq-chip:hover { border-color: var(--color-primary); color: var(--color-primary); }
 
   textarea {
-    width: 100%; height: 120px; background: var(--color-base-200); color: var(--font-mono);
+    width: 100%; height: 120px; background: var(--color-base-200); color: var(--color-base-content);
     border: 1px solid var(--color-base-300); border-radius: var(--radius-sm); padding: var(--space-sm);
     font-family: var(--font-mono); font-size: var(--font-size-sm); resize: vertical; margin-bottom: var(--space-sm);
     outline: none;

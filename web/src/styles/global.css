@@ -92,6 +92,8 @@
 
   --radius-btn: var(--radius-0);
   --radius-box: var(--radius-0);
+  --radius-sm: var(--radius-2);
+  --radius-full: var(--radius-pill);
   --font-sans: var(--font-body);
   --font-serif: var(--font-display);
   --font-size-xs: var(--text-xs);
@@ -102,6 +104,15 @@
   --font-size-xl: var(--text-xl);
   --font-size-2xl: var(--text-2xl);
   --font-size-3xl: var(--text-3xl);
+  /* Legacy t-shirt sized spacing still referenced by detail views. Map onto
+     the 8px scale so padding/margin declarations don't silently drop. */
+  --space-xs:  var(--space-1);
+  --space-sm:  var(--space-3);
+  --space-md:  var(--space-4);
+  --space-lg:  var(--space-5);
+  --space-xl:  var(--space-6);
+  --space-2xl: var(--space-7);
+  --space-3xl: var(--space-8);
   --transition-base: all var(--duration-fast) var(--ease);
 
   --shimmer-gradient: linear-gradient(90deg,

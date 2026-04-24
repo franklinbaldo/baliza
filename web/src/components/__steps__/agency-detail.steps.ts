@@ -35,9 +35,9 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       await tick();
     });
 
-    Then('I should see "ÓRGÃO não encontrada"', async () => {
+    Then('I should see "ÓRGÃO não encontrado"', async () => {
       await waitFor(() =>
-        expect(screen.getByText('ÓRGÃO não encontrada')).toBeTruthy(),
+        expect(screen.getByText('ÓRGÃO não encontrado')).toBeTruthy(),
       );
     });
   });

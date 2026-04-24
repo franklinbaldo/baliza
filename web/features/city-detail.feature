@@ -5,7 +5,7 @@ Feature: City Detail View
   Scenario: Missing IBGE shows EntityNotFound
     Given the URL has no ibge parameter
     When the city detail view mounts
-    Then I should see "MUNICÍPIO não encontrada"
+    Then I should see "MUNICÍPIO não encontrado"
 
   Scenario: Fetch pending shows skeleton
     Given the URL has ibge "1721000"

@@ -6,6 +6,7 @@ import MonitorGrid from '../components/MonitorGrid.astro';
 import TrustStrip from '../components/TrustStrip.astro';
 import OrnamentBand from '../components/OrnamentBand.astro';
 import Dashboard from '../components/Dashboard.svelte';
+import WatchList from '../components/WatchList.svelte';
 import { IA_MANIFEST_URL } from '../lib/ia-manifest';
 
 const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
@@ -80,7 +81,12 @@ const TOOLS: Array<{
     </div>
   </section>
 
-  <!-- 6. Utilidades avançadas: compact secondary entry points. Demoted link
+  <!-- 6. Watchlist: the "Acompanhar" buttons on detail views save to
+       localStorage; this island surfaces them so the feature isn't invisible
+       after the user clicks it. Renders nothing when the list is empty. -->
+  <WatchList client:only="svelte" />
+
+  <!-- 7. Utilidades avançadas: compact secondary entry points. Demoted link
        grid — no second hero, no second search box. -->
   <section class="tools-strip" aria-labelledby="tools-title">
     <div class="container">

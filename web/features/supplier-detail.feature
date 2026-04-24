@@ -6,7 +6,7 @@ Feature: Supplier Detail View
   Scenario: Missing CNPJ shows EntityNotFound
     Given the URL has no cnpj parameter
     When the supplier detail view mounts
-    Then I should see "FORNECEDOR não encontrada"
+    Then I should see "FORNECEDOR não encontrado"
 
   Scenario: Archive pending shows skeleton
     Given the URL has cnpj "12345678000195"
