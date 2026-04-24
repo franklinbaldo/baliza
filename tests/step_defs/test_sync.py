@@ -137,11 +137,11 @@ def clear_ia_keys(monkeypatch):
 def manifest_lists_every_month(mock_ia_manifest):
     from datetime import date
 
-    from baliza.constants import known_data_start_month
+    from baliza.constants import RESOURCE_CONTRATOS, known_data_start_month
 
     today = date.today()
     rows = []
-    first_month = known_data_start_month("contratos")
+    first_month = known_data_start_month(RESOURCE_CONTRATOS)
     for year in range(first_month.year, today.year + 1):
         last_month = 12 if year < today.year else today.month
         first_month_for_year = first_month.month if year == first_month.year else 1
@@ -150,7 +150,7 @@ def manifest_lists_every_month(mock_ia_manifest):
             rows.append(
                 {
                     "data_particao": month,
-                    "table_name": "contratos",
+                    "table_name": RESOURCE_CONTRATOS,
                     "parquet_url": f"https://example.invalid/contratos-{month}.parquet",
                 }
             )

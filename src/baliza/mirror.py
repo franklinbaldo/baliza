@@ -14,14 +14,19 @@ from pathlib import Path
 
 import structlog
 
-from .constants import clamp_to_known_data_start_month
+from .constants import RESOURCE_CONTRATOS, clamp_to_known_data_start_month
 from .extractor import FETCHED_SENTINEL, PNCPExtractor, _validate_resource
 from .ia_uploader import IAUploader, read_manifest_from_ia
 
 logger = structlog.get_logger()
 
 
-def _pending_mirror_months(start_date: date, batch_size: int | None) -> list[date]:
+def _pending_mirror_months(
+    start_date: date,
+    batch_size: int | None,
+    *,
+    resource: str = RESOURCE_CONTRATOS,
+) -> list[date]:
     """Return months not yet mirrored (no raw_zip_url in manifest), newest-first."""
     raw_manifest = read_manifest_from_ia()  # strict: raises ManifestReadError on failure
     # A month is "mirrored" if it has a non-empty raw_zip_url in its canonical row.
@@ -33,7 +38,7 @@ def _pending_mirror_months(start_date: date, batch_size: int | None) -> list[dat
 
     today = date.today()
     last_month = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
-    start = clamp_to_known_data_start_month("contratos", start_date)
+    start = clamp_to_known_data_start_month(resource, start_date)
 
     pending: list[date] = []
     curr = start
@@ -71,7 +76,7 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
     Returns:
         Dict with keys: ``month``, ``pages_fetched``, ``pages_cached``, ``uploaded``.
     """
-    _validate_resource("contratos")
+    _validate_resource(RESOURCE_CONTRATOS)
 
     month_str = start_of_month.strftime("%Y-%m")
     if start_of_month.month == 12:
@@ -147,7 +152,7 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
                     pass
 
         if total_pages is None:
-            res = extractor.probe_range("contratos", month_start_dt, month_end_dt)
+            res = extractor.probe_range(RESOURCE_CONTRATOS, month_start_dt, month_end_dt)
             total_pages = res["total_pages"]
 
         missing_pages = [p for p in range(1, total_pages + 1) if not _page_is_cached(p)]
@@ -167,7 +172,7 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
                 pass
 
         for p in missing_pages:
-            extractor.fetch_page("contratos", month_start_dt, month_end_dt, p)
+            extractor.fetch_page(RESOURCE_CONTRATOS, month_start_dt, month_end_dt, p)
             result["pages_fetched"] = int(result["pages_fetched"]) + 1
             _emit(f"{month_str} page {p}/{total_pages}")
 
