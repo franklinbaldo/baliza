@@ -39,7 +39,7 @@ from .constants import (
 )
 from .engine import BalizaEngine
 from .extractor import FETCHED_SENTINEL, PNCPExtractor, _validate_resource
-from .ia_uploader import IAUploader
+from .ia_uploader import IAUploader, read_manifest_from_ia
 from .logging import configure_logging
 from .mirror import _pending_mirror_months, mirror_month
 
@@ -578,6 +578,7 @@ def mirror_cmd(  # noqa: PLR0913
             error_count += 1
             console.print(f"[red]✗ {m.strftime('%Y-%m')}: {e}[/red]")
 
+    current_month = date.today().replace(day=1)
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
         futures: dict[concurrent.futures.Future, Any] = {}
         for target_month in batch:
@@ -591,7 +592,6 @@ def mirror_cmd(  # noqa: PLR0913
                 )
                 for completed in done:
                     _collect_mirror(completed, futures.pop(completed))
-            current_month = date.today().replace(day=1)
             f = executor.submit(
                 mirror_month,
                 target_month,
@@ -646,20 +646,24 @@ def build_cmd(  # noqa: PLR0913, PLR0915
         console.print("[red]✗ Missing IA keys in environment.[/red]")
         raise typer.Exit(1)
 
+    # Fetch manifest once — reused by _pending_build_months and each build_month call
+    # to avoid one network round-trip per month when building in batch.
+    try:
+        with console.status("[bold green]Checking IA manifest for months to build...[/bold green]"):
+            build_manifest = read_manifest_from_ia()
+    except Exception as e:
+        console.print(f"[red]✗ Cannot read IA manifest: {e}[/red]")
+        raise typer.Exit(1) from None
+
     if force_month:
         batch = _forced_month_or_empty(RESOURCE_CONTRATOS, force_month)
     else:
         start = clamp_to_known_data_start_month(
             RESOURCE_CONTRATOS, datetime.strptime(start_date, "%Y-%m-%d").date()
         )
-        try:
-            with console.status("[bold green]Checking IA manifest for months to build...[/bold green]"):
-                batch = _pending_build_months(
-                    start, batch_size, resource=RESOURCE_CONTRATOS, backfill=backfill
-                )
-        except Exception as e:
-            console.print(f"[red]✗ Cannot read IA manifest: {e}[/red]")
-            raise typer.Exit(1) from None
+        batch = _pending_build_months(
+            start, batch_size, resource=RESOURCE_CONTRATOS, backfill=backfill, manifest=build_manifest
+        )
 
     if not batch:
         console.print("[green]✓ Nothing to build.[/green]")
@@ -705,6 +709,7 @@ def build_cmd(  # noqa: PLR0913, PLR0915
                 ia_secret_key=ia_secret_key or "",
                 dry_run=dry_run,
                 log_fn=lambda msg: console.log(f"[dim]{msg}[/dim]"),
+                manifest=build_manifest,
             )
             futures[f] = target_month
         concurrent.futures.wait(futures.keys())
