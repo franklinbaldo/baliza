@@ -16,6 +16,7 @@ from pathlib import Path
 import httpx
 import structlog
 
+from .constants import clamp_to_known_data_start_month
 from .daily_exporter import SCHEMA_VERSION
 from .engine import BalizaEngine
 from .extractor import PNCPExtractor
@@ -44,7 +45,7 @@ def _pending_build_months(
     raw_manifest = read_manifest_from_ia()  # strict: raises ManifestReadError on failure
     today = date.today()
     last_month = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
-    start = start_date.replace(day=1)
+    start = clamp_to_known_data_start_month("contratos", start_date)
 
     pending_set: set[date] = set()
     for row in raw_manifest:

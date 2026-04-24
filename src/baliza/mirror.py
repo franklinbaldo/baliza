@@ -14,6 +14,7 @@ from pathlib import Path
 
 import structlog
 
+from .constants import clamp_to_known_data_start_month
 from .extractor import FETCHED_SENTINEL, PNCPExtractor, _validate_resource
 from .ia_uploader import IAUploader, read_manifest_from_ia
 
@@ -32,7 +33,7 @@ def _pending_mirror_months(start_date: date, batch_size: int | None) -> list[dat
 
     today = date.today()
     last_month = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
-    start = start_date.replace(day=1)
+    start = clamp_to_known_data_start_month("contratos", start_date)
 
     pending: list[date] = []
     curr = start

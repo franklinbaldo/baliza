@@ -31,6 +31,11 @@ from rich.progress import (
 
 from .builder import _pending_build_months, build_month
 from .consolidator import IAConsolidator
+from .constants import (
+    clamp_to_known_data_start_month,
+    known_data_start_month,
+    month_predates_known_data,
+)
 from .engine import BalizaEngine
 from .extractor import FETCHED_SENTINEL, PNCPExtractor, _validate_resource
 from .ia_uploader import IAUploader
@@ -41,6 +46,17 @@ logger = structlog.get_logger()
 
 app = typer.Typer()
 console = Console()
+
+
+def _forced_month_or_empty(resource: str, force_month: str) -> list[date]:
+    forced = datetime.strptime(force_month, "%Y-%m").date()
+    if month_predates_known_data(resource, forced):
+        console.print(
+            f"[yellow]⚠ Requested month predates known PNCP {resource} data "
+            f"({known_data_start_month(resource).strftime('%Y-%m')}), skipping.[/yellow]"
+        )
+        return []
+    return [forced]
 
 
 @app.callback()
@@ -58,7 +74,7 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
     batch_size: int | None = typer.Option(
         None, "--batch-size", "-n", help="Max months to sync (None for all)"
     ),
-    start_date: str = typer.Option("2023-01-01", "--start-date", help="Oldest date to backfill"),
+    start_date: str = typer.Option("2021-09-01", "--start-date", help="Oldest date to backfill"),
     db_path: Path | None = typer.Option(
         None, "--duckdb", help="DuckDB file (optional, defaults to :memory:)"
     ),
@@ -107,7 +123,7 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
     # (if enabled) the up-front consolidation catch-up below.
     raw_manifest: list[dict] = []
     if force_month:
-        batch = [datetime.strptime(force_month, "%Y-%m").date()]
+        batch = _forced_month_or_empty("contratos", force_month)
         uploaded: set[str] = set()
     else:
         with console.status("[bold green]Checking IA manifest for pending months...[/bold green]"):
@@ -128,9 +144,9 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                 )
                 uploaded = set()
 
-            start = datetime.strptime(start_date, "%Y-%m-%d").date()
-            # Month-based start (first day of its month)
-            start = start.replace(day=1)
+            start = clamp_to_known_data_start_month(
+                "contratos", datetime.strptime(start_date, "%Y-%m-%d").date()
+            )
             
             today = date.today()
             # End is the previous month
@@ -503,7 +519,7 @@ def mirror_cmd(  # noqa: PLR0913
     batch_size: int | None = typer.Option(
         None, "--batch-size", "-n", help="Max months to mirror (None for all)"
     ),
-    start_date: str = typer.Option("2023-01-01", "--start-date", help="Oldest date to backfill"),
+    start_date: str = typer.Option("2021-09-01", "--start-date", help="Oldest date to backfill"),
     force_month: str | None = typer.Option(
         None, "--force-month", help="Target a specific month (YYYY-MM) regardless of manifest"
     ),
@@ -527,9 +543,11 @@ def mirror_cmd(  # noqa: PLR0913
         raise typer.Exit(1)
 
     if force_month:
-        batch = [datetime.strptime(force_month, "%Y-%m").date()]
+        batch = _forced_month_or_empty("contratos", force_month)
     else:
-        start = datetime.strptime(start_date, "%Y-%m-%d").date()
+        start = clamp_to_known_data_start_month(
+            "contratos", datetime.strptime(start_date, "%Y-%m-%d").date()
+        )
         try:
             with console.status("[bold green]Checking IA manifest for pending months...[/bold green]"):
                 batch = _pending_mirror_months(start, batch_size)
@@ -598,7 +616,7 @@ def build_cmd(  # noqa: PLR0913, PLR0915
     batch_size: int | None = typer.Option(
         None, "--batch-size", "-n", help="Max months to build (None for all)"
     ),
-    start_date: str = typer.Option("2023-01-01", "--start-date", help="Oldest date to backfill"),
+    start_date: str = typer.Option("2021-09-01", "--start-date", help="Oldest date to backfill"),
     force_month: str | None = typer.Option(
         None, "--force-month", help="Target a specific month (YYYY-MM) regardless of manifest"
     ),
@@ -625,9 +643,11 @@ def build_cmd(  # noqa: PLR0913, PLR0915
         raise typer.Exit(1)
 
     if force_month:
-        batch = [datetime.strptime(force_month, "%Y-%m").date()]
+        batch = _forced_month_or_empty("contratos", force_month)
     else:
-        start = datetime.strptime(start_date, "%Y-%m-%d").date()
+        start = clamp_to_known_data_start_month(
+            "contratos", datetime.strptime(start_date, "%Y-%m-%d").date()
+        )
         try:
             with console.status("[bold green]Checking IA manifest for months to build...[/bold green]"):
                 batch = _pending_build_months(start, batch_size, backfill=backfill)
@@ -703,7 +723,9 @@ def verify(
     """Verify data coverage by checking the REMOTE IA manifest."""
     try:
         _validate_resource(resource)
-        start_date = datetime.strptime(start, "%Y-%m-%d").date()
+        start_date = clamp_to_known_data_start_month(
+            resource, datetime.strptime(start, "%Y-%m-%d").date()
+        )
         # end_date is used for validation during parsing
         datetime.strptime(end, "%Y-%m-%d").date()
 

@@ -137,12 +137,23 @@ def clear_ia_keys(monkeypatch):
 def manifest_lists_every_month(mock_ia_manifest):
     from datetime import date
 
+    from baliza.constants import known_data_start_month
+
     today = date.today()
     rows = []
-    for year in range(2023, today.year + 1):
+    first_month = known_data_start_month("contratos")
+    for year in range(first_month.year, today.year + 1):
         last_month = 12 if year < today.year else today.month
-        for m in range(1, last_month + 1):
-            rows.append({"data_particao": f"{year}-{m:02d}", "table_name": "contratos"})
+        first_month_for_year = first_month.month if year == first_month.year else 1
+        for m in range(first_month_for_year, last_month + 1):
+            month = f"{year}-{m:02d}"
+            rows.append(
+                {
+                    "data_particao": month,
+                    "table_name": "contratos",
+                    "parquet_url": f"https://example.invalid/contratos-{month}.parquet",
+                }
+            )
     mock_ia_manifest(rows)
 
 
@@ -178,6 +189,7 @@ def run_sync_happy(
             "--no-curl",
             "--workers",
             "1",
+            "--no-consolidate",
             "--duckdb",
             str(tmp_path / "sync.duckdb"),
         ],
@@ -198,6 +210,7 @@ def run_sync_no_force(monkeypatch, tmp_path: Path, mock_ia_upload):
             "--no-curl",
             "--workers",
             "1",
+            "--no-consolidate",
             "--duckdb",
             str(tmp_path / "sync.duckdb"),
         ],
@@ -228,6 +241,7 @@ def run_sync_dry_run(
             "--no-curl",
             "--workers",
             "1",
+            "--no-consolidate",
             "--duckdb",
             str(tmp_path / "sync.duckdb"),
         ],
@@ -250,6 +264,7 @@ def run_sync_missing_keys(monkeypatch, tmp_path: Path, mock_ia_upload):
             "--no-curl",
             "--workers",
             "1",
+            "--no-consolidate",
             "--duckdb",
             str(tmp_path / "sync.duckdb"),
         ],
