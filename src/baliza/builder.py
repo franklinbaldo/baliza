@@ -76,9 +76,8 @@ def _pending_build_months(
     return pending[:batch_size] if batch_size else pending
 
 
-def _download_raw_zip(item_id: str, month_str: str, dest: Path) -> Path:
-    """Download raw-{month_str}.zip from IA to dest directory.  Returns the zip path."""
-    zip_url = f"https://archive.org/download/{item_id}/raw-{month_str}.zip"
+def _download_raw_zip(zip_url: str, month_str: str, dest: Path) -> Path:
+    """Download raw-{month_str}.zip from zip_url to dest directory.  Returns the zip path."""
     zip_path = dest / f"raw-{month_str}.zip"
     with httpx.Client(follow_redirects=True, timeout=120.0) as client:
         with client.stream("GET", zip_url) as resp:
@@ -110,7 +109,6 @@ def build_month(  # noqa: PLR0915
         Dict with keys: ``month``, ``valid``, ``quarantine``, ``uploaded``.
     """
     month_str = start_of_month.strftime("%Y-%m")
-    item_id = f"baliza-pncp-{month_str}"
 
     def _emit(msg: str) -> None:
         if log_fn is not None:
@@ -123,13 +121,25 @@ def build_month(  # noqa: PLR0915
         "uploaded": False,
     }
 
+    # Resolve raw_zip_url from manifest — decoupled from item naming so it
+    # works whether the ZIP lives in baliza-pncp-raw or a per-month item.
+    manifest = read_manifest_from_ia()
+    manifest_row = next(
+        (r for r in manifest if r.get("data_particao") == month_str and r.get("raw_zip_url")),
+        None,
+    )
+    if not manifest_row:
+        _emit(f"{month_str}: no raw_zip_url in manifest — skipping")
+        return result
+    raw_zip_url = manifest_row["raw_zip_url"]
+
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir)
 
         # 1. Download ZIP from IA
-        _emit(f"{month_str}: downloading raw ZIP from IA...")
+        _emit(f"{month_str}: downloading raw ZIP from {raw_zip_url}...")
         try:
-            zip_path = _download_raw_zip(item_id, month_str, tmp_path)
+            zip_path = _download_raw_zip(raw_zip_url, month_str, tmp_path)
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
                 _emit(f"{month_str}: no raw ZIP on IA (404) — skipping")
