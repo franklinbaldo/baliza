@@ -251,18 +251,16 @@
     color: inherit;
     padding: var(--space-4);
     background: var(--neutral-50);
-    border-radius: var(--radius-0);
+    border-radius: 0;
     transition: all var(--duration-fast) var(--ease);
     border: 1px solid transparent;
   }
 
-  .bid-card:hover {
-    background: var(--neutral-100);
+  .bid-card:hover, .bid-card:focus-visible {
+    background: var(--neutral-50);
     border-color: var(--bulcao-accent);
-  }
-  .bid-card:focus-visible {
-    background: var(--neutral-100);
-    border-color: var(--bulcao-accent);
+    transform: translate(-2px, -2px);
+    box-shadow: 4px 4px 0 var(--bulcao-accent);
   }
 
   .bid-meta {

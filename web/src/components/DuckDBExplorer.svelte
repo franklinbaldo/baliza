@@ -261,13 +261,14 @@
   .schema-toggle {
     background: var(--color-base-200);
     border: 1px solid var(--color-base-300);
-    border-radius: var(--radius-sm);
+    border-radius: 0;
     padding: 4px 10px;
     font-size: var(--font-size-xs);
     cursor: pointer;
     color: var(--color-secondary);
+    transition: all var(--transition-base);
   }
-  .schema-toggle:hover { border-color: var(--color-primary); color: var(--color-primary); }
+  .schema-toggle:hover, .schema-toggle:focus-visible { border-color: var(--color-primary); color: var(--color-primary); transform: translate(-1px, -1px); box-shadow: 2px 2px 0 var(--color-primary); }
 
   .explorer-body {
     display: grid;
@@ -353,14 +354,14 @@
     background: var(--color-base-200);
     border: 1px solid var(--color-base-300);
     padding: 3px 10px;
-    border-radius: var(--radius-full);
+    border-radius: 0;
     cursor: pointer;
     font-size: var(--font-size-xs);
     color: var(--color-secondary);
     font-family: var(--font-sans);
     transition: all var(--transition-base);
   }
-  .fq-chip:hover { border-color: var(--color-primary); color: var(--color-primary); }
+  .fq-chip:hover, .fq-chip:focus-visible { border-color: var(--color-primary); color: var(--color-primary); transform: translate(-1px, -1px); box-shadow: 2px 2px 0 var(--color-primary); }
 
   textarea {
     width: 100%; height: 120px; background: var(--color-base-200); color: var(--color-base-content);

@@ -175,11 +175,11 @@
     color: inherit;
     background: var(--color-base-100);
     padding: var(--space-md);
-    border-radius: var(--radius-sm);
+    border-radius: 0;
     border: 1px solid var(--color-base-300);
-    transition: transform 0.2s, border-color 0.2s;
+    transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
   }
-  .ata-card:hover { transform: translateX(5px); border-color: var(--color-primary); }
+  .ata-card:hover, .ata-card:focus-visible { transform: translate(-2px, -2px); border-color: var(--color-primary); box-shadow: 4px 4px 0 var(--color-primary); }
   .ata-header {
     display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-sm);
     font-size: var(--font-size-sm); margin-bottom: var(--space-sm);
