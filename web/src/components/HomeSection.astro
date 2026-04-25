@@ -70,6 +70,9 @@ const borderMap = {
   .home-section[data-tone="bg"] {
     padding: var(--space-8) 0;
   }
+  .home-section[data-tone="sunk"] {
+    padding: var(--space-8) 0;
+  }
 
   .home-section-head {
     max-width: 640px;
@@ -100,19 +103,5 @@ const borderMap = {
     font-size: clamp(24px, 2.4vw, 32px);
     letter-spacing: -0.02em;
     margin: 0;
-  }
-
-  .kicker {
-    font-family: var(--font-mono);
-    font-weight: 700;
-    font-size: var(--text-sm);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--color-text-dim);
-  }
-
-  .sr-only {
-    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
   }
 </style>
