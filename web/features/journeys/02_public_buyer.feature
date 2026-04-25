@@ -38,7 +38,8 @@ Feature: Journey 2 — Public buyer
 
   @green @frameworks
   Scenario: Inspect the legal basis cited by peers in similar exemptions
-    # Planned: legal-basis aggregation does not exist.
+    # Covered by DispensasView at /dispensas?objeto= — paginates modality 8
+    # (Dispensa) from PNCP, filters by objeto, aggregates fundamentacaoLegal.
     Given the user opens "/dispensas?objeto=papel%20A4"
     Then the user sees the most cited legal articles in similar dispensa contracts
 

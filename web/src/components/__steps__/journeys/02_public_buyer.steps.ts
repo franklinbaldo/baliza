@@ -145,7 +145,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     Given('the user opens "/dispensas?objeto=papel%20A4"', async () => {
       cleanup();
       vi.restoreAllMocks();
-      window.history.replaceState({}, '', '/?objeto=papel A4');
+      window.history.replaceState({}, '', '/dispensas?objeto=papel A4');
       const dispensas: PNCPContract[] = [
         {
           numeroControlePNCP: '00000000000191-8-000001/2024',

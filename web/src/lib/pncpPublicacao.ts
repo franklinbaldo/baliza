@@ -152,7 +152,12 @@ export async function fetchDispensaPagesForObjeto(
   const collected = new Map<string, PNCPContract>();
   for (let pagina = 1; pagina <= maxPages; pagina++) {
     const res = await fetch(buildDispensaUrl(pagina, dataInicial, dataFinal));
-    if (!res.ok) break;
+    if (!res.ok) {
+      // Surface a real error instead of silently returning a partial result —
+      // an empty list would render "Nenhuma base legal encontrada" and mask
+      // the API/transport fault.
+      throw new Error(`PNCP publicacao returned ${res.status} for dispensa page ${pagina}`);
+    }
     const page = parsePncpPublicacaoList(await res.json());
     if (!page.length) break;
     for (const c of page) {

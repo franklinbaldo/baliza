@@ -35,21 +35,23 @@
   const loading = $derived(query.isFetching);
   const error = $derived(query.error as Error | null);
 
-  // Group by fundamentacaoLegal, count, sort desc.
+  // Group by fundamentacaoLegal. Normalize the grouping key so trivially
+  // different citations of the same article (mixed casing, double-spaces,
+  // trailing dots) collapse into one bucket; preserve the first observed
+  // form for display.
   type LegalCitation = { article: string; count: number; samples: PNCPContract[] };
   const citations = $derived.by((): LegalCitation[] => {
-    const byArticle = new Map<string, { count: number; samples: PNCPContract[] }>();
+    const byKey: Record<string, { article: string; count: number; samples: PNCPContract[] }> = {};
     for (const c of contracts) {
       const article = (c.fundamentacaoLegal ?? '').trim();
       if (!article) continue;
-      const slot = byArticle.get(article) ?? { count: 0, samples: [] };
+      const key = article.toLowerCase().replace(/\s+/g, ' ');
+      const slot = byKey[key] ?? { article, count: 0, samples: [] };
       slot.count++;
       if (slot.samples.length < 3) slot.samples.push(c);
-      byArticle.set(article, slot);
+      byKey[key] = slot;
     }
-    return [...byArticle.entries()]
-      .map(([article, { count, samples }]) => ({ article, count, samples }))
-      .sort((a, b) => b.count - a.count);
+    return Object.values(byKey).sort((a, b) => b.count - a.count);
   });
 
   function handleSubmit(ev: Event) {
@@ -57,6 +59,7 @@
     const term = searchInput.trim();
     submittedObjeto = term;
     if (typeof window === 'undefined') return;
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity
     const params = new URLSearchParams(window.location.search);
     if (term) params.set('objeto', term);
     else params.delete('objeto');
