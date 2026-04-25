@@ -23,7 +23,7 @@
     {#if buyer}
       <span class="buyer">{buyer}</span>
     {/if}
-    <span class="valor">{formatBRL(valor ?? 0)}</span>
+    <span class="valor">{formatBRL(valor)}</span>
   </div>
 </a>
 
