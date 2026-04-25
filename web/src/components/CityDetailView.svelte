@@ -5,13 +5,13 @@
   import { prefetchArchive } from '../lib/parquetFallback';
   import { archivedContratoToInternalContract, type PNCPContract } from '../lib/pncp';
   import { fetchPublicacaoList } from '../lib/pncpPublicacao';
-  import { formatBRL, formatDate, formatParticao, truncate } from '../lib/format';
+  import { formatParticao } from '../lib/format';
   import { resolve } from '../lib/baseUrl';
   import { createListQuery } from '../lib/createListQuery';
-  import EntityNotFound from './EntityNotFound.svelte';
-  import AlertBanner from './AlertBanner.svelte';
+  import EntityDetailLayout from './EntityDetailLayout.svelte';
   import EmptyState from './EmptyState.svelte';
   import StatCard from './StatCard.svelte';
+  import ContractCard from './ContractCard.svelte';
   import { getMunicipalityInfo } from '../lib/geo';
 
   setQueryClientContext(getQueryClient());
@@ -86,54 +86,35 @@
   });
 </script>
 
-<div class="city-detail container">
-  {#if !ibge}
-    <EntityNotFound id="ausente" type="município" />
-  {:else if !ibgeValid}
-    <EntityNotFound
-      id={ibge}
-      type="município"
-      error="Código IBGE fora do formato esperado: 7 dígitos numéricos."
-    />
-  {:else if loading}
-    <div class="skeleton-wrap" aria-busy="true" aria-label="Carregando dados do município">
-      <div class="skeleton skeleton-title"></div>
-      <div class="skeleton skeleton-meta"></div>
-      <div class="skeleton skeleton-stat"></div>
-      {#each [1, 2, 3] as _, i (i)}
-        <div class="skeleton skeleton-bid"></div>
-      {/each}
-    </div>
-  {:else if error}
-    <div class="error-wrap">
-      <AlertBanner title={errorTitle} message={error.message} level="error" />
-      <div class="back-row">
-        <a href={resolve('')} class="btn btn-outline">Voltar à busca</a>
-      </div>
-    </div>
-  {:else if data}
-    {#if data.archived}
-      <AlertBanner
-        title="Dados arquivados"
-        message={`PNCP indisponível — exibindo dados arquivados (última consolidação: ${formatParticao(data.archived.dataParticao)}).`}
-        level="info"
-      />
+<EntityDetailLayout
+  id={ibge}
+  idValid={ibgeValid}
+  entityType="município"
+  idFormatError="Código IBGE fora do formato esperado: 7 dígitos numéricos."
+  {loading}
+  {error}
+  {errorTitle}
+  dataReady={!!data}
+  archivedParticao={data?.archived?.dataParticao}
+  archiveMessage={`PNCP indisponível — exibindo dados arquivados (última consolidação: ${data?.archived?.dataParticao ? formatParticao(data.archived.dataParticao) : ''}).`}
+  kicker="🏙️ MUNICÍPIO"
+  iconId="t3"
+  title={data ? `${data.name} / ${data.uf}` : ""}
+  headerStyle="margin-bottom: var(--space-xl);"
+  metaTestId="city-meta"
+  hasStatSkeleton={true}
+>
+  {#snippet metaRow()}
+    {#if data}
+      <span>Cód. IBGE: {data.ibge}</span>
+      {#if data.populacao}
+        <span>População: {data.populacao.toLocaleString('pt-BR')}</span>
+      {/if}
+      <span>Fonte: {data.archived ? 'Arquivo Parquet (IA)' : 'PNCP V1'}</span>
     {/if}
-    <header class="hub-header">
-      <span class="kicker">🏙️ MUNICÍPIO</span>
-      <div style="display:flex; align-items:center;">
-        <svg width="32" height="32" aria-hidden="true" style="margin-right: 12px; flex-shrink: 0; fill: currentColor;"><use href="#t3"/></svg>
-        <h1>{data.name} / {data.uf}</h1>
-      </div>
-      <div class="meta-row" data-testid="city-meta">
-        <span>Cód. IBGE: {data.ibge}</span>
-        {#if data.populacao}
-          <span>População: {data.populacao.toLocaleString('pt-BR')}</span>
-        {/if}
-        <span>Fonte: {data.archived ? 'Arquivo Parquet (IA)' : 'PNCP V1'}</span>
-      </div>
-    </header>
+  {/snippet}
 
+  {#if data}
     <div class="stats-row">
       <StatCard title="Contratações Recentes" value={data.contracts.length} />
     </div>
@@ -149,48 +130,21 @@
       <section class="recent-list">
         <h3>Contratações Recentes neste Município</h3>
         {#each data.contracts as item (item.numeroControlePNCP)}
-          <a href={resolve(`contratacao?id=${item.numeroControlePNCP}`)} class="bid-link-card">
-            <div class="bid-header">
-              <span class="bid-id">{item.numeroControlePNCP}</span>
-              <span class="bid-date">{formatDate(item.dataPublicacaoPncp)}</span>
-            </div>
-            <p class="bid-obj">{truncate(item.objetoContratacao, 150)}</p>
-            <div class="bid-footer">
-              <span class="valor">{formatBRL(item.valorTotalEstimado)}</span>
-            </div>
-          </a>
+          <ContractCard
+            id={item.numeroControlePNCP}
+            date={item.dataPublicacaoPncp}
+            obj={item.objetoContratacao}
+            valor={item.valorTotalEstimado}
+          />
         {/each}
       </section>
     {/if}
   {/if}
-</div>
+</EntityDetailLayout>
 
 <style>
-  .city-detail { padding: var(--space-2xl) 0; }
-
-  .skeleton-wrap { display: grid; gap: var(--space-md); }
-  .skeleton-title { height: 2rem; width: 60%; border-radius: var(--radius-sm); }
-  .skeleton-meta  { height: 1rem; width: 40%; border-radius: var(--radius-sm); }
-  .skeleton-stat  { height: 5rem; width: 200px; border-radius: var(--radius-sm); }
-  .skeleton-bid   { height: 5rem; border-radius: var(--radius-sm); }
-
-  .error-wrap { display: grid; gap: var(--space-md); }
-  .back-row { display: flex; }
-
-  .hub-header { margin-bottom: var(--space-xl); border-bottom: 2px solid var(--color-base-300); padding-bottom: var(--space-md); }
-  h1 { font-size: var(--font-size-2xl); margin-top: var(--space-sm); }
-  .meta-row { display: flex; gap: var(--space-md); color: var(--color-secondary); font-size: var(--font-size-sm); margin-top: 4px; }
 
   .stats-row { display: flex; gap: var(--space-md); margin-bottom: var(--space-xl); align-items: center; flex-wrap: wrap; }
 
   .recent-list { display: grid; gap: var(--space-md); }
-  .bid-link-card {
-    display: block; text-decoration: none; color: inherit; background: var(--color-base-100);
-    padding: var(--space-md); border-radius: 0; border: 1px solid var(--color-base-300);
-    transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
-  }
-  .bid-link-card:hover, .bid-link-card:focus-visible { transform: translate(-2px, -2px); border-color: var(--color-primary); box-shadow: 4px 4px 0 var(--color-primary); }
-  .bid-header { display: flex; justify-content: space-between; margin-bottom: var(--space-sm); font-size: 0.75rem; font-family: var(--font-mono); color: var(--color-secondary); }
-  .bid-obj { font-size: var(--font-size-sm); line-height: 1.5; margin-bottom: var(--space-sm); }
-  .bid-footer { text-align: right; font-weight: 800; color: var(--color-primary); }
 </style>
