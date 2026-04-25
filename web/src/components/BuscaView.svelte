@@ -49,12 +49,16 @@
   const error = $derived(query.error as Error | null);
 
   function uniqSorted(values: Array<string | null | undefined>): string[] {
-    const set = new Set<string>();
+    const seen: Record<string, true> = {};
+    const out: string[] = [];
     for (const v of values) {
       const s = (v ?? '').trim();
-      if (s) set.add(s);
+      if (s && !seen[s]) {
+        seen[s] = true;
+        out.push(s);
+      }
     }
-    return [...set].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    return out.sort((a, b) => a.localeCompare(b, 'pt-BR'));
   }
 
   const ufOptions = $derived(uniqSorted(results.map((c) => c.unidadeOrgao?.ufSigla)));
