@@ -1,10 +1,36 @@
 <script lang="ts">
-  import { searchCatmat } from '../lib/catmat';
+  import { searchCatmat, type CatmatEntry } from '../lib/catmat';
 
   let searchInput = $state('');
-  const results = $derived(
-    searchInput.trim().length >= 2 ? searchCatmat(searchInput.trim()) : [],
-  );
+  let results: CatmatEntry[] = $state([]);
+  let error: string | null = $state(null);
+
+  // Track the latest query so a slow earlier fetch can't overwrite a later one.
+  let activeQueryId = 0;
+
+  $effect(() => {
+    const trimmed = searchInput.trim();
+    if (trimmed.length < 2) {
+      results = [];
+      error = null;
+      return;
+    }
+    const id = ++activeQueryId;
+    void searchCatmat(trimmed).then(
+      (matches) => {
+        if (id === activeQueryId) {
+          results = matches;
+          error = null;
+        }
+      },
+      (err: unknown) => {
+        if (id === activeQueryId) {
+          results = [];
+          error = err instanceof Error ? err.message : String(err);
+        }
+      },
+    );
+  });
 </script>
 
 <div class="catmat-search">
@@ -16,7 +42,9 @@
     aria-label="Descrição do item para busca CATMAT"
     placeholder="Ex.: papel sulfite A4 75g, caneta esferográfica..."
   />
-  {#if results.length > 0}
+  {#if error}
+    <p class="catmat-error" role="alert">Não foi possível carregar o catálogo: {error}</p>
+  {:else if results.length > 0}
     <ul data-testid="catmat-results">
       {#each results as entry (entry.code)}
         <li data-testid="catmat-result-item">
@@ -88,5 +116,10 @@
 
   .catmat-desc {
     color: #111827;
+  }
+
+  .catmat-error {
+    color: #b91c1c;
+    font-size: 0.875rem;
   }
 </style>

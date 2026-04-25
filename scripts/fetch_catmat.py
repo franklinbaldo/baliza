@@ -44,8 +44,10 @@ CATMAT_URL = "https://www.gov.br/compras/pt-br/acesso-a-informacao/consulta-deta
 CATSER_URL = "https://www.gov.br/compras/pt-br/acesso-a-informacao/consulta-detalhada/planilha-catmat-catser/catser.xlsx"
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-OUT_DATA = REPO_ROOT / "web" / "src" / "lib" / "catmat-data.json"
-OUT_META = REPO_ROOT / "web" / "src" / "lib" / "catmat-meta.json"
+# Served as a static asset and fetched on demand from CatmatSearch — bundling it
+# into the JS payload busted the 302 KB bundle-guard budget.
+OUT_DATA = REPO_ROOT / "web" / "public" / "data" / "catmat.json"
+OUT_META = REPO_ROOT / "web" / "public" / "data" / "catmat-meta.json"
 
 
 def download(url: str) -> tuple[bytes, str | None]:

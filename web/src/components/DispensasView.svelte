@@ -2,7 +2,7 @@
   import { createQuery, setQueryClientContext } from '@tanstack/svelte-query';
   import { getQueryClient } from '../lib/queryClient';
   import { QUERY_KEYS } from '../lib/queryKeys';
-  import { fetchPublicacaoList } from '../lib/pncpPublicacao';
+  import { fetchDispensaPagesForObjeto } from '../lib/pncpPublicacao';
   import type { PNCPContract } from '../lib/pncp';
   import AlertBanner from './AlertBanner.svelte';
   import EmptyState from './EmptyState.svelte';
@@ -20,18 +20,16 @@
   let searchInput = $state(initialObjeto());
   let submittedObjeto = $state(initialObjeto());
 
-  // Modality 8 = Dispensa de Licitação. Pull recent dispensa contracts from
-  // PNCP and aggregate fundamentacaoLegal client-side. Fetch is wide (no
-  // objeto filter at API level — PNCP doesn't accept one) then narrowed in JS.
-  const query = createQuery(() => ({
-    queryKey: QUERY_KEYS.dispensas(submittedObjeto),
-    enabled: submittedObjeto.length >= 3,
-    queryFn: async (): Promise<PNCPContract[]> => {
-      const all = await fetchPublicacaoList({}, { modalidades: [8], tamanhoPagina: 50 });
-      const term = submittedObjeto.toLowerCase();
-      return all.filter((c) => (c.objetoContratacao ?? '').toLowerCase().includes(term));
-    },
-  }));
+  const query = createQuery(() => {
+    // Capture the term up front so a later submit can't mutate the closure
+    // mid-flight and bind the result of one fetch to a different cache key.
+    const term = submittedObjeto;
+    return {
+      queryKey: QUERY_KEYS.dispensas(term),
+      enabled: term.length >= 3,
+      queryFn: () => fetchDispensaPagesForObjeto(term),
+    };
+  });
 
   const contracts = $derived(query.data ?? []);
   const loading = $derived(query.isFetching);
