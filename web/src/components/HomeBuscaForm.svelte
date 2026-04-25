@@ -1,6 +1,7 @@
 <script lang="ts">
   import { resolve } from '../lib/baseUrl';
   import { isPncpId } from '../lib/pncpId';
+  import * as nav from '../lib/navigate';
 
   let value = $state('');
 
@@ -11,14 +12,10 @@
     // PNCP-ID shortcut stays on the homepage — jump straight to the
     // contratacao permalink, skipping the /busca round-trip.
     if (isPncpId(term)) {
-      if (typeof window !== 'undefined') {
-        window.location.assign(resolve(`contratacao?id=${term}`));
-      }
+      nav.navigate(resolve(`contratacao?id=${term}`));
       return;
     }
-    if (typeof window !== 'undefined') {
-      window.location.assign(resolve(`busca?q=${encodeURIComponent(term)}`));
-    }
+    nav.navigate(resolve(`busca?q=${encodeURIComponent(term)}`));
   }
 </script>
 

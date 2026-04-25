@@ -1,11 +1,15 @@
 import { loadFeature, describeFeature } from '@amiceli/vitest-cucumber';
-import { screen, cleanup, waitFor } from '@testing-library/svelte/pure';
+import { screen, cleanup, waitFor, fireEvent } from '@testing-library/svelte/pure';
 import { vi, expect } from 'vitest';
 import { tick } from 'svelte';
 import { render, noop, plannedStep } from './_shared';
 import AgencyDetailViewRaw from '../../AgencyDetailView.svelte';
+import BuscaViewRaw from '../../BuscaView.svelte';
+import * as pncpPublicacao from '../../../lib/pncpPublicacao';
+import type { PNCPContract } from '../../../lib/pncp';
 
 const AgencyDetailView = AgencyDetailViewRaw as unknown as Parameters<typeof render>[0];
+const BuscaView = BuscaViewRaw as unknown as Parameters<typeof render>[0];
 
 const feature = await loadFeature('features/journeys/03_investigative_journalist.feature');
 
@@ -37,11 +41,47 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   });
 
   Scenario('Search state is preserved in the query string', ({ Given, Then, And }) => {
-    Given('the user submits the free-text query "hospital municipal"', noop);
-    Then('the page URL contains "?q=hospital%20municipal"', () =>
-      plannedStep('dedicated search page with ?q= persistence'),
-    );
-    And('reloading the page restores the same result list', noop);
+    const MOCK_RESULT = {
+      numeroControlePNCP: '00000000000191-1-000099/2024',
+      dataPublicacaoPncp: '2025-01-10T00:00:00',
+      objetoContratacao: 'Aquisição — Hospital Municipal',
+      valorTotalEstimado: 1000,
+      modalidadeNome: 'Pregão Eletrônico',
+      orgaoEntidade: { razaoSocial: 'Prefeitura', cnpj: '00000000000191' },
+      unidadeOrgao: { nomeUnidade: 'Saúde' },
+    } as unknown as PNCPContract;
+
+    Given('the user submits the free-text query "hospital municipal"', async () => {
+      cleanup();
+      vi.restoreAllMocks();
+      window.history.replaceState({}, '', '/busca');
+      vi.spyOn(pncpPublicacao, 'fetchPublicacaoPagesForObjeto').mockResolvedValue([MOCK_RESULT]);
+      render(BuscaView);
+      await tick();
+      const input = screen.getByLabelText('Termo a pesquisar');
+      await fireEvent.input(input, { target: { value: 'hospital municipal' } });
+      const form = input.closest('form');
+      expect(form).toBeTruthy();
+      await fireEvent.submit(form as HTMLFormElement);
+    });
+    Then('the page URL contains "?q=hospital%20municipal"', () => {
+      // encodeURIComponent preserves the %20; URLSearchParams.toString would
+      // emit '+' and miss this assertion.
+      expect(window.location.search).toContain('q=hospital%20municipal');
+    });
+    And('reloading the page restores the same result list', async () => {
+      // "Reloading" in jsdom = re-mount with the URL preserved. The new
+      // BuscaView instance reads ?q=hospital%20municipal from the URL on
+      // mount, the mocked fetcher resolves again, and the listbox
+      // re-populates without a manual submit.
+      cleanup();
+      render(BuscaView);
+      await tick();
+      await waitFor(
+        () => expect(screen.getByTestId('busca-results')).toBeTruthy(),
+        { timeout: 3000 },
+      );
+    });
   });
 
   Scenario('Export a result list as Markdown', ({ Given, When, Then }) => {

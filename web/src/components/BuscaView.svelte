@@ -6,6 +6,7 @@
   import type { PNCPContract } from '../lib/pncp';
   import { isPncpId } from '../lib/pncpId';
   import { resolve } from '../lib/baseUrl';
+  import * as nav from '../lib/navigate';
   import { formatBRL, formatDate } from '../lib/format';
   import AlertBanner from './AlertBanner.svelte';
   import EmptyState from './EmptyState.svelte';
@@ -45,9 +46,7 @@
     // encodeURIComponent preserves the slash as-is since the detail view
     // matches the raw id, not a URL-encoded variant.
     if (isPncpId(term)) {
-      if (typeof window !== 'undefined') {
-        window.location.assign(resolve(`contratacao?id=${term}`));
-      }
+      nav.navigate(resolve(`contratacao?id=${term}`));
       return;
     }
     submittedQ = term;
