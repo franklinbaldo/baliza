@@ -30,7 +30,7 @@ describe('toExportRows', () => {
       agency: 'Prefeitura X',
       modality: 'Pregão Eletrônico',
       objeto: 'Aquisição de papel A4',
-      date: '2025-01-15',
+      date: '15/01/2025',
       valor: '1.500,00',
     });
     expect(rows[1].valor).toBe('');
@@ -62,18 +62,33 @@ describe('toCsv', () => {
         orgaoEntidade: { razaoSocial: 'Prefeitura', cnpj: '0' },
         unidadeOrgao: { nomeUnidade: 'Compras' },
       },
+      {
+        numeroControlePNCP: 'X-3/2024',
+        dataPublicacaoPncp: '2025-01-17T00:00:00',
+        // Leading LF: importers that trim whitespace before evaluating
+        // would otherwise still treat this as a formula.
+        objetoContratacao: '\n=cmd|/c calc',
+        valorTotalEstimado: 300,
+        modalidadeNome: 'Pregão',
+        orgaoEntidade: { razaoSocial: 'Prefeitura', cnpj: '0' },
+        unidadeOrgao: { nomeUnidade: 'Compras' },
+      },
     ] as unknown as PNCPContract[];
     const csv = toCsv(malicious);
-    const lines = csv.trim().split('\n');
-    // Each formula-trigger character must be neutralized with a leading '
-    expect(lines[1]).toContain("'@SUM(A1:A10)");
-    expect(lines[1]).toContain("'+1+1");
+    // The CSV body now contains embedded newlines inside quoted cells, so
+    // splitting on \n no longer maps cleanly to logical rows. Inspect the
+    // raw output for the neutralization markers instead.
+    expect(csv).toContain("'@SUM(A1:A10)");
+    expect(csv).toContain("'+1+1");
     // The =HYPERLINK objeto contains commas and quotes, so it is wrapped
     // and the inner quotes are doubled — verify the apostrophe landed
     // immediately after the opening wrapper.
-    expect(lines[1]).toContain('"\'=HYPERLINK');
+    expect(csv).toContain('"\'=HYPERLINK');
     // A leading - in a different cell must be neutralized too.
-    expect(lines[2]).toContain("'-2+3");
+    expect(csv).toContain("'-2+3");
+    // A leading LF must also be neutralized, and the quote-wrapping pulls
+    // the apostrophe before the embedded newline.
+    expect(csv).toContain("\"'\n=cmd|/c calc\"");
   });
 
   it('quotes fields with a bare carriage return so readers do not split the row', () => {
@@ -101,7 +116,7 @@ describe('toCsv', () => {
     const lines = csv.trim().split('\n');
     expect(lines[0]).toBe('Órgão,Modalidade,Objeto,Data,Valor estimado (BRL)');
     expect(lines[1]).toBe(
-      'Prefeitura X,Pregão Eletrônico,Aquisição de papel A4,2025-01-15,"1.500,00"',
+      'Prefeitura X,Pregão Eletrônico,Aquisição de papel A4,15/01/2025,"1.500,00"',
     );
     // The objeto on row 2 contains both a comma and embedded double quotes,
     // so it must be wrapped and have its quotes doubled.

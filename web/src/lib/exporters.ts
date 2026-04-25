@@ -6,6 +6,7 @@
 // tests without dragging the format logic with them.
 
 import type { PNCPContract } from './pncp';
+import { formatDate } from './format';
 
 export interface ExportRow {
   agency: string;
@@ -28,11 +29,15 @@ function formatBrlPlain(value: number | null | undefined): string {
   return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function formatIsoDate(s: string | null | undefined): string {
-  if (!s) return '';
-  // PNCP timestamps come as 2025-01-15T00:00:00 — slice to just the date so
-  // the export reads the same as the on-screen formatDate output.
-  return s.slice(0, 10);
+// The "matching the visible table" requirement on Journey 01's CSV
+// scenario means export rows must read the same as the BuscaView result
+// cells, so we delegate to the same formatDate the UI uses. formatDate
+// returns the em-dash for missing/invalid input — turn that into an
+// empty string so downstream tools see a blank cell instead of a glyph.
+const EM_DASH = '—';
+function formatExportDate(s: string | null | undefined): string {
+  const out = formatDate(s);
+  return out === EM_DASH ? '' : out;
 }
 
 export function toExportRows(results: PNCPContract[]): ExportRow[] {
@@ -40,21 +45,31 @@ export function toExportRows(results: PNCPContract[]): ExportRow[] {
     agency: c.orgaoEntidade?.razaoSocial ?? '',
     modality: c.modalidadeNome ?? '',
     objeto: c.objetoContratacao ?? '',
-    date: formatIsoDate(c.dataPublicacaoPncp),
+    date: formatExportDate(c.dataPublicacaoPncp),
     valor: formatBrlPlain(c.valorTotalEstimado ?? null),
   }));
 }
 
 // CSV-injection guard: Excel, Numbers and Google Sheets evaluate any cell
-// whose first character is =, +, -, @, tab, or CR as a formula on open.
-// Since contract fields come from untrusted PNCP data, prefix a leading
-// apostrophe — the spreadsheet keeps the literal text and skips the
-// formula path. OWASP "Formula Injection" recommends this exact escape.
+// whose first character is =, +, -, @, tab, CR, or LF as a formula on
+// open. Some importers strip leading whitespace before evaluation, which
+// is why \n needs the same treatment as \r and \t. Since contract fields
+// come from untrusted PNCP data, prefix a leading apostrophe — the
+// spreadsheet keeps the literal text and skips the formula path. OWASP
+// "Formula Injection" recommends this exact escape.
 function neutralizeFormula(field: string): string {
   if (field.length === 0) return field;
   const first = field.charCodeAt(0);
-  // = + - @ tab CR
-  if (first === 0x3d || first === 0x2b || first === 0x2d || first === 0x40 || first === 0x09 || first === 0x0d) {
+  // = + - @ tab LF CR
+  if (
+    first === 0x3d ||
+    first === 0x2b ||
+    first === 0x2d ||
+    first === 0x40 ||
+    first === 0x09 ||
+    first === 0x0a ||
+    first === 0x0d
+  ) {
     return `'${field}`;
   }
   return field;

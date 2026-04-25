@@ -130,7 +130,8 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       expect(lines[0]).toBe('| Órgão | Modalidade | Objeto | Data | Valor estimado (BRL) |');
       expect(lines[1]).toBe('| --- | --- | --- | --- | --- |');
       expect(lines[2]).toContain('Prefeitura X');
-      expect(lines[2]).toContain('2025-01-10');
+      // Date matches the on-screen pt-BR formatting (dd/MM/yyyy).
+      expect(lines[2]).toContain('10/01/2025');
     });
   });
 

@@ -234,7 +234,8 @@ describeFeature(feature, ({ Scenario }) => {
       expect(lines[0]).toBe('Órgão,Modalidade,Objeto,Data,Valor estimado (BRL)');
       expect(lines[1]).toContain('Prefeitura A');
       expect(lines[1]).toContain('Pregão Eletrônico');
-      expect(lines[1]).toContain('2025-01-10');
+      // Date column matches the on-screen pt-BR formatting (dd/MM/yyyy).
+      expect(lines[1]).toContain('10/01/2025');
     });
   });
 
