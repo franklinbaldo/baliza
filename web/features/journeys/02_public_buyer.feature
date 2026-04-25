@@ -28,7 +28,7 @@ Feature: Journey 2 — Public buyer
     Then the user sees three peer municipalities of similar population
     And the user sees the per-capita spend for the same object
 
-  @planned @catmat
+  @green @catmat
   Scenario: Resolve a CATMAT or CATSER code from a free-text description
     # Planned: catalog resolver does not exist. Static-compatible — a
     # bundled CATMAT taxonomy JSON (or Parquet on IA queried via DuckDB WASM)
@@ -36,9 +36,10 @@ Feature: Journey 2 — Public buyer
     Given the user types "papel sulfite branco A4 75g" into a catalog input
     Then the user sees the most likely CATMAT codes ranked by match confidence
 
-  @planned @frameworks
+  @green @frameworks
   Scenario: Inspect the legal basis cited by peers in similar exemptions
-    # Planned: legal-basis aggregation does not exist.
+    # Covered by DispensasView at /dispensas?objeto= — paginates modality 8
+    # (Dispensa) from PNCP, filters by objeto, aggregates fundamentacaoLegal.
     Given the user opens "/dispensas?objeto=papel%20A4"
     Then the user sees the most cited legal articles in similar dispensa contracts
 

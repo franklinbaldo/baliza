@@ -17,18 +17,21 @@ Feature: Journey 3 — Investigative journalist
     Given the user opens "/contratacao?id=00000000000191-1-000001/2024"
     Then the user sees an outbound link to the origin system that opens in a new tab
 
-  @planned @search
+  @green @search
   Scenario: Search state is preserved in the query string
-    # Planned: pushState on submit + onMount ?q= restore belongs on the
-    # future /busca page.
+    # Covered by BuscaView: replaceState on submit writes ?q=<encoded>;
+    # onMount reads ?q= from window.location.search and re-runs the query.
+    # encodeURIComponent (not URLSearchParams.toString) is used so spaces
+    # serialize as %20 rather than +.
     Given the user submits the free-text query "hospital municipal"
     Then the page URL contains "?q=hospital%20municipal"
     And reloading the page restores the same result list
 
-  @planned @export
+  @green @export
   Scenario: Export a result list as Markdown
-    # Planned: Markdown-to-clipboard GFM-table export belongs on the
-    # future /busca page.
+    # Covered: BuscaView ships an "Exportar Markdown" button that builds
+    # a GitHub-flavored table from the visible result list via
+    # toMarkdown() in lib/exporters.ts and writes it to navigator.clipboard.
     Given a search result list is visible for "hospital municipal"
     When the user clicks "Exportar Markdown"
     Then the clipboard contains a Markdown table with headers and rows

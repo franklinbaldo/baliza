@@ -1,15 +1,22 @@
 import { loadFeature, describeFeature } from '@amiceli/vitest-cucumber';
-import { screen, cleanup, waitFor } from '@testing-library/svelte/pure';
+import { screen, cleanup, waitFor, fireEvent } from '@testing-library/svelte/pure';
 import { vi, expect } from 'vitest';
 import { tick } from 'svelte';
 import { render, noop, plannedStep } from './_shared';
 import ContractDetailViewRaw from '../../ContractDetailView.svelte';
 import AtasViewRaw from '../../AtasView.svelte';
+import CatmatSearchRaw from '../../CatmatSearch.svelte';
+import DispensasViewRaw from '../../DispensasView.svelte';
+import * as pncpPublicacao from '../../../lib/pncpPublicacao';
+import type { PNCPContract } from '../../../lib/pncp';
 import * as parquetFallback from '../../../lib/parquetFallback';
 import type { ArchivedContrato } from '../../../lib/archive/schema';
+import { __setCatmatEntriesForTest } from '../../../lib/catmat';
 
 const ContractDetailView = ContractDetailViewRaw as unknown as Parameters<typeof render>[0];
 const AtasView = AtasViewRaw as unknown as Parameters<typeof render>[0];
+const CatmatSearch = CatmatSearchRaw as unknown as Parameters<typeof render>[0];
+const DispensasView = DispensasViewRaw as unknown as Parameters<typeof render>[0];
 
 function futurePlus(years: number): string {
   const d = new Date();
@@ -104,17 +111,85 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   );
 
   Scenario('Resolve a CATMAT or CATSER code from a free-text description', ({ Given, Then }) => {
-    Given('the user types "papel sulfite branco A4 75g" into a catalog input', noop);
-    Then('the user sees the most likely CATMAT codes ranked by match confidence', () =>
-      plannedStep('CATMAT/CATSER resolver backed by a bundled taxonomy'),
-    );
+    Given('the user types "papel sulfite branco A4 75g" into a catalog input', async () => {
+      cleanup();
+      // Inject a representative slice so the search runs without hitting the
+      // /data/catmat.json endpoint (CatmatSearch fetches it on first use).
+      __setCatmatEntriesForTest([
+        { code: '19746', description: 'PAPEL PARA IMPRESSÃO FORMATADO', type: 'CATMAT' },
+        { code: '10383', description: 'PAPEL HIGIÊNICO', type: 'CATMAT' },
+        { code: '26824', description: 'OUTSOURCING DE IMPRESSAO PAGINAS A4 MONOCROMATICA COM PAPEL', type: 'CATSER' },
+        { code: '37', description: 'AGENDA', type: 'CATMAT' },
+      ]);
+      render(CatmatSearch);
+      await tick();
+      const input = screen.getByLabelText('Descrição do item para busca CATMAT');
+      await fireEvent.input(input, { target: { value: 'papel sulfite branco A4 75g' } });
+      await tick();
+    });
+
+    Then('the user sees the most likely CATMAT codes ranked by match confidence', async () => {
+      await waitFor(
+        () => expect(screen.getByTestId('catmat-results')).toBeTruthy(),
+        { timeout: 2000 },
+      );
+      const items = screen.getAllByTestId('catmat-result-item');
+      expect(items.length).toBeGreaterThan(0);
+      // PDM-level catalog: query "papel ... A4" maps to entries describing
+      // paper-related catalog categories. Top result must mention paper or A4.
+      expect(items[0].textContent?.toLowerCase()).toMatch(/papel|a4/);
+    });
   });
 
   Scenario('Inspect the legal basis cited by peers in similar exemptions', ({ Given, Then }) => {
-    Given('the user opens "/dispensas?objeto=papel%20A4"', noop);
-    Then('the user sees the most cited legal articles in similar dispensa contracts', () =>
-      plannedStep('legal-basis aggregation across dispensa contracts'),
-    );
+    Given('the user opens "/dispensas?objeto=papel%20A4"', async () => {
+      cleanup();
+      vi.restoreAllMocks();
+      window.history.replaceState({}, '', '/dispensas?objeto=papel A4');
+      const dispensas: PNCPContract[] = [
+        {
+          numeroControlePNCP: '00000000000191-8-000001/2024',
+          dataPublicacaoPncp: '2025-01-10T00:00:00',
+          objetoContratacao: 'Aquisição de papel A4 sulfite',
+          fundamentacaoLegal: 'Art. 75, inciso II, da Lei nº 14.133/2021',
+          modalidadeNome: 'Dispensa de Licitação',
+          orgaoEntidade: { razaoSocial: 'Prefeitura A', cnpj: '00000000000191' },
+          unidadeOrgao: { nomeUnidade: 'Compras', codigoMunicipioIbge: '3550308' },
+        } as unknown as PNCPContract,
+        {
+          numeroControlePNCP: '00000000000192-8-000002/2024',
+          dataPublicacaoPncp: '2025-01-15T00:00:00',
+          objetoContratacao: 'Compra de papel A4 75g',
+          fundamentacaoLegal: 'Art. 75, inciso II, da Lei nº 14.133/2021',
+          modalidadeNome: 'Dispensa de Licitação',
+          orgaoEntidade: { razaoSocial: 'Prefeitura B', cnpj: '00000000000192' },
+          unidadeOrgao: { nomeUnidade: 'Administrativo', codigoMunicipioIbge: '3550309' },
+        } as unknown as PNCPContract,
+        {
+          numeroControlePNCP: '00000000000193-8-000003/2024',
+          dataPublicacaoPncp: '2025-01-20T00:00:00',
+          objetoContratacao: 'Papel A4 branco para impressão',
+          fundamentacaoLegal: 'Art. 75, inciso VIII, da Lei nº 14.133/2021',
+          modalidadeNome: 'Dispensa de Licitação',
+          orgaoEntidade: { razaoSocial: 'Prefeitura C', cnpj: '00000000000193' },
+          unidadeOrgao: { nomeUnidade: 'Secretaria', codigoMunicipioIbge: '3550310' },
+        } as unknown as PNCPContract,
+      ];
+      vi.spyOn(pncpPublicacao, 'fetchDispensaPagesForObjeto').mockResolvedValue(dispensas);
+      render(DispensasView);
+      await tick();
+    });
+    Then('the user sees the most cited legal articles in similar dispensa contracts', async () => {
+      await waitFor(
+        () => expect(screen.getByTestId('dispensas-legal-list')).toBeTruthy(),
+        { timeout: 3000 },
+      );
+      const items = screen.getAllByTestId('dispensas-legal-item');
+      expect(items.length).toBeGreaterThan(0);
+      // Art. 75 II appears twice → must rank first.
+      expect(items[0].textContent).toMatch(/inciso II/);
+      expect(items[0].textContent).toMatch(/14\.133/);
+    });
   });
 
   Scenario(

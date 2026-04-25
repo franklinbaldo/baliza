@@ -1,0 +1,18 @@
+{
+  "fetched_at": "2026-04-25T01:41:29.909294+00:00",
+  "sources": {
+    "catmat": {
+      "url": "https://www.gov.br/compras/pt-br/acesso-a-informacao/consulta-detalhada/planilha-catmat-catser/catmat.xlsx",
+      "etag": null
+    },
+    "catser": {
+      "url": "https://www.gov.br/compras/pt-br/acesso-a-informacao/consulta-detalhada/planilha-catmat-catser/catser.xlsx",
+      "etag": null
+    }
+  },
+  "counts": {
+    "catmat": 10375,
+    "catser": 2905,
+    "total": 13280
+  }
+}

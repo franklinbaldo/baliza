@@ -31,6 +31,7 @@ def _pending_build_months(
     *,
     resource: str = RESOURCE_CONTRATOS,
     backfill: bool = False,
+    manifest: list[dict] | None = None,
 ) -> list[date]:
     """Return months that need a Parquet build, newest-first.
 
@@ -43,7 +44,7 @@ def _pending_build_months(
         (or Parquet missing).  This includes months uploaded via the old monolithic
         ``sync`` command that already have a ZIP on IA.
     """
-    raw_manifest = read_manifest_from_ia()  # strict: raises ManifestReadError on failure
+    raw_manifest = manifest if manifest is not None else read_manifest_from_ia()
     today = date.today()
     last_month = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
     start = clamp_to_known_data_start_month(resource, start_date)
@@ -76,9 +77,8 @@ def _pending_build_months(
     return pending[:batch_size] if batch_size else pending
 
 
-def _download_raw_zip(item_id: str, month_str: str, dest: Path) -> Path:
-    """Download raw-{month_str}.zip from IA to dest directory.  Returns the zip path."""
-    zip_url = f"https://archive.org/download/{item_id}/raw-{month_str}.zip"
+def _download_raw_zip(zip_url: str, month_str: str, dest: Path) -> Path:
+    """Download raw-{month_str}.zip from zip_url to dest directory.  Returns the zip path."""
     zip_path = dest / f"raw-{month_str}.zip"
     with httpx.Client(follow_redirects=True, timeout=120.0) as client:
         with client.stream("GET", zip_url) as resp:
@@ -89,13 +89,14 @@ def _download_raw_zip(item_id: str, month_str: str, dest: Path) -> Path:
     return zip_path
 
 
-def build_month(  # noqa: PLR0915
+def build_month(  # noqa: PLR0913, PLR0915
     start_of_month: date,
     *,
     ia_access_key: str,
     ia_secret_key: str,
     dry_run: bool = False,
     log_fn: object = None,
+    manifest: list[dict] | None = None,
 ) -> dict[str, object]:
     """Download the raw ZIP from IA, ingest into DuckDB, export and upload Parquet.
 
@@ -105,12 +106,14 @@ def build_month(  # noqa: PLR0915
         ia_secret_key: IA S3-like secret key.
         dry_run: Skip actual upload (ingest and export only).
         log_fn: Optional callable(str) for progress messages.
+        manifest: Pre-fetched manifest rows. When None, fetches from IA.
+            Pass this when building multiple months to avoid one network
+            call per month.
 
     Returns:
         Dict with keys: ``month``, ``valid``, ``quarantine``, ``uploaded``.
     """
     month_str = start_of_month.strftime("%Y-%m")
-    item_id = f"baliza-pncp-{month_str}"
 
     def _emit(msg: str) -> None:
         if log_fn is not None:
@@ -123,13 +126,25 @@ def build_month(  # noqa: PLR0915
         "uploaded": False,
     }
 
+    # Resolve raw_zip_url from manifest — decoupled from item naming so it
+    # works whether the ZIP lives in baliza-pncp-raw or a per-month item.
+    rows = manifest if manifest is not None else read_manifest_from_ia()
+    manifest_row = next(
+        (r for r in rows if r.get("data_particao") == month_str and r.get("raw_zip_url")),
+        None,
+    )
+    if not manifest_row:
+        _emit(f"{month_str}: no raw_zip_url in manifest — skipping")
+        return result
+    raw_zip_url = manifest_row["raw_zip_url"]
+
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir)
 
         # 1. Download ZIP from IA
-        _emit(f"{month_str}: downloading raw ZIP from IA...")
+        _emit(f"{month_str}: downloading raw ZIP from {raw_zip_url}...")
         try:
-            zip_path = _download_raw_zip(item_id, month_str, tmp_path)
+            zip_path = _download_raw_zip(raw_zip_url, month_str, tmp_path)
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
                 _emit(f"{month_str}: no raw ZIP on IA (404) — skipping")

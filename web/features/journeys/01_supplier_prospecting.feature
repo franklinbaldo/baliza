@@ -12,18 +12,20 @@ Feature: Journey 1 — B2G supplier prospecting
     Then the user lands on a market page summarizing top buyers, top suppliers and price ranges
     And the page shows the number of distinct contracts found
 
-  @planned @search
+  @green @search
   Scenario: Filter contracts by UF and modality recomputes aggregates
-    # Planned: awaits a dedicated /busca page with UF + modality dropdowns
-    # and an aggregate strip (count / total / average).
+    # Covered: BuscaView renders UF + modality dropdowns above the result
+    # list with a count / total / average aggregate strip that recomputes
+    # client-side as the dropdowns change.
     Given a search result list is visible
     When the user picks UF "SP" and modality "Pregão Eletrônico"
     Then the visible aggregates (count, total value, average value) reflect the filtered subset
 
-  @planned @search
+  @green @search
   Scenario: Empty search suggests accent-tolerant alternatives
-    # Planned: an accent-tolerant suggestion surface on the future /busca
-    # page (closed lexicon, ~80 procurement nouns — static-compatible).
+    # Covered: empty-result state on BuscaView consults a closed lexicon
+    # (web/src/lib/accentLexicon.ts, ~80 procurement nouns) to offer the
+    # accented spelling as a clickable suggestion.
     Given the user submits the free-text query "construcao de escola"
     When PNCP returns zero results
     Then the user sees a suggestion to retry with "construção de escola"
@@ -37,9 +39,11 @@ Feature: Journey 1 — B2G supplier prospecting
     And the user sees the supplier's top three competing CNPJs for the same objects
     And the user sees the supplier's average ticket size
 
-  @planned @export
+  @green @export
   Scenario: Export the current search result as CSV
-    # Planned: CSV export lives on the future /busca page.
+    # Covered: BuscaView ships an "Exportar CSV" button that builds an
+    # RFC 4180-style CSV from the visible (filtered) result list using
+    # toCsv() in lib/exporters.ts and triggers a Blob download.
     Given a search result list is visible for "merenda escolar"
     When the user clicks "Exportar CSV"
     Then a CSV file is downloaded with named columns matching the visible table

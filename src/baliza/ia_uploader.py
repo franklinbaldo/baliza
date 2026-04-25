@@ -29,6 +29,20 @@ _CONTRATOS_BLOOM_FILTER_COLUMNS = (
 )
 
 MANIFEST_ITEM_ID = "baliza-pncp-manifest"
+RAW_ITEM_ID = "baliza-pncp-raw"
+RAW_ITEM_METADATA = {
+    "title": "Baliza PNCP — Raw JSON Mirror (all months)",
+    "description": (
+        "Complete mirror of PNCP (Portal Nacional de Contratações Públicas) API responses. "
+        "Each raw-YYYY-MM.zip contains the raw JSON pages fetched from the contratos endpoint "
+        "for that month. Part of the Baliza open data project."
+    ),
+    "mediatype": "data",
+    "collection": "opensource_media",
+    "subject": ["PNCP", "contratos", "licitações", "governo", "Brasil", "open data"],
+    "creator": "Baliza",
+    "language": "pt",
+}
 
 # Union of v1 + v2 fieldnames — DictWriter with extrasaction="ignore"
 # happily writes blanks for legacy rows missing v2 columns.
@@ -300,7 +314,7 @@ class IAUploader:
         Uses the strict reader — transient read failures abort rather than wipe the live manifest.
         """
         manifest = read_manifest_from_ia()
-        item_id = f"baliza-pncp-{month_str}"
+        parquet_item_id = f"baliza-pncp-{month_str}"
 
         existing_idx: int | None = None
         for i, row in enumerate(manifest):
@@ -321,8 +335,8 @@ class IAUploader:
                 "table_name": "contratos",
                 "row_count": 0,
                 "quarantine_count": 0,
-                "ia_item_id": item_id,
-                "raw_zip_url": f"https://archive.org/download/{item_id}/raw-{month_str}.zip",
+                "ia_item_id": parquet_item_id,
+                "raw_zip_url": f"https://archive.org/download/{RAW_ITEM_ID}/raw-{month_str}.zip",
                 "parquet_url": "",
                 "quarantine_url": "",
                 "uploaded_at": now,
@@ -350,14 +364,14 @@ class IAUploader:
         raw_dir: Path,
         ia_access_key: str,
         ia_secret_key: str,
+        keep_raw_dir: bool = False,
     ) -> bool:
-        """Zip raw JSON pages and upload to the monthly IA item; update manifest mirror fields.
+        """Zip raw JSON pages and upload to baliza-pncp-raw; update manifest mirror fields.
 
         Does NOT ingest or export Parquet. Cleans up raw_dir on success so the
         next run fetches fresh from IA (or GHA cache). Returns True on success.
         """
         month_str = start_date.strftime("%Y-%m")
-        item_id = f"baliza-pncp-{month_str}"
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             temp_path = Path(tmp_dir)
@@ -367,22 +381,17 @@ class IAUploader:
             raw_zip_sha256 = _sha256(zip_path)
             raw_zip_size = zip_path.stat().st_size
 
-            console.print(f"  Uploading raw ZIP for {month_str} to {item_id}...")
+            console.print(f"  Uploading raw ZIP for {month_str} to {RAW_ITEM_ID}...")
             ia.upload(
-                item_id,
+                RAW_ITEM_ID,
                 files={zip_path.name: str(zip_path)},
                 access_key=ia_access_key,
                 secret_key=ia_secret_key,
-                metadata={
-                    "title": f"Baliza PNCP Data {month_str}",
-                    "description": f"Raw JSON mirror of PNCP contracts - {month_str}",
-                    "mediatype": "data",
-                    "collection": "opensource_media",
-                },
+                metadata=RAW_ITEM_METADATA,
                 retries=3,
             )
 
-        raw_zip_url = f"https://archive.org/download/{item_id}/raw-{month_str}.zip"
+        raw_zip_url = f"https://archive.org/download/{RAW_ITEM_ID}/raw-{month_str}.zip"
         now = datetime.now().isoformat()
         success = False
         try:
@@ -402,9 +411,11 @@ class IAUploader:
         except Exception as e:
             console.print(f"[red]✗ Manifest update failed for {month_str}: {e}[/red]")
 
-        if success and raw_dir.exists():
+        if success and not keep_raw_dir and raw_dir.exists():
             shutil.rmtree(raw_dir)
             console.print(f"[green]✓ {month_str} mirrored and local pages cleaned.[/green]")
+        elif success and keep_raw_dir:
+            console.print(f"[green]✓ {month_str} ZIP updated (pages kept for incremental next run).[/green]")
         else:
             console.print(
                 f"[yellow]⚠ {month_str} ZIP uploaded but NOT cleaned due to manifest error.[/yellow]"
