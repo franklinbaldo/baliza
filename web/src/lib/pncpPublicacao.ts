@@ -36,6 +36,8 @@ export interface PublicacaoOpts {
   modalidades?: readonly number[];
   /** Injectable for tests / SSR. Defaults to `new Date()`. */
   now?: Date;
+  /** Per-modality network timeout. One slow PNCP modality must not freeze the view. */
+  timeoutMs?: number;
 }
 
 function yyyymmdd(d: Date): string {
@@ -64,6 +66,16 @@ function buildUrl(
   return `${PUBLICACAO_URL}?${params.toString()}`;
 }
 
+async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // Fan out across modalities with Promise.allSettled so one 500 doesn't kill the
 // page. Merge, dedupe by numeroControlePNCP (the canonical PNCP identity),
 // sort by dataPublicacaoPncp DESC, slice to tamanhoPagina. If every modality
@@ -79,6 +91,7 @@ export async function fetchPublicacaoList(
     tamanhoPagina = 10,
     modalidades = DEFAULT_MODALIDADES,
     now = new Date(),
+    timeoutMs = 10_000,
   } = opts;
   const clamped = Math.max(10, Math.min(50, tamanhoPagina));
   const end = new Date(now);
@@ -95,7 +108,7 @@ export async function fetchPublicacaoList(
   const settled = await Promise.allSettled(
     modalidades.map(async (modalidade) => {
       const url = buildUrl(filters, modalidade, dataInicial, dataFinal, clamped);
-      const res = await fetch(url);
+      const res = await fetchWithTimeout(url, timeoutMs);
       if (!res.ok) throw new Error(`PNCP publicacao returned ${res.status} for modalidade ${modalidade}`);
       return parsePncpPublicacaoList(await res.json());
     }),
