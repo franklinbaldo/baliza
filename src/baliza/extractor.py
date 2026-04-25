@@ -134,7 +134,7 @@ def _validate_resource(resource: str):
         raise ValueError(f"Invalid resource path: {resource}")
 
 
-class RetryablePayloadError(ValueError):
+class RetryablePayloadError(Exception):
     """Raised when PNCP returns a syntactically invalid payload.
 
     We observe occasional empty/HTML upstream bodies with HTTP 200 while the
@@ -165,8 +165,8 @@ class PNCPExtractor:
 
     @retry(
         retry=retry_if_exception(_is_retryable_error),
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
+        stop=stop_after_attempt(6),
+        wait=wait_exponential(multiplier=2, min=4, max=60),
     )
     def fetch_page(
         self, resource: str, start_date: datetime, end_date: datetime, page: int = 1
@@ -246,20 +246,26 @@ class PNCPExtractor:
     def _fetch_with_curl(
         self, resource: str, page: int, url: str, start_str: str, end_str: str
     ) -> dict[str, Any]:
-        result = subprocess.run(
-            [
-                "curl",
-                "-s",
-                "-H",
-                "accept: */*",
-                "-H",
-                f"User-Agent: {self.headers['User-Agent']}",
-                f"{url}?dataInicial={start_str}&dataFinal={end_str}&pagina={page}&tamanhoPagina={PAGE_SIZE}",
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
+        try:
+            result = subprocess.run(
+                [
+                    "curl",
+                    "-s",
+                    "--max-time", "30",
+                    "--connect-timeout", "10",
+                    "-H",
+                    "accept: */*",
+                    "-H",
+                    f"User-Agent: {self.headers['User-Agent']}",
+                    f"{url}?dataInicial={start_str}&dataFinal={end_str}&pagina={page}&tamanhoPagina={PAGE_SIZE}",
+                ],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=45,
+            )
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+            raise RetryablePayloadError(f"curl failed for {resource} page {page}: {e}") from e
         return self._parse_json_payload(
             payload=result.stdout.strip(),
             resource=resource,
