@@ -73,12 +73,12 @@
 
   <div class="status-grid">
     <StatCard
-      title="Arquivos raw"
+      title="Arquivos brutos (ZIP)"
       value={formatInteger(status.rawZipCount)}
       hint={`cobertura ${formatPeriod(status.firstPeriod)} a ${formatPeriod(status.latestPeriod)}`}
     />
     <StatCard
-      title="Contratos raw"
+      title="Contratos extraídos"
       value={status.contractsCount === null ? '—' : formatInteger(status.contractsCount)}
       tone="success"
       hint={status.contractsCountCoverage > 0
@@ -86,14 +86,14 @@
         : 'contagem indisponível via view_archive.php'}
     />
     <StatCard
-      title="Volume bruto"
+      title="Volume total"
       value={formatBytes(status.rawBytes)}
       hint={`${formatInteger(status.filesCount)} arquivos no item`}
     />
     <StatCard
       title="Último mês"
       value={formatPeriod(status.latestPeriod)}
-      tone="warning"
+      tone="default"
       hint={status.latestContractsCount === null
         ? (status.latestRawFile?.name ?? 'sem arquivo raw detectado')
         : `${formatInteger(status.latestContractsCount)} contratos em ${status.latestRawFile?.name}`}

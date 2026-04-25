@@ -144,6 +144,7 @@ export const MAX_DISPENSA_PAGES = 5;
 const DISPENSA_SINCE_DAYS = 365;
 
 function buildPageUrl(
+  filters: PublicacaoFilters,
   modalidade: number,
   pagina: number,
   dataInicial: string,
@@ -156,6 +157,8 @@ function buildPageUrl(
     pagina: String(pagina),
     tamanhoPagina: '50',
   });
+  if (filters.cnpj) params.set('cnpj', filters.cnpj);
+  if (filters.codigoMunicipioIbge) params.set('codigoMunicipioIbge', filters.codigoMunicipioIbge);
   return `${PUBLICACAO_URL}?${params.toString()}`;
 }
 
@@ -174,10 +177,12 @@ export async function fetchPublicacaoPagesForObjeto(
     sinceDays?: number;
     modalidades?: readonly number[];
     now?: Date;
+    filters?: PublicacaoFilters;
   } = {},
 ): Promise<PNCPContract[]> {
   const term = objeto.trim().toLowerCase();
-  if (!term) return [];
+  // Allow empty term if we have filters, otherwise return empty
+  if (!term && !opts.filters?.cnpj && !opts.filters?.codigoMunicipioIbge) return [];
   const {
     maxPages = MAX_BUSCA_PAGES,
     sinceDays = BUSCA_SINCE_DAYS,
@@ -196,7 +201,7 @@ export async function fetchPublicacaoPagesForObjeto(
     for (let pagina = 1; pagina <= maxPages; pagina++) {
       fetches.push(
         (async () => {
-          const res = await fetch(buildPageUrl(modalidade, pagina, dataInicial, dataFinal));
+          const res = await fetch(buildPageUrl(opts.filters || {}, modalidade, pagina, dataInicial, dataFinal));
           if (!res.ok) {
             throw new Error(
               `PNCP publicacao returned ${res.status} for modalidade ${modalidade} page ${pagina}`,
@@ -221,8 +226,10 @@ export async function fetchPublicacaoPagesForObjeto(
   const collected = new Map<string, PNCPContract>();
   for (const r of ok) {
     for (const c of r.value) {
-      const objetoLower = (c.objetoContratacao ?? '').toLowerCase();
-      if (!objetoLower.includes(term)) continue;
+      if (term) {
+        const objetoLower = (c.objetoContratacao ?? '').toLowerCase();
+        if (!objetoLower.includes(term)) continue;
+      }
       if (c.numeroControlePNCP && !collected.has(c.numeroControlePNCP)) {
         collected.set(c.numeroControlePNCP, c);
       }
@@ -237,10 +244,10 @@ export async function fetchPublicacaoPagesForObjeto(
 
 export async function fetchDispensaPagesForObjeto(
   objeto: string,
-  opts: { maxPages?: number; sinceDays?: number; now?: Date } = {},
+  opts: { maxPages?: number; sinceDays?: number; now?: Date; filters?: PublicacaoFilters } = {},
 ): Promise<PNCPContract[]> {
   const term = objeto.trim().toLowerCase();
-  if (!term) return [];
+  if (!term && !opts.filters?.cnpj && !opts.filters?.codigoMunicipioIbge) return [];
   const { maxPages = MAX_DISPENSA_PAGES, sinceDays = DISPENSA_SINCE_DAYS, now = new Date() } = opts;
 
   const end = new Date(now);
@@ -251,7 +258,7 @@ export async function fetchDispensaPagesForObjeto(
 
   const collected = new Map<string, PNCPContract>();
   for (let pagina = 1; pagina <= maxPages; pagina++) {
-    const res = await fetch(buildPageUrl(8, pagina, dataInicial, dataFinal));
+    const res = await fetch(buildPageUrl(opts.filters || {}, 8, pagina, dataInicial, dataFinal));
     if (!res.ok) {
       // Surface a real error instead of silently returning a partial result —
       // an empty list would render "Nenhuma base legal encontrada" and mask
@@ -261,8 +268,10 @@ export async function fetchDispensaPagesForObjeto(
     const page = parsePncpPublicacaoList(await res.json());
     if (!page.length) break;
     for (const c of page) {
-      const objetoLower = (c.objetoContratacao ?? '').toLowerCase();
-      if (!objetoLower.includes(term)) continue;
+      if (term) {
+        const objetoLower = (c.objetoContratacao ?? '').toLowerCase();
+        if (!objetoLower.includes(term)) continue;
+      }
       if (c.numeroControlePNCP && !collected.has(c.numeroControlePNCP)) {
         collected.set(c.numeroControlePNCP, c);
       }
