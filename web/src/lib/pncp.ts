@@ -53,6 +53,10 @@ export const PNCPContractSchema = z
     situacaoNome: z.string().nullable().optional(),
     linkSistemaOrigem: z.string().nullable().optional(),
     usuarioNome: z.string().nullable().optional(),
+    // Cited legal article for dispensa/inexigibilidade contracts (e.g.
+    // "Art. 75, inciso II, da Lei nº 14.133/2021"). Used by /dispensas
+    // to aggregate the most-cited legal basis across peer exemptions.
+    fundamentacaoLegal: z.string().nullable().optional(),
     itens: z.array(PNCPContractItemSchema).optional(),
   })
   .passthrough();

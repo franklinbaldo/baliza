@@ -36,7 +36,7 @@ Feature: Journey 2 — Public buyer
     Given the user types "papel sulfite branco A4 75g" into a catalog input
     Then the user sees the most likely CATMAT codes ranked by match confidence
 
-  @planned @frameworks
+  @green @frameworks
   Scenario: Inspect the legal basis cited by peers in similar exemptions
     # Planned: legal-basis aggregation does not exist.
     Given the user opens "/dispensas?objeto=papel%20A4"
