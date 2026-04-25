@@ -1,15 +1,17 @@
 import { loadFeature, describeFeature } from '@amiceli/vitest-cucumber';
-import { screen, cleanup, waitFor } from '@testing-library/svelte/pure';
+import { screen, cleanup, waitFor, fireEvent } from '@testing-library/svelte/pure';
 import { vi, expect } from 'vitest';
 import { tick } from 'svelte';
 import { render, noop, plannedStep } from './_shared';
 import ContractDetailViewRaw from '../../ContractDetailView.svelte';
 import AtasViewRaw from '../../AtasView.svelte';
+import CatmatSearchRaw from '../../CatmatSearch.svelte';
 import * as parquetFallback from '../../../lib/parquetFallback';
 import type { ArchivedContrato } from '../../../lib/archive/schema';
 
 const ContractDetailView = ContractDetailViewRaw as unknown as Parameters<typeof render>[0];
 const AtasView = AtasViewRaw as unknown as Parameters<typeof render>[0];
+const CatmatSearch = CatmatSearchRaw as unknown as Parameters<typeof render>[0];
 
 function futurePlus(years: number): string {
   const d = new Date();
@@ -104,10 +106,24 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   );
 
   Scenario('Resolve a CATMAT or CATSER code from a free-text description', ({ Given, Then }) => {
-    Given('the user types "papel sulfite branco A4 75g" into a catalog input', noop);
-    Then('the user sees the most likely CATMAT codes ranked by match confidence', () =>
-      plannedStep('CATMAT/CATSER resolver backed by a bundled taxonomy'),
-    );
+    Given('the user types "papel sulfite branco A4 75g" into a catalog input', async () => {
+      cleanup();
+      render(CatmatSearch);
+      await tick();
+      const input = screen.getByLabelText('Descrição do item para busca CATMAT');
+      await fireEvent.input(input, { target: { value: 'papel sulfite branco A4 75g' } });
+      await tick();
+    });
+
+    Then('the user sees the most likely CATMAT codes ranked by match confidence', async () => {
+      await waitFor(
+        () => expect(screen.getByTestId('catmat-results')).toBeTruthy(),
+        { timeout: 2000 },
+      );
+      const items = screen.getAllByTestId('catmat-result-item');
+      expect(items.length).toBeGreaterThan(0);
+      expect(items[0].textContent).toMatch(/7510/);
+    });
   });
 
   Scenario('Inspect the legal basis cited by peers in similar exemptions', ({ Given, Then }) => {
