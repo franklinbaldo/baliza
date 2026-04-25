@@ -122,7 +122,9 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       );
       const items = screen.getAllByTestId('catmat-result-item');
       expect(items.length).toBeGreaterThan(0);
-      expect(items[0].textContent).toMatch(/7510/);
+      // PDM-level catalog: query "papel ... A4" maps to entries describing
+      // paper-related catalog categories. Top result must mention paper or A4.
+      expect(items[0].textContent?.toLowerCase()).toMatch(/papel|a4/);
     });
   });
 
