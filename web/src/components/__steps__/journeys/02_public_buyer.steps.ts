@@ -6,12 +6,16 @@ import { render, noop, plannedStep } from './_shared';
 import ContractDetailViewRaw from '../../ContractDetailView.svelte';
 import AtasViewRaw from '../../AtasView.svelte';
 import CatmatSearchRaw from '../../CatmatSearch.svelte';
+import DispensasViewRaw from '../../DispensasView.svelte';
+import * as pncpPublicacao from '../../../lib/pncpPublicacao';
+import type { PNCPContract } from '../../../lib/pncp';
 import * as parquetFallback from '../../../lib/parquetFallback';
 import type { ArchivedContrato } from '../../../lib/archive/schema';
 
 const ContractDetailView = ContractDetailViewRaw as unknown as Parameters<typeof render>[0];
 const AtasView = AtasViewRaw as unknown as Parameters<typeof render>[0];
 const CatmatSearch = CatmatSearchRaw as unknown as Parameters<typeof render>[0];
+const DispensasView = DispensasViewRaw as unknown as Parameters<typeof render>[0];
 
 function futurePlus(years: number): string {
   const d = new Date();
@@ -129,10 +133,54 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   });
 
   Scenario('Inspect the legal basis cited by peers in similar exemptions', ({ Given, Then }) => {
-    Given('the user opens "/dispensas?objeto=papel%20A4"', noop);
-    Then('the user sees the most cited legal articles in similar dispensa contracts', () =>
-      plannedStep('legal-basis aggregation across dispensa contracts'),
-    );
+    Given('the user opens "/dispensas?objeto=papel%20A4"', async () => {
+      cleanup();
+      vi.restoreAllMocks();
+      window.history.replaceState({}, '', '/?objeto=papel A4');
+      const dispensas: PNCPContract[] = [
+        {
+          numeroControlePNCP: '00000000000191-8-000001/2024',
+          dataPublicacaoPncp: '2025-01-10T00:00:00',
+          objetoContratacao: 'Aquisição de papel A4 sulfite',
+          fundamentacaoLegal: 'Art. 75, inciso II, da Lei nº 14.133/2021',
+          modalidadeNome: 'Dispensa de Licitação',
+          orgaoEntidade: { razaoSocial: 'Prefeitura A', cnpj: '00000000000191' },
+          unidadeOrgao: { nomeUnidade: 'Compras', codigoMunicipioIbge: '3550308' },
+        } as unknown as PNCPContract,
+        {
+          numeroControlePNCP: '00000000000192-8-000002/2024',
+          dataPublicacaoPncp: '2025-01-15T00:00:00',
+          objetoContratacao: 'Compra de papel A4 75g',
+          fundamentacaoLegal: 'Art. 75, inciso II, da Lei nº 14.133/2021',
+          modalidadeNome: 'Dispensa de Licitação',
+          orgaoEntidade: { razaoSocial: 'Prefeitura B', cnpj: '00000000000192' },
+          unidadeOrgao: { nomeUnidade: 'Administrativo', codigoMunicipioIbge: '3550309' },
+        } as unknown as PNCPContract,
+        {
+          numeroControlePNCP: '00000000000193-8-000003/2024',
+          dataPublicacaoPncp: '2025-01-20T00:00:00',
+          objetoContratacao: 'Papel A4 branco para impressão',
+          fundamentacaoLegal: 'Art. 75, inciso VIII, da Lei nº 14.133/2021',
+          modalidadeNome: 'Dispensa de Licitação',
+          orgaoEntidade: { razaoSocial: 'Prefeitura C', cnpj: '00000000000193' },
+          unidadeOrgao: { nomeUnidade: 'Secretaria', codigoMunicipioIbge: '3550310' },
+        } as unknown as PNCPContract,
+      ];
+      vi.spyOn(pncpPublicacao, 'fetchPublicacaoList').mockResolvedValue(dispensas);
+      render(DispensasView);
+      await tick();
+    });
+    Then('the user sees the most cited legal articles in similar dispensa contracts', async () => {
+      await waitFor(
+        () => expect(screen.getByTestId('dispensas-legal-list')).toBeTruthy(),
+        { timeout: 3000 },
+      );
+      const items = screen.getAllByTestId('dispensas-legal-item');
+      expect(items.length).toBeGreaterThan(0);
+      // Art. 75 II appears twice → must rank first.
+      expect(items[0].textContent).toMatch(/inciso II/);
+      expect(items[0].textContent).toMatch(/14\.133/);
+    });
   });
 
   Scenario(

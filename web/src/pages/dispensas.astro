@@ -1,0 +1,13 @@
+---
+import Layout from '../layouts/Layout.astro';
+import DispensasView from '../components/DispensasView.svelte';
+
+const objeto = Astro.url.searchParams.get('objeto') ?? '';
+---
+
+<Layout
+  title="Dispensas — Bases Legais"
+  description="Quais artigos da Lei 14.133/2021 são mais citados em dispensas similares no PNCP."
+>
+  <DispensasView client:only="svelte" objeto={objeto} />
+</Layout>

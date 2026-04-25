@@ -6,4 +6,5 @@ export const QUERY_KEYS = {
   contratacao: (id: string)                 => ['contratacao', id]             as const,
   localBids:   (ibge: string)               => ['local-bids', ibge]            as const,
   atas:        (objeto: string)             => ['atas', objeto]                as const,
+  dispensas:   (objeto: string)             => ['dispensas', objeto]           as const,
 } as const;
