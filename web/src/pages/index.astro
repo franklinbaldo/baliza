@@ -2,6 +2,7 @@
 import Layout from '../layouts/Layout.astro';
 import CityHero from '../components/CityHero.svelte';
 import CityPulse from '../components/CityPulse.svelte';
+import HomeBuscaForm from '../components/HomeBuscaForm.svelte';
 import MonitorGrid from '../components/MonitorGrid.astro';
 import TrustStrip from '../components/TrustStrip.astro';
 import OrnamentBand from '../components/OrnamentBand.astro';
@@ -63,23 +64,14 @@ const TOOLS: Array<{
   <CityPulse client:load />
 
   <!-- 2b. Free-text escape hatch for visitors who know what they're looking
-       for. Plain HTML GET form — zero JS on the homepage path. BuscaView
-       on the target page detects canonical PNCP-id shapes and forwards
-       them to /contratacao. -->
+       for. Plain HTML GET form — zero JS on the homepage path (the island
+       ships no client directive; Astro renders it to HTML at build time).
+       BuscaView on the target page detects canonical PNCP-id shapes and
+       forwards them to /contratacao. -->
   <section class="home-busca-strip" aria-labelledby="home-busca-title">
     <div class="container">
       <h2 id="home-busca-title" class="sr-only">Buscar no PNCP</h2>
-      <form class="home-busca" method="get" action={resolve('busca')}>
-        <label class="sr-only" for="home-busca-input">Buscar no PNCP</label>
-        <input
-          id="home-busca-input"
-          type="search"
-          name="q"
-          placeholder="Buscar por objeto (ex.: hospital municipal) ou número de controle PNCP…"
-          aria-label="Buscar no PNCP"
-        />
-        <button type="submit" class="btn btn-primary">Buscar</button>
-      </form>
+      <HomeBuscaForm />
     </div>
   </section>
 
@@ -144,24 +136,6 @@ const TOOLS: Array<{
     padding: var(--space-5) 0;
     background: var(--neutral-0);
     border-bottom: 1px solid var(--neutral-100);
-  }
-  .home-busca {
-    display: flex;
-    gap: var(--space-2);
-    max-width: 640px;
-    margin: 0 auto;
-  }
-  .home-busca input {
-    flex: 1;
-    padding: 0.625rem 0.875rem;
-    border: 1px solid var(--neutral-200, #e5e7eb);
-    border-radius: 4px;
-    font-size: var(--text-md);
-    background: var(--neutral-0, #fff);
-  }
-  .home-busca input:focus-visible {
-    outline: 2px solid var(--bulcao-accent);
-    outline-offset: 2px;
   }
   .sr-only {
     position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;

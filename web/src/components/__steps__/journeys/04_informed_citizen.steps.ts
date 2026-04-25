@@ -2,10 +2,11 @@ import { loadFeature, describeFeature } from '@amiceli/vitest-cucumber';
 import { screen, cleanup, waitFor, fireEvent } from '@testing-library/svelte/pure';
 import { vi, expect } from 'vitest';
 import { tick } from 'svelte';
-import { render, noop } from './_shared';
+import { render } from './_shared';
 import ContractDetailViewRaw from '../../ContractDetailView.svelte';
 import CityDetailViewRaw from '../../CityDetailView.svelte';
 import BuscaViewRaw from '../../BuscaView.svelte';
+import HomeBuscaFormRaw from '../../HomeBuscaForm.svelte';
 import * as iaManifestModule from '../../../lib/ia-manifest';
 import * as pncpPublicacao from '../../../lib/pncpPublicacao';
 import * as navigateModule from '../../../lib/navigate';
@@ -14,6 +15,7 @@ import type { PNCPContract } from '../../../lib/pncp';
 const ContractDetailView = ContractDetailViewRaw as unknown as Parameters<typeof render>[0];
 const CityDetailView = CityDetailViewRaw as unknown as Parameters<typeof render>[0];
 const BuscaView = BuscaViewRaw as unknown as Parameters<typeof render>[0];
+const HomeBuscaForm = HomeBuscaFormRaw as unknown as Parameters<typeof render>[0];
 
 const feature = await loadFeature('features/journeys/04_informed_citizen.feature');
 
@@ -44,10 +46,23 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     Given('the user opens the home page', async () => {
       cleanup();
       vi.restoreAllMocks();
-      // The homepage's HomeBuscaForm navigates to /busca?q=… on submit.
-      // In jsdom we can't actually navigate, so we render BuscaView with
-      // the post-navigation URL already in place. The listbox then lives
-      // on /busca — exactly where the production user lands.
+      // Step 1 of the journey: the homepage renders HomeBuscaForm. Verify
+      // the form wiring so a regression in action/name/base-path on
+      // index.astro would fail this scenario rather than silently ship.
+      render(HomeBuscaForm);
+      await tick();
+      const input = screen.getByLabelText('Buscar no PNCP') as HTMLInputElement;
+      expect(input.getAttribute('name')).toBe('q');
+      const form = input.closest('form') as HTMLFormElement;
+      expect(form.getAttribute('method')?.toLowerCase()).toBe('get');
+      expect(form.getAttribute('action')).toBe('/baliza/busca');
+    });
+    When('the user types "hospital municipal" into the search box', async () => {
+      // A real browser submit on the GET form would navigate to
+      // /baliza/busca?q=hospital+municipal. jsdom does not follow form
+      // navigation, so simulate the landing by rendering BuscaView with
+      // the URL the browser would have produced.
+      cleanup();
       window.history.replaceState({}, '', '/busca?q=hospital%20municipal');
       vi.spyOn(pncpPublicacao, 'fetchPublicacaoPagesForObjeto').mockResolvedValue([
         {
@@ -63,7 +78,6 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       render(BuscaView);
       await tick();
     });
-    When('the user types "hospital municipal" into the search box', noop);
     Then('the user sees a results listbox with at least one link', async () => {
       const list = await waitFor(
         () => {
