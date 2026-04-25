@@ -74,11 +74,18 @@
 
   const aggregates = $derived.by(() => {
     const count = filteredResults.length;
-    const total = filteredResults.reduce(
-      (sum, c) => sum + (typeof c.valorTotalEstimado === 'number' ? c.valorTotalEstimado : 0),
-      0,
-    );
-    const average = count > 0 ? total / count : 0;
+    // Compute the average over rows that actually carry a numeric estimate
+    // — rows without a value would otherwise drag the mean toward 0 and
+    // misrepresent what the visible buyers are paying.
+    let total = 0;
+    let withValue = 0;
+    for (const c of filteredResults) {
+      if (typeof c.valorTotalEstimado === 'number') {
+        total += c.valorTotalEstimado;
+        withValue += 1;
+      }
+    }
+    const average = withValue > 0 ? total / withValue : 0;
     return { count, total, average };
   });
 
