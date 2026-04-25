@@ -28,7 +28,7 @@ const ITEMS = [
   },
   {
     title: 'Novas contratações por órgão',
-    question: 'Qual secretaria publicou mais nos últimos 30 dias?',
+    question: 'Qual secretaria publicou mais no mês corrente?',
     href: DEFAULT_CITY_HREF,
     tile: 't2',
   },
@@ -87,7 +87,7 @@ const ITEMS = [
 <style>
   .monitor-section {
     padding: var(--space-8) 0;
-    background: var(--neutral-0);
+    background: var(--color-bg);
   }
   .monitor-head {
     max-width: 640px;
@@ -102,7 +102,7 @@ const ITEMS = [
     letter-spacing: -0.02em;
   }
   .monitor-sub {
-    color: var(--neutral-500);
+    color: var(--color-text-dim);
     font-size: var(--text-md);
     line-height: 1.6;
   }
@@ -115,14 +115,19 @@ const ITEMS = [
     gap: var(--space-3);
   }
   .monitor-card {
-    border: 1px solid var(--neutral-100);
-    background: var(--neutral-0);
+    border: 1px solid var(--color-border);
+    background: var(--color-bg);
     transition: all var(--duration-fast) var(--ease);
+    border-left: 5px solid var(--color-azul);
+    overflow: hidden;
   }
+  .monitor-card:nth-child(2n) { border-left-color: var(--color-verde); }
+  .monitor-card:nth-child(3n) { border-left-color: var(--color-ouro); }
+  .monitor-card:nth-child(4n) { border-left-color: var(--color-tijolo); }
   .monitor-card:hover {
-    border-color: var(--bulcao-accent);
-    transform: translate(-2px, -2px);
-    box-shadow: 3px 3px 0 var(--bulcao-accent);
+    border-color: var(--color-azul);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-pool-sm);
   }
   .monitor-card a {
     display: grid;
@@ -134,7 +139,7 @@ const ITEMS = [
   }
   .tile {
     display: block;
-    background: var(--bulcao-bg);
+    background: var(--color-surface-sunk);
     height: 14px;
     overflow: hidden;
   }
@@ -148,11 +153,11 @@ const ITEMS = [
     font-family: var(--font-display);
     font-weight: 500;
     font-size: var(--text-md);
-    color: var(--bulcao-fg);
+    color: var(--color-text);
   }
   .card-q {
     font-size: var(--text-sm);
     line-height: 1.5;
-    color: var(--neutral-500);
+    color: var(--color-text-dim);
   }
 </style>

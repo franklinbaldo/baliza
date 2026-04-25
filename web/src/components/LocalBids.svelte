@@ -7,8 +7,7 @@
   import { fetchPublicacaoList } from '../lib/pncpPublicacao';
   import { getUserCoordinates, getCityFromCoords, getIBGECode, ufNomeToSigla } from '../lib/geo';
   import { setCity } from '../lib/cityContext.svelte';
-  import type { PNCPContract } from '../lib/pncp';
-  import type { ArchivedContrato } from '../lib/archive/schema';
+  import { archivedContratoToInternalContract, type PNCPContract } from '../lib/pncp';
   import { formatDate, formatParticao, truncate } from '../lib/format';
   import { resolve } from '../lib/baseUrl';
   import AlertBanner from './AlertBanner.svelte';
@@ -23,25 +22,6 @@
   interface LocalBidsView {
     contracts: PNCPContract[];
     archived?: { dataParticao: string | null };
-  }
-
-  function archivedRowToContract(row: ArchivedContrato): PNCPContract {
-    return {
-      numeroControlePNCP: row.numero_controle_pncp ?? '',
-      dataPublicacaoPncp: row.data_publicacao_pncp ?? '',
-      objetoContratacao: row.objeto_contrato ?? '',
-      valorTotalEstimado: row.valor_global ?? row.valor_inicial ?? null,
-      orgaoEntidade: {
-        razaoSocial: row.razao_social_orgao ?? '',
-        cnpj: row.cnpj_orgao ?? '',
-      },
-      unidadeOrgao: {
-        nomeUnidade: row.nome_unidade ?? '',
-        municipioNome: row.municipio_nome ?? '',
-        ufSigla: row.uf_sigla ?? '',
-        codigoMunicipioIbge: row.codigo_ibge ?? '',
-      },
-    };
   }
 
   const ibge = $derived(cityInfo?.ibge ?? '');
@@ -69,7 +49,7 @@
         return { contracts: contracts.slice(0, 5) };
       },
       buildFromArchive: ({ rows, dataParticao }) => ({
-        contracts: rows.map(archivedRowToContract),
+        contracts: rows.map((row) => archivedContratoToInternalContract(row)),
         archived: { dataParticao },
       }),
     }),

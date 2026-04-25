@@ -127,7 +127,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
               {
                 numeroControlePNCP: '00000000000191-1-000001/2024',
                 dataPublicacaoPncp: '2024-06-01T00:00:00',
-                objetoContratacao: 'Contrato PNCP ao vivo',
+                objetoCompra: 'Contrato PNCP ao vivo',
                 valorTotalEstimado: 10000,
                 orgaoEntidade: { razaoSocial: 'Órgão Vivo', cnpj: '00000000000191' },
                 unidadeOrgao: { nomeUnidade: 'Unidade' },

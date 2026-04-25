@@ -3,12 +3,11 @@
   import { getQueryClient } from '../lib/queryClient';
   import { QUERY_KEYS } from '../lib/queryKeys';
   import { prefetchArchive } from '../lib/parquetFallback';
-  import type { PNCPContract } from '../lib/pncp';
+  import { archivedContratoToInternalContract, type PNCPContract } from '../lib/pncp';
   import { fetchPublicacaoList } from '../lib/pncpPublicacao';
   import { formatBRL, formatDate, formatParticao, truncate } from '../lib/format';
   import { resolve } from '../lib/baseUrl';
   import { createListQuery } from '../lib/createListQuery';
-  import type { ArchivedContrato } from '../lib/archive/schema';
   import EntityNotFound from './EntityNotFound.svelte';
   import AlertBanner from './AlertBanner.svelte';
   import EmptyState from './EmptyState.svelte';
@@ -44,25 +43,6 @@
     archived?: { dataParticao: string | null };
   }
 
-  function archivedRowToContract(row: ArchivedContrato): PNCPContract {
-    return {
-      numeroControlePNCP: row.numero_controle_pncp ?? '',
-      dataPublicacaoPncp: row.data_publicacao_pncp ?? '',
-      objetoContratacao: row.objeto_contrato ?? '',
-      valorTotalEstimado: row.valor_global ?? row.valor_inicial ?? null,
-      orgaoEntidade: {
-        razaoSocial: row.razao_social_orgao ?? '',
-        cnpj: row.cnpj_orgao ?? '',
-      },
-      unidadeOrgao: {
-        nomeUnidade: row.nome_unidade ?? '',
-        municipioNome: row.municipio_nome ?? '',
-        ufSigla: row.uf_sigla ?? '',
-        codigoMunicipioIbge: row.codigo_ibge ?? '',
-      },
-    };
-  }
-
   const cityQuery = createQuery(() =>
     createListQuery<CityView | null>({
       queryKey: QUERY_KEYS.municipio(ibge, CITY_LOOKBACK_DAYS),
@@ -85,7 +65,7 @@
         return { name: cityName, uf, ibge, populacao: info?.populacao, contracts };
       },
       buildFromArchive: ({ rows, dataParticao }) => {
-        const contracts = rows.map(archivedRowToContract);
+        const contracts = rows.map((row) => archivedContratoToInternalContract(row));
         const info = getMunicipalityInfo(ibge);
         const first = rows[0];
         const cityName = info?.nome || (first?.municipio_nome ?? 'Município');
@@ -198,7 +178,6 @@
   .back-row { display: flex; }
 
   .hub-header { margin-bottom: var(--space-xl); border-bottom: 2px solid var(--color-base-300); padding-bottom: var(--space-md); }
-  .type-badge { font-family: var(--font-mono); font-size: 0.7rem; background: var(--color-primary); color: white; padding: 2px 8px; border-radius: 4px; }
   h1 { font-size: var(--font-size-2xl); margin-top: var(--space-sm); }
   .meta-row { display: flex; gap: var(--space-md); color: var(--color-secondary); font-size: var(--font-size-sm); margin-top: 4px; }
 

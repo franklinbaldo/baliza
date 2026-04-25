@@ -126,7 +126,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       const makeContract = (id: string) => ({
         numeroControlePNCP: id,
         dataPublicacaoPncp: '2025-01-15T00:00:00',
-        objetoContratacao: 'Teste fan-out',
+        objetoCompra: 'Teste fan-out',
         valorTotalEstimado: 100,
         orgaoEntidade: { razaoSocial: 'Órgão', cnpj: '99999999999999' },
         unidadeOrgao: { nomeUnidade: 'Unidade' },
@@ -214,7 +214,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
               {
                 numeroControlePNCP: '99999999999999-1-000001/2024',
                 dataPublicacaoPncp: '2025-01-15T00:00:00',
-                objetoContratacao: 'Teste',
+                objetoCompra: 'Teste',
                 valorTotalEstimado: 500,
                 orgaoEntidade: { razaoSocial: 'Órgão', cnpj: '99999999999999' },
                 unidadeOrgao: { nomeUnidade: 'Unidade' },

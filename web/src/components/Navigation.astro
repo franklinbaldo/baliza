@@ -18,7 +18,8 @@ const isCityActive = cleanPath === cityPrefix;
 <nav class="nav">
   <div class="container nav-content">
     <a href={BASE} class="logo">
-      <span class="logo-accent">Baliza</span> Monitor
+      <span class="brand-mark">B</span>
+      <span><span class="logo-accent">Baliza</span> Monitor</span>
     </a>
 
     <ul class="nav-links">
@@ -35,14 +36,29 @@ const isCityActive = cleanPath === cityPrefix;
 
 <style>
   .nav {
-    background: var(--neutral-0);
-    border-bottom: 1px solid var(--neutral-100);
-    height: 4.5rem;
+    background:
+      linear-gradient(90deg, color-mix(in srgb, var(--color-bg) 92%, transparent), color-mix(in srgb, var(--color-surface) 94%, transparent)),
+      var(--color-bg);
+    border-bottom: 1px solid var(--color-border);
+    min-height: 5rem;
     display: flex;
     align-items: center;
     position: sticky;
     top: 0;
     z-index: 100;
+    box-shadow: var(--shadow-pool-sm);
+    border-radius: 0 0 var(--radius-arch) 0;
+    overflow: hidden;
+  }
+  .nav::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 5px;
+    background: repeating-linear-gradient(90deg, var(--color-accent) 0 26px, var(--color-ouro) 26px 38px, var(--color-azul) 38px 64px, var(--color-tijolo) 64px 76px);
+    pointer-events: none;
   }
   .nav-content {
     display: flex;
@@ -50,56 +66,118 @@ const isCityActive = cleanPath === cityPrefix;
     align-items: center;
     width: 100%;
     gap: var(--space-4);
+    position: relative;
+    z-index: 1;
   }
   .logo {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.75rem;
     text-decoration: none;
-    color: var(--neutral-900);
-    font-family: var(--font-display);
+    color: var(--color-text);
+    font-family: var(--font-logo);
     font-size: var(--text-lg);
     flex-shrink: 0;
+    line-height: 1;
+  }
+  .brand-mark {
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    background: var(--color-text);
+    color: var(--color-bg);
+    border-radius: 0 var(--radius-arch) 0 0;
+    font-family: var(--font-logo);
+    font-size: 1.5rem;
   }
   .logo-accent {
-    color: var(--bulcao-accent);
+    color: var(--color-accent);
     font-weight: 500;
   }
   .nav-links {
     list-style: none;
     display: flex;
-    gap: var(--space-6);
-    overflow-x: auto; /* Allow horizontal scroll on very small screens instead of breaking layout */
+    gap: var(--space-2);
+    overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     padding: 0.5rem 0;
     margin: 0;
+    scrollbar-width: none;
+  }
+  .nav-links::-webkit-scrollbar {
+    display: none;
   }
   .nav-links a {
     text-decoration: none;
-    color: var(--neutral-500);
+    color: var(--color-text-dim);
     font-family: var(--font-body);
     font-weight: 500;
     font-size: var(--text-sm);
     transition: var(--transition-base);
     white-space: nowrap;
-    border-bottom: 2px solid transparent;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border: 1px solid transparent;
+    border-radius: var(--radius-pill);
+    padding: 0.45rem 0.7rem;
+    display: inline-flex;
+    align-items: center;
   }
   .nav-links a:hover, .nav-links a.active {
-    color: var(--bulcao-accent);
+    color: var(--color-text);
+    background: color-mix(in srgb, var(--color-azul) 12%, transparent);
+    border-color: color-mix(in srgb, var(--color-azul) 28%, transparent);
   }
   .nav-links a.active {
-    border-bottom-color: var(--bulcao-accent);
+    box-shadow: inset 3px 0 0 var(--color-accent);
   }
   .nav-links li.active-wrap :global(.city-nav-link) {
-    color: var(--bulcao-accent);
-    border-bottom-color: var(--bulcao-accent);
+    color: var(--color-text);
+    background: color-mix(in srgb, var(--color-azul) 12%, transparent);
+    border-color: color-mix(in srgb, var(--color-azul) 28%, transparent);
+    box-shadow: inset 3px 0 0 var(--color-accent);
   }
 
   /* Mobile Adjustments */
-  @media (max-width: 600px) {
-    .nav { height: auto; padding: 0.75rem 0; }
-    .nav-content { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
-    .nav-links { width: 100%; gap: var(--space-4); justify-content: flex-start; }
+  @media (max-width: 760px) {
+    .nav {
+      min-height: 0;
+      padding: 0.75rem 0 1rem;
+      border-radius: 0 0 2rem 0;
+    }
+    .nav-content {
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .nav-links {
+      order: 3;
+      width: 100%;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: var(--space-2);
+      overflow: visible;
+    }
+    .nav-links a,
+    .nav-links li :global(.city-nav-link) {
+      width: 100%;
+      justify-content: center;
+      font-size: 0.78rem;
+      padding: 0.45rem 0.5rem;
+      min-width: 0;
+    }
     .logo { font-size: 1.1rem; }
+    .brand-mark {
+      width: 2.35rem;
+      height: 2.35rem;
+      font-size: 1.25rem;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .nav-links {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
   }
 </style>

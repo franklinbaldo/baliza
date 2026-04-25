@@ -8,7 +8,7 @@
     queryArchivedTable,
     queryParquetFallback,
   } from '../lib/parquetFallback';
-  import type { PNCPContract } from '../lib/pncp';
+  import { archivedContratoToInternalContract, type PNCPContract } from '../lib/pncp';
   import { formatBRL, formatDate, formatParticao, truncate } from '../lib/format';
   import { resolve } from '../lib/baseUrl';
   import type { ArchivedContrato } from '../lib/archive/schema';
@@ -46,22 +46,6 @@
     avgTicket: number;
     topBuyerCnpj: string;
     archived: { dataParticao: string | null };
-  }
-
-  function archivedRowToContract(row: ArchivedContrato): PNCPContract {
-    return {
-      numeroControlePNCP: row.numero_controle_pncp ?? '',
-      dataPublicacaoPncp: row.data_publicacao_pncp ?? '',
-      objetoContratacao: row.objeto_contrato ?? '',
-      valorTotalEstimado: row.valor_global ?? row.valor_inicial ?? null,
-      orgaoEntidade: {
-        razaoSocial: row.razao_social_orgao ?? 'Órgão Arquivado',
-        cnpj: row.cnpj_orgao ?? '',
-      },
-      unidadeOrgao: {
-        nomeUnidade: row.nome_unidade ?? '',
-      },
-    };
   }
 
   function computeAvgTicket(rows: ArchivedContrato[]): number {
@@ -137,7 +121,7 @@
         return {
           name: archived.rows[0]?.nome_razao_social_fornecedor ?? cnpj,
           cnpj,
-          contracts: archived.rows.map(archivedRowToContract),
+          contracts: archived.rows.map((row) => archivedContratoToInternalContract(row)),
           avgTicket: computeAvgTicket(archived.rows),
           topBuyerCnpj: topBuyer(archived.rows),
           archived: { dataParticao: archived.dataParticao },

@@ -41,6 +41,10 @@ jobs:
           npm run check:full
         working-directory: web
 
+      - name: Validate PNCP boundary contracts
+        run: npm run test:contracts
+        working-directory: web
+
       - name: Run Tests
         run: npm run test
         working-directory: web
