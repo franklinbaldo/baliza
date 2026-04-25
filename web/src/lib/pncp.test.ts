@@ -78,6 +78,46 @@ describe('pncp parsers', () => {
     expect(out.orgaoEntidade.razaoSocial).toBe('Órgão Arquivado');
   });
 
+  it('keeps null data_publicacao_pncp instead of failing internal validation', () => {
+    const out = archivedContratoToInternalContract({
+      numero_controle_pncp: '12345678000195-1-000099/2024',
+      data_publicacao_pncp: null,
+      objeto_contrato: 'Linha arquivada sem data de publicação',
+      cnpj_orgao: '12345678000195',
+      razao_social_orgao: 'Órgão Arquivado',
+      nome_unidade: 'Unidade',
+      municipio_nome: 'Brasília',
+      uf_sigla: 'DF',
+      codigo_ibge: '5300108',
+    } as Parameters<typeof archivedContratoToInternalContract>[0]);
+
+    expect(out.dataPublicacaoPncp).toBeNull();
+    expect(out.objetoContratacao).toBe('Linha arquivada sem data de publicação');
+  });
+
+  it('keeps internal aliases when storage aliases are absent', () => {
+    const out = parsePncpPublicacaoList({
+      data: [
+        {
+          numeroControlePNCP: '12345678000195-1-000004/2024',
+          dataPublicacaoPncp: '2024-05-04',
+          objetoCompra: 'Aquisição com aliases internos preservados',
+          orgaoEntidade: { razaoSocial: 'Órgão', cnpj: '12345678000195' },
+          unidadeOrgao: {
+            nomeUnidade: 'Unidade',
+            // No `codigoIbge`; only the internal alias is provided.
+            codigoMunicipioIbge: '1100205',
+          },
+          // No `situacaoCompraNome`; only the internal alias is provided.
+          situacaoNome: 'Divulgada no PNCP',
+        },
+      ],
+    });
+
+    expect(out[0].unidadeOrgao.codigoMunicipioIbge).toBe('1100205');
+    expect(out[0].situacaoNome).toBe('Divulgada no PNCP');
+  });
+
   it('logs PNCP_INVALID telemetry tag and rethrows on malformed contract', () => {
     const info = vi.spyOn(console, 'info').mockImplementation(() => {});
     expect(() => parsePncpContract({ junk: true })).toThrow();

@@ -24,7 +24,10 @@ const PNCPContractItemSchema = z
 export const PNCPContractSchema = z
   .object({
     numeroControlePNCP: z.string().min(1),
-    dataPublicacaoPncp: z.string().min(1),
+    // Live PNCP always sends a publication date, but archive rows may have
+    // it null. Keep the internal type permissive so a single archived row
+    // without a date does not break the entire fallback view.
+    dataPublicacaoPncp: z.string().nullable(),
     objetoContratacao: z.string(),
     valorTotalEstimado: z.number().nullable().optional(),
     valorTotalHomologado: z.number().nullable().optional(),
@@ -106,13 +109,20 @@ export type PNCPContract = z.infer<typeof PNCPContractSchema>;
 function toInternalContract(
   item: z.infer<typeof PNCPConsultaContractSchema>,
 ): PNCPContract {
+  // The consulta payload uses storage names (`objetoCompra`, `codigoIbge`,
+  // `situacaoCompraNome`) but `passthrough()` keeps unknown keys, so a payload
+  // could also carry the internal aliases. Use nullish fallback so we never
+  // overwrite a present internal field with an undefined storage alias.
+  const passthrough = item as Record<string, unknown>;
+  const unidadePassthrough = item.unidadeOrgao as Record<string, unknown>;
   return PNCPContractSchema.parse({
     ...item,
-    objetoContratacao: item.objetoCompra,
-    situacaoNome: item.situacaoCompraNome,
+    objetoContratacao: item.objetoCompra ?? passthrough.objetoContratacao,
+    situacaoNome: item.situacaoCompraNome ?? passthrough.situacaoNome,
     unidadeOrgao: {
       ...item.unidadeOrgao,
-      codigoMunicipioIbge: item.unidadeOrgao.codigoIbge,
+      codigoMunicipioIbge:
+        item.unidadeOrgao.codigoIbge ?? unidadePassthrough.codigoMunicipioIbge,
     },
   });
 }
@@ -123,7 +133,8 @@ export function archivedContratoToInternalContract(
 ): PNCPContract {
   return PNCPContractSchema.parse({
     numeroControlePNCP: row.numero_controle_pncp ?? fallbackId,
-    dataPublicacaoPncp: row.data_publicacao_pncp ?? '',
+    // Archive rows are nullable; `formatDate`/sort already handle null.
+    dataPublicacaoPncp: row.data_publicacao_pncp,
     objetoContratacao: row.objeto_contrato ?? '',
     valorTotalEstimado: row.valor_global ?? row.valor_inicial ?? null,
     modalidadeNome: row.modalidade_nome ?? undefined,
