@@ -205,9 +205,9 @@
           </header>
           <ul class="action-list">
             <li>
-              <a href={resolve(`municipio?ibge=${ibge}&dias=90`)}>
-                <strong>Contratações dos últimos 90 dias</strong>
-                <span>Panorama trimestral do município</span>
+              <a href={resolve(`municipio?ibge=${ibge}`)}>
+                <strong>Histórico arquivado do município</strong>
+                <span>Consulta consolidada no Parquet público</span>
               </a>
             </li>
             <li>
@@ -238,8 +238,19 @@
 <style>
   .city-pulse {
     padding: var(--space-8) 0;
-    background: var(--neutral-50);
-    border-bottom: 1px solid var(--neutral-100);
+    background:
+      linear-gradient(color-mix(in srgb, var(--color-surface) 94%, transparent), color-mix(in srgb, var(--color-surface) 94%, transparent)),
+      var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+    position: relative;
+  }
+  .city-pulse::before {
+    content: "";
+    display: block;
+    width: min(14rem, 40vw);
+    height: 5px;
+    margin: 0 0 var(--space-6);
+    background: repeating-linear-gradient(90deg, var(--color-accent) 0 36px, var(--color-ouro) 36px 50px, var(--color-azul) 50px 82px);
   }
   .pulse-head {
     max-width: 720px;
@@ -256,10 +267,10 @@
   }
   .pulse-head h2 em {
     font-style: normal;
-    color: var(--bulcao-accent);
+    color: var(--color-accent);
   }
   .pulse-sub {
-    color: var(--neutral-500);
+    color: var(--color-text-dim);
     font-size: var(--text-md);
     line-height: 1.6;
   }
@@ -276,35 +287,54 @@
   .pulse-col {
     padding: var(--space-5);
     gap: var(--space-4);
-    background: var(--neutral-0);
-    border: 1px solid var(--neutral-100);
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-left: 5px solid var(--color-azul);
+    border-radius: var(--radius-0);
     display: grid;
     grid-template-rows: auto 1fr auto;
+    position: relative;
+    overflow: hidden;
+  }
+  .pulse-col:nth-child(2) { border-left-color: var(--color-verde); }
+  .pulse-col:nth-child(3) { border-left-color: var(--color-ouro); }
+  .pulse-col::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(color-mix(in srgb, var(--color-text) 5%, transparent) 1px, transparent 1px),
+      linear-gradient(90deg, color-mix(in srgb, var(--color-text) 5%, transparent) 1px, transparent 1px);
+    background-size: 16px 16px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--duration-fast) var(--ease);
   }
   .pulse-col:hover {
-    border-color: var(--neutral-200);
-    transform: none;
-    box-shadow: none;
+    border-color: var(--color-azul);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-pool-sm);
   }
+  .pulse-col:hover::after { opacity: 1; }
   .col-head {
     display: grid;
     gap: var(--space-1);
     padding-bottom: var(--space-3);
-    border-bottom: 1px solid var(--neutral-100);
+    border-bottom: 1px solid var(--color-border);
   }
   .col-kicker {
     font-family: var(--font-mono);
     font-size: var(--text-xs);
     letter-spacing: 0.16em;
     text-transform: uppercase;
-    color: var(--bulcao-support);
+    color: var(--color-azul);
   }
   .col-head h3 {
     font-family: var(--font-display);
     font-weight: 400;
     font-size: var(--text-lg);
     line-height: 1.2;
-    color: var(--bulcao-fg);
+    color: var(--color-text);
   }
   .col-list {
     list-style: none;
@@ -322,13 +352,13 @@
       'org org';
     gap: 2px 10px;
     padding: 10px 0;
-    border-bottom: 1px dotted var(--neutral-100);
+    border-bottom: 1px dotted var(--color-border);
     color: inherit;
   }
   .col-list li:last-child a { border-bottom: none; }
   .col-list a:hover,
   .col-list a:focus-visible {
-    color: var(--bulcao-accent);
+    color: var(--color-accent);
   }
   .row-meta {
     grid-area: meta;
@@ -337,9 +367,9 @@
     font-family: var(--font-mono);
     font-size: var(--text-xs);
     letter-spacing: 0.04em;
-    color: var(--neutral-500);
+    color: var(--color-text-dim);
   }
-  .row-date { color: var(--bulcao-support); }
+  .row-date { color: var(--color-azul); }
   .row-mod {
     text-transform: uppercase;
     letter-spacing: 0.08em;
@@ -348,7 +378,7 @@
     grid-area: meta;
     font-family: var(--font-mono);
     font-size: var(--text-md);
-    color: var(--bulcao-accent);
+    color: var(--color-accent);
     line-height: 1;
   }
   .row-obj {
@@ -364,38 +394,38 @@
   .row-org {
     grid-area: org;
     font-size: var(--text-xs);
-    color: var(--neutral-500);
+    color: var(--color-text-dim);
   }
   .col-empty {
     font-size: var(--text-sm);
-    color: var(--neutral-500);
+    color: var(--color-text-dim);
     margin: 0;
   }
   .col-note {
     font-size: var(--text-xs);
-    color: var(--neutral-500);
+    color: var(--color-text-dim);
     font-style: italic;
     margin: 0;
     line-height: 1.4;
   }
   .col-foot {
     padding-top: var(--space-2);
-    border-top: 1px solid var(--neutral-100);
+    border-top: 1px solid var(--color-border);
   }
   .col-more {
     font-family: var(--font-mono);
     font-size: var(--text-xs);
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--bulcao-accent);
+    color: var(--color-accent);
     border-bottom: 2px solid transparent;
     padding: 2px 0;
   }
   .col-more:hover,
   .col-more:focus-visible {
-    border-bottom-color: var(--bulcao-accent);
+    border-bottom-color: var(--color-accent);
   }
-  .pulse-col--actions .col-head { border-bottom-color: var(--bulcao-support); }
+  .pulse-col--actions .col-head { border-bottom-color: var(--color-azul); }
   .action-list {
     list-style: none;
     margin: 0;
@@ -407,23 +437,24 @@
     display: grid;
     gap: 2px;
     padding: var(--space-3);
-    border: 1px solid var(--neutral-100);
+    border: 1px solid var(--color-border);
+    background: color-mix(in srgb, var(--color-surface) 34%, transparent);
     color: inherit;
   }
   .action-list a:hover,
   .action-list a:focus-visible {
-    border-color: var(--bulcao-support);
-    background: var(--neutral-0);
+    border-color: var(--color-azul);
+    background: color-mix(in srgb, var(--color-azul) 9%, transparent);
   }
   .action-list strong {
     font-family: var(--font-display);
     font-weight: 500;
     font-size: var(--text-md);
-    color: var(--bulcao-fg);
+    color: var(--color-text);
   }
   .action-list span {
     font-size: var(--text-sm);
-    color: var(--neutral-500);
+    color: var(--color-text-dim);
     line-height: 1.4;
   }
   .skeleton-h { height: 1.5rem; width: 50%; }
