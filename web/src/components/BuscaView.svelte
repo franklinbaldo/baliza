@@ -16,9 +16,9 @@
   const { q: qProp = '' }: { q?: string } = $props();
 
   function initialQ(): string {
-    if (qProp) return qProp;
+    if (qProp) return qProp.trim();
     if (typeof window === 'undefined') return '';
-    return new URLSearchParams(window.location.search).get('q') ?? '';
+    return (new URLSearchParams(window.location.search).get('q') ?? '').trim();
   }
 
   let searchInput = $state(initialQ());
