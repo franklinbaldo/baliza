@@ -32,14 +32,11 @@
   // Landing on /busca?q=<canonical PNCP id> jumps straight to the detail
   // page — same shortcut as handleSubmit, applied for users arriving via
   // the plain-HTML homepage form that has no JS to pre-detect ids.
-  // replaceState strips the ?q=<id> entry so the browser Back button returns
-  // to wherever the user came from rather than looping back here.
+  // navigateReplace replaces the /busca entry so Back skips it entirely and
+  // returns the user to wherever they came from.
   $effect(() => {
     if (submittedQ && isPncpId(submittedQ)) {
-      if (typeof window !== 'undefined') {
-        window.history.replaceState({}, '', window.location.pathname);
-      }
-      nav.navigate(resolve(`contratacao?id=${submittedQ}`));
+      nav.navigateReplace(resolve(`contratacao?id=${submittedQ}`));
     }
   });
 
