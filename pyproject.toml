@@ -7,7 +7,7 @@ name = "baliza"
 version = "0.1.0"
 description = "Simple PNCP data extraction tool using httpx and DuckDB."
 authors = [{ name = "Franklin Baldo", email = "frank@franklinbaldo.com" }]
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 
 dependencies = [
     "typer>=0.9.0",

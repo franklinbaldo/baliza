@@ -2,6 +2,7 @@
 import Layout from '../layouts/Layout.astro';
 import CityHero from '../components/CityHero.svelte';
 import CityPulse from '../components/CityPulse.svelte';
+import HomeBuscaForm from '../components/HomeBuscaForm.svelte';
 import MonitorGrid from '../components/MonitorGrid.astro';
 import TrustStrip from '../components/TrustStrip.astro';
 import OrnamentBand from '../components/OrnamentBand.astro';
@@ -62,6 +63,18 @@ const TOOLS: Array<{
   <!-- 2. Immediate utility: real recent activity for the active city. -->
   <CityPulse client:load />
 
+  <!-- 2b. Free-text escape hatch for visitors who know what they're looking
+       for. Plain HTML GET form — zero JS on the homepage path (the island
+       ships no client directive; Astro renders it to HTML at build time).
+       BuscaView on the target page detects canonical PNCP-id shapes and
+       forwards them to /contratacao. -->
+  <section class="home-busca-strip" aria-labelledby="home-busca-title">
+    <div class="container">
+      <h2 id="home-busca-title" class="sr-only">Buscar no PNCP</h2>
+      <HomeBuscaForm />
+    </div>
+  </section>
+
   <OrnamentBand variant="wave" height={36} />
 
   <!-- 3. What you can monitor — compact, citizen-legible prompts. -->
@@ -87,7 +100,7 @@ const TOOLS: Array<{
   <WatchList client:only="svelte" />
 
   <!-- 7. Utilidades avançadas: compact secondary entry points. Demoted link
-       grid — no second hero, no second search box. -->
+       grid — no second hero. The single search input lives in section 2b. -->
   <section class="tools-strip" aria-labelledby="tools-title">
     <div class="container">
       <header class="tools-head">
@@ -119,6 +132,16 @@ const TOOLS: Array<{
 </Layout>
 
 <style>
+  .home-busca-strip {
+    padding: var(--space-5) 0;
+    background: var(--neutral-0);
+    border-bottom: 1px solid var(--neutral-100);
+  }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+
   .signal-strip {
     padding: var(--space-7) 0;
     background: var(--color-bg);

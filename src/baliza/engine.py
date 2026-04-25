@@ -154,5 +154,5 @@ class BalizaEngine:
         try:
             if hasattr(self, "con"):
                 self.con.disconnect()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("duckdb_disconnect_error", error=str(e))
