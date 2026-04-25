@@ -158,6 +158,18 @@
   // The export buttons act on what the user sees — i.e. filteredResults,
   // not the raw fetch — so the file matches the on-screen aggregate strip.
   let copyStatus = $state<'idle' | 'copied' | 'error'>('idle');
+  let copyTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Clear any pending status reset when the component unmounts so the
+  // timer cannot fire a state assignment after destroy.
+  $effect(() => {
+    return () => {
+      if (copyTimer !== null) {
+        clearTimeout(copyTimer);
+        copyTimer = null;
+      }
+    };
+  });
 
   function exportCsv(): void {
     const slug = (submittedQ || 'busca').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'busca';
@@ -172,8 +184,11 @@
     } catch {
       copyStatus = 'error';
     }
-    setTimeout(() => {
+    // Cancel any pending reset so rapid clicks do not stack timers.
+    if (copyTimer !== null) clearTimeout(copyTimer);
+    copyTimer = setTimeout(() => {
       copyStatus = 'idle';
+      copyTimer = null;
     }, 2000);
   }
 </script>
