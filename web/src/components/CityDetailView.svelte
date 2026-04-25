@@ -143,7 +143,6 @@
 </EntityDetailLayout>
 
 <style>
-
   .stats-row { display: flex; gap: var(--space-md); margin-bottom: var(--space-xl); align-items: center; flex-wrap: wrap; }
 
   .recent-list { display: grid; gap: var(--space-md); }
