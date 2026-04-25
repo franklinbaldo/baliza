@@ -11,6 +11,7 @@ import * as pncpPublicacao from '../../../lib/pncpPublicacao';
 import type { PNCPContract } from '../../../lib/pncp';
 import * as parquetFallback from '../../../lib/parquetFallback';
 import type { ArchivedContrato } from '../../../lib/archive/schema';
+import { __setCatmatEntriesForTest } from '../../../lib/catmat';
 
 const ContractDetailView = ContractDetailViewRaw as unknown as Parameters<typeof render>[0];
 const AtasView = AtasViewRaw as unknown as Parameters<typeof render>[0];
@@ -112,6 +113,14 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   Scenario('Resolve a CATMAT or CATSER code from a free-text description', ({ Given, Then }) => {
     Given('the user types "papel sulfite branco A4 75g" into a catalog input', async () => {
       cleanup();
+      // Inject a representative slice so the search runs without hitting the
+      // /data/catmat.json endpoint (CatmatSearch fetches it on first use).
+      __setCatmatEntriesForTest([
+        { code: '19746', description: 'PAPEL PARA IMPRESSÃO FORMATADO', type: 'CATMAT' },
+        { code: '10383', description: 'PAPEL HIGIÊNICO', type: 'CATMAT' },
+        { code: '26824', description: 'OUTSOURCING DE IMPRESSAO PAGINAS A4 MONOCROMATICA COM PAPEL', type: 'CATSER' },
+        { code: '37', description: 'AGENDA', type: 'CATMAT' },
+      ]);
       render(CatmatSearch);
       await tick();
       const input = screen.getByLabelText('Descrição do item para busca CATMAT');
@@ -166,7 +175,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
           unidadeOrgao: { nomeUnidade: 'Secretaria', codigoMunicipioIbge: '3550310' },
         } as unknown as PNCPContract,
       ];
-      vi.spyOn(pncpPublicacao, 'fetchPublicacaoList').mockResolvedValue(dispensas);
+      vi.spyOn(pncpPublicacao, 'fetchDispensaPagesForObjeto').mockResolvedValue(dispensas);
       render(DispensasView);
       await tick();
     });

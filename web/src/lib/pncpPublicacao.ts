@@ -116,3 +116,53 @@ export async function fetchPublicacaoList(
   });
   return merged.slice(0, clamped);
 }
+
+// Modality 8 = Dispensa de Licitação. PNCP caps a single page at 50 rows and
+// has no server-side `objeto` filter, so we paginate up to MAX_DISPENSA_PAGES
+// (~250 most-recent dispensas) and narrow client-side. The cap traded for
+// latency is documented in the page footer; raising it is a UX call.
+export const MAX_DISPENSA_PAGES = 5;
+const DISPENSA_SINCE_DAYS = 365;
+
+function buildDispensaUrl(pagina: number, dataInicial: string, dataFinal: string): string {
+  const params = new URLSearchParams({
+    dataInicial,
+    dataFinal,
+    codigoModalidadeContratacao: '8',
+    pagina: String(pagina),
+    tamanhoPagina: '50',
+  });
+  return `${PUBLICACAO_URL}?${params.toString()}`;
+}
+
+export async function fetchDispensaPagesForObjeto(
+  objeto: string,
+  opts: { maxPages?: number; sinceDays?: number; now?: Date } = {},
+): Promise<PNCPContract[]> {
+  const term = objeto.trim().toLowerCase();
+  if (!term) return [];
+  const { maxPages = MAX_DISPENSA_PAGES, sinceDays = DISPENSA_SINCE_DAYS, now = new Date() } = opts;
+
+  const end = new Date(now);
+  const start = new Date(end);
+  start.setUTCDate(start.getUTCDate() - sinceDays);
+  const dataInicial = yyyymmdd(start);
+  const dataFinal = yyyymmdd(end);
+
+  const collected = new Map<string, PNCPContract>();
+  for (let pagina = 1; pagina <= maxPages; pagina++) {
+    const res = await fetch(buildDispensaUrl(pagina, dataInicial, dataFinal));
+    if (!res.ok) break;
+    const page = parsePncpPublicacaoList(await res.json());
+    if (!page.length) break;
+    for (const c of page) {
+      const objetoLower = (c.objetoContratacao ?? '').toLowerCase();
+      if (!objetoLower.includes(term)) continue;
+      if (c.numeroControlePNCP && !collected.has(c.numeroControlePNCP)) {
+        collected.set(c.numeroControlePNCP, c);
+      }
+    }
+    if (page.length < 50) break; // last page
+  }
+  return [...collected.values()];
+}
