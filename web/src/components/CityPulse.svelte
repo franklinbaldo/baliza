@@ -46,7 +46,11 @@
         return { contracts };
       },
       buildFromArchive: ({ rows, dataParticao }) => ({
-        contracts: rows.map((row) => archivedContratoToInternalContract(row)),
+        // Mirror the live query's modalidade scope so the section labelled
+        // "pregões eletrônicos" never shows other modalities from the snapshot.
+        contracts: rows
+          .filter((row) => row.modalidade_id === PULSE_MODALIDADE)
+          .map((row) => archivedContratoToInternalContract(row)),
         archived: { dataParticao },
       }),
     }),

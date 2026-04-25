@@ -124,13 +124,22 @@ export function buildRawArchiveStatus(raw: unknown): RawArchiveStatus {
   };
 }
 
+// Internet Archive mirrors occasionally stall mid-response. Without a timeout
+// here the `/status` page would hang indefinitely waiting for the slowest
+// view_archive.php endpoint instead of falling back to a partial view.
+const CONTRACTS_PAGE_TIMEOUT_MS = 8_000;
+
 async function fetchContractsCountFromPage(url: string): Promise<number | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CONTRACTS_PAGE_TIMEOUT_MS);
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: controller.signal });
     if (!res.ok) return null;
     return ContractsPageSchema.parse(await res.json()).totalRegistros;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
