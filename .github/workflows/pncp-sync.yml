@@ -35,7 +35,7 @@ jobs:
       SYNC_LIMIT_MINUTES: 357
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v4
+      - uses: astral-sh/setup-uv@v7
       - id: month
         run: echo "key=$(date +'%Y-%m')" >> $GITHUB_OUTPUT
       - uses: actions/cache@v5
