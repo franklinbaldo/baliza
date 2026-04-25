@@ -23,14 +23,16 @@ const isCityActive = cleanPath === cityPrefix;
     </a>
 
     <ul class="nav-links">
-      <li><a href={BASE} class={isActive(BASE) ? 'active' : ''} aria-current={isActive(BASE) ? 'page' : undefined}>Início</a></li>
       <li class={isCityActive ? 'active-wrap' : ''}><CityNavLink client:load isActive={isCityActive} /></li>
       <li><a href={BASE + 'explorador'} class={isActive(BASE + 'explorador') ? 'active' : ''} aria-current={isActive(BASE + 'explorador') ? 'page' : undefined}>Explorador</a></li>
-      <li><a href={BASE + 'status'} class={isActive(BASE + 'status') ? 'active' : ''} aria-current={isActive(BASE + 'status') ? 'page' : undefined}>Status</a></li>
-      <li><a href={BASE + 'desenvolvedores'} class={isActive(BASE + 'desenvolvedores') ? 'active' : ''} aria-current={isActive(BASE + 'desenvolvedores') ? 'page' : undefined}>Desenvolvedores</a></li>
-      <li><a href={BASE + 'sobre'} class={isActive(BASE + 'sobre') ? 'active' : ''} aria-current={isActive(BASE + 'sobre') ? 'page' : undefined}>Sobre</a></li>
     </ul>
-    <ThemeToggle client:only="svelte" />
+
+    <div class="nav-actions">
+      <a href={BASE + 'busca'} class="icon-btn" aria-label="Buscar" title="Buscar">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+      </a>
+      <ThemeToggle client:only="svelte" />
+    </div>
   </div>
 </nav>
 
@@ -137,6 +139,25 @@ const isCityActive = cleanPath === cityPrefix;
     background: color-mix(in srgb, var(--color-azul) 12%, transparent);
     border-color: color-mix(in srgb, var(--color-azul) 28%, transparent);
     box-shadow: inset 3px 0 0 var(--color-accent);
+  }
+
+  .nav-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .icon-btn {
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: var(--radius-full);
+    color: var(--color-text-dim);
+    transition: var(--transition-base);
+  }
+  .icon-btn:hover {
+    color: var(--color-text);
+    background: color-mix(in srgb, var(--color-azul) 12%, transparent);
   }
 
   /* Mobile Adjustments */
