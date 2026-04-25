@@ -461,7 +461,10 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                         if not dry_run:
                             progress.update(tid, description=f"Month {month_str} [Uploading]")
                             if ia_access_key and ia_secret_key:
-                                uploader.upload_month(
+                                # Use thread_engine so export reads from the same
+                                # in-memory DB that ingest_range just populated.
+                                thread_uploader = IAUploader(thread_engine)
+                                thread_uploader.upload_month(
                                     start_of_month, Path("data/processed"), ia_access_key, ia_secret_key,
                                     quarantine_stats=stats, quarantine_csv=q_csv if has_q else None
                                 )

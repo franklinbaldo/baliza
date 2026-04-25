@@ -225,6 +225,8 @@
     <div class="skeleton-wrap" aria-busy="true" aria-label="Buscando contratações">
       <div class="skeleton skeleton-bid"></div>
       <div class="skeleton skeleton-bid"></div>
+      <div class="skeleton skeleton-bid"></div>
+      <div class="skeleton skeleton-bid"></div>
     </div>
   {:else if error}
     <AlertBanner title="Não foi possível buscar" message={error.message} level="error" />
@@ -325,7 +327,7 @@
                 <span class="agency">{c.orgaoEntidade?.razaoSocial ?? 'Órgão'}</span>
                 <span class="modality">{c.modalidadeNome ?? ''}</span>
               </div>
-              <p class="objeto">{truncate(c.objetoContratacao, 180)}</p>
+              <p class="objeto" title={c.objetoContratacao}>{truncate(c.objetoContratacao, 180)}</p>
               <div class="result-foot">
                 <span class="date">{formatDate(c.dataPublicacaoPncp ?? '')}</span>
                 <span class="valor">{formatBRL(c.valorTotalEstimado ?? null)}</span>

@@ -9,7 +9,10 @@ import RawArchiveStatus from '../components/RawArchiveStatus.svelte';
 >
   <section class="status-section container">
     <div class="status-header">
-      <h1 class="section-title">Status do Pipeline</h1>
+      <div class="header-with-badge">
+        <h1 class="section-title">Status do Pipeline</h1>
+        <span class="badge operational">🟢 Operacional</span>
+      </div>
       <p class="section-desc">
         Acompanhe o estado do item bruto no Internet Archive. Esta tela lê
         diretamente os metadados públicos de <code>baliza-pncp-raw</code>,
@@ -32,8 +35,24 @@ import RawArchiveStatus from '../components/RawArchiveStatus.svelte';
   }
   .section-title {
     font-size: var(--font-size-3xl);
-    margin-bottom: var(--space-xs);
     color: var(--color-primary);
+    margin: 0;
+  }
+  .header-with-badge {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    margin-bottom: var(--space-xs);
+  }
+  .badge.operational {
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+    color: var(--color-success);
+    border: 1px solid color-mix(in srgb, var(--color-success) 30%, transparent);
+    padding: 4px 12px;
+    border-radius: var(--radius-pill);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    font-family: var(--font-mono);
   }
   .section-desc {
     color: var(--color-secondary);
