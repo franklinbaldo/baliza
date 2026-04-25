@@ -1,0 +1,11 @@
+---
+import Layout from '../layouts/Layout.astro';
+import CatmatSearch from '../components/CatmatSearch.svelte';
+---
+
+<Layout
+  title="Busca CATMAT/CATSER"
+  description="Encontre o código CATMAT ou CATSER correspondente a uma descrição de material ou serviço público."
+>
+  <CatmatSearch client:only="svelte" />
+</Layout>

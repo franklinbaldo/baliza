@@ -17,15 +17,20 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DIST_DIR = join(__dirname, '..', 'dist', '_astro');
 
-// Current baseline: 310_000 bytes — measured size (~296 KB) plus headroom,
+// Current baseline: 330_000 bytes — measured size (~318 KB) plus headroom,
 // with room absorbed by the SupplierDetailView shipped for Journey 1 @green
-// (/fornecedor?cnpj= supplier prospecting page) and the citizen-first
+// (/fornecedor?cnpj= supplier prospecting page), the citizen-first
 // homepage islands (CityHero + CityPulse + CityNavLink + shared
 // cityContext.svelte rune) that shift the landing fold from project
-// manifesto to "what is my city buying?". When an intentional feature
-// increases the baseline, raise this constant in the same commit and note
-// what landed.
-const BUDGET_BYTES = 310_000;
+// manifesto to "what is my city buying?", the BuscaView UF + modality
+// filters with aggregate strip (Journey 1 "Filter contracts by UF and
+// modality recomputes aggregates") plus the lazy-loaded accent lexicon
+// behind the zero-result suggestion path ("Empty search suggests accent-
+// tolerant alternatives"), and the Curva & Concreto refresh + IA-derived
+// /status page from PR #471 (RawArchiveStatus island + dual PNCP/Consulta
+// boundary schemas in pncp.ts). When an intentional feature increases the
+// baseline, raise this constant in the same commit and note what landed.
+const BUDGET_BYTES = 330_000;
 
 function isClientEntryFile(name) {
   if (!name.endsWith('.js')) return false;

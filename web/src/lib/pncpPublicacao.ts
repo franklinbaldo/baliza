@@ -135,3 +135,139 @@ export async function fetchPublicacaoList(
   });
   return merged.slice(0, clamped);
 }
+
+// Modality 8 = Dispensa de Licitação. PNCP caps a single page at 50 rows and
+// has no server-side `objeto` filter, so we paginate up to MAX_DISPENSA_PAGES
+// (~250 most-recent dispensas) and narrow client-side. The cap traded for
+// latency is documented in the page footer; raising it is a UX call.
+export const MAX_DISPENSA_PAGES = 5;
+const DISPENSA_SINCE_DAYS = 365;
+
+function buildPageUrl(
+  modalidade: number,
+  pagina: number,
+  dataInicial: string,
+  dataFinal: string,
+): string {
+  const params = new URLSearchParams({
+    dataInicial,
+    dataFinal,
+    codigoModalidadeContratacao: String(modalidade),
+    pagina: String(pagina),
+    tamanhoPagina: '50',
+  });
+  return `${PUBLICACAO_URL}?${params.toString()}`;
+}
+
+// Free-text search across the DEFAULT_MODALIDADES (covers ~95% of municipal
+// procurement). PNCP has no server-side `objeto` filter, so we paginate each
+// modality up to MAX_BUSCA_PAGES and narrow client-side. Six modalities × 3
+// pages × 50 rows ≈ 900 records scanned per query; raising the cap is a UX
+// call traded against latency.
+export const MAX_BUSCA_PAGES = 3;
+const BUSCA_SINCE_DAYS = 365;
+
+export async function fetchPublicacaoPagesForObjeto(
+  objeto: string,
+  opts: {
+    maxPages?: number;
+    sinceDays?: number;
+    modalidades?: readonly number[];
+    now?: Date;
+  } = {},
+): Promise<PNCPContract[]> {
+  const term = objeto.trim().toLowerCase();
+  if (!term) return [];
+  const {
+    maxPages = MAX_BUSCA_PAGES,
+    sinceDays = BUSCA_SINCE_DAYS,
+    modalidades = DEFAULT_MODALIDADES,
+    now = new Date(),
+  } = opts;
+
+  const end = new Date(now);
+  const start = new Date(end);
+  start.setUTCDate(start.getUTCDate() - sinceDays);
+  const dataInicial = yyyymmdd(start);
+  const dataFinal = yyyymmdd(end);
+
+  const fetches: Array<Promise<PNCPContract[]>> = [];
+  for (const modalidade of modalidades) {
+    for (let pagina = 1; pagina <= maxPages; pagina++) {
+      fetches.push(
+        (async () => {
+          const res = await fetch(buildPageUrl(modalidade, pagina, dataInicial, dataFinal));
+          if (!res.ok) {
+            throw new Error(
+              `PNCP publicacao returned ${res.status} for modalidade ${modalidade} page ${pagina}`,
+            );
+          }
+          return parsePncpPublicacaoList(await res.json());
+        })(),
+      );
+    }
+  }
+
+  // allSettled so one modality/page failure doesn't nuke the whole search;
+  // only rethrow if every request failed so the caller sees a clean error.
+  const settled = await Promise.allSettled(fetches);
+  const ok = settled.filter(
+    (r): r is PromiseFulfilledResult<PNCPContract[]> => r.status === 'fulfilled',
+  );
+  if (ok.length === 0) {
+    throw new Error('PNCP não retornou resultados para nenhuma modalidade.');
+  }
+
+  const collected = new Map<string, PNCPContract>();
+  for (const r of ok) {
+    for (const c of r.value) {
+      const objetoLower = (c.objetoContratacao ?? '').toLowerCase();
+      if (!objetoLower.includes(term)) continue;
+      if (c.numeroControlePNCP && !collected.has(c.numeroControlePNCP)) {
+        collected.set(c.numeroControlePNCP, c);
+      }
+    }
+  }
+  return [...collected.values()].sort((a, b) => {
+    const ad = a.dataPublicacaoPncp ?? '';
+    const bd = b.dataPublicacaoPncp ?? '';
+    return bd.localeCompare(ad);
+  });
+}
+
+export async function fetchDispensaPagesForObjeto(
+  objeto: string,
+  opts: { maxPages?: number; sinceDays?: number; now?: Date } = {},
+): Promise<PNCPContract[]> {
+  const term = objeto.trim().toLowerCase();
+  if (!term) return [];
+  const { maxPages = MAX_DISPENSA_PAGES, sinceDays = DISPENSA_SINCE_DAYS, now = new Date() } = opts;
+
+  const end = new Date(now);
+  const start = new Date(end);
+  start.setUTCDate(start.getUTCDate() - sinceDays);
+  const dataInicial = yyyymmdd(start);
+  const dataFinal = yyyymmdd(end);
+
+  const collected = new Map<string, PNCPContract>();
+  for (let pagina = 1; pagina <= maxPages; pagina++) {
+    const res = await fetch(buildPageUrl(8, pagina, dataInicial, dataFinal));
+    if (!res.ok) {
+      // Surface a real error instead of silently returning a partial result —
+      // an empty list would render "Nenhuma base legal encontrada" and mask
+      // the API/transport fault.
+      throw new Error(`PNCP publicacao returned ${res.status} for dispensa page ${pagina}`);
+    }
+    const page = parsePncpPublicacaoList(await res.json());
+    if (!page.length) break;
+    for (const c of page) {
+      const objetoLower = (c.objetoContratacao ?? '').toLowerCase();
+      if (!objetoLower.includes(term)) continue;
+      if (c.numeroControlePNCP && !collected.has(c.numeroControlePNCP)) {
+        collected.set(c.numeroControlePNCP, c);
+      }
+    }
+    if (page.length < 50) break; // last page
+  }
+  return [...collected.values()];
+}

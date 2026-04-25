@@ -1,14 +1,21 @@
 import { loadFeature, describeFeature } from '@amiceli/vitest-cucumber';
-import { screen, cleanup, waitFor } from '@testing-library/svelte/pure';
+import { screen, cleanup, waitFor, fireEvent } from '@testing-library/svelte/pure';
 import { vi, expect } from 'vitest';
 import { tick } from 'svelte';
-import { render, noop, plannedStep } from './_shared';
+import { render } from './_shared';
 import ContractDetailViewRaw from '../../ContractDetailView.svelte';
 import CityDetailViewRaw from '../../CityDetailView.svelte';
+import BuscaViewRaw from '../../BuscaView.svelte';
+import HomeBuscaFormRaw from '../../HomeBuscaForm.svelte';
 import * as iaManifestModule from '../../../lib/ia-manifest';
+import * as pncpPublicacao from '../../../lib/pncpPublicacao';
+import * as navigateModule from '../../../lib/navigate';
+import type { PNCPContract } from '../../../lib/pncp';
 
 const ContractDetailView = ContractDetailViewRaw as unknown as Parameters<typeof render>[0];
 const CityDetailView = CityDetailViewRaw as unknown as Parameters<typeof render>[0];
+const BuscaView = BuscaViewRaw as unknown as Parameters<typeof render>[0];
+const HomeBuscaForm = HomeBuscaFormRaw as unknown as Parameters<typeof render>[0];
 
 const feature = await loadFeature('features/journeys/04_informed_citizen.feature');
 
@@ -36,11 +43,54 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   });
 
   Scenario('Search by hospital name without knowing the CNPJ', ({ Given, When, Then }) => {
-    Given('the user opens the home page', noop);
-    When('the user types "hospital municipal" into the search box', noop);
-    Then('the user sees a results listbox with at least one link', () =>
-      plannedStep('dedicated /busca page with free-text PNCP search'),
-    );
+    Given('the user opens the home page', async () => {
+      cleanup();
+      vi.restoreAllMocks();
+      // Step 1 of the journey: the homepage renders HomeBuscaForm. Verify
+      // the form wiring so a regression in action/name/base-path on
+      // index.astro would fail this scenario rather than silently ship.
+      render(HomeBuscaForm);
+      await tick();
+      const input = screen.getByLabelText('Buscar no PNCP') as HTMLInputElement;
+      expect(input.getAttribute('name')).toBe('q');
+      const form = input.closest('form') as HTMLFormElement;
+      expect(form.getAttribute('method')?.toLowerCase()).toBe('get');
+      expect(form.getAttribute('action')).toBe('/baliza/busca');
+    });
+    When('the user types "hospital municipal" into the search box', async () => {
+      // A real browser submit on the GET form would navigate to
+      // /baliza/busca?q=hospital+municipal. jsdom does not follow form
+      // navigation, so simulate the landing by rendering BuscaView with
+      // the URL the browser would have produced.
+      cleanup();
+      window.history.replaceState({}, '', '/busca?q=hospital%20municipal');
+      vi.spyOn(pncpPublicacao, 'fetchPublicacaoPagesForObjeto').mockResolvedValue([
+        {
+          numeroControlePNCP: '00000000000191-1-000001/2024',
+          dataPublicacaoPncp: '2025-01-10T00:00:00',
+          objetoContratacao: 'Aquisição de medicamentos — Hospital Municipal Central',
+          valorTotalEstimado: 15000,
+          modalidadeNome: 'Pregão Eletrônico',
+          orgaoEntidade: { razaoSocial: 'Prefeitura X', cnpj: '00000000000191' },
+          unidadeOrgao: { nomeUnidade: 'Secretaria de Saúde' },
+        },
+      ] as unknown as PNCPContract[]);
+      render(BuscaView);
+      await tick();
+    });
+    Then('the user sees a results listbox with at least one link', async () => {
+      const list = await waitFor(
+        () => {
+          const el = screen.getByTestId('busca-results');
+          expect(el).toBeTruthy();
+          return el;
+        },
+        { timeout: 3000 },
+      );
+      expect(list.getAttribute('role')).toBe('listbox');
+      const links = list.querySelectorAll('a[href]');
+      expect(links.length).toBeGreaterThan(0);
+    });
   });
 
   Scenario('Hover a technical term to see a plain-language definition', ({ Given, When, Then }) => {
@@ -163,10 +213,42 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   Scenario(
     'Crossover with journey 3 — citizen reaches the same permalink a journalist would cite',
     ({ Given, When, Then }) => {
-      Given('the user types "12345678000195-1-000001/2024" into the search box', noop);
-      When('the user submits the search form', noop);
-      Then('the browser navigates to "/baliza/contratacao?id=12345678000195-1-000001/2024"', () =>
-        plannedStep('dedicated /busca page with PNCP-id pattern detection'),
+      let navigateSpy: ReturnType<typeof vi.spyOn> | null = null;
+      let fetchSpy: ReturnType<typeof vi.spyOn> | null = null;
+
+      Given('the user types "12345678000195-1-000001/2024" into the search box', async () => {
+        cleanup();
+        vi.restoreAllMocks();
+        window.history.replaceState({}, '', '/busca');
+        // navigate() is a thin wrapper around window.location.assign that
+        // exists so tests can spy without fighting jsdom's non-configurable
+        // Location.assign.
+        navigateSpy = vi.spyOn(navigateModule, 'navigate').mockImplementation(() => {});
+        // The PNCP-id shortcut must fire BEFORE any fetch. Spy on the fetch
+        // helper so we can assert it was never called on the id path.
+        fetchSpy = vi.spyOn(pncpPublicacao, 'fetchPublicacaoPagesForObjeto');
+        render(BuscaView);
+        await tick();
+        const input = screen.getByLabelText('Termo a pesquisar');
+        await fireEvent.input(input, {
+          target: { value: '12345678000195-1-000001/2024' },
+        });
+      });
+      When('the user submits the search form', async () => {
+        const input = screen.getByLabelText('Termo a pesquisar');
+        const form = input.closest('form');
+        expect(form).toBeTruthy();
+        await fireEvent.submit(form as HTMLFormElement);
+      });
+      Then(
+        'the browser navigates to "/baliza/contratacao?id=12345678000195-1-000001/2024"',
+        () => {
+          expect(navigateSpy).toHaveBeenCalledWith(
+            '/baliza/contratacao?id=12345678000195-1-000001/2024',
+          );
+          // No fetch on the PNCP-id branch.
+          expect(fetchSpy).not.toHaveBeenCalled();
+        },
       );
     },
   );

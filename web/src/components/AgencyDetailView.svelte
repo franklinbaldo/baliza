@@ -6,15 +6,15 @@
   import { prefetchArchive } from '../lib/parquetFallback';
   import { archivedContratoToInternalContract, type PNCPContract } from '../lib/pncp';
   import { fetchPublicacaoList } from '../lib/pncpPublicacao';
-  import { formatBRL, formatDate, formatParticao, truncate } from '../lib/format';
+  import { formatParticao } from '../lib/format';
   import { resolve } from '../lib/baseUrl';
   import { createListQuery } from '../lib/createListQuery';
   import type { ArchivedContrato } from '../lib/archive/schema';
-  import EntityNotFound from './EntityNotFound.svelte';
-  import AlertBanner from './AlertBanner.svelte';
+  import EntityDetailLayout from './EntityDetailLayout.svelte';
   import EmptyState from './EmptyState.svelte';
   import LookbackWindow from './LookbackWindow.svelte';
-    import { DEFAULT_SINCE_DAYS } from '../lib/pncpPublicacao';
+  import ContractCard from './ContractCard.svelte';
+  import { DEFAULT_SINCE_DAYS } from '../lib/pncpPublicacao';
   import { addWatch, isWatched, hydrateWatches } from '../lib/watchStore.svelte';
 
   setQueryClientContext(getQueryClient());
@@ -186,61 +186,40 @@
   );
 </script>
 
-<div class="agency-detail container">
-  {#if !cnpj}
-    <EntityNotFound id="ausente" type="órgão" />
-  {:else if !cnpjValid}
-    <EntityNotFound
-      id={cnpj}
-      type="órgão"
-      error="CNPJ fora do formato esperado: 14 dígitos numéricos, sem pontos, traços ou barras."
-    />
-  {:else if loading}
-    <div class="skeleton-wrap" aria-busy="true" aria-label="Carregando dados do órgão">
-      <div class="skeleton skeleton-title"></div>
-      <div class="skeleton skeleton-meta"></div>
-      {#each [1, 2, 3] as _, i (i)}
-        <div class="skeleton skeleton-bid"></div>
-      {/each}
-    </div>
-  {:else if error}
-    <div class="error-wrap">
-      <AlertBanner title="Órgão não encontrado" message={error.message} level="error" />
-      <div class="back-row">
-        <a href={resolve('')} class="btn btn-outline">Voltar à busca</a>
-      </div>
-    </div>
-  {:else if data}
-    {#if data.archived}
-      <AlertBanner
-        title="Dados arquivados"
-        message={`PNCP indisponível — exibindo dados arquivados (última consolidação: ${formatParticao(data.archived.dataParticao)}).`}
-        level="info"
-      />
+<EntityDetailLayout
+  id={cnpj}
+  idValid={cnpjValid}
+  entityType="órgão"
+  idFormatError="CNPJ fora do formato esperado: 14 dígitos numéricos, sem pontos, traços ou barras."
+  {loading}
+  {error}
+  dataReady={!!data}
+  archivedParticao={data?.archived?.dataParticao}
+  archiveMessage={`PNCP indisponível — exibindo dados arquivados (última consolidação: ${data?.archived?.dataParticao ? formatParticao(data.archived.dataParticao) : ''}).`}
+  kicker="🏛️ ÓRGÃO / ENTIDADE"
+  iconId="t4"
+  title={data?.name || ""}
+>
+  {#snippet metaRow()}
+    {#if data}
+      <span>CNPJ: {data.cnpj}</span>
+      <span>Fonte: {data.archived ? 'Arquivo Parquet (IA)' : 'PNCP V1'}</span>
     {/if}
-    <header class="hub-header">
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; width: 100%;">
-        <div>
-          <span class="kicker">🏛️ ÓRGÃO / ENTIDADE</span>
-          <div style="display:flex; align-items:center;">
-            <svg width="32" height="32" aria-hidden="true" style="margin-right: 12px; flex-shrink: 0; fill: currentColor;"><use href="#t4"/></svg>
-            <h1>{data.name}</h1>
-          </div>
-          <div class="meta-row">
-            <span>CNPJ: {data.cnpj}</span>
-            <span>Fonte: {data.archived ? 'Arquivo Parquet (IA)' : 'PNCP V1'}</span>
-          </div>
-        </div>
-        <button
-          class="btn btn-outline"
-          onclick={() => addWatch('agency', data.cnpj, data.name)}
-          disabled={isAgencyWatched}
-        >
-          {isAgencyWatched ? '✓ Acompanhando' : 'Receber alertas deste órgão'}
-        </button>
-      </div>
-    </header>
+  {/snippet}
 
+  {#snippet headerActions()}
+    {#if data}
+      <button
+        class="btn btn-outline"
+        onclick={() => addWatch('agency', data.cnpj, data.name)}
+        disabled={isAgencyWatched}
+      >
+        {isAgencyWatched ? '✓ Acompanhando' : 'Receber alertas deste órgão'}
+      </button>
+    {/if}
+  {/snippet}
+
+  {#if data}
     {#if data.contracts.length === 0}
       <EmptyState
         title="Nenhuma contratação recente"
@@ -294,36 +273,19 @@
           <LookbackWindow value={dias} onchange={updateDias} />
         </div>
         {#each data.contracts as item (item.numeroControlePNCP)}
-          <a href={resolve(`contratacao?id=${item.numeroControlePNCP}`)} class="bid-link-card">
-            <div class="bid-header">
-              <span class="bid-id">{item.numeroControlePNCP}</span>
-              <span class="bid-date">{formatDate(item.dataPublicacaoPncp)}</span>
-            </div>
-            <p class="bid-obj">{truncate(item.objetoContratacao, 150)}</p>
-            <div class="bid-footer">
-              <span class="valor">{formatBRL(item.valorTotalEstimado)}</span>
-            </div>
-          </a>
+          <ContractCard
+            id={item.numeroControlePNCP}
+            date={item.dataPublicacaoPncp}
+            obj={item.objetoContratacao}
+            valor={item.valorTotalEstimado}
+          />
         {/each}
       </section>
     {/if}
   {/if}
-</div>
+</EntityDetailLayout>
 
 <style>
-  .agency-detail { padding: var(--space-2xl) 0; }
-
-  .skeleton-wrap { display: grid; gap: var(--space-md); }
-  .skeleton-title { height: 2rem; width: 60%; border-radius: var(--radius-sm); }
-  .skeleton-meta  { height: 1rem; width: 40%; border-radius: var(--radius-sm); }
-  .skeleton-bid   { height: 5rem; border-radius: var(--radius-sm); }
-
-  .error-wrap { display: grid; gap: var(--space-md); }
-  .back-row { display: flex; }
-
-  .hub-header { margin-bottom: var(--space-2xl); border-bottom: 2px solid var(--color-base-300); padding-bottom: var(--space-md); }
-  h1 { font-size: var(--font-size-2xl); margin-top: var(--space-sm); }
-  .meta-row { display: flex; gap: var(--space-md); color: var(--color-secondary); font-size: var(--font-size-sm); margin-top: 4px; }
 
   .rollup-grid {
     display: grid;
@@ -377,13 +339,4 @@
 
   .recent-list { display: grid; gap: var(--space-md); }
   .recent-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-sm); }
-  .bid-link-card {
-    display: block; text-decoration: none; color: inherit; background: var(--color-base-100);
-    padding: var(--space-md); border-radius: 0; border: 1px solid var(--color-base-300);
-    transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
-  }
-  .bid-link-card:hover, .bid-link-card:focus-visible { transform: translate(-2px, -2px); border-color: var(--color-primary); box-shadow: 4px 4px 0 var(--color-primary); }
-  .bid-header { display: flex; justify-content: space-between; margin-bottom: var(--space-sm); font-size: 0.75rem; font-family: var(--font-mono); color: var(--color-secondary); }
-  .bid-obj { font-size: var(--font-size-sm); line-height: 1.5; margin-bottom: var(--space-sm); }
-  .bid-footer { text-align: right; font-weight: 800; color: var(--color-primary); }
 </style>

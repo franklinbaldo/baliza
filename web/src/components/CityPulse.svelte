@@ -33,6 +33,12 @@
         value: ibge,
         limit: FETCH_LIMIT,
         orderByColumn: 'data_publicacao_pncp',
+        // Mirror the live query's modalidade scope at the SQL level — a JS
+        // filter applied AFTER the FETCH_LIMIT cap would silently hide
+        // modalidade-6 rows that sit just past the limit in busy cities.
+        extraFilters: [
+          { column: 'modalidade_id', op: 'eq', value: String(PULSE_MODALIDADE) },
+        ],
       },
       fetchLive: async () => {
         const contracts = await fetchPublicacaoList(

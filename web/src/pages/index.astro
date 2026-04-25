@@ -1,7 +1,9 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import HomeSection from '../components/HomeSection.astro';
 import CityHero from '../components/CityHero.svelte';
 import CityPulse from '../components/CityPulse.svelte';
+import HomeBuscaForm from '../components/HomeBuscaForm.svelte';
 import MonitorGrid from '../components/MonitorGrid.astro';
 import TrustStrip from '../components/TrustStrip.astro';
 import OrnamentBand from '../components/OrnamentBand.astro';
@@ -62,6 +64,21 @@ const TOOLS: Array<{
   <!-- 2. Immediate utility: real recent activity for the active city. -->
   <CityPulse client:load />
 
+  <!-- 2b. Free-text escape hatch for visitors who know what they're looking
+       for. Plain HTML GET form — zero JS on the homepage path (the island
+       ships no client directive; Astro renders it to HTML at build time).
+       BuscaView on the target page detects canonical PNCP-id shapes and
+       forwards them to /contratacao. -->
+  <HomeSection
+    id="home-busca-title"
+    title="Buscar no PNCP"
+    titleHidden={true}
+    tone="surface"
+    divider="bottom"
+  >
+    <HomeBuscaForm />
+  </HomeSection>
+
   <OrnamentBand variant="wave" height={36} />
 
   <!-- 3. What you can monitor — compact, citizen-legible prompts. -->
@@ -71,15 +88,15 @@ const TOOLS: Array<{
   <TrustStrip />
 
   <!-- 5. Sinal do arquivo: preservation signal backed by sync_stats.json. -->
-  <section class="signal-strip" aria-labelledby="signal-title">
-    <div class="container">
-      <header class="signal-head">
-        <span class="kicker">Sinal do arquivo</span>
-        <h2 id="signal-title">O que Baliza já preservou</h2>
-      </header>
-      <Dashboard client:visible />
-    </div>
-  </section>
+  <HomeSection
+    id="signal-title"
+    kicker="Sinal do arquivo"
+    title="O que Baliza já preservou"
+    tone="surface"
+    divider="bottom"
+  >
+    <Dashboard client:visible />
+  </HomeSection>
 
   <!-- 6. Watchlist: the "Acompanhar" buttons on detail views save to
        localStorage; this island surfaces them so the feature isn't invisible
@@ -87,7 +104,7 @@ const TOOLS: Array<{
   <WatchList client:only="svelte" />
 
   <!-- 7. Utilidades avançadas: compact secondary entry points. Demoted link
-       grid — no second hero, no second search box. -->
+       grid — no second hero. The single search input lives in section 2b. -->
   <section class="tools-strip" aria-labelledby="tools-title">
     <div class="container">
       <header class="tools-head">
@@ -119,24 +136,6 @@ const TOOLS: Array<{
 </Layout>
 
 <style>
-  .signal-strip {
-    padding: var(--space-7) 0;
-    background: var(--color-bg);
-    border-bottom: 1px solid var(--color-border);
-  }
-  .signal-head {
-    max-width: 640px;
-    margin-bottom: var(--space-4);
-    display: grid;
-    gap: var(--space-2);
-  }
-  .signal-head h2 {
-    font-family: var(--font-display);
-    font-weight: 300;
-    font-size: clamp(24px, 2.4vw, 32px);
-    letter-spacing: 0;
-  }
-
   .tools-strip {
     padding: var(--space-8) 0;
     background: var(--color-surface);
@@ -158,6 +157,7 @@ const TOOLS: Array<{
     color: var(--color-text-dim);
     font-size: var(--text-md);
     line-height: 1.6;
+    margin: 0;
   }
 
   .tools-grid {
