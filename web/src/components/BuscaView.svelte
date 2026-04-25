@@ -7,6 +7,7 @@
   import { isPncpId } from '../lib/pncpId';
   import { resolve } from '../lib/baseUrl';
   import * as nav from '../lib/navigate';
+  import * as exporters from '../lib/exporters';
   import { formatBRL, formatDate } from '../lib/format';
   import AlertBanner from './AlertBanner.svelte';
   import EmptyState from './EmptyState.svelte';
@@ -153,6 +154,28 @@
   function linkFor(c: PNCPContract): string {
     return resolve(`contratacao?id=${c.numeroControlePNCP ?? ''}`);
   }
+
+  // The export buttons act on what the user sees — i.e. filteredResults,
+  // not the raw fetch — so the file matches the on-screen aggregate strip.
+  let copyStatus = $state<'idle' | 'copied' | 'error'>('idle');
+
+  function exportCsv(): void {
+    const slug = (submittedQ || 'busca').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'busca';
+    exporters.downloadTextFile(`baliza-${slug}.csv`, exporters.toCsv(filteredResults), 'text/csv');
+  }
+
+  async function exportMarkdown(): Promise<void> {
+    const md = exporters.toMarkdown(filteredResults);
+    try {
+      await navigator.clipboard.writeText(md);
+      copyStatus = 'copied';
+    } catch {
+      copyStatus = 'error';
+    }
+    setTimeout(() => {
+      copyStatus = 'idle';
+    }, 2000);
+  }
 </script>
 
 <div class="busca container">
@@ -234,6 +257,28 @@
           {/each}
         </select>
       </label>
+      <div class="export-actions" role="group" aria-label="Exportar resultados visíveis">
+        <button
+          type="button"
+          class="btn btn-secondary"
+          data-testid="busca-export-csv"
+          onclick={exportCsv}
+        >Exportar CSV</button>
+        <button
+          type="button"
+          class="btn btn-secondary"
+          data-testid="busca-export-markdown"
+          onclick={exportMarkdown}
+        >Exportar Markdown</button>
+        {#if copyStatus !== 'idle'}
+          <span
+            class="copy-status"
+            role="status"
+            aria-live="polite"
+            data-testid="busca-export-status"
+          >{copyStatus === 'copied' ? 'Copiado!' : 'Falha ao copiar'}</span>
+        {/if}
+      </div>
     </div>
 
     <dl class="aggregates" data-testid="busca-aggregates" aria-label="Resumo dos resultados visíveis">
@@ -312,6 +357,17 @@
     border-radius: var(--radius-sm);
     background: var(--color-base-100);
     font-size: var(--font-size-sm);
+  }
+  .export-actions {
+    margin-left: auto;
+    display: flex;
+    align-items: end;
+    gap: var(--space-sm);
+  }
+  .copy-status {
+    font-size: var(--font-size-xs);
+    color: var(--color-secondary);
+    align-self: center;
   }
 
   .aggregates {

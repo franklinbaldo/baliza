@@ -27,10 +27,11 @@ Feature: Journey 3 — Investigative journalist
     Then the page URL contains "?q=hospital%20municipal"
     And reloading the page restores the same result list
 
-  @planned @export
+  @green @export
   Scenario: Export a result list as Markdown
-    # Planned: Markdown-to-clipboard GFM-table export belongs on the
-    # future /busca page.
+    # Covered: BuscaView ships an "Exportar Markdown" button that builds
+    # a GitHub-flavored table from the visible result list via
+    # toMarkdown() in lib/exporters.ts and writes it to navigator.clipboard.
     Given a search result list is visible for "hospital municipal"
     When the user clicks "Exportar Markdown"
     Then the clipboard contains a Markdown table with headers and rows

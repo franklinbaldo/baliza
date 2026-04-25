@@ -39,9 +39,11 @@ Feature: Journey 1 — B2G supplier prospecting
     And the user sees the supplier's top three competing CNPJs for the same objects
     And the user sees the supplier's average ticket size
 
-  @planned @export
+  @green @export
   Scenario: Export the current search result as CSV
-    # Planned: CSV export lives on the future /busca page.
+    # Covered: BuscaView ships an "Exportar CSV" button that builds an
+    # RFC 4180-style CSV from the visible (filtered) result list using
+    # toCsv() in lib/exporters.ts and triggers a Blob download.
     Given a search result list is visible for "merenda escolar"
     When the user clicks "Exportar CSV"
     Then a CSV file is downloaded with named columns matching the visible table

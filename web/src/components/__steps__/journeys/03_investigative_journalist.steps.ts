@@ -2,7 +2,7 @@ import { loadFeature, describeFeature } from '@amiceli/vitest-cucumber';
 import { screen, cleanup, waitFor, fireEvent } from '@testing-library/svelte/pure';
 import { vi, expect } from 'vitest';
 import { tick } from 'svelte';
-import { render, noop, plannedStep } from './_shared';
+import { render, noop } from './_shared';
 import AgencyDetailViewRaw from '../../AgencyDetailView.svelte';
 import BuscaViewRaw from '../../BuscaView.svelte';
 import * as pncpPublicacao from '../../../lib/pncpPublicacao';
@@ -85,11 +85,53 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   });
 
   Scenario('Export a result list as Markdown', ({ Given, When, Then }) => {
-    Given('a search result list is visible for "hospital municipal"', noop);
-    When('the user clicks "Exportar Markdown"', noop);
-    Then('the clipboard contains a Markdown table with headers and rows', () =>
-      plannedStep('dedicated search page with Markdown clipboard export'),
-    );
+    let writeText: ReturnType<typeof vi.fn> | null = null;
+
+    Given('a search result list is visible for "hospital municipal"', async () => {
+      cleanup();
+      vi.restoreAllMocks();
+      window.history.replaceState({}, '', '/busca?q=hospital%20municipal');
+      vi.spyOn(pncpPublicacao, 'fetchPublicacaoPagesForObjeto').mockResolvedValue([
+        {
+          numeroControlePNCP: '00000000000191-1-000001/2024',
+          dataPublicacaoPncp: '2025-01-10T00:00:00',
+          objetoContratacao: 'Aquisição de medicamentos — Hospital Municipal',
+          valorTotalEstimado: 5000,
+          modalidadeNome: 'Pregão Eletrônico',
+          orgaoEntidade: { razaoSocial: 'Prefeitura X', cnpj: '00000000000191' },
+          unidadeOrgao: { nomeUnidade: 'Saúde', ufSigla: 'SP' },
+        },
+      ] as unknown as PNCPContract[]);
+      // jsdom does not ship navigator.clipboard; install a writable stub
+      // and capture writes so the Then can assert on the table contents.
+      writeText = vi.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, 'clipboard', {
+        value: { writeText },
+        configurable: true,
+      });
+      render(BuscaView);
+      await tick();
+      await waitFor(
+        () => expect(screen.getByTestId('busca-export-markdown')).toBeTruthy(),
+        { timeout: 3000 },
+      );
+    });
+
+    When('the user clicks "Exportar Markdown"', async () => {
+      await fireEvent.click(screen.getByTestId('busca-export-markdown'));
+      // The handler awaits the clipboard promise; flush microtasks.
+      await Promise.resolve();
+    });
+
+    Then('the clipboard contains a Markdown table with headers and rows', async () => {
+      await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1), { timeout: 1000 });
+      const md = writeText!.mock.calls[0][0] as string;
+      const lines = md.trim().split('\n');
+      expect(lines[0]).toBe('| Órgão | Modalidade | Objeto | Data | Valor estimado (BRL) |');
+      expect(lines[1]).toBe('| --- | --- | --- | --- | --- |');
+      expect(lines[2]).toContain('Prefeitura X');
+      expect(lines[2]).toContain('2025-01-10');
+    });
   });
 
   Scenario('Agency page surfaces top suppliers and a time series', ({ Given, Then, And }) => {

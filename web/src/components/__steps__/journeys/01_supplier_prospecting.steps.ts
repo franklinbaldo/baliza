@@ -7,6 +7,7 @@ import SupplierDetailViewRaw from '../../SupplierDetailView.svelte';
 import BuscaViewRaw from '../../BuscaView.svelte';
 import * as parquetFallback from '../../../lib/parquetFallback';
 import * as pncpPublicacao from '../../../lib/pncpPublicacao';
+import * as exporters from '../../../lib/exporters';
 import type { PNCPContract } from '../../../lib/pncp';
 
 const SupplierDetailView = SupplierDetailViewRaw as unknown as Parameters<typeof render>[0];
@@ -191,11 +192,50 @@ describeFeature(feature, ({ Scenario }) => {
   });
 
   Scenario('Export the current search result as CSV', ({ Given, When, Then }) => {
-    Given('a search result list is visible for "merenda escolar"', noop);
-    When('the user clicks "Exportar CSV"', noop);
-    Then('a CSV file is downloaded with named columns matching the visible table', () =>
-      plannedStep('dedicated search page with CSV export'),
-    );
+    let downloadSpy: ReturnType<typeof vi.spyOn> | null = null;
+
+    Given('a search result list is visible for "merenda escolar"', async () => {
+      cleanup();
+      vi.restoreAllMocks();
+      window.history.replaceState({}, '', '/busca?q=merenda%20escolar');
+      vi.spyOn(pncpPublicacao, 'fetchPublicacaoPagesForObjeto').mockResolvedValue([
+        {
+          numeroControlePNCP: '00000000000191-1-000001/2024',
+          dataPublicacaoPncp: '2025-01-10T00:00:00',
+          objetoContratacao: 'Merenda escolar — banana',
+          valorTotalEstimado: 1500,
+          modalidadeNome: 'Pregão Eletrônico',
+          orgaoEntidade: { razaoSocial: 'Prefeitura A', cnpj: '00000000000191' },
+          unidadeOrgao: { nomeUnidade: 'Educação', ufSigla: 'SP' },
+        },
+      ] as unknown as PNCPContract[]);
+      // downloadTextFile is the only side effect — spy on it instead of
+      // chasing URL.createObjectURL + anchor.click in jsdom.
+      downloadSpy = vi.spyOn(exporters, 'downloadTextFile').mockImplementation(() => {});
+      render(BuscaView);
+      await tick();
+      await waitFor(
+        () => expect(screen.getByTestId('busca-export-csv')).toBeTruthy(),
+        { timeout: 3000 },
+      );
+    });
+
+    When('the user clicks "Exportar CSV"', async () => {
+      await fireEvent.click(screen.getByTestId('busca-export-csv'));
+    });
+
+    Then('a CSV file is downloaded with named columns matching the visible table', () => {
+      expect(downloadSpy).toHaveBeenCalledTimes(1);
+      const [filename, contents, mime] = downloadSpy!.mock.calls[0];
+      expect(filename).toMatch(/\.csv$/);
+      expect(mime).toBe('text/csv');
+      // Header line must carry the same five columns the user sees.
+      const lines = (contents as string).trim().split('\n');
+      expect(lines[0]).toBe('Órgão,Modalidade,Objeto,Data,Valor estimado (BRL)');
+      expect(lines[1]).toContain('Prefeitura A');
+      expect(lines[1]).toContain('Pregão Eletrônico');
+      expect(lines[1]).toContain('2025-01-10');
+    });
   });
 
   Scenario(
