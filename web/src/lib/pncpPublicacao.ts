@@ -24,6 +24,7 @@ export interface PublicacaoFilters {
 
 export interface PublicacaoOpts {
   sinceDays?: number;
+  dateWindow?: 'rolling' | 'current-month';
   /** Shift the query window end date backwards (e.g. 1 = yesterday). */
   endDaysAgo?: number;
   /**
@@ -73,6 +74,7 @@ export async function fetchPublicacaoList(
 ): Promise<PNCPContract[]> {
   const {
     sinceDays = DEFAULT_SINCE_DAYS,
+    dateWindow = 'rolling',
     endDaysAgo = 0,
     tamanhoPagina = 10,
     modalidades = DEFAULT_MODALIDADES,
@@ -82,7 +84,11 @@ export async function fetchPublicacaoList(
   const end = new Date(now);
   end.setUTCDate(end.getUTCDate() - Math.max(0, endDaysAgo));
   const start = new Date(end);
-  start.setUTCDate(start.getUTCDate() - sinceDays);
+  if (dateWindow === 'current-month') {
+    start.setUTCDate(1);
+  } else {
+    start.setUTCDate(start.getUTCDate() - sinceDays);
+  }
   const dataInicial = yyyymmdd(start);
   const dataFinal = yyyymmdd(end);
 

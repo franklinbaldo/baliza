@@ -62,7 +62,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
               {
                 numeroControlePNCP: '00000000000191-1-000001/2024',
                 dataPublicacaoPncp: '2025-01-15T00:00:00',
-                objetoContratacao: 'Aquisição hospitalar',
+                objetoCompra: 'Aquisição hospitalar',
                 valorTotalEstimado: 1000,
                 orgaoEntidade: { razaoSocial: 'Órgão', cnpj: '00000000000191' },
                 unidadeOrgao: { nomeUnidade: 'Unidade' },

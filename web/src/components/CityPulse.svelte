@@ -2,11 +2,9 @@
   import { createQuery, setQueryClientContext } from '@tanstack/svelte-query';
   import { getQueryClient } from '../lib/queryClient';
   import { QUERY_KEYS } from '../lib/queryKeys';
-  import { prefetchArchive } from '../lib/parquetFallback';
   import { createListQuery } from '../lib/createListQuery';
   import { fetchPublicacaoList } from '../lib/pncpPublicacao';
-  import type { PNCPContract } from '../lib/pncp';
-  import type { ArchivedContrato } from '../lib/archive/schema';
+  import { archivedContratoToInternalContract, type PNCPContract } from '../lib/pncp';
   import { formatDate, formatParticao } from '../lib/format';
   import { cityState, hydrateCityContext } from '../lib/cityContext.svelte';
   import { resolve } from '../lib/baseUrl';
@@ -16,38 +14,15 @@
   setQueryClientContext(getQueryClient());
   hydrateCityContext();
 
-  const SINCE_DAYS = 30;
   const FETCH_LIMIT = 40;
+  const PULSE_MODALIDADE = 6;
 
   interface PulseView {
     contracts: PNCPContract[];
     archived?: { dataParticao: string | null };
   }
 
-  function archivedToContract(row: ArchivedContrato): PNCPContract {
-    return {
-      numeroControlePNCP: row.numero_controle_pncp ?? '',
-      dataPublicacaoPncp: row.data_publicacao_pncp ?? '',
-      objetoContratacao: row.objeto_contrato ?? '',
-      valorTotalEstimado: row.valor_global ?? row.valor_inicial ?? null,
-      orgaoEntidade: {
-        razaoSocial: row.razao_social_orgao ?? '',
-        cnpj: row.cnpj_orgao ?? '',
-      },
-      unidadeOrgao: {
-        nomeUnidade: row.nome_unidade ?? '',
-        municipioNome: row.municipio_nome ?? '',
-        ufSigla: row.uf_sigla ?? '',
-        codigoMunicipioIbge: row.codigo_ibge ?? '',
-      },
-    };
-  }
-
   const ibge = $derived(cityState.ibge);
-
-  $effect(() => {
-    if (ibge) prefetchArchive('contratos');
-  });
 
   const pulseQuery = createQuery(() =>
     createListQuery<PulseView | null>({
@@ -62,12 +37,16 @@
       fetchLive: async () => {
         const contracts = await fetchPublicacaoList(
           { codigoMunicipioIbge: ibge },
-          { sinceDays: SINCE_DAYS, tamanhoPagina: FETCH_LIMIT },
+          {
+            dateWindow: 'current-month',
+            tamanhoPagina: FETCH_LIMIT,
+            modalidades: [PULSE_MODALIDADE],
+          },
         );
         return { contracts };
       },
       buildFromArchive: ({ rows, dataParticao }) => ({
-        contracts: rows.map(archivedToContract),
+        contracts: rows.map((row) => archivedContratoToInternalContract(row)),
         archived: { dataParticao },
       }),
     }),
@@ -115,10 +94,10 @@
     <header class="pulse-head">
       <span class="kicker">Monitorar agora</span>
       <h2 id="pulse-title">
-        Últimos {SINCE_DAYS} dias em <em>{cityState.nome}</em>
+        Mês corrente em <em>{cityState.nome}</em>
       </h2>
       <p class="pulse-sub">
-        Dados do PNCP consolidados em tempo real.
+        Pregões eletrônicos publicados no PNCP neste mês.
         Quando o PNCP está indisponível, Baliza mostra o último snapshot arquivado no Internet Archive.
       </p>
     </header>
@@ -162,7 +141,7 @@
           </header>
           {#if recent.length === 0}
             <p class="col-empty">
-              Sem publicações nos últimos {SINCE_DAYS} dias para {cityState.nome}.
+              Sem pregões eletrônicos publicados no mês corrente para {cityState.nome}.
             </p>
           {:else}
             <ul class="col-list">
@@ -209,7 +188,7 @@
               {/each}
             </ul>
             <p class="col-note">
-              Agrupamento das {FETCH_LIMIT} publicações mais recentes — para um ranking completo dos {SINCE_DAYS} dias, veja o painel da cidade.
+              Agrupamento das publicações do mês corrente retornadas pelo PNCP.
             </p>
           {/if}
           <footer class="col-foot">
@@ -377,6 +356,7 @@
     font-size: var(--text-sm);
     line-height: 1.35;
     display: -webkit-box;
+    line-clamp: 2;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;

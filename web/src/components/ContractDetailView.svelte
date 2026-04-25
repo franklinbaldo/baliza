@@ -4,7 +4,11 @@
   import { getQueryClient } from '../lib/queryClient';
   import { QUERY_KEYS } from '../lib/queryKeys';
   import { prefetchArchive } from '../lib/parquetFallback';
-  import { parsePncpContract, type PNCPContract } from '../lib/pncp';
+  import {
+    archivedContratoToInternalContract,
+    parsePncpContract,
+    type PNCPContract,
+  } from '../lib/pncp';
   import { formatBRL, formatDate, formatParticao } from '../lib/format';
   import { createDetailQuery } from '../lib/createDetailQuery';
   import type { ArchivedContrato } from '../lib/archive/schema';
@@ -47,25 +51,9 @@
 
   function archivedRowToContract(row: ArchivedContrato, id: string): ContractView {
     return {
-      numeroControlePNCP: row.numero_controle_pncp ?? id,
-      dataPublicacaoPncp: row.data_publicacao_pncp ?? '',
-      objetoContratacao: row.objeto_contrato ?? '',
-      valorTotalEstimado: row.valor_global ?? row.valor_inicial ?? null,
-      modalidadeNome: row.modalidade_nome ?? undefined,
-      linkSistemaOrigem: row.link_sistema_origem ?? undefined,
-      usuarioNome: row.usuario_nome ?? undefined,
+      ...archivedContratoToInternalContract(row, id),
       supplierCnpj: row.ni_fornecedor ?? null,
       supplierName: row.nome_razao_social_fornecedor ?? null,
-      orgaoEntidade: {
-        razaoSocial: row.razao_social_orgao ?? '',
-        cnpj: row.cnpj_orgao ?? '',
-      },
-      unidadeOrgao: {
-        nomeUnidade: row.nome_unidade ?? '',
-        municipioNome: row.municipio_nome ?? undefined,
-        ufSigla: row.uf_sigla ?? undefined,
-        codigoMunicipioIbge: row.codigo_ibge ?? undefined,
-      },
     };
   }
 

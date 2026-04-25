@@ -15,7 +15,7 @@ const feature = await loadFeature('features/journeys/04_informed_citizen.feature
 const PAYLOAD = {
   numeroControlePNCP: '00000000000191-1-000001/2024',
   dataPublicacaoPncp: '2025-01-15T00:00:00',
-  objetoContratacao: 'Materiais hospitalares',
+  objetoCompra: 'Materiais hospitalares',
   valorTotalEstimado: 1500,
   modalidadeNome: 'Pregão Eletrônico',
   orgaoEntidade: {
@@ -140,7 +140,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
           data: [{
             numeroControlePNCP: 'dummy',
             dataPublicacaoPncp: '2024-01-01',
-            objetoContratacao: 'dummy',
+            objetoCompra: 'dummy',
             orgaoEntidade: { razaoSocial: 'A', cnpj: 'B' },
             unidadeOrgao: { nomeUnidade: 'C' }
           }]
