@@ -76,6 +76,26 @@ describe('toCsv', () => {
     expect(lines[2]).toContain("'-2+3");
   });
 
+  it('quotes fields with a bare carriage return so readers do not split the row', () => {
+    const rows = [
+      {
+        numeroControlePNCP: 'X-1/2024',
+        dataPublicacaoPncp: '2025-01-15T00:00:00',
+        objetoContratacao: 'line one\rline two',
+        valorTotalEstimado: 100,
+        modalidadeNome: 'Pregão',
+        orgaoEntidade: { razaoSocial: 'Prefeitura', cnpj: '0' },
+        unidadeOrgao: { nomeUnidade: 'Compras' },
+      },
+    ] as unknown as PNCPContract[];
+    const csv = toCsv(rows);
+    // The CR-bearing cell must be wrapped in quotes; without quoting
+    // some CSV readers treat the CR as a record terminator.
+    expect(csv).toContain('"line one\rline two"');
+    // Header + single body row + trailing newline = 2 lines total.
+    expect(csv.trim().split(/\n/)).toHaveLength(2);
+  });
+
   it('quotes fields containing comma, quote or newline and doubles inner quotes', () => {
     const csv = toCsv(SAMPLE);
     const lines = csv.trim().split('\n');

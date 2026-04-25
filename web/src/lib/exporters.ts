@@ -61,12 +61,14 @@ function neutralizeFormula(field: string): string {
 }
 
 // RFC 4180-style CSV: wrap a field in double-quotes when it contains a
-// quote, comma, or newline; escape embedded quotes by doubling them.
-// Formula-injection neutralization runs first so the leading apostrophe
-// itself never becomes part of an evaluated formula.
+// quote, comma, or any line-ending byte (\n or bare \r — readers that
+// treat CR as a record terminator would otherwise split the row);
+// escape embedded quotes by doubling them. Formula-injection
+// neutralization runs first so the leading apostrophe itself never
+// becomes part of an evaluated formula.
 function csvEscape(field: string): string {
   const safe = neutralizeFormula(field);
-  if (/["\n,]/.test(safe)) {
+  if (/["\n\r,]/.test(safe)) {
     return `"${safe.replace(/"/g, '""')}"`;
   }
   return safe;
@@ -82,11 +84,11 @@ export function toCsv(results: PNCPContract[]): string {
 }
 
 // GFM tables: pipe-separated cells with a separator row of dashes. Pipes
-// inside cells must be escaped or they break the column layout; newlines
-// within cells get collapsed to spaces because GFM does not support
-// hard breaks inside table cells.
+// inside cells must be escaped or they break the column layout; any
+// line-ending bytes (\n, \r, or the pair) get collapsed to a single
+// space because GFM does not support hard breaks inside table cells.
 function mdEscape(field: string): string {
-  return field.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+  return field.replace(/\|/g, '\\|').replace(/[\r\n]+/g, ' ');
 }
 
 export function toMarkdown(results: PNCPContract[]): string {
