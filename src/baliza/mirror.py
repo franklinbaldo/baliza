@@ -158,8 +158,8 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
                         _d = json.load(fh)
                     if isinstance(_d, dict) and isinstance(_d.get("totalPaginas"), int):
                         total_pages = _d["totalPaginas"]
-                except (OSError, json.JSONDecodeError, UnicodeDecodeError):
-                    pass
+                except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
+                    logger.debug("page1_metadata_load_failed", month=month_str, error=str(e))
             if total_pages is None:
                 logger.warning("sentinel_cache_regressed", month=month_str, reason="page1_bad")
                 try:

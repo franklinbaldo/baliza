@@ -335,7 +335,8 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                                 try:
                                     with open(p1) as fh:
                                         _d = json.load(fh)
-                                except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+                                except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
+                                    logger.warning("page1_corrupt_unreadable", path=str(p1), error=str(e))
                                     regression_reason = "page1_corrupt"
                                 else:
                                     if isinstance(_d, dict) and isinstance(
