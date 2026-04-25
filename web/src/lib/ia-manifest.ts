@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { ArchivedTable } from './archive/schema';
 
 export const IA_MANIFEST_URL =
-  'https://archive.org/download/baliza-pncp-manifest/manifest.csv';
+  'https://archive.org/cors/baliza-pncp-manifest/manifest.csv';
 
 const ManifestRowSchema = z.object({
   data_particao: z.string().min(1),
@@ -68,7 +68,12 @@ export async function fetchManifestRows(): Promise<ManifestRow[]> {
   for (const raw of parsed.data ?? []) {
     const result = ManifestRowSchema.safeParse(raw);
     if (result.success) {
-      rows.push(result.data);
+      const row = result.data;
+      // Rewrite /download/ to /cors/ to prevent DuckDB WASM CORS errors
+      if (row.parquet_url.includes('archive.org/download/')) {
+        row.parquet_url = row.parquet_url.replace('archive.org/download/', 'archive.org/cors/');
+      }
+      rows.push(row);
     } else {
       console.warn('[ia-manifest] skipping malformed row', {
         issues: result.error.issues,
