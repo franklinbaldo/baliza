@@ -51,28 +51,15 @@ export function toExportRows(results: PNCPContract[]): ExportRow[] {
 }
 
 // CSV-injection guard: Excel, Numbers and Google Sheets evaluate any cell
-// whose first character is =, +, -, @, tab, CR, or LF as a formula on
-// open. Some importers strip leading whitespace before evaluation, which
-// is why \n needs the same treatment as \r and \t. Since contract fields
-// come from untrusted PNCP data, prefix a leading apostrophe — the
-// spreadsheet keeps the literal text and skips the formula path. OWASP
-// "Formula Injection" recommends this exact escape.
+// whose first non-whitespace character is =, +, -, @, tab, CR, or LF as
+// a formula on open. LibreOffice and certain Google Sheets paths trim
+// leading whitespace before evaluation, so " =CMD(...)" style payloads
+// from untrusted PNCP fields would otherwise still execute. Prefix a
+// leading apostrophe — the spreadsheet keeps the literal text and skips
+// the formula path. OWASP "Formula Injection" recommends this escape.
+const FORMULA_TRIGGER = /^\s*[=+\-@\t\r\n]/;
 function neutralizeFormula(field: string): string {
-  if (field.length === 0) return field;
-  const first = field.charCodeAt(0);
-  // = + - @ tab LF CR
-  if (
-    first === 0x3d ||
-    first === 0x2b ||
-    first === 0x2d ||
-    first === 0x40 ||
-    first === 0x09 ||
-    first === 0x0a ||
-    first === 0x0d
-  ) {
-    return `'${field}`;
-  }
-  return field;
+  return FORMULA_TRIGGER.test(field) ? `'${field}` : field;
 }
 
 // RFC 4180-style CSV: wrap a field in double-quotes when it contains a
