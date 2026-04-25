@@ -4,7 +4,11 @@
   import { getQueryClient } from '../lib/queryClient';
   import { QUERY_KEYS } from '../lib/queryKeys';
   import { prefetchArchive } from '../lib/parquetFallback';
-  import { parsePncpContract, type PNCPContract } from '../lib/pncp';
+  import {
+    archivedContratoToInternalContract,
+    parsePncpContract,
+    type PNCPContract,
+  } from '../lib/pncp';
   import { formatBRL, formatDate, formatParticao } from '../lib/format';
   import { createDetailQuery } from '../lib/createDetailQuery';
   import type { ArchivedContrato } from '../lib/archive/schema';
@@ -47,25 +51,9 @@
 
   function archivedRowToContract(row: ArchivedContrato, id: string): ContractView {
     return {
-      numeroControlePNCP: row.numero_controle_pncp ?? id,
-      dataPublicacaoPncp: row.data_publicacao_pncp ?? '',
-      objetoContratacao: row.objeto_contrato ?? '',
-      valorTotalEstimado: row.valor_global ?? row.valor_inicial ?? null,
-      modalidadeNome: row.modalidade_nome ?? undefined,
-      linkSistemaOrigem: row.link_sistema_origem ?? undefined,
-      usuarioNome: row.usuario_nome ?? undefined,
+      ...archivedContratoToInternalContract(row, id),
       supplierCnpj: row.ni_fornecedor ?? null,
       supplierName: row.nome_razao_social_fornecedor ?? null,
-      orgaoEntidade: {
-        razaoSocial: row.razao_social_orgao ?? '',
-        cnpj: row.cnpj_orgao ?? '',
-      },
-      unidadeOrgao: {
-        nomeUnidade: row.nome_unidade ?? '',
-        municipioNome: row.municipio_nome ?? undefined,
-        ufSigla: row.uf_sigla ?? undefined,
-        codigoMunicipioIbge: row.codigo_ibge ?? undefined,
-      },
     };
   }
 
@@ -150,17 +138,17 @@
       />
     {/if}
     <header class="hub-header">
-      <span class="kicker">📄 CONTRATAÇÃO PÚBLICA</span>
+      <span class="kicker">Contratação pública</span>
       <div style="display:flex; align-items:center;">
         <svg width="32" height="32" aria-hidden="true" style="margin-right: 12px; flex-shrink: 0; fill: currentColor;"><use href="#t1"/></svg>
         <h1>{data.objetoContratacao}</h1>
       </div>
       <div class="meta-row">
         <span class="meta-item">ID: {data.numeroControlePNCP || id}</span>
-        <span class="meta-item">📅 {formatDate(data.dataPublicacaoPncp)}</span>
+        <span class="meta-item">Publicação: {formatDate(data.dataPublicacaoPncp)}</span>
         {#if effectiveSnapshot}
           <span class="meta-item snapshot-badge" data-testid="snapshot-date">
-            🗄️ Dados do snapshot: <time datetime={effectiveSnapshot}>{formatParticao(effectiveSnapshot)}</time>
+            Snapshot: <time datetime={effectiveSnapshot}>{formatParticao(effectiveSnapshot)}</time>
           </span>
         {/if}
       </div>
@@ -309,7 +297,9 @@
 </div>
 
 <style>
-  .contract-view { padding: var(--space-2xl) 0; }
+  .contract-view {
+    padding: var(--space-2xl) 0;
+  }
 
   .skeleton-wrap { display: grid; gap: var(--space-md); }
   .skeleton-title { height: 2.5rem; width: 75%; border-radius: var(--radius-sm); }
@@ -320,30 +310,56 @@
   .error-wrap { display: grid; gap: var(--space-md); }
   .back-row { display: flex; }
 
-  .hub-header { margin-bottom: var(--space-2xl); border-bottom: 2px solid var(--color-base-300); padding-bottom: var(--space-md); }
+  .hub-header {
+    margin-bottom: var(--space-2xl);
+    padding: var(--space-lg);
+    border: 1px solid var(--color-border);
+    border-bottom-width: 5px;
+    border-bottom-color: var(--color-azul);
+    border-radius: var(--radius-lg) var(--radius-arch) var(--radius-lg) 0;
+    background:
+      linear-gradient(color-mix(in srgb, var(--color-bg) 92%, transparent), color-mix(in srgb, var(--color-bg) 92%, transparent)),
+      radial-gradient(circle at 100% 0, color-mix(in srgb, var(--color-ouro) 22%, transparent) 0 8rem, transparent 8.2rem),
+      var(--color-surface);
+    box-shadow: var(--shadow-pool-sm);
+  }
   .plain-summary {
     margin-top: var(--space-md);
-    padding: var(--space-sm) var(--space-md);
-    background: var(--color-base-200);
-    border-left: 4px solid var(--color-primary);
-    border-radius: var(--radius-sm);
+    padding: var(--space-md);
+    background: color-mix(in srgb, var(--color-surface-sunk) 64%, transparent);
+    border-left: 5px solid var(--color-primary);
+    border-radius: var(--radius-0);
     line-height: 1.6;
     color: var(--color-base-content);
     font-size: var(--font-size-md);
   }
-  .plain-summary strong { color: var(--color-primary); }
-  h1 { font-size: var(--font-size-xl); margin-top: var(--space-sm); line-height: 1.3; }
+  .plain-summary strong { color: var(--color-text); }
+  h1 {
+    font-size: clamp(1.75rem, 3.2vw, 3rem);
+    margin-top: var(--space-sm);
+    line-height: 1.12;
+    letter-spacing: 0;
+  }
   .meta-row { display: flex; gap: var(--space-md); color: var(--color-secondary); font-size: var(--font-size-sm); margin-top: 8px; flex-wrap: wrap; }
   .snapshot-badge {
-    padding: 2px 8px;
+    padding: 4px 10px;
     border-radius: var(--radius-full);
-    background: var(--color-base-200);
-    border: 1px solid var(--color-base-300);
+    background: color-mix(in srgb, var(--color-azul) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-azul) 32%, transparent);
     color: var(--color-base-content);
   }
 
   .grid-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--space-lg); }
-  .card { background: var(--color-base-100); border: 1px solid var(--color-base-300); padding: var(--space-md); border-radius: var(--radius-sm); }
+  .card {
+    background: var(--color-base-100);
+    border: 1px solid var(--color-base-300);
+    border-left: 5px solid var(--color-azul);
+    padding: var(--space-md);
+    border-radius: var(--radius-0);
+  }
+  .card:nth-child(2) { border-left-color: var(--color-verde); }
+  .card:nth-child(3) { border-left-color: var(--color-ouro); }
+  .card:nth-child(4) { border-left-color: var(--color-tijolo); }
   .card h3 { margin-top: 0; font-size: var(--font-size-lg); border-bottom: 1px solid var(--color-base-200); padding-bottom: 8px; margin-bottom: var(--space-md); }
 
   .meta-card { grid-column: 1 / -1; }
@@ -353,14 +369,14 @@
   .data-list dd {
     font-family: var(--font-mono);
     font-size: var(--font-size-sm);
-    color: var(--color-primary);
+    color: var(--color-text);
     text-align: right;
     margin: 0;
     max-width: 65%;
     overflow-wrap: anywhere;
   }
 
-  .inline-link { color: var(--color-primary); text-decoration: underline; }
+  .inline-link { color: var(--color-azul); text-decoration: underline; }
   .inline-link:hover { text-decoration: none; }
 
   .item-list { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-sm); }
@@ -372,4 +388,23 @@
   .item-valor { color: var(--color-primary); font-weight: 700; }
 
   .muted { color: var(--color-secondary); font-size: var(--font-size-sm); font-style: italic; margin: 0 0 var(--space-sm); }
+
+  @media (max-width: 720px) {
+    .hub-header {
+      padding: var(--space-md);
+      border-radius: var(--radius-lg) var(--radius-lg) var(--radius-lg) 0;
+    }
+    .plain-summary {
+      font-size: var(--font-size-base);
+    }
+    .data-list div,
+    .item-meta {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    .data-list dd {
+      max-width: 100%;
+      text-align: left;
+    }
+  }
 </style>

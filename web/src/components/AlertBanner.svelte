@@ -18,11 +18,12 @@
 <style>
   .alert {
     padding: 1rem;
-    border-radius: 0;
+    border-radius: var(--radius-lg) var(--radius-lg) var(--radius-lg) 0;
     display: flex;
     align-items: center;
     gap: 0.75rem;
     margin-block: 1rem;
+    box-shadow: var(--shadow-pool-sm);
   }
 
   .alert-message {
@@ -32,30 +33,30 @@
   }
 
   .level-info {
-    background: var(--color-base-100);
+    background: color-mix(in srgb, var(--color-azul) 12%, var(--color-base-100));
     border: 1px solid var(--color-info);
     border-left: 4px solid var(--color-info);
-    color: var(--color-info);
+    color: var(--color-base-content);
   }
 
   .level-success {
-    background: var(--color-base-100);
+    background: color-mix(in srgb, var(--color-verde) 13%, var(--color-base-100));
     border: 1px solid var(--color-success);
     border-left: 4px solid var(--color-success);
-    color: var(--color-success);
+    color: var(--color-base-content);
   }
 
   .level-warning {
-    background: var(--color-base-100);
+    background: var(--color-warning-bg);
     border: 1px solid var(--color-warning);
     border-left: 4px solid var(--color-warning);
-    color: var(--color-warning);
+    color: var(--color-base-content);
   }
 
   .level-error {
-    background: var(--color-base-100);
+    background: color-mix(in srgb, var(--color-accent) 12%, var(--color-base-100));
     border: 1px solid var(--color-error);
     border-left: 4px solid var(--color-error);
-    color: var(--color-error);
+    color: var(--color-base-content);
   }
 </style>

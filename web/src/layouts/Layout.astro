@@ -123,10 +123,21 @@ const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
   .portal-footer {
     margin-top: var(--space-10);
     padding: var(--space-8) 0;
-    border-top: 1px solid var(--neutral-200);
-    background: var(--neutral-0);
-    color: var(--neutral-500);
+    border-top: 1px solid var(--color-border);
+    background:
+      linear-gradient(color-mix(in srgb, var(--color-bg) 90%, transparent), color-mix(in srgb, var(--color-bg) 90%, transparent)),
+      var(--color-surface);
+    color: var(--color-text-dim);
     font-size: var(--text-sm);
+    position: relative;
+  }
+
+  .portal-footer::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto;
+    height: 8px;
+    background: repeating-linear-gradient(90deg, var(--color-accent) 0 28px, var(--color-ouro) 28px 40px, var(--color-azul) 40px 68px, var(--color-tijolo) 68px 80px);
   }
 
   .footer-content {
@@ -146,7 +157,7 @@ const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
   }
 
   .footer-links a {
-    color: var(--color-primary);
+    color: var(--color-accent);
     text-decoration: none;
   }
 

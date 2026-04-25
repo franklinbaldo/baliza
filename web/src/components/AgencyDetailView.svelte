@@ -4,7 +4,7 @@
   import { getQueryClient } from '../lib/queryClient';
   import { QUERY_KEYS } from '../lib/queryKeys';
   import { prefetchArchive } from '../lib/parquetFallback';
-  import type { PNCPContract } from '../lib/pncp';
+  import { archivedContratoToInternalContract, type PNCPContract } from '../lib/pncp';
   import { fetchPublicacaoList } from '../lib/pncpPublicacao';
   import { formatBRL, formatDate, formatParticao, truncate } from '../lib/format';
   import { resolve } from '../lib/baseUrl';
@@ -75,22 +75,6 @@
     topSuppliers: SupplierTally[];
     monthly: MonthBucket[];
     archived?: { dataParticao: string | null };
-  }
-
-  function archivedRowToContract(row: ArchivedContrato): PNCPContract {
-    return {
-      numeroControlePNCP: row.numero_controle_pncp ?? '',
-      dataPublicacaoPncp: row.data_publicacao_pncp ?? '',
-      objetoContratacao: row.objeto_contrato ?? '',
-      valorTotalEstimado: row.valor_global ?? row.valor_inicial ?? null,
-      orgaoEntidade: {
-        razaoSocial: row.razao_social_orgao ?? 'Órgão Arquivado',
-        cnpj: row.cnpj_orgao ?? '',
-      },
-      unidadeOrgao: {
-        nomeUnidade: row.nome_unidade ?? '',
-      },
-    };
   }
 
   // Top suppliers are aggregated only from the archive path because the live
@@ -180,7 +164,7 @@
         };
       },
       buildFromArchive: ({ rows, dataParticao }) => {
-        const contracts = rows.map(archivedRowToContract);
+        const contracts = rows.map((row) => archivedContratoToInternalContract(row));
         const agencyName = contracts[0]?.orgaoEntidade?.razaoSocial || "Órgão Arquivado";
         return {
           name: agencyName,

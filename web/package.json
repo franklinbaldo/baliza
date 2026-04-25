@@ -10,6 +10,7 @@
     "lint": "eslint . --fix",
     "check:full": "astro check && svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run",
+    "test:contracts": "vitest run src/lib/pncp.test.ts src/lib/pncpPublicacao.test.ts",
     "test:watch": "vitest",
     "test:bdd": "vitest run",
     "test:bdd:journeys": "vitest run src/components/__steps__/journeys",

@@ -137,7 +137,7 @@ const TOOLS: Array<{
 
 <style>
   .tools-sub {
-    color: var(--neutral-500);
+    color: var(--color-text-dim);
     font-size: var(--text-md);
     line-height: 1.6;
     margin: 0;
@@ -152,9 +152,12 @@ const TOOLS: Array<{
     gap: var(--space-3);
   }
   .tool-card {
-    background: var(--neutral-0);
-    border: 1px solid var(--neutral-100);
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-left: 5px solid var(--color-azul);
   }
+  .tool-card:nth-child(2n) { border-left-color: var(--color-verde); }
+  .tool-card:nth-child(3n) { border-left-color: var(--color-ouro); }
   .tool-card a {
     display: grid;
     gap: var(--space-1);
@@ -163,24 +166,29 @@ const TOOLS: Array<{
     text-decoration: none;
     height: 100%;
     border-left: 3px solid transparent;
-    transition: border-color var(--duration-fast) var(--ease);
+    transition: background var(--duration-fast) var(--ease), transform var(--duration-fast) var(--ease), box-shadow var(--duration-fast) var(--ease);
   }
   .tool-card a:hover {
-    border-left-color: var(--bulcao-accent);
+    background:
+      linear-gradient(color-mix(in srgb, var(--color-bg) 94%, transparent), color-mix(in srgb, var(--color-bg) 94%, transparent)),
+      linear-gradient(color-mix(in srgb, var(--color-text) 7%, transparent) 1px, transparent 1px),
+      linear-gradient(90deg, color-mix(in srgb, var(--color-text) 7%, transparent) 1px, transparent 1px);
+    background-size: auto, 16px 16px, 16px 16px;
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-pool-sm);
   }
   .tool-card a:focus-visible {
-    border-left-color: var(--bulcao-accent);
-    background: var(--neutral-50);
+    background: color-mix(in srgb, var(--color-azul) 9%, transparent);
   }
   .tool-label {
     font-family: var(--font-display);
     font-weight: 500;
     font-size: var(--text-md);
-    color: var(--bulcao-fg);
+    color: var(--color-text);
   }
   .tool-blurb {
     font-size: var(--text-sm);
     line-height: 1.5;
-    color: var(--neutral-500);
+    color: var(--color-text-dim);
   }
 </style>

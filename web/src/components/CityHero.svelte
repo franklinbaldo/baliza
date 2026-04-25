@@ -57,28 +57,31 @@
       {/if}
     </div>
 
-    <aside class="hero-ornament" aria-hidden="true">
-      <svg class="cobogo" viewBox="0 0 400 400" preserveAspectRatio="xMidYMid slice">
-        <rect width="400" height="400" fill="var(--bulcao-support)" />
-        <g mask="url(#cobogo-mask)">
-          <rect width="400" height="400" fill="var(--bulcao-bg)" />
-        </g>
-      </svg>
-      <svg class="volpi" viewBox="0 0 400 60" preserveAspectRatio="none">
-        <rect x="0"   y="0" width="80"  height="60" fill="var(--bulcao-fg)" />
-        <rect x="80"  y="0" width="200" height="60" fill="var(--bulcao-bg)" />
-        <rect x="280" y="0" width="120" height="60" fill="var(--bulcao-accent)" />
-      </svg>
+    <aside class="hero-ornament azulejo-triangulos" aria-hidden="true">
+      <div class="concrete-slab">
+        <span>Baliza</span>
+      </div>
+      <div class="curve-cut"></div>
     </aside>
   </div>
 </section>
 
 <style>
   .city-hero {
-    padding: var(--space-8) 0 var(--space-7);
-    border-bottom: 1px solid var(--neutral-100);
-    background: var(--neutral-0);
+    padding: var(--space-9) 0 var(--space-7);
+    border-bottom: 1px solid var(--color-border);
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--color-bg) 88%, transparent) 0 58%, color-mix(in srgb, var(--color-surface-sunk) 72%, transparent) 58% 100%),
+      var(--color-bg);
     position: relative;
+    overflow: hidden;
+  }
+  .city-hero::before {
+    content: "";
+    position: absolute;
+    inset: auto 0 0;
+    height: 8px;
+    background: repeating-linear-gradient(90deg, var(--color-accent) 0 28px, var(--color-ouro) 28px 40px, var(--color-azul) 40px 68px, var(--color-tijolo) 68px 80px);
   }
   .hero-grid {
     display: grid;
@@ -96,23 +99,23 @@
     font-weight: 300;
     font-size: clamp(40px, 6vw, 88px);
     line-height: 1;
-    letter-spacing: -0.03em;
+    letter-spacing: 0;
     font-variation-settings: 'SOFT' 30, 'opsz' 144;
-    color: var(--bulcao-fg);
+    color: var(--color-text);
     text-wrap: balance;
     max-width: 14ch;
   }
   .hero-city .city-token {
     font-style: normal;
-    color: var(--bulcao-accent);
-    border-bottom: 4px solid var(--bulcao-accent);
-    padding-bottom: 2px;
+    color: var(--color-accent);
+    border-bottom: 6px solid color-mix(in srgb, var(--color-ouro) 78%, var(--color-accent));
+    padding-bottom: 0;
     display: inline-block;
     transition: color var(--duration) var(--ease);
   }
   .hero-lead {
     font-size: var(--text-md);
-    color: var(--neutral-500);
+    color: var(--color-text-dim);
     max-width: 58ch;
     line-height: 1.6;
   }
@@ -127,31 +130,51 @@
     font-size: var(--text-xs);
     letter-spacing: 0.12em;
     text-transform: uppercase;
-    color: var(--neutral-500);
+    color: var(--color-text-dim);
     margin: 0;
   }
   .picker-wrap {
-    border-top: 1px solid var(--neutral-100);
+    border-top: 1px solid var(--color-border);
     padding-top: var(--space-4);
     margin-top: var(--space-2);
+    background: color-mix(in srgb, var(--color-surface) 74%, transparent);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 var(--radius-lg);
+    padding: var(--space-4);
   }
   .hero-ornament {
     display: none;
     position: relative;
     min-height: 320px;
+    border-radius: 0 var(--radius-arch) 0 var(--radius-lg);
+    border: 1px solid var(--color-border);
+    box-shadow: var(--shadow-pool);
+    overflow: hidden;
   }
-  .hero-ornament .cobogo {
-    width: 100%;
-    height: 100%;
-    aspect-ratio: 1 / 1;
-  }
-  .hero-ornament .volpi {
+  .concrete-slab {
     position: absolute;
-    left: 0;
-    right: 0;
-    bottom: -18px;
-    height: 36px;
-    width: 100%;
+    inset: auto 0 0 18%;
+    min-height: 54%;
+    background: color-mix(in srgb, var(--color-text) 92%, transparent);
+    color: var(--color-bg);
+    border-radius: var(--radius-arch) 0 0 0;
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-start;
+    padding: var(--space-5);
+  }
+  .concrete-slab span {
+    font-family: var(--font-logo);
+    font-size: clamp(4rem, 8vw, 7rem);
+    line-height: 0.82;
+  }
+  .curve-cut {
+    position: absolute;
+    width: 9rem;
+    height: 9rem;
+    right: -2rem;
+    top: -2rem;
+    border: 1.5rem solid color-mix(in srgb, var(--color-bg) 94%, transparent);
+    border-radius: var(--radius-pill);
   }
   @media (min-width: 960px) {
     .hero-grid {
