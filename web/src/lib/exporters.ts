@@ -45,13 +45,31 @@ export function toExportRows(results: PNCPContract[]): ExportRow[] {
   }));
 }
 
-// RFC 4180-style CSV: wrap a field in double-quotes when it contains a
-// quote, comma, or newline; escape embedded quotes by doubling them.
-function csvEscape(field: string): string {
-  if (/["\n,]/.test(field)) {
-    return `"${field.replace(/"/g, '""')}"`;
+// CSV-injection guard: Excel, Numbers and Google Sheets evaluate any cell
+// whose first character is =, +, -, @, tab, or CR as a formula on open.
+// Since contract fields come from untrusted PNCP data, prefix a leading
+// apostrophe — the spreadsheet keeps the literal text and skips the
+// formula path. OWASP "Formula Injection" recommends this exact escape.
+function neutralizeFormula(field: string): string {
+  if (field.length === 0) return field;
+  const first = field.charCodeAt(0);
+  // = + - @ tab CR
+  if (first === 0x3d || first === 0x2b || first === 0x2d || first === 0x40 || first === 0x09 || first === 0x0d) {
+    return `'${field}`;
   }
   return field;
+}
+
+// RFC 4180-style CSV: wrap a field in double-quotes when it contains a
+// quote, comma, or newline; escape embedded quotes by doubling them.
+// Formula-injection neutralization runs first so the leading apostrophe
+// itself never becomes part of an evaluated formula.
+function csvEscape(field: string): string {
+  const safe = neutralizeFormula(field);
+  if (/["\n,]/.test(safe)) {
+    return `"${safe.replace(/"/g, '""')}"`;
+  }
+  return safe;
 }
 
 export function toCsv(results: PNCPContract[]): string {
