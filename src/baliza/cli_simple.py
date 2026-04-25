@@ -430,6 +430,23 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                         raw_month_dir.mkdir(parents=True, exist_ok=True)
                         sentinel.touch()
 
+                        # 3b. Upload raw ZIP to baliza-pncp-raw before ingest.
+                        # keep_raw_dir=True so pages stay on disk for ingest_range.
+                        if not dry_run and ia_access_key and ia_secret_key:
+                            progress.update(tid, description=f"Month {month_str} [Raw ZIP]")
+                            try:
+                                uploader.upload_raw_zip(
+                                    start_of_month,
+                                    raw_month_dir,
+                                    ia_access_key,
+                                    ia_secret_key,
+                                    keep_raw_dir=True,
+                                )
+                            except Exception as e:
+                                progress.console.log(
+                                    f"[yellow]⚠ Raw ZIP upload failed for {month_str}: {e}[/yellow]"
+                                )
+
                         # 4. Ingest
                         progress.update(tid, description=f"Month {month_str} [Ingesting]")
                         stats = extractor.ingest_range(month_start_dt)
