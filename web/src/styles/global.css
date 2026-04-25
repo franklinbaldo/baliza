@@ -21,6 +21,15 @@
   --bulcao-accent: #C8312A;
   --bulcao-support:#2B4B7C;
 
+  /* Novas Tokens */
+  --color-bg:           var(--neutral-50);
+  --color-surface:      var(--neutral-0);
+  --color-surface-sunk: var(--neutral-100);
+  --color-border:       var(--neutral-100);
+  --color-text:         var(--neutral-900);
+  --color-text-dim:     var(--neutral-500);
+  --color-azul:         var(--color-info);
+
   /* Tipografia */
   --font-display: 'Fraunces', Georgia, serif;
   --font-body: 'Manrope', system-ui, sans-serif;
@@ -138,6 +147,15 @@
   --bulcao-bg:     #1A1815;
   --bulcao-accent: #E05A54; /* Brighter red */
   --bulcao-support:#6B8EC4; /* Brighter blue */
+
+  /* Novas Tokens */
+  --color-bg:           var(--neutral-50);
+  --color-surface:      var(--neutral-0);
+  --color-surface-sunk: var(--neutral-100);
+  --color-border:       var(--neutral-100);
+  --color-text:         var(--neutral-900);
+  --color-text-dim:     var(--neutral-500);
+  --color-azul:         var(--color-info);
 
   --color-base-100:     var(--bulcao-bg);
   --color-base-200:     var(--neutral-100);

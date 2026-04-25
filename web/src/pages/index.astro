@@ -1,5 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import HomeSection from '../components/HomeSection.astro';
 import CityHero from '../components/CityHero.svelte';
 import CityPulse from '../components/CityPulse.svelte';
 import HomeBuscaForm from '../components/HomeBuscaForm.svelte';
@@ -68,12 +69,15 @@ const TOOLS: Array<{
        ships no client directive; Astro renders it to HTML at build time).
        BuscaView on the target page detects canonical PNCP-id shapes and
        forwards them to /contratacao. -->
-  <section class="home-busca-strip" aria-labelledby="home-busca-title">
-    <div class="container">
-      <h2 id="home-busca-title" class="sr-only">Buscar no PNCP</h2>
-      <HomeBuscaForm />
-    </div>
-  </section>
+  <HomeSection
+    id="home-busca-title"
+    title="Buscar no PNCP"
+    titleHidden={true}
+    tone="surface"
+    divider="bottom"
+  >
+    <HomeBuscaForm />
+  </HomeSection>
 
   <OrnamentBand variant="wave" height={36} />
 
@@ -84,15 +88,15 @@ const TOOLS: Array<{
   <TrustStrip />
 
   <!-- 5. Sinal do arquivo: preservation signal backed by sync_stats.json. -->
-  <section class="signal-strip" aria-labelledby="signal-title">
-    <div class="container">
-      <header class="signal-head">
-        <span class="kicker">Sinal do arquivo</span>
-        <h2 id="signal-title">O que Baliza já preservou</h2>
-      </header>
-      <Dashboard client:visible />
-    </div>
-  </section>
+  <HomeSection
+    id="signal-title"
+    kicker="Sinal do arquivo"
+    title="O que Baliza já preservou"
+    tone="surface"
+    divider="bottom"
+  >
+    <Dashboard client:visible />
+  </HomeSection>
 
   <!-- 6. Watchlist: the "Acompanhar" buttons on detail views save to
        localStorage; this island surfaces them so the feature isn't invisible
@@ -101,86 +105,42 @@ const TOOLS: Array<{
 
   <!-- 7. Utilidades avançadas: compact secondary entry points. Demoted link
        grid — no second hero. The single search input lives in section 2b. -->
-  <section class="tools-strip" aria-labelledby="tools-title">
-    <div class="container">
-      <header class="tools-head">
-        <span class="kicker">Utilidades avançadas</span>
-        <h2 id="tools-title">Outras entradas no arquivo</h2>
-        <p class="tools-sub">
-          Para quem já sabe o que procurar: análise, dados brutos e metodologia.
-        </p>
-      </header>
-      <ul class="tools-grid">
-        {TOOLS.map((tool) => (
-          <li class="tool-card">
-            <a
-              href={tool.href}
-              rel={tool.external ? 'noopener' : undefined}
-              target={tool.external ? '_blank' : undefined}
-            >
-              <span class="tool-label">
-                {tool.label}
-                {tool.external && <span aria-hidden="true"> ↗</span>}
-              </span>
-              <span class="tool-blurb">{tool.blurb}</span>
-            </a>
-          </li>
-        ))}
-      </ul>
-    </div>
-  </section>
+  <HomeSection
+    id="tools-title"
+    kicker="Utilidades avançadas"
+    title="Outras entradas no arquivo"
+    tone="bg"
+    divider="top"
+  >
+    <p slot="subtitle" class="tools-sub">
+      Para quem já sabe o que procurar: análise, dados brutos e metodologia.
+    </p>
+    <ul class="tools-grid">
+      {TOOLS.map((tool) => (
+        <li class="tool-card">
+          <a
+            href={tool.href}
+            rel={tool.external ? 'noopener' : undefined}
+            target={tool.external ? '_blank' : undefined}
+          >
+            <span class="tool-label">
+              {tool.label}
+              {tool.external && <span aria-hidden="true"> ↗</span>}
+            </span>
+            <span class="tool-blurb">{tool.blurb}</span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  </HomeSection>
 </Layout>
 
 <style>
-  .home-busca-strip {
-    padding: var(--space-5) 0;
-    background: var(--neutral-0);
-    border-bottom: 1px solid var(--neutral-100);
-  }
-  .sr-only {
-    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
-  }
-
-  .signal-strip {
-    padding: var(--space-7) 0;
-    background: var(--neutral-0);
-    border-bottom: 1px solid var(--neutral-100);
-  }
-  .signal-head {
-    max-width: 640px;
-    margin-bottom: var(--space-4);
-    display: grid;
-    gap: var(--space-2);
-  }
-  .signal-head h2 {
-    font-family: var(--font-display);
-    font-weight: 300;
-    font-size: clamp(24px, 2.4vw, 32px);
-    letter-spacing: -0.02em;
-  }
-
-  .tools-strip {
-    padding: var(--space-8) 0;
-    background: var(--neutral-50);
-    border-top: 1px solid var(--neutral-100);
-  }
-  .tools-head {
-    max-width: 640px;
-    margin-bottom: var(--space-5);
-    display: grid;
-    gap: var(--space-2);
-  }
-  .tools-head h2 {
-    font-family: var(--font-display);
-    font-weight: 300;
-    font-size: clamp(24px, 2.4vw, 32px);
-    letter-spacing: -0.02em;
-  }
   .tools-sub {
     color: var(--neutral-500);
     font-size: var(--text-md);
     line-height: 1.6;
+    margin: 0;
   }
 
   .tools-grid {
