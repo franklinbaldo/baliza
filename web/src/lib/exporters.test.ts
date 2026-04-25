@@ -73,6 +73,18 @@ describe('toCsv', () => {
         orgaoEntidade: { razaoSocial: 'Prefeitura', cnpj: '0' },
         unidadeOrgao: { nomeUnidade: 'Compras' },
       },
+      {
+        numeroControlePNCP: 'X-4/2024',
+        dataPublicacaoPncp: '2025-01-18T00:00:00',
+        // Leading SPACE before the formula: LibreOffice and some Google
+        // Sheets paths trim whitespace before evaluation, so this would
+        // still execute without neutralization.
+        objetoContratacao: '  =HYPERLINK("https://attacker.example/", "x")',
+        valorTotalEstimado: 400,
+        modalidadeNome: 'Pregão',
+        orgaoEntidade: { razaoSocial: 'Prefeitura', cnpj: '0' },
+        unidadeOrgao: { nomeUnidade: 'Compras' },
+      },
     ] as unknown as PNCPContract[];
     const csv = toCsv(malicious);
     // The CSV body now contains embedded newlines inside quoted cells, so
@@ -89,6 +101,10 @@ describe('toCsv', () => {
     // A leading LF must also be neutralized, and the quote-wrapping pulls
     // the apostrophe before the embedded newline.
     expect(csv).toContain("\"'\n=cmd|/c calc\"");
+    // Leading whitespace before a formula trigger must also be guarded;
+    // the apostrophe lands before the spaces and the cell is wrapped
+    // because the inner formula contains commas and quotes.
+    expect(csv).toContain('"\'  =HYPERLINK(');
   });
 
   it('quotes fields with a bare carriage return so readers do not split the row', () => {
