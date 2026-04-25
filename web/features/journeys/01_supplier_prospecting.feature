@@ -12,18 +12,20 @@ Feature: Journey 1 — B2G supplier prospecting
     Then the user lands on a market page summarizing top buyers, top suppliers and price ranges
     And the page shows the number of distinct contracts found
 
-  @planned @search
+  @green @search
   Scenario: Filter contracts by UF and modality recomputes aggregates
-    # Planned: awaits a dedicated /busca page with UF + modality dropdowns
-    # and an aggregate strip (count / total / average).
+    # Covered: BuscaView renders UF + modality dropdowns above the result
+    # list with a count / total / average aggregate strip that recomputes
+    # client-side as the dropdowns change.
     Given a search result list is visible
     When the user picks UF "SP" and modality "Pregão Eletrônico"
     Then the visible aggregates (count, total value, average value) reflect the filtered subset
 
-  @planned @search
+  @green @search
   Scenario: Empty search suggests accent-tolerant alternatives
-    # Planned: an accent-tolerant suggestion surface on the future /busca
-    # page (closed lexicon, ~80 procurement nouns — static-compatible).
+    # Covered: empty-result state on BuscaView consults a closed lexicon
+    # (web/src/lib/accentLexicon.ts, ~80 procurement nouns) to offer the
+    # accented spelling as a clickable suggestion.
     Given the user submits the free-text query "construcao de escola"
     When PNCP returns zero results
     Then the user sees a suggestion to retry with "construção de escola"

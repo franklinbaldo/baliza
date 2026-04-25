@@ -24,16 +24,11 @@
   let searchInput = $state(initialQ());
   let submittedQ = $state(initialQ());
 
-  // True while we're about to redirect — used in the template to suppress
-  // the "Nenhuma contratação encontrada" flash that would otherwise render
-  // for one frame before the $effect navigation fires.
+  let selectedUf = $state('');
+  let selectedModality = $state('');
+
   const redirecting = $derived(!!submittedQ && isPncpId(submittedQ));
 
-  // Landing on /busca?q=<canonical PNCP id> jumps straight to the detail
-  // page — same shortcut as handleSubmit, applied for users arriving via
-  // the plain-HTML homepage form that has no JS to pre-detect ids.
-  // navigateReplace replaces the /busca entry so Back skips it entirely and
-  // returns the user to wherever they came from.
   $effect(() => {
     if (submittedQ && isPncpId(submittedQ)) {
       nav.navigateReplace(resolve(`contratacao?id=${submittedQ}`));
@@ -41,8 +36,6 @@
   });
 
   const query = createQuery(() => {
-    // Capture the term up front so a later submit can't mutate the closure
-    // mid-flight and bind the result of one fetch to a different cache key.
     const term = submittedQ;
     return {
       queryKey: QUERY_KEYS.busca(term),
@@ -55,20 +48,84 @@
   const loading = $derived(query.isFetching);
   const error = $derived(query.error as Error | null);
 
+  function uniqSorted(values: Array<string | null | undefined>): string[] {
+    const set = new Set<string>();
+    for (const v of values) {
+      const s = (v ?? '').trim();
+      if (s) set.add(s);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }
+
+  const ufOptions = $derived(uniqSorted(results.map((c) => c.unidadeOrgao?.ufSigla)));
+  const modalityOptions = $derived(uniqSorted(results.map((c) => c.modalidadeNome)));
+
+  const filteredResults = $derived(
+    results.filter((c) => {
+      if (selectedUf && c.unidadeOrgao?.ufSigla !== selectedUf) return false;
+      if (selectedModality && c.modalidadeNome !== selectedModality) return false;
+      return true;
+    }),
+  );
+
+  const aggregates = $derived.by(() => {
+    const count = filteredResults.length;
+    const total = filteredResults.reduce(
+      (sum, c) => sum + (typeof c.valorTotalEstimado === 'number' ? c.valorTotalEstimado : 0),
+      0,
+    );
+    const average = count > 0 ? total / count : 0;
+    return { count, total, average };
+  });
+
+  // Accent suggestion is gated behind a zero-result, no-error fetch — i.e.
+  // the rare path. Lazy-loading the ~80-entry lexicon keeps it out of the
+  // main BuscaView chunk so the common search path doesn't pay for it.
+  let suggestion = $state<string | null>(null);
+  $effect(() => {
+    const term = submittedQ;
+    if (
+      !term ||
+      term.length < 3 ||
+      isPncpId(term) ||
+      loading ||
+      error ||
+      results.length > 0
+    ) {
+      suggestion = null;
+      return;
+    }
+    let cancelled = false;
+    import('../lib/accentLexicon').then(({ suggestAccented }) => {
+      if (!cancelled) suggestion = suggestAccented(term);
+    });
+    return () => {
+      cancelled = true;
+    };
+  });
+
+  function applySuggestion(): void {
+    if (!suggestion) return;
+    searchInput = suggestion;
+    submittedQ = suggestion;
+    selectedUf = '';
+    selectedModality = '';
+    if (typeof window === 'undefined') return;
+    const qs = `?q=${encodeURIComponent(suggestion)}`;
+    window.history.replaceState({}, '', `${window.location.pathname}${qs}`);
+  }
+
   function handleSubmit(ev: Event) {
     ev.preventDefault();
     const term = searchInput.trim();
-    // PNCP-ID shortcut: skip the search entirely and jump to the permalink.
-    // encodeURIComponent preserves the slash as-is since the detail view
-    // matches the raw id, not a URL-encoded variant.
     if (isPncpId(term)) {
       nav.navigate(resolve(`contratacao?id=${term}`));
       return;
     }
     submittedQ = term;
+    selectedUf = '';
+    selectedModality = '';
     if (typeof window === 'undefined') return;
-    // The scenario locks %20-encoded spaces; URLSearchParams.toString() emits
-    // `+` for spaces, so build the query string via encodeURIComponent.
     const qs = term ? `?q=${encodeURIComponent(term)}` : '';
     window.history.replaceState(
       {},
@@ -127,24 +184,86 @@
       title="Nenhuma contratação encontrada"
       message="Nenhuma publicação recente do PNCP corresponde ao termo pesquisado."
     />
+    {#if suggestion}
+      <p class="suggestion-row">
+        Você quis dizer:
+        <button
+          type="button"
+          class="suggestion-link"
+          data-testid="busca-suggestion"
+          onclick={applySuggestion}
+        >{suggestion}</button>?
+      </p>
+    {/if}
   {:else}
-    <ul role="listbox" class="busca-results" data-testid="busca-results">
-      {#each results as c (c.numeroControlePNCP)}
-        <li role="option" aria-selected="false" data-testid="busca-result-item">
-          <a href={linkFor(c)} class="result-card">
-            <div class="result-head">
-              <span class="agency">{c.orgaoEntidade?.razaoSocial ?? 'Órgão'}</span>
-              <span class="modality">{c.modalidadeNome ?? ''}</span>
-            </div>
-            <p class="objeto">{truncate(c.objetoContratacao, 180)}</p>
-            <div class="result-foot">
-              <span class="date">{formatDate(c.dataPublicacaoPncp ?? '')}</span>
-              <span class="valor">{formatBRL(c.valorTotalEstimado ?? null)}</span>
-            </div>
-          </a>
-        </li>
-      {/each}
-    </ul>
+    <div class="filters" data-testid="busca-filters">
+      <label class="filter">
+        <span>UF</span>
+        <select
+          bind:value={selectedUf}
+          aria-label="Filtrar por UF"
+          data-testid="busca-filter-uf"
+        >
+          <option value="">Todas</option>
+          {#each ufOptions as uf (uf)}
+            <option value={uf}>{uf}</option>
+          {/each}
+        </select>
+      </label>
+      <label class="filter">
+        <span>Modalidade</span>
+        <select
+          bind:value={selectedModality}
+          aria-label="Filtrar por modalidade"
+          data-testid="busca-filter-modality"
+        >
+          <option value="">Todas</option>
+          {#each modalityOptions as mod (mod)}
+            <option value={mod}>{mod}</option>
+          {/each}
+        </select>
+      </label>
+    </div>
+
+    <dl class="aggregates" data-testid="busca-aggregates" aria-label="Resumo dos resultados visíveis">
+      <div class="agg-cell">
+        <dt>Contratos</dt>
+        <dd data-testid="busca-aggregate-count">{aggregates.count}</dd>
+      </div>
+      <div class="agg-cell">
+        <dt>Valor total</dt>
+        <dd data-testid="busca-aggregate-total">{formatBRL(aggregates.total)}</dd>
+      </div>
+      <div class="agg-cell">
+        <dt>Valor médio</dt>
+        <dd data-testid="busca-aggregate-average">{formatBRL(aggregates.average)}</dd>
+      </div>
+    </dl>
+
+    {#if filteredResults.length === 0}
+      <EmptyState
+        title="Nenhum resultado para os filtros selecionados"
+        message="Ajuste a UF ou a modalidade para ver mais contratações."
+      />
+    {:else}
+      <ul role="listbox" class="busca-results" data-testid="busca-results">
+        {#each filteredResults as c (c.numeroControlePNCP)}
+          <li role="option" aria-selected="false" data-testid="busca-result-item">
+            <a href={linkFor(c)} class="result-card">
+              <div class="result-head">
+                <span class="agency">{c.orgaoEntidade?.razaoSocial ?? 'Órgão'}</span>
+                <span class="modality">{c.modalidadeNome ?? ''}</span>
+              </div>
+              <p class="objeto">{truncate(c.objetoContratacao, 180)}</p>
+              <div class="result-foot">
+                <span class="date">{formatDate(c.dataPublicacaoPncp ?? '')}</span>
+                <span class="valor">{formatBRL(c.valorTotalEstimado ?? null)}</span>
+              </div>
+            </a>
+          </li>
+        {/each}
+      </ul>
+    {/if}
   {/if}
 </div>
 
@@ -168,6 +287,51 @@
     position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
     overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
   }
+
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-md);
+    margin-bottom: var(--space-md);
+  }
+  .filter { display: grid; gap: 4px; font-size: var(--font-size-xs); color: var(--color-secondary); }
+  .filter select {
+    padding: 6px 8px;
+    border: 1px solid var(--color-base-300);
+    border-radius: var(--radius-sm);
+    background: var(--color-base-100);
+    font-size: var(--font-size-sm);
+  }
+
+  .aggregates {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: var(--space-md);
+    margin: 0 0 var(--space-lg);
+    padding: var(--space-md);
+    background: var(--color-base-100);
+    border: 1px solid var(--color-base-300);
+    border-radius: var(--radius-sm);
+  }
+  .agg-cell dt {
+    font-size: var(--font-size-xs);
+    color: var(--color-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .agg-cell dd { margin: 4px 0 0; font-weight: 700; font-size: var(--font-size-md); }
+
+  .suggestion-row { margin-top: var(--space-md); font-size: var(--font-size-sm); }
+  .suggestion-link {
+    background: none;
+    border: 0;
+    padding: 0;
+    color: var(--color-primary);
+    font: inherit;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+  .suggestion-link:hover, .suggestion-link:focus-visible { text-decoration: none; }
 
   .skeleton-wrap { display: grid; gap: var(--space-md); }
   .skeleton-bid { height: 5rem; border-radius: var(--radius-sm); }
