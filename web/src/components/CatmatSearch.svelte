@@ -46,7 +46,7 @@
     <p class="catmat-error" role="alert">Não foi possível carregar o catálogo: {error}</p>
   {:else if results.length > 0}
     <ul data-testid="catmat-results">
-      {#each results as entry (entry.code)}
+      {#each results as entry (entry.type + ':' + entry.code)}
         <li data-testid="catmat-result-item">
           <span class="catmat-code">{entry.code}</span>
           <span class="catmat-type">{entry.type}</span>

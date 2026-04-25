@@ -59,7 +59,12 @@ def download(url: str) -> tuple[bytes, str | None]:
 
 
 def parse_catmat(blob: bytes) -> list[dict[str, str]]:
-    """Parse CATMAT xlsx into PDM-deduplicated entries."""
+    """Parse CATMAT xlsx into PDM-deduplicated entries.
+
+    Expected columns (from row 2, the header):
+      0 codigo_grupo, 1 nome_grupo, 2 codigo_classe, 3 nome_classe,
+      4 codigo_pdm, 5 nome_pdm, 6 codigo_item, 7 descricao_item, 8 codigo_ncm
+    """
     wb = openpyxl.load_workbook(BytesIO(blob), read_only=True, data_only=True)
     ws = wb["Materiais"]
     rows = ws.iter_rows(values_only=True)
@@ -69,7 +74,9 @@ def parse_catmat(blob: bytes) -> list[dict[str, str]]:
     seen: set[str] = set()
     entries: list[dict[str, str]] = []
     for r in rows:
-        if r[6] is None:
+        # Defensive bounds check: short rows on a future xlsx schema change
+        # should be skipped, not crash the pipeline.
+        if len(r) < 7 or r[6] is None:
             continue
         codigo_pdm = str(r[4]) if r[4] is not None else ""
         if not codigo_pdm or codigo_pdm in seen:
@@ -87,7 +94,12 @@ def parse_catmat(blob: bytes) -> list[dict[str, str]]:
 
 
 def parse_catser(blob: bytes) -> list[dict[str, str]]:
-    """Parse CATSER xlsx into entries (all rows; CATSER is small)."""
+    """Parse CATSER xlsx into entries (all rows; CATSER is small).
+
+    Expected columns (from row 3, the header):
+      0 tipo, 1 grupo_codigo, 2 grupo_nome, 3 classe_codigo, 4 classe_nome,
+      5 codigo_servico, 6 descricao_servico, 7 situacao
+    """
     wb = openpyxl.load_workbook(BytesIO(blob), read_only=True, data_only=True)
     ws = wb["Lista CATSER"]
     rows = ws.iter_rows(values_only=True)
@@ -97,7 +109,7 @@ def parse_catser(blob: bytes) -> list[dict[str, str]]:
 
     entries: list[dict[str, str]] = []
     for r in rows:
-        if r[5] is None:
+        if len(r) < 8 or r[5] is None:
             continue
         if (r[7] or "").strip().lower() != "ativo":
             continue
