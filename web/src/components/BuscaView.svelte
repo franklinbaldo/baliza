@@ -16,14 +16,19 @@
 
   const { q: qProp = '' }: { q?: string } = $props();
 
-  function initialQ(): string {
-    if (qProp) return qProp.trim();
+  function initialParam(key: string): string {
     if (typeof window === 'undefined') return '';
-    return (new URLSearchParams(window.location.search).get('q') ?? '').trim();
+    return (new URLSearchParams(window.location.search).get(key) ?? '').trim();
   }
 
-  let searchInput = $state(initialQ());
-  let submittedQ = $state(initialQ());
+  let searchInput = $state(qProp ? qProp.trim() : initialParam('q'));
+  let submittedQ = $state(searchInput);
+
+  let searchCnpj = $state(initialParam('cnpj'));
+  let submittedCnpj = $state(searchCnpj);
+
+  let searchIbge = $state(initialParam('ibge'));
+  let submittedIbge = $state(searchIbge);
 
   let selectedUf = $state('');
   let selectedModality = $state('');
@@ -38,10 +43,13 @@
 
   const query = createQuery(() => {
     const term = submittedQ;
+    const cnpj = submittedCnpj;
+    const ibge = submittedIbge;
+    const hasAdvanced = !!cnpj || !!ibge;
     return {
-      queryKey: QUERY_KEYS.busca(term),
-      enabled: term.length >= 3 && !isPncpId(term),
-      queryFn: () => fetchPublicacaoPagesForObjeto(term),
+      queryKey: QUERY_KEYS.busca(term, cnpj, ibge),
+      enabled: (term.length >= 3 && !isPncpId(term)) || hasAdvanced,
+      queryFn: () => fetchPublicacaoPagesForObjeto(term, { filters: { cnpj, codigoMunicipioIbge: ibge } }),
     };
   });
 
@@ -123,22 +131,35 @@
     selectedUf = '';
     selectedModality = '';
     if (typeof window === 'undefined') return;
-    const qs = `?q=${encodeURIComponent(suggestion)}`;
-    window.history.replaceState({}, '', `${window.location.pathname}${qs}`);
+    const params = new URLSearchParams(window.location.search);
+    params.set('q', suggestion);
+    window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
   }
 
   function handleSubmit(ev: Event) {
     ev.preventDefault();
     const term = searchInput.trim();
+    const cnpj = searchCnpj.replace(/\D/g, '');
+    const ibge = searchIbge.replace(/\D/g, '');
+
     if (isPncpId(term)) {
       nav.navigate(resolve(`contratacao?id=${term}`));
       return;
     }
+    
     submittedQ = term;
+    submittedCnpj = cnpj;
+    submittedIbge = ibge;
     selectedUf = '';
     selectedModality = '';
+
     if (typeof window === 'undefined') return;
-    const qs = term ? `?q=${encodeURIComponent(term)}` : '';
+    const params = new URLSearchParams();
+    if (term) params.set('q', term);
+    if (cnpj) params.set('cnpj', cnpj);
+    if (ibge) params.set('ibge', ibge);
+    
+    const qs = params.toString() ? `?${params.toString()}` : '';
     window.history.replaceState(
       {},
       '',
@@ -205,21 +226,37 @@
   </header>
 
   <form class="search-form" onsubmit={handleSubmit}>
-    <label class="sr-only" for="busca-input">Termo a pesquisar</label>
-    <input
-      id="busca-input"
-      type="search"
-      bind:value={searchInput}
-      placeholder="Ex.: hospital municipal, merenda escolar, 00000000000191-1-000001/2024…"
-      aria-label="Termo a pesquisar"
-    />
-    <button type="submit" class="btn btn-primary">Buscar</button>
+    <div class="search-main">
+      <label class="sr-only" for="busca-input">Termo a pesquisar</label>
+      <input
+        id="busca-input"
+        type="search"
+        bind:value={searchInput}
+        placeholder="Ex.: hospital municipal, merenda escolar, 00000000000191-1-000001/2024…"
+        aria-label="Termo a pesquisar"
+      />
+      <button type="submit" class="btn btn-primary">Buscar</button>
+    </div>
+    
+    <details class="advanced-filters" open={!!(searchCnpj || searchIbge)}>
+      <summary>Filtros Avançados (API do PNCP)</summary>
+      <div class="advanced-grid">
+        <label>
+          <span>CNPJ do Órgão</span>
+          <input type="text" bind:value={searchCnpj} placeholder="Apenas números (14 dígitos)" />
+        </label>
+        <label>
+          <span>Código IBGE do Município</span>
+          <input type="text" bind:value={searchIbge} placeholder="Ex.: 3550308 (São Paulo)" />
+        </label>
+      </div>
+    </details>
   </form>
 
-  {#if redirecting || !submittedQ || submittedQ.length < 3}
+  {#if redirecting || (!submittedQ && !submittedCnpj && !submittedIbge) || (!submittedCnpj && !submittedIbge && submittedQ.length < 3)}
     <EmptyState
-      title="Digite o termo a pesquisar"
-      message="Use ao menos 3 caracteres para buscar por objeto da contratação."
+      title="Busca de Contratações"
+      message="Use ao menos 3 caracteres no termo ou preencha um filtro avançado para buscar."
     />
   {:else if loading}
     <div class="skeleton-wrap" aria-busy="true" aria-label="Buscando contratações">
@@ -348,13 +385,42 @@
   .meta-row { color: var(--color-secondary); font-size: var(--font-size-sm); margin: 4px 0 0; }
   .meta-row code { font-family: var(--font-mono); font-size: 0.85em; }
 
-  .search-form { display: flex; gap: var(--space-sm); margin-bottom: var(--space-lg); }
-  .search-form input {
+  .search-form { display: grid; gap: var(--space-sm); margin-bottom: var(--space-lg); }
+  .search-main { display: flex; gap: var(--space-sm); }
+  .search-main input {
     flex: 1;
     padding: var(--space-sm) var(--space-md);
     border: 1px solid var(--color-base-300);
     border-radius: var(--radius-sm);
     font-size: var(--font-size-md);
+  }
+  .advanced-filters {
+    font-size: var(--font-size-sm);
+    color: var(--color-secondary);
+  }
+  .advanced-filters summary {
+    cursor: pointer;
+    user-select: none;
+    margin-bottom: var(--space-sm);
+    display: inline-block;
+  }
+  .advanced-filters summary:hover { color: var(--color-primary); }
+  .advanced-grid {
+    display: flex;
+    gap: var(--space-md);
+    flex-wrap: wrap;
+    background: var(--color-base-100);
+    padding: var(--space-md);
+    border: 1px solid var(--color-base-300);
+    border-radius: var(--radius-sm);
+    margin-top: var(--space-xs);
+  }
+  .advanced-grid label { display: grid; gap: 6px; flex: 1; min-width: 200px; }
+  .advanced-grid input {
+    padding: 8px 10px;
+    border: 1px solid var(--color-base-300);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
   }
   .sr-only {
     position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;

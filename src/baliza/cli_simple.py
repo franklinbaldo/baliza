@@ -39,7 +39,7 @@ from .constants import (
 )
 from .engine import BalizaEngine
 from .extractor import FETCHED_SENTINEL, PNCPExtractor, _validate_resource
-from .ia_uploader import IAUploader, read_manifest_from_ia
+from .ia_uploader import IAUploader, read_manifest_from_ia, restore_from_raw_zip
 from .logging import configure_logging
 from .mirror import _pending_mirror_months, mirror_month
 
@@ -124,6 +124,7 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
     # 2. Fetch manifest once — reused by the pending-months planner and
     # (if enabled) the up-front consolidation catch-up below.
     raw_manifest: list[dict] = []
+    manifest_by_month: dict[str, dict] = {}
     if force_month:
         batch = _forced_month_or_empty(RESOURCE_CONTRATOS, force_month)
         uploaded: set[str] = set()
@@ -140,11 +141,19 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                     for row in raw_manifest
                     if row.get("data_particao") and row.get("parquet_url")
                 }
+                # Lookup for raw_zip_url by month — used to skip PNCP fetch
+                # when we already have the ZIP on IA for a past month.
+                manifest_by_month: dict[str, dict] = {
+                    row["data_particao"]: row
+                    for row in raw_manifest
+                    if row.get("data_particao")
+                }
             except Exception as e:
                 console.print(
                     f"[yellow]⚠ Could not read IA manifest (starting fresh): {e}[/yellow]"
                 )
                 uploaded = set()
+                manifest_by_month = {}
 
             start = clamp_to_known_data_start_month(
                 RESOURCE_CONTRATOS, datetime.strptime(start_date, "%Y-%m-%d").date()
@@ -407,21 +416,47 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                                 pages_total=total_pages,
                                 pages_to_fetch=len(missing_pages),
                             )
-                            progress.update(
-                                tid,
-                                total=len(missing_pages) + 2,
-                                advance=1,
-                                description=f"Month {month_str} [Pages 0/{len(missing_pages)}]",
-                            )
-                            for i, p in enumerate(missing_pages, start=1):
+
+                            # For past months: if the raw ZIP is already on IA,
+                            # restore from it instead of re-fetching from PNCP.
+                            today_month = date.today().replace(day=1)
+                            manifest_row = manifest_by_month.get(month_str, {})
+                            raw_zip_url = manifest_row.get("raw_zip_url", "")
+                            if (
+                                raw_zip_url
+                                and start_of_month < today_month
+                                and not cached_pages  # only on full cache miss
+                            ):
                                 progress.update(
                                     tid,
-                                    description=f"Month {month_str} [Pages {i}/{len(missing_pages)}]",
+                                    total=2,
+                                    advance=1,
+                                    description=f"Month {month_str} [Restoring from IA]",
                                 )
-                                extractor.fetch_page(
-                                    RESOURCE_CONTRATOS, month_start_dt, month_end_dt, p
+                                restored = restore_from_raw_zip(raw_zip_url, raw_month_dir)
+                                if restored:
+                                    # Re-evaluate missing pages after extraction
+                                    missing_pages = [
+                                        p for p in range(1, (total_pages or 0) + 1)
+                                        if not _page_is_cached(p)
+                                    ]
+
+                            if missing_pages:
+                                progress.update(
+                                    tid,
+                                    total=len(missing_pages) + 2,
+                                    advance=1,
+                                    description=f"Month {month_str} [Pages 0/{len(missing_pages)}]",
                                 )
-                                progress.update(tid, advance=1)
+                                for i, p in enumerate(missing_pages, start=1):
+                                    progress.update(
+                                        tid,
+                                        description=f"Month {month_str} [Pages {i}/{len(missing_pages)}]",
+                                    )
+                                    extractor.fetch_page(
+                                        RESOURCE_CONTRATOS, month_start_dt, month_end_dt, p
+                                    )
+                                    progress.update(tid, advance=1)
 
                         # All expected pages are now on disk — write the
                         # sentinel so the next run can skip probe_range.

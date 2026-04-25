@@ -15,6 +15,7 @@
   import EntityDetailLayout from './EntityDetailLayout.svelte';
   import EmptyState from './EmptyState.svelte';
   import ContractCard from './ContractCard.svelte';
+  import { addWatch, isWatched, hydrateWatches } from '../lib/watchStore.svelte';
 
   setQueryClientContext(getQueryClient());
 
@@ -31,6 +32,7 @@
 
   $effect(() => {
     if (cnpj) prefetchArchive('contratos');
+    hydrateWatches();
   });
 
   interface CompetitorTally {
@@ -197,6 +199,16 @@
         actionLabel="Voltar à busca"
       />
     {:else}
+      <div class="actions-bar">
+        <button
+          class="btn btn-outline"
+          onclick={() => addWatch('supplier', data.cnpj, data.name)}
+          disabled={isWatched('supplier', data.cnpj)}
+        >
+          {isWatched('supplier', data.cnpj) ? '✓ Acompanhando' : 'Acompanhar fornecedor'}
+        </button>
+      </div>
+
       <section class="rollup-grid">
         <article class="rollup-card" data-testid="avg-ticket">
           <h3>Ticket médio</h3>
@@ -215,7 +227,7 @@
               {#each competitors as c, i (`${c.cnpj}-${i}`)}
                 <li>
                   <span class="competitor-rank">#{i + 1}</span>
-                  <span class="competitor-name">{c.name}</span>
+                  <a href={resolve(`fornecedor?cnpj=${c.cnpj}`)} class="competitor-name inline-link" title={c.name}>{c.name}</a>
                   <span class="competitor-cnpj">{c.cnpj}</span>
                   <span class="competitor-count">{c.count}</span>
                 </li>
@@ -244,6 +256,12 @@
 </EntityDetailLayout>
 
 <style>
+
+  .actions-bar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: var(--space-md);
+  }
 
   .rollup-grid {
     display: grid;
@@ -281,9 +299,11 @@
   }
   .competitor-list li:last-child { border-bottom: none; }
   .competitor-rank { font-family: var(--font-mono); font-weight: 700; color: var(--color-secondary); }
-  .competitor-name { overflow-wrap: anywhere; }
+  .competitor-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .competitor-cnpj { font-family: var(--font-mono); font-size: var(--font-size-xs); color: var(--color-secondary); }
   .competitor-count { font-family: var(--font-mono); color: var(--color-primary); font-weight: 700; }
+  .inline-link { color: var(--color-primary); text-decoration: underline; }
+  .inline-link:hover { text-decoration: none; }
 
   .recent-list { display: grid; gap: var(--space-md); }
   .recent-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-sm); }

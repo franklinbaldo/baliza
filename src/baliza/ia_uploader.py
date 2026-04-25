@@ -5,6 +5,7 @@ import hashlib
 import io
 import shutil
 import tempfile
+import zipfile
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,36 @@ from .engine import BalizaEngine
 from .utils import DUCKDB_PARQUET_COPY_OPTIONS, PARQUET_ROW_GROUP_SIZE
 
 console = Console()
+
+
+def restore_from_raw_zip(raw_zip_url: str, raw_month_dir: Path) -> bool:
+    """Download a raw ZIP from Internet Archive and extract it to raw_month_dir.
+
+    Returns True on success, False on any error (caller falls back to PNCP API).
+    Only used for past months where the raw ZIP was previously uploaded.
+    """
+    raw_month_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        console.print(f"  Downloading raw ZIP from IA: {raw_zip_url}")
+        with httpx.stream("GET", raw_zip_url, follow_redirects=True, timeout=120) as r:
+            r.raise_for_status()
+            with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
+                tmp_path = Path(tmp.name)
+                for chunk in r.iter_bytes(chunk_size=1024 * 1024):
+                    tmp.write(chunk)
+        with zipfile.ZipFile(tmp_path) as zf:
+            zf.extractall(raw_month_dir)
+        tmp_path.unlink(missing_ok=True)
+        console.print(f"  [green]✓ Restored from IA ZIP ({len(list(raw_month_dir.iterdir()))} files)[/green]")
+        return True
+    except Exception as e:
+        console.print(f"  [yellow]⚠ Could not restore from IA ZIP: {e} — will fetch from PNCP[/yellow]")
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+        return False
+
 
 # Manifest v2 metadata — record the file properties consumers (web UI,
 # researchers) need to reason about the layout without re-reading the file.

@@ -128,8 +128,8 @@
   {/snippet}
 
   {#if data}
-    <div style="display:flex; justify-content:space-between; align-items:flex-start; width: 100%; gap: var(--space-lg); margin-bottom: var(--space-xl);">
-      <p class="plain-summary" data-testid="plain-language-summary" style="margin:0;">
+    <div class="summary-wrap">
+      <p class="plain-summary" data-testid="plain-language-summary">
         {#if data.orgaoEntidade?.razaoSocial}
           <strong>{data.orgaoEntidade.razaoSocial}</strong>
         {:else}
@@ -151,7 +151,6 @@
       {#if data.supplierCnpj}
         <button
           class="btn btn-outline"
-          style="flex-shrink: 0;"
           onclick={() => addWatch('supplier', data.supplierCnpj!, data.supplierName ?? data.supplierCnpj!)}
           disabled={isSupplierWatched}
         >
@@ -203,6 +202,25 @@
               {/if}
             </dd>
           </div>
+        </dl>
+      </section>
+
+      <section class="card">
+        <h3>Fornecedor Vencedor</h3>
+        <dl class="data-list">
+          <div role="listitem">
+            <dt>Razão Social</dt>
+            <dd>
+              {#if data.supplierCnpj}
+                <a href={resolve(`fornecedor?cnpj=${data.supplierCnpj}`)} class="inline-link">
+                  {data.supplierName || '—'}
+                </a>
+              {:else}
+                {data.supplierName || '—'}
+              {/if}
+            </dd>
+          </div>
+          <div role="listitem"><dt>CNPJ/CPF</dt><dd>{data.supplierCnpj || '—'}</dd></div>
         </dl>
       </section>
 
@@ -268,7 +286,19 @@
 </EntityDetailLayout>
 
 <style>
+  .summary-wrap {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    width: 100%;
+    gap: var(--space-lg);
+    margin-bottom: var(--space-xl);
+  }
+  .summary-wrap button {
+    flex-shrink: 0;
+  }
   .plain-summary {
+    margin: 0;
     padding: var(--space-md);
     background: color-mix(in srgb, var(--color-surface-sunk) 64%, transparent);
     border-left: 5px solid var(--color-primary);
@@ -328,6 +358,9 @@
   .muted { color: var(--color-secondary); font-size: var(--font-size-sm); font-style: italic; margin: 0 0 var(--space-sm); }
 
   @media (max-width: 720px) {
+    .summary-wrap {
+      flex-direction: column;
+    }
     .plain-summary {
       font-size: var(--font-size-base);
     }
