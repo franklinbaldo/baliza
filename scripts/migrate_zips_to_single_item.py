@@ -111,6 +111,8 @@ def update_manifest_urls(
     updated = 0
     for row in manifest:
         month_str = row.get("data_particao", "")
+        if row.get("file_type") == "monthly_uf":
+            continue
         if month_str in migrated:
             new_url = f"https://archive.org/download/{RAW_ITEM_ID}/raw-{month_str}.zip"
             if row.get("raw_zip_url") != new_url:
