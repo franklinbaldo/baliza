@@ -17,10 +17,12 @@ Feature: Journey 3 — Investigative journalist
     Given the user opens "/contratacao?id=00000000000191-1-000001/2024"
     Then the user sees an outbound link to the origin system that opens in a new tab
 
-  @planned @search
+  @green @search
   Scenario: Search state is preserved in the query string
-    # Planned: pushState on submit + onMount ?q= restore belongs on the
-    # future /busca page.
+    # Covered by BuscaView: replaceState on submit writes ?q=<encoded>;
+    # onMount reads ?q= from window.location.search and re-runs the query.
+    # encodeURIComponent (not URLSearchParams.toString) is used so spaces
+    # serialize as %20 rather than +.
     Given the user submits the free-text query "hospital municipal"
     Then the page URL contains "?q=hospital%20municipal"
     And reloading the page restores the same result list

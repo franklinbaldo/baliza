@@ -24,6 +24,15 @@
   let searchInput = $state(initialQ());
   let submittedQ = $state(initialQ());
 
+  // Landing on /busca?q=<canonical PNCP id> jumps straight to the detail
+  // page — same shortcut as handleSubmit, applied for users arriving via
+  // the plain-HTML homepage form that has no JS to pre-detect ids.
+  $effect(() => {
+    if (submittedQ && isPncpId(submittedQ)) {
+      nav.navigate(resolve(`contratacao?id=${submittedQ}`));
+    }
+  });
+
   const query = createQuery(() => {
     // Capture the term up front so a later submit can't mutate the closure
     // mid-flight and bind the result of one fetch to a different cache key.
