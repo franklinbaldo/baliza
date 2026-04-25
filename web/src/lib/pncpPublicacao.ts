@@ -54,16 +54,16 @@ function buildUrl(
   dataFinal: string,
   tamanhoPagina: number,
 ): string {
-  const params = new URLSearchParams({
+  const paramObj: Record<string, string> = {
     dataInicial,
     dataFinal,
     codigoModalidadeContratacao: String(modalidade),
     pagina: '1',
     tamanhoPagina: String(tamanhoPagina),
-  });
-  if (filters.cnpj) params.set('cnpj', filters.cnpj);
-  if (filters.codigoMunicipioIbge) params.set('codigoMunicipioIbge', filters.codigoMunicipioIbge);
-  return `${PUBLICACAO_URL}?${params.toString()}`;
+    ...(filters.cnpj ? { cnpj: filters.cnpj } : {}),
+    ...(filters.codigoMunicipioIbge ? { codigoMunicipioIbge: filters.codigoMunicipioIbge } : {}),
+  };
+  return `${PUBLICACAO_URL}?${new URLSearchParams(paramObj).toString()}`;
 }
 
 async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
@@ -150,16 +150,16 @@ function buildPageUrl(
   dataInicial: string,
   dataFinal: string,
 ): string {
-  const params = new URLSearchParams({
+  const paramObj: Record<string, string> = {
     dataInicial,
     dataFinal,
     codigoModalidadeContratacao: String(modalidade),
     pagina: String(pagina),
     tamanhoPagina: '50',
-  });
-  if (filters.cnpj) params.set('cnpj', filters.cnpj);
-  if (filters.codigoMunicipioIbge) params.set('codigoMunicipioIbge', filters.codigoMunicipioIbge);
-  return `${PUBLICACAO_URL}?${params.toString()}`;
+    ...(filters.cnpj ? { cnpj: filters.cnpj } : {}),
+    ...(filters.codigoMunicipioIbge ? { codigoMunicipioIbge: filters.codigoMunicipioIbge } : {}),
+  };
+  return `${PUBLICACAO_URL}?${new URLSearchParams(paramObj).toString()}`;
 }
 
 // Free-text search across the DEFAULT_MODALIDADES (covers ~95% of municipal
