@@ -24,11 +24,21 @@
   let searchInput = $state(initialQ());
   let submittedQ = $state(initialQ());
 
+  // True while we're about to redirect — used in the template to suppress
+  // the "Nenhuma contratação encontrada" flash that would otherwise render
+  // for one frame before the $effect navigation fires.
+  const redirecting = $derived(!!submittedQ && isPncpId(submittedQ));
+
   // Landing on /busca?q=<canonical PNCP id> jumps straight to the detail
   // page — same shortcut as handleSubmit, applied for users arriving via
   // the plain-HTML homepage form that has no JS to pre-detect ids.
+  // replaceState strips the ?q=<id> entry so the browser Back button returns
+  // to wherever the user came from rather than looping back here.
   $effect(() => {
     if (submittedQ && isPncpId(submittedQ)) {
+      if (typeof window !== 'undefined') {
+        window.history.replaceState({}, '', window.location.pathname);
+      }
       nav.navigate(resolve(`contratacao?id=${submittedQ}`));
     }
   });
@@ -103,7 +113,7 @@
     <button type="submit" class="btn btn-primary">Buscar</button>
   </form>
 
-  {#if !submittedQ || submittedQ.length < 3}
+  {#if redirecting || !submittedQ || submittedQ.length < 3}
     <EmptyState
       title="Digite o termo a pesquisar"
       message="Use ao menos 3 caracteres para buscar por objeto da contratação."
