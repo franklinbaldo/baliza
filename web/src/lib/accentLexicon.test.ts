@@ -35,4 +35,10 @@ describe('suggestAccented', () => {
   it('preserves whitespace between tokens', () => {
     expect(suggestAccented('construcao  de  escola')).toBe('construção  de  escola');
   });
+
+  it('handles punctuation separators (comma, period, dash)', () => {
+    expect(suggestAccented('construcao, de escola')).toBe('construção, de escola');
+    expect(suggestAccented('aquisicao - veiculos')).toBe('aquisição - veículos');
+    expect(suggestAccented('construcao de escola.')).toBe('construção de escola.');
+  });
 });

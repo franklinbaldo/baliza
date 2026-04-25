@@ -114,12 +114,15 @@ export function suggestAccented(term: string): string | null {
   const trimmed = term.trim();
   if (!trimmed) return null;
 
-  // Split on whitespace and punctuation, but preserve the original
-  // separators so the suggestion reads naturally back to the user.
-  const tokens = trimmed.split(/(\s+)/);
+  // Split on whitespace and the common procurement-query punctuation
+  // (commas, periods, semicolons, dashes, parentheses, ?!) but preserve
+  // the original separators so the suggestion reads naturally back to
+  // the user. The capture group keeps the separators in the output array.
+  const SEPARATOR = /([\s,.;:!?\-()/]+)/;
+  const tokens = trimmed.split(SEPARATOR);
   let changed = false;
   const rewritten = tokens.map((tok) => {
-    if (!tok || /^\s+$/.test(tok)) return tok;
+    if (!tok || SEPARATOR.test(tok)) return tok;
     const lower = tok.toLowerCase();
     const stripped = stripAccents(lower);
     const canonical = ENTRIES[stripped];
