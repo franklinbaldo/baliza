@@ -1,0 +1,79 @@
+name: Build public-CNPJ reference
+
+on:
+  # Receita Federal refreshes the CNPJ dump on the second Sunday of every
+  # month. Running on the 15th gives the upload time to settle and avoids
+  # racing partial publication.
+  schedule:
+    - cron: '0 6 15 * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: build-orgaos-publicos
+  cancel-in-progress: true
+
+permissions:
+  # Need write to push the regenerated JSON back to main when content changes.
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # Default token is fine; the workflow runs in the same repo and
+          # only writes to web/public/data/. No secrets needed beyond the
+          # built-in GITHUB_TOKEN, which has contents:write per the
+          # permissions block above.
+          persist-credentials: true
+
+      - uses: astral-sh/setup-uv@v4
+
+      - name: Run ETL
+        run: uv run scripts/build_orgaos_publicos.py
+
+      - name: Commit refreshed JSON if changed
+        run: |
+          if git diff --quiet -- web/public/data/cnpj-orgaos-publicos.json; then
+            echo "No changes — Receita dump produced an identical filtered set."
+            exit 0
+          fi
+          git config user.name 'baliza-bot'
+          git config user.email '[email protected]'
+          git add web/public/data/cnpj-orgaos-publicos.json
+          git commit -m "chore(data): refresh public-CNPJ reference from Receita Federal"
+          git push
+
+  report-failure:
+    name: Report workflow failure
+    if: ${{ failure() }}
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v9
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const runId = context.runId;
+            const runUrl = `${context.payload.repository.html_url}/actions/runs/${runId}`;
+            const identifier = `run_id:${runId}`;
+            const search = await github.rest.search.issuesAndPullRequests({
+              q: `repo:${owner}/${repo} "${identifier}" state:open type:issue`,
+            });
+            if (search.data.total_count > 0) return;
+            await github.rest.issues.create({
+              owner,
+              repo,
+              title: `🚨 Falha no workflow "Build public-CNPJ reference" (run #${context.runNumber})`,
+              body: [
+                'A geração mensal do dataset de CNPJs públicos falhou.',
+                '',
+                `- **Workflow**: Build public-CNPJ reference`,
+                `- **Execução**: [#${context.runNumber}](${runUrl})`,
+                `- **Identificador**: ${identifier}`,
+              ].join('\n'),
+              labels: ['ci-failure'],
+            });
