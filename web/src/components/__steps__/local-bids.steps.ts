@@ -4,70 +4,35 @@ import { vi, expect } from 'vitest';
 import { tick } from 'svelte';
 import { render } from './shared';
 import { queryParquetFallback } from '../../lib/parquetFallback';
+import { resolveCityFromBrowserLocation } from '../../lib/geo';
 import LocalBidsRaw from '../LocalBids.svelte';
 
+vi.mock('../../lib/geo', () => ({
+  resolveCityFromBrowserLocation: vi.fn(),
+}));
+
 const fallbackMock = vi.mocked(queryParquetFallback);
+const resolveCityMock = vi.mocked(resolveCityFromBrowserLocation);
 
 const LocalBids = LocalBidsRaw as unknown as Parameters<typeof render>[0];
 const feature = await loadFeature('features/local-bids.feature');
 
-function mockGeolocationError(code: number) {
+// Stub geo at module boundary: tests assert LocalBids' UI behaviour, not
+// the internals of the offline reverse-geocoding pipeline. Failures (denied
+// / generic error) propagate the GeolocationPositionError shape (`.code`)
+// the component branches on.
+function mockGeoSuccess(city = { ibge: '1721000', nome: 'Palmas', uf: 'TO' }) {
+  resolveCityMock.mockResolvedValue(city);
+}
+
+function mockGeoFailure(code: number) {
   const err = Object.assign(new Error('Geolocation error'), {
     code,
     PERMISSION_DENIED: 1,
     POSITION_UNAVAILABLE: 2,
     TIMEOUT: 3,
-  }) as unknown as GeolocationPositionError;
-  Object.defineProperty(global.navigator, 'geolocation', {
-    writable: true,
-    configurable: true,
-    value: {
-      getCurrentPosition: vi.fn().mockImplementation(
-        (_success: unknown, failure: (e: GeolocationPositionError) => void) => {
-          failure(err);
-        },
-      ),
-    },
   });
-}
-
-function mockGeolocationSuccess(lat = -10.18, lng = -48.33) {
-  Object.defineProperty(global.navigator, 'geolocation', {
-    writable: true,
-    configurable: true,
-    value: {
-      getCurrentPosition: vi.fn().mockImplementation(
-        (success: (pos: GeolocationPosition) => void) => {
-          success({ coords: { latitude: lat, longitude: lng } } as GeolocationPosition);
-        },
-      ),
-    },
-  });
-}
-
-function mockGeoResolution() {
-  mockGeolocationSuccess();
-  return (url: string): Response | null => {
-    if (url.includes('nominatim')) {
-      return new Response(
-        JSON.stringify({ address: { city: 'Palmas', state: 'Tocantins' } }),
-        { status: 200 },
-      );
-    }
-    if (url.includes('servicodados.ibge.gov.br')) {
-      return new Response(
-        JSON.stringify([
-          {
-            id: 1721000,
-            nome: 'Palmas',
-            microrregiao: { mesorregiao: { UF: { nome: 'Tocantins' } } },
-          },
-        ]),
-        { status: 200 },
-      );
-    }
-    return null;
-  };
+  resolveCityMock.mockRejectedValue(err);
 }
 
 describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
@@ -76,6 +41,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     vi.restoreAllMocks();
     fallbackMock.mockReset();
     fallbackMock.mockResolvedValue({ ok: false, reason: 'empty' });
+    resolveCityMock.mockReset();
   });
 
   Scenario('Initial idle state shows activate button', ({ When, Then }) => {
@@ -91,7 +57,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
 
   Scenario('Permission denied shows helpful empty state', ({ Given, When, Then, And }) => {
     Given('the browser geolocation returns a PERMISSION_DENIED error', () => {
-      mockGeolocationError(1);
+      mockGeoFailure(1);
     });
 
     When('the user clicks "Ativar Localizador"', async () => {
@@ -114,7 +80,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
 
   Scenario('General geolocation error shows error message', ({ Given, When, Then }) => {
     Given('the browser geolocation fails with a general error', () => {
-      mockGeolocationError(2);
+      mockGeoFailure(2);
     });
 
     When('the user clicks "Ativar Localizador"', async () => {
@@ -133,37 +99,10 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
 
   Scenario('Success with no results shows empty state', ({ Given, And, When, Then }) => {
     Given('geolocation succeeds with IBGE "1721000"', () => {
-      mockGeolocationSuccess();
-
-      global.fetch = vi.fn().mockImplementation((url: string) => {
-        if (typeof url === 'string' && url.includes('nominatim')) {
-          return Promise.resolve(
-            new Response(
-              JSON.stringify({
-                address: { city: 'Palmas', state: 'Tocantins' },
-              }),
-              { status: 200 },
-            ),
-          );
-        }
-        if (typeof url === 'string' && url.includes('ibge')) {
-          return Promise.resolve(
-            new Response(
-              JSON.stringify([
-                {
-                  id: 1721000,
-                  nome: 'Palmas',
-                  microrregiao: { mesorregiao: { UF: { nome: 'Tocantins' } } },
-                },
-              ]),
-              { status: 200 },
-            ),
-          );
-        }
-        return Promise.resolve(
-          new Response(JSON.stringify({ data: [] }), { status: 200 }),
-        );
-      });
+      mockGeoSuccess();
+      global.fetch = vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ data: [] }), { status: 200 }),
+      );
     });
 
     And('the PNCP API returns 0 results', () => {});
@@ -184,33 +123,27 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
 
   Scenario('Success with results renders bid cards', ({ Given, And, When, Then }) => {
     Given('geolocation succeeds with IBGE "1721000"', () => {
-      const resolveGeo = mockGeoResolution();
-
-      global.fetch = vi.fn().mockImplementation((input: unknown) => {
-        const url = typeof input === 'string' ? input : (input as Request).url;
-        const geoResponse = resolveGeo(url);
-        if (geoResponse) return Promise.resolve(geoResponse);
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              data: [
-                {
-                  numeroControlePNCP: '99999999999999-1-000001/2024',
-                  dataPublicacaoPncp: '2025-01-15T00:00:00',
-                  objetoCompra: 'Contratação ao vivo',
-                  valorTotalEstimado: 1000,
-                  orgaoEntidade: {
-                    razaoSocial: 'Órgão Local',
-                    cnpj: '99999999999999',
-                  },
-                  unidadeOrgao: { nomeUnidade: 'Unidade' },
+      mockGeoSuccess();
+      global.fetch = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            data: [
+              {
+                numeroControlePNCP: '99999999999999-1-000001/2024',
+                dataPublicacaoPncp: '2025-01-15T00:00:00',
+                objetoCompra: 'Contratação ao vivo',
+                valorTotalEstimado: 1000,
+                orgaoEntidade: {
+                  razaoSocial: 'Órgão Local',
+                  cnpj: '99999999999999',
                 },
-              ],
-            }),
-            { status: 200 },
-          ),
-        );
-      });
+                unidadeOrgao: { nomeUnidade: 'Unidade' },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      );
     });
 
     And('the PNCP API returns 1 live contract', () => {});
@@ -234,14 +167,8 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
 
   Scenario('PNCP unavailable — archived fallback renders with info banner', ({ Given, And, When, Then }) => {
     Given('geolocation succeeds with IBGE "1721000"', () => {
-      const resolveGeo = mockGeoResolution();
-
-      global.fetch = vi.fn().mockImplementation((input: unknown) => {
-        const url = typeof input === 'string' ? input : (input as Request).url;
-        const geoResponse = resolveGeo(url);
-        if (geoResponse) return Promise.resolve(geoResponse);
-        return Promise.resolve(new Response('boom', { status: 503 }));
-      });
+      mockGeoSuccess();
+      global.fetch = vi.fn().mockResolvedValue(new Response('boom', { status: 503 }));
     });
 
     And('every PNCP consulta call returns 503', () => {});
@@ -291,14 +218,8 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
 
   Scenario('Skeleton loader shown while PNCP query is pending', ({ Given, And, When, Then }) => {
     Given('geolocation succeeds with IBGE "1721000"', () => {
-      const resolveGeo = mockGeoResolution();
-
-      global.fetch = vi.fn().mockImplementation((input: unknown) => {
-        const url = typeof input === 'string' ? input : (input as Request).url;
-        const geoResponse = resolveGeo(url);
-        if (geoResponse) return Promise.resolve(geoResponse);
-        return new Promise(() => {});
-      });
+      mockGeoSuccess();
+      global.fetch = vi.fn().mockImplementation(() => new Promise(() => {}));
     });
 
     And('the PNCP fetch is pending', () => {});
