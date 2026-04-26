@@ -77,7 +77,10 @@ const isCityActive = cleanPath === cityPrefix;
     z-index: 100;
     box-shadow: var(--shadow-pool-sm);
     border-radius: 0 0 var(--radius-arch) 0;
-    overflow: hidden;
+    /* No overflow: hidden — would clip the "Dados Abertos" submenu on
+       desktop and the expanded panel on mobile, both anchored at
+       top: 100% of this navbar. The decorative ::after stripe and the
+       bottom-right rounded corner still render correctly without it. */
   }
   .nav::after {
     content: "";
