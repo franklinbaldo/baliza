@@ -19,18 +19,25 @@
   type GeoStatus = 'idle' | 'locating' | 'ready' | 'denied' | 'error';
   let geoStatus = $state<GeoStatus>('idle');
 
-  // Centroid lookup is approximate; flag the rare case where the closest
-  // municipality is so far away that the result is almost certainly wrong
-  // (user outside Brazil, or geolocation returned a coarse fallback).
-  const NEAREST_SANITY_KM = 80;
+  // Coarse Brazil bounding box (with margin for territorial waters / oceanic
+  // islands). A centroid-distance cutoff would falsely reject residents of
+  // the Amazonian giants — Altamira/PA (~159k km²), Barcelos/AM (~122k km²),
+  // São Gabriel da Cachoeira/AM (~109k km²) — where homes can be 200+ km
+  // from the municipal centroid yet still inside the city limits.
+  function isInsideBrazil(lat: number, lng: number): boolean {
+    return lat >= -34 && lat <= 6 && lng >= -75 && lng <= -28;
+  }
 
   async function handleFindLocal() {
     geoStatus = 'locating';
     try {
       const coords = await getUserCoordinates();
+      if (!isInsideBrazil(coords.latitude, coords.longitude)) {
+        throw new Error('Coordenadas fora do território brasileiro.');
+      }
       const nearest = await findNearestMunicipality(coords.latitude, coords.longitude);
-      if (!nearest || nearest.distanceKm > NEAREST_SANITY_KM) {
-        throw new Error('Não foi possível localizar um município brasileiro próximo.');
+      if (!nearest) {
+        throw new Error('Não foi possível localizar um município brasileiro.');
       }
       setCity({ ibge: nearest.ibge, nome: nearest.nome, uf: nearest.uf }, 'storage');
       geoStatus = 'ready';
