@@ -18,4 +18,10 @@ export const QUERY_KEYS = {
   // from `busca` because it doesn't share the live PNCP fetch path —
   // colocating them would invalidate cache cross-page on every search.
   cityAggregates: (ibge: string) => ['city-aggregates', ibge] as const,
+  // Distinct cnpj_orgao raizes (8-digit prefix) seen in the latest
+  // contratos parquet — numerator for the /status coverage audit.
+  publishingCnpjRaizes: ['publishing-cnpj-raizes'] as const,
+  // The static reference list of public-administration CNPJ raizes
+  // (denominator, refreshed monthly by build-orgaos-publicos workflow).
+  publicCnpjReference: ['public-cnpj-reference'] as const,
 } as const;
