@@ -1,6 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import RawArchiveStatus from '../components/RawArchiveStatus.svelte';
+import CoverageReport from '../components/CoverageReport.svelte';
 ---
 
 <Layout
@@ -22,6 +23,10 @@ import RawArchiveStatus from '../components/RawArchiveStatus.svelte';
 
     <div class="status-content">
       <RawArchiveStatus client:load />
+    </div>
+
+    <div class="status-content status-content--coverage">
+      <CoverageReport client:visible />
     </div>
   </section>
 </Layout>
@@ -72,5 +77,8 @@ import RawArchiveStatus from '../components/RawArchiveStatus.svelte';
     border-radius: var(--radius-lg) var(--radius-arch) var(--radius-lg) 0;
     border: 1px solid var(--color-border);
     box-shadow: var(--shadow-pool-sm);
+  }
+  .status-content--coverage {
+    margin-top: var(--space-xl);
   }
 </style>

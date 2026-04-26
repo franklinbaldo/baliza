@@ -445,3 +445,87 @@ export async function queryCityAggregates(
     if (timeoutHandle !== null) clearTimeout(timeoutHandle);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Public-CNPJ coverage audit for the /status page
+// ---------------------------------------------------------------------------
+// Compares the universe of public-administration CNPJs (denominator,
+// extracted from the Receita Federal CNPJ dump and shipped as a static
+// JSON at web/public/data/cnpj-orgaos-publicos.json) against the CNPJs
+// that actually published in PNCP (numerator, distinct cnpj_orgao raizes
+// from the latest contratos parquet).
+//
+// We work at the CNPJ raiz (8-digit prefix) level so subordinated units
+// roll up into the parent agency — a Prefeitura's matriz and its many
+// secretariats count as one entity, which is the granularity citizens
+// reason about.
+
+export async function queryPublishingCnpjRaizes(
+  opts: { timeoutMs?: number } = {},
+): Promise<ArchiveResult<string>> {
+  const info = await getLatestParquetInfo(CITY_AGGREGATES_TABLE);
+  if (!info) {
+    logFallbackFailed(CITY_AGGREGATES_TABLE, 'cnpj_orgao', 'no_manifest');
+    return { ok: false, reason: 'no_manifest' };
+  }
+
+  let conn;
+  try {
+    ({ conn } = await getDuckDB());
+  } catch {
+    logFallbackFailed(CITY_AGGREGATES_TABLE, 'cnpj_orgao', 'duckdb_init_failed');
+    return { ok: false, reason: 'duckdb_init_failed' };
+  }
+
+  const readClause = `read_parquet('${escapeSqlLiteral(info.url)}')`;
+  // SUBSTR is 1-indexed in DuckDB; (cnpj_orgao, 1, 8) returns the raiz.
+  // Filtering NOT NULL avoids a `null` row in the result set when older
+  // partitions still carry rows whose orgão CNPJ wasn't recovered.
+  const sql = `SELECT DISTINCT SUBSTR(cnpj_orgao, 1, 8) AS raiz
+    FROM ${readClause}
+    WHERE cnpj_orgao IS NOT NULL AND LENGTH(cnpj_orgao) >= 8`;
+
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_QUERY_TIMEOUT_MS;
+  let timedOut = false;
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+  const queryPromise = conn.query(sql);
+  queryPromise.catch(() => null);
+  const timeoutPromise = new Promise<'__timeout__'>((resolve) => {
+    timeoutHandle = setTimeout(() => {
+      timedOut = true;
+      void conn.cancelSent().catch(() => null);
+      resolve('__timeout__');
+    }, Math.max(0, timeoutMs));
+  });
+
+  try {
+    const raced = await Promise.race([queryPromise, timeoutPromise]);
+    if (raced === '__timeout__') {
+      logFallbackFailed(CITY_AGGREGATES_TABLE, 'cnpj_orgao', 'timeout');
+      return { ok: false, reason: 'timeout' };
+    }
+    const raizes = raced
+      .toArray()
+      .map((r: unknown) => {
+        const anyRow = r as { toJSON?: () => unknown };
+        const obj = (typeof anyRow.toJSON === 'function' ? anyRow.toJSON() : r) as { raiz: string };
+        return obj.raiz;
+      })
+      .filter((s) => typeof s === 'string' && /^\d{8}$/.test(s));
+    if (raizes.length === 0) {
+      logFallbackFailed(CITY_AGGREGATES_TABLE, 'cnpj_orgao', 'empty');
+      return { ok: false, reason: 'empty' };
+    }
+    logFallbackServed(CITY_AGGREGATES_TABLE, 'cnpj_orgao', raizes.length);
+    return { ok: true, rows: raizes, dataParticao: info.dataParticao };
+  } catch {
+    if (timedOut) {
+      logFallbackFailed(CITY_AGGREGATES_TABLE, 'cnpj_orgao', 'timeout');
+      return { ok: false, reason: 'timeout' };
+    }
+    logFallbackFailed(CITY_AGGREGATES_TABLE, 'cnpj_orgao', 'sql_error');
+    return { ok: false, reason: 'sql_error' };
+  } finally {
+    if (timeoutHandle !== null) clearTimeout(timeoutHandle);
+  }
+}
