@@ -2,7 +2,7 @@
   import CityPicker from './CityPicker.svelte';
   import { cityState, hydrateCityContext, setCity } from '../lib/cityContext.svelte';
   import { resolve } from '../lib/baseUrl';
-  import { getUserCoordinates, findNearestMunicipality } from '../lib/geo';
+  import { getUserCoordinates, findNearestMunicipality, isInsideBrazil } from '../lib/geo';
 
   hydrateCityContext();
 
@@ -19,20 +19,19 @@
   type GeoStatus = 'idle' | 'locating' | 'ready' | 'denied' | 'error';
   let geoStatus = $state<GeoStatus>('idle');
 
-  // Coarse Brazil bounding box (with margin for territorial waters / oceanic
-  // islands). A centroid-distance cutoff would falsely reject residents of
-  // the Amazonian giants — Altamira/PA (~159k km²), Barcelos/AM (~122k km²),
-  // São Gabriel da Cachoeira/AM (~109k km²) — where homes can be 200+ km
-  // from the municipal centroid yet still inside the city limits.
-  function isInsideBrazil(lat: number, lng: number): boolean {
-    return lat >= -34 && lat <= 6 && lng >= -75 && lng <= -28;
-  }
-
   async function handleFindLocal() {
     geoStatus = 'locating';
     try {
       const coords = await getUserCoordinates();
-      if (!isInsideBrazil(coords.latitude, coords.longitude)) {
+      // Point-in-polygon against the Natural Earth 50m Brazil outline
+      // (~31 KB / 14 KB gz, lazy-loaded). Cleanly rejects neighboring
+      // countries that the previous bounding box wrongly accepted (e.g.
+      // Asunción, Ciudad del Este, Bogotá), at the cost of being unable
+      // to distinguish twin border cities like Foz/Ciudad del Este or
+      // Tabatinga/Leticia, which would require Natural Earth 10m at
+      // ~6× the asset weight.
+      const inside = await isInsideBrazil(coords.latitude, coords.longitude);
+      if (!inside) {
         throw new Error('Coordenadas fora do território brasileiro.');
       }
       const nearest = await findNearestMunicipality(coords.latitude, coords.longitude);

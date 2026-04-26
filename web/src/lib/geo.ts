@@ -188,3 +188,77 @@ export async function findNearestMunicipality(
     distanceKm: Math.sqrt(bestSq) * DEG_TO_RAD * EARTH_RADIUS_KM,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Brazil boundary point-in-polygon test
+// ---------------------------------------------------------------------------
+// Replaces a coarse bounding-box check that wrongly accepted parts of
+// Paraguay / Argentina / Colombia and silently snapped them onto the nearest
+// Brazilian municipality (regression vs. the old Nominatim flow, flagged by
+// Codex on PR #498).
+//
+// Boundary source: Natural Earth 50m admin_0_countries (public domain),
+// extracted to web/public/data/br-boundary.json by build-municipalities.mjs
+// — ~31 KB raw / ~14 KB gzipped, fetched lazily on first geolocation use.
+// 50m resolves ~5 km on the ground, so it correctly rejects Asunción,
+// Bogotá, Caracas, Buenos Aires, etc., but cannot distinguish twin border
+// cities literally on the river (Foz/Ciudad del Este, Tabatinga/Leticia).
+// 10m would cover those at 6× the byte cost — a deliberate trade-off.
+
+type Ring = [number, number][];
+type Polygon = Ring[]; // [outer, hole1, hole2, ...]
+type BoundaryData = Polygon[]; // MultiPolygon
+
+let boundaryPromise: Promise<BoundaryData> | null = null;
+
+async function loadBoundary(): Promise<BoundaryData> {
+  if (!boundaryPromise) {
+    boundaryPromise = (async () => {
+      const url = resolveHref('data/br-boundary.json');
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Falha ao carregar fronteira do Brasil (${res.status}).`);
+      const raw = (await res.json()) as BoundaryData;
+      if (!Array.isArray(raw) || raw.length === 0) {
+        throw new Error('Dataset de fronteira vazio.');
+      }
+      return raw;
+    })().catch((err) => {
+      boundaryPromise = null;
+      throw err;
+    });
+  }
+  return boundaryPromise;
+}
+
+// Standard ray-casting algorithm (PNPOLY). x = lng, y = lat.
+function ringContains(ring: Ring, x: number, y: number): boolean {
+  let inside = false;
+  const n = ring.length;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+    const intersects =
+      (yi > y) !== (yj > y) &&
+      x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
+    if (intersects) inside = !inside;
+  }
+  return inside;
+}
+
+export async function isInsideBrazil(lat: number, lng: number): Promise<boolean> {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+  const polys = await loadBoundary();
+  for (const poly of polys) {
+    if (poly.length === 0) continue;
+    if (!ringContains(poly[0], lng, lat)) continue;
+    let inHole = false;
+    for (let h = 1; h < poly.length; h++) {
+      if (ringContains(poly[h], lng, lat)) {
+        inHole = true;
+        break;
+      }
+    }
+    if (!inHole) return true;
+  }
+  return false;
+}
