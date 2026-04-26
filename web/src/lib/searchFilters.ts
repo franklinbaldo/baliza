@@ -74,8 +74,14 @@ export const FILTERS: Readonly<Record<string, FilterDef>> = {
     label: 'CNPJ do Órgão',
     placeholder: 'Apenas números (14 dígitos)',
   },
-  uf: {
-    key: 'uf',
+  ufFiltro: {
+    // URL key intentionally `ufFiltro`, not `uf`. cityContext.svelte.ts:62
+    // already reads `?uf=` as the active municipality's UF (paired with
+    // `?ibge=`), so reusing that key for the search filter would cause
+    // links like `?ibge=3550308&uf=RJ` to silently mislabel the city.
+    // The user keeps typing `uf:RJ` (alias below) and PNCP keeps receiving
+    // `uf=RJ` (apiParam below); only the URL serialisation changes.
+    key: 'ufFiltro',
     apiParam: 'uf',
     // UF sigla is two uppercase letters. We accept any case at parse time
     // and uppercase here so URLs stay canonical regardless of input style.
