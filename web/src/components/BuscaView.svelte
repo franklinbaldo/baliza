@@ -9,6 +9,15 @@
   import * as nav from '../lib/navigate';
   import * as exporters from '../lib/exporters';
   import { formatBRL, formatDate } from '../lib/format';
+  import {
+    FILTERS,
+    parseInput as parseSearchInput,
+    readFilters,
+    toUrlEntries,
+    toApiParams,
+    hasAny as hasAnyFilter,
+    type FilterValues,
+  } from '../lib/searchFilters';
   import AlertBanner from './AlertBanner.svelte';
   import EmptyState from './EmptyState.svelte';
   import PaginatedList from './PaginatedList.svelte';
@@ -17,56 +26,75 @@
 
   const { q: qProp = '' }: { q?: string } = $props();
 
-  function initialParam(key: string): string {
-    if (typeof window === 'undefined') return '';
-    return (new URLSearchParams(window.location.search).get(key) ?? '').trim();
+  // Hydrate from URL: every recognised filter (`?ibge=`, `?cnpj=`, `?uf=`,
+  // …) is read as its own param; `?q=` is also scanned for inline tags
+  // so power-user shorthand (`?q=ibge:1100205+merenda`) still works on
+  // load. URL is the single source of truth — state is derived from it
+  // on init and pushed back on submit.
+  function readUrl(): { input: string; submitted: { q: string; filters: FilterValues } } {
+    if (typeof window === 'undefined') {
+      const parsed = parseSearchInput(qProp.trim());
+      return {
+        input: qProp.trim(),
+        submitted: { q: parsed.term, filters: parsed.filters },
+      };
+    }
+    const params = new URLSearchParams(window.location.search);
+    const rawQ = (qProp || params.get('q') || '').trim();
+    const parsed = parseSearchInput(rawQ);
+    // URL params take precedence over inline tags for the same key — a
+    // shareable link with explicit `?ibge=` shouldn't be silently
+    // overridden by a stale tag inside the q string.
+    const filters = { ...parsed.filters, ...readFilters(params) };
+    return { input: rawQ, submitted: { q: parsed.term, filters } };
   }
 
-  let searchInput = $state(qProp ? qProp.trim() : initialParam('q'));
-  
-  function parseInput(raw: string) {
-    let ibge = initialParam('ibge'); // fallback to old query param if present
-    let cnpj = initialParam('cnpj');
-    let term = raw;
+  const initial = readUrl();
 
-    const ibgeMatch = term.match(/ibge:(\d+)/i);
-    if (ibgeMatch) { ibge = ibgeMatch[1]; term = term.replace(ibgeMatch[0], ''); }
+  // searchInput is what's bound to the visible <input>. We never rewrite
+  // it during submit — that previously caused a "snap" as the field was
+  // re-canonicalised under the user's cursor. Inline tags stay as the
+  // user typed them; the parsed form is held separately in `submitted`.
+  let searchInput = $state(initial.input);
 
-    const cnpjMatch = term.match(/cnpj:(\d+)/i);
-    if (cnpjMatch) { cnpj = cnpjMatch[1]; term = term.replace(cnpjMatch[0], ''); }
+  // Submitted = the snapshot the data layer queries against. Replaced
+  // atomically on submit so query keys move in lockstep.
+  let submitted = $state<{ q: string; filters: FilterValues }>(initial.submitted);
 
-    return { term: term.trim(), ibge, cnpj };
-  }
-
-  const initialParsed = parseInput(searchInput);
-
-  let submittedQ = $state(initialParsed.term);
-  let submittedCnpj = $state(initialParsed.cnpj);
-  let submittedIbge = $state(initialParsed.ibge);
-
-  let searchCnpj = $state(initialParsed.cnpj);
-  let searchIbge = $state(initialParsed.ibge);
+  // Drafts back the per-filter inputs in the "Filtros Avançados" drawer.
+  // Editing a draft doesn't refetch — the user has to click Buscar so
+  // their typing isn't shipped to PNCP on every keystroke. Initialised
+  // from URL so the drawer reflects what's actually applied.
+  const drafts: Record<string, string> = $state(
+    Object.fromEntries(
+      Object.values(FILTERS).map((def) => [def.key, initial.submitted.filters[def.key] ?? '']),
+    ),
+  );
+  const draftHasAny = $derived(Object.values(drafts).some((v) => !!v));
 
   let selectedUf = $state('');
   let selectedModality = $state('');
 
-  const redirecting = $derived(!!submittedQ && isPncpId(submittedQ));
+  const redirecting = $derived(!!submitted.q && isPncpId(submitted.q));
 
   $effect(() => {
-    if (submittedQ && isPncpId(submittedQ)) {
-      nav.navigateReplace(resolve(`contratacao?id=${submittedQ}`));
+    if (submitted.q && isPncpId(submitted.q)) {
+      nav.navigateReplace(resolve(`contratacao?id=${submitted.q}`));
     }
   });
 
   const query = createQuery(() => {
-    const term = submittedQ;
-    const cnpj = submittedCnpj;
-    const ibge = submittedIbge;
-    const hasAdvanced = !!cnpj || !!ibge;
+    const { q: term, filters } = submitted;
+    const hasAdvanced = hasAnyFilter(filters);
     return {
-      queryKey: QUERY_KEYS.busca(term, cnpj, ibge),
+      // Query key still surfaces ibge/cnpj as primary keys for cache
+      // continuity with the previous shape; additional filters fold into
+      // the suffix object so adding one in the registry doesn't require
+      // a queryKeys.ts change.
+      queryKey: QUERY_KEYS.busca(term, filters.cnpj ?? '', filters.ibge ?? '', filters),
       enabled: (term.length >= 3 && !isPncpId(term)) || hasAdvanced,
-      queryFn: () => fetchPublicacaoPagesForObjeto(term, { filters: { cnpj, codigoMunicipioIbge: ibge } }),
+      queryFn: () =>
+        fetchPublicacaoPagesForObjeto(term, { filters: toApiParams(filters) }),
     };
   });
 
@@ -120,7 +148,7 @@
   // main BuscaView chunk so the common search path doesn't pay for it.
   let suggestion = $state<string | null>(null);
   $effect(() => {
-    const term = submittedQ;
+    const term = submitted.q;
     if (
       !term ||
       term.length < 3 ||
@@ -141,65 +169,68 @@
     };
   });
 
+  // Pushes the current (q, filters) pair into the URL using one param per
+  // filter — `?q=merenda&ibge=1100205&uf=RO`. Semantic separation makes
+  // links easier to share/debug and lets applySuggestion() mutate just
+  // `q` without nuking the structured filters.
+  function syncUrl(q: string, filters: FilterValues): void {
+    if (typeof window === 'undefined') return;
+    const entries: Record<string, string> = { ...toUrlEntries(filters) };
+    if (q) entries.q = q;
+    const qs = new URLSearchParams(entries).toString();
+    window.history.replaceState(
+      {},
+      '',
+      qs ? `${window.location.pathname}?${qs}` : window.location.pathname,
+    );
+  }
+
   function applySuggestion(): void {
     if (!suggestion) return;
+    // Update the visible input to mirror the substitution; preserve
+    // structured filters by only replacing the q half of `submitted`.
     searchInput = suggestion;
-    submittedQ = suggestion;
+    submitted = { q: suggestion, filters: submitted.filters };
     selectedUf = '';
     selectedModality = '';
-    if (typeof window === 'undefined') return;
-    const entries = Object.fromEntries(new URLSearchParams(window.location.search));
-    const params = new URLSearchParams({ ...entries, q: suggestion });
-    window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
+    syncUrl(suggestion, submitted.filters);
   }
 
   function handleSubmit(ev: Event) {
     ev.preventDefault();
-    let raw = searchInput.trim();
-    
-    // If they typed into the advanced boxes, append it to raw string so it stays in sync
-    let ibge = searchIbge.replace(/\D/g, '');
-    let cnpj = searchCnpj.replace(/\D/g, '');
-    let term = raw;
+    const parsed = parseSearchInput(searchInput);
 
-    // But if the main input HAS tags, they take precedence
-    const ibgeMatch = term.match(/ibge:(\d+)/i);
-    if (ibgeMatch) { ibge = ibgeMatch[1]; term = term.replace(ibgeMatch[0], ''); }
-    
-    const cnpjMatch = term.match(/cnpj:(\d+)/i);
-    if (cnpjMatch) { cnpj = cnpjMatch[1]; term = term.replace(cnpjMatch[0], ''); }
-    
-    term = term.trim();
-
-    // Reconstruct searchInput
-    const tags = [];
-    if (ibge) tags.push(`ibge:${ibge}`);
-    if (cnpj) tags.push(`cnpj:${cnpj}`);
-    searchInput = (tags.join(' ') + (term ? ' ' + term : '')).trim();
-
-    searchIbge = ibge;
-    searchCnpj = cnpj;
-
-    if (isPncpId(term)) {
-      nav.navigate(resolve(`contratacao?id=${term}`));
+    if (isPncpId(parsed.term)) {
+      nav.navigate(resolve(`contratacao?id=${parsed.term}`));
       return;
     }
-    
-    submittedQ = term;
-    submittedCnpj = cnpj;
-    submittedIbge = ibge;
+
+    // Merge: drafts seed the result, inline tags in the q-field win on
+    // overlap. That matches user intent — typing `cnpj:1234…` in the
+    // main box should take precedence over a stale draft value left in
+    // the drawer. Drafts are passed through `normalise` so a typo
+    // ("ibge:42") is dropped here too rather than emitted to the URL.
+    const filters: Record<string, string> = {};
+    for (const def of Object.values(FILTERS)) {
+      const draft = drafts[def.key];
+      if (draft) {
+        const n = def.normalise(draft);
+        if (n) filters[def.key] = n;
+      }
+    }
+    Object.assign(filters, parsed.filters);
+
+    // Reflect canonical values back into the drawer drafts (e.g. "sp"
+    // becomes "SP", "12.345.678/0001-90" loses punctuation) so the user
+    // sees what was actually applied.
+    for (const def of Object.values(FILTERS)) {
+      drafts[def.key] = filters[def.key] ?? '';
+    }
+
+    submitted = { q: parsed.term, filters };
     selectedUf = '';
     selectedModality = '';
-
-    if (typeof window === 'undefined') return;
-    const paramObj: Record<string, string> = {};
-    if (searchInput) paramObj.q = searchInput;
-    const qs = Object.keys(paramObj).length ? `?${new URLSearchParams(paramObj).toString()}` : '';
-    window.history.replaceState(
-      {},
-      '',
-      qs ? `${window.location.pathname}${qs}` : window.location.pathname,
-    );
+    syncUrl(parsed.term, filters);
   }
 
   function truncate(s: string | null | undefined, n: number): string {
@@ -228,7 +259,7 @@
   });
 
   function exportCsv(): void {
-    const slug = (submittedQ || 'busca').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'busca';
+    const slug = (submitted.q || 'busca').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'busca';
     exporters.downloadTextFile(`baliza-${slug}.csv`, exporters.toCsv(filteredResults), 'text/csv');
   }
 
@@ -273,22 +304,20 @@
       <button type="submit" class="btn btn-primary">Buscar</button>
     </div>
     
-    <details class="advanced-filters" open={!!(searchCnpj || searchIbge)}>
+    <details class="advanced-filters" open={draftHasAny}>
       <summary>Filtros Avançados (API do PNCP)</summary>
       <div class="advanced-grid">
-        <label>
-          <span>CNPJ do Órgão</span>
-          <input type="text" bind:value={searchCnpj} placeholder="Apenas números (14 dígitos)" />
-        </label>
-        <label>
-          <span>Código IBGE do Município</span>
-          <input type="text" bind:value={searchIbge} placeholder="Ex.: 3550308 (São Paulo)" />
-        </label>
+        {#each Object.values(FILTERS) as def (def.key)}
+          <label>
+            <span>{def.label}</span>
+            <input type="text" bind:value={drafts[def.key]} placeholder={def.placeholder} />
+          </label>
+        {/each}
       </div>
     </details>
   </form>
 
-  {#if redirecting || (!submittedQ && !submittedCnpj && !submittedIbge) || (!submittedCnpj && !submittedIbge && submittedQ.length < 3)}
+  {#if redirecting || (!submitted.q && !hasAnyFilter(submitted.filters)) || (!hasAnyFilter(submitted.filters) && submitted.q.length < 3)}
     <EmptyState
       title="Busca de Contratações"
       message="Use ao menos 3 caracteres no termo ou preencha um filtro avançado para buscar."
@@ -391,7 +420,7 @@
         message="Ajuste a UF ou a modalidade para ver mais contratações."
       />
     {:else}
-      <PaginatedList items={filteredResults} pageSize={20} resetTrigger={`${submittedQ}${selectedUf}${selectedModality}`}>
+      <PaginatedList items={filteredResults} pageSize={20} resetTrigger={`${submitted.q}${selectedUf}${selectedModality}`}>
         {#snippet children(pageItems)}
           <ul role="listbox" class="busca-results" data-testid="busca-results">
             {#each pageItems as c (c.numeroControlePNCP)}

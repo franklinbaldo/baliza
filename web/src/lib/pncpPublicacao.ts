@@ -15,11 +15,18 @@ export const DEFAULT_MODALIDADES = [4, 5, 6, 8, 9, 12] as const;
 export const DEFAULT_SINCE_DAYS = 90;
 const PUBLICACAO_URL = 'https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao';
 
+// Map from PNCP swagger field names to their values. The two convenience
+// entries below are typed for autocomplete in the long-standing callers
+// (CityPulse, LocalBids); the open index signature lets the BuscaView
+// registry forward any other parameter PNCP accepts without requiring a
+// structural change here. See lib/searchFilters.ts for the canonical
+// list of filters the UI exposes.
 export interface PublicacaoFilters {
   /** Órgão CNPJ (14 digits). Sent as `cnpj=…` (swagger name), NOT `cnpjOrgao`. */
   cnpj?: string;
   /** 7-digit IBGE município code. */
   codigoMunicipioIbge?: string;
+  [k: string]: string | undefined;
 }
 
 export interface PublicacaoOpts {
@@ -61,9 +68,10 @@ function buildUrl(
     codigoModalidadeContratacao: String(modalidade),
     pagina: String(pagina),
     tamanhoPagina: String(tamanhoPagina),
-    ...(filters.cnpj ? { cnpj: filters.cnpj } : {}),
-    ...(filters.codigoMunicipioIbge ? { codigoMunicipioIbge: filters.codigoMunicipioIbge } : {}),
   };
+  for (const [k, v] of Object.entries(filters)) {
+    if (v) paramObj[k] = v;
+  }
   return `${PUBLICACAO_URL}?${new URLSearchParams(paramObj).toString()}`;
 }
 
@@ -184,8 +192,9 @@ export async function fetchPublicacaoPagesForObjeto(
   } = {},
 ): Promise<PNCPContract[]> {
   const term = objeto.trim().toLowerCase();
-  // Allow empty term if we have filters, otherwise return empty
-  if (!term && !opts.filters?.cnpj && !opts.filters?.codigoMunicipioIbge) return [];
+  // Allow empty term if we have any filter, otherwise return empty.
+  const hasFilter = !!opts.filters && Object.values(opts.filters).some((v) => !!v);
+  if (!term && !hasFilter) return [];
   const {
     maxPages = MAX_BUSCA_PAGES,
     sinceDays = BUSCA_SINCE_DAYS,
