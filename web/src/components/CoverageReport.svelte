@@ -32,9 +32,14 @@
   }));
 
   // Numerator: distinct cnpj_orgao raizes from the latest contratos
-  // parquet (queried in-browser via DuckDB-WASM).
+  // parquet (queried in-browser via DuckDB-WASM). Gated on the reference
+  // dataset being available — without a denominator the SELECT DISTINCT
+  // result has nothing to compare against and the UI exits early via the
+  // reference-error banner, so kicking off the parquet shard download
+  // and DuckDB query would be pure waste in the bootstrap state.
   const publishingQuery = createQuery(() => ({
     queryKey: QUERY_KEYS.publishingCnpjRaizes,
+    enabled: !!referenceQuery.data && referenceQuery.data.length > 0,
     staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<{ raizes: string[]; dataParticao: string | null }> => {
       const r = await queryPublishingCnpjRaizes();
