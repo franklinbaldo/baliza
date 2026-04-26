@@ -132,8 +132,8 @@
     selectedUf = '';
     selectedModality = '';
     if (typeof window === 'undefined') return;
-    const params = new URLSearchParams(window.location.search);
-    params.set('q', suggestion);
+    const entries = Object.fromEntries(new URLSearchParams(window.location.search));
+    const params = new URLSearchParams({ ...entries, q: suggestion });
     window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
   }
 
@@ -155,12 +155,11 @@
     selectedModality = '';
 
     if (typeof window === 'undefined') return;
-    const params = new URLSearchParams();
-    if (term) params.set('q', term);
-    if (cnpj) params.set('cnpj', cnpj);
-    if (ibge) params.set('ibge', ibge);
-    
-    const qs = params.toString() ? `?${params.toString()}` : '';
+    const paramObj: Record<string, string> = {};
+    if (term) paramObj.q = term;
+    if (cnpj) paramObj.cnpj = cnpj;
+    if (ibge) paramObj.ibge = ibge;
+    const qs = Object.keys(paramObj).length ? `?${new URLSearchParams(paramObj).toString()}` : '';
     window.history.replaceState(
       {},
       '',

@@ -44,7 +44,6 @@
 
   function updateDias(next: number) {
     dias = next;
-    currentPage = 1;
     if (typeof window === 'undefined') return;
     const entries = Object.fromEntries(new URLSearchParams(window.location.search));
     const params = new URLSearchParams({ ...entries, dias: String(next) });

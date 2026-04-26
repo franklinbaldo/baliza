@@ -15,9 +15,11 @@
 
   let currentPage = $state(1);
 
-  // Allow forcing a reset from the outside (e.g. when filters change)
+  // Allow forcing a reset from the outside (e.g. when filters change).
+  // Void-cast reads resetTrigger to register the dependency without
+  // triggering the no-unused-expressions lint rule.
   $effect(() => {
-    resetTrigger;
+    void resetTrigger;
     currentPage = 1;
   });
 
