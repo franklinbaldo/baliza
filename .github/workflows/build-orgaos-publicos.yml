@@ -13,8 +13,11 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  # Need write to push the regenerated JSON back to main when content changes.
+  # Need contents: write to push the regenerated JSON back to main when
+  # content changes; issues: write so the report-failure job can open an
+  # alert issue (`github.rest.issues.create`) when the ETL breaks.
   contents: write
+  issues: write
 
 jobs:
   build:
@@ -36,7 +39,11 @@ jobs:
 
       - name: Commit refreshed JSON if changed
         run: |
-          if git diff --quiet -- web/public/data/cnpj-orgaos-publicos.json; then
+          # `git status --porcelain` reports both modified (M) and untracked
+          # (??) entries; `git diff --quiet` would miss the first run where
+          # the JSON doesn't exist in HEAD yet and the workflow would never
+          # commit the bootstrap dataset.
+          if [ -z "$(git status --porcelain -- web/public/data/cnpj-orgaos-publicos.json)" ]; then
             echo "No changes — Receita dump produced an identical filtered set."
             exit 0
           fi
