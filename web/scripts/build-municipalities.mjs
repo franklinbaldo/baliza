@@ -28,7 +28,8 @@ const UF_CODE_TO_SIGLA = {
 };
 
 async function main() {
-  if (fs.existsSync(OUT_PATH)) {
+  const hasOnDisk = fs.existsSync(OUT_PATH);
+  if (hasOnDisk) {
     // Idempotent: skip the network if a fresh-enough copy is already on disk.
     const ageMs = Date.now() - fs.statSync(OUT_PATH).mtimeMs;
     if (ageMs < 30 * 24 * 60 * 60 * 1000) {
@@ -38,15 +39,26 @@ async function main() {
   }
 
   console.log(`[ibge-centroids] fetching ${SOURCE_URL}`);
-  const res = await fetch(SOURCE_URL);
-  if (!res.ok) {
-    throw new Error(`fetch failed: ${res.status} ${res.statusText}`);
-  }
-  // Source ships with a UTF-8 BOM; strip it before parsing.
-  const text = (await res.text()).replace(/^\uFEFF/, '');
-  const raw = JSON.parse(text);
-  if (!Array.isArray(raw) || raw.length === 0) {
-    throw new Error('unexpected source shape: empty or non-array');
+  let raw;
+  try {
+    const res = await fetch(SOURCE_URL);
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+    // Source ships with a UTF-8 BOM; strip it before parsing.
+    const text = (await res.text()).replace(/^\uFEFF/, '');
+    raw = JSON.parse(text);
+    if (!Array.isArray(raw) || raw.length === 0) {
+      throw new Error('unexpected source shape: empty or non-array');
+    }
+  } catch (err) {
+    // Best-effort refresh: if the network or upstream is unavailable but we
+    // already have a checked-in dataset on disk, keep the build reproducible
+    // (offline CI, restricted runners) instead of hard-failing. Only abort
+    // when there's nothing to fall back on.
+    if (hasOnDisk) {
+      console.warn(`[ibge-centroids] refresh failed (${err.message}); keeping existing ${path.relative(process.cwd(), OUT_PATH)}`);
+      return;
+    }
+    throw err;
   }
 
   const compact = [];
@@ -66,6 +78,12 @@ async function main() {
   }
 
   if (compact.length < 5500) {
+    // Same fallback rationale: a malformed upstream payload shouldn't break
+    // builds when a known-good dataset is already committed.
+    if (hasOnDisk) {
+      console.warn(`[ibge-centroids] upstream returned only ${compact.length} valid rows (expected ~5570); keeping existing file`);
+      return;
+    }
     throw new Error(`sanity check failed: only ${compact.length} valid municipalities (expected ~5570)`);
   }
 
