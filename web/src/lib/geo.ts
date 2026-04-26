@@ -1,53 +1,40 @@
-import type { IBGEResult } from "./types";
-
 /**
  * Baliza Geo-Utility
- * Translates Browser Coordinates -> City Name -> IBGE Code
+ *
+ * Single source of truth for "what city does this browser belong to?".
+ * `resolveCityFromBrowserLocation()` is the only entry point UI code should
+ * need: it owns the full pipeline (Geolocation API → in-Brazil polygon test
+ * → nearest IBGE-municipality lookup → coastal/island fallback). The helper
+ * pieces are exported separately for tests and any future caller that needs
+ * one stage in isolation.
  */
+
+import { resolve as resolveHref } from './baseUrl';
+import ibgeData from './ibge-data.json';
 
 export interface GeoLocation {
   latitude: number;
   longitude: number;
 }
 
-export interface CityResult {
-  city: string;
-  state: string;
-}
-
-export async function getUserCoordinates(): Promise<GeoLocation> {
+async function getUserCoordinates(): Promise<GeoLocation> {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
-      reject(new Error("Geolocalização não suportada pelo navegador."));
+      reject(new Error('Geolocalização não suportada pelo navegador.'));
       return;
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
       (err) => reject(err),
-      { timeout: 10000 }
+      { timeout: 10000 },
     );
   });
 }
 
-export async function getCityFromCoords(lat: number, lng: number): Promise<CityResult> {
-  const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10&addressdetails=1`;
-  const res = await fetch(url, {
-    headers: { 'User-Agent': 'Baliza-Monitor-Transparency-App' }
-  });
-  if (!res.ok) throw new Error("Falha ao converter coordenadas em cidade.");
-  
-  const data = await res.json();
-  const addr = data.address;
-  const city = addr.city || addr.town || addr.village || addr.municipality || "";
-  const state = addr.state || "";
-  
-  return { city, state };
-}
-
-// Nominatim and IBGE both return the UF as a full Portuguese name
-// ("Rondônia", "São Paulo"). The rest of Baliza stores UF as the two-letter
-// sigla, so everything that calls into either API passes the response
-// through this table before writing it anywhere else.
+// IBGE Localidades returns the UF as a full Portuguese name ("Rondônia",
+// "São Paulo"). The rest of Baliza stores UF as the two-letter sigla, so
+// CityPicker's manual forward-search results pass the API response through
+// this table before writing it anywhere else.
 const UF_NAME_TO_SIGLA: Record<string, string> = {
   acre: 'AC', alagoas: 'AL', amapá: 'AP', amazonas: 'AM', bahia: 'BA',
   ceará: 'CE', 'distrito federal': 'DF', 'espírito santo': 'ES',
@@ -67,8 +54,6 @@ export function ufNomeToSigla(name: string | undefined | null): string {
   return name.trim().length === 2 ? name.trim().toUpperCase() : '';
 }
 
-import ibgeData from './ibge-data.json';
-
 export interface MunicipalityInfo {
   nome: string;
   uf: string;
@@ -78,26 +63,6 @@ export interface MunicipalityInfo {
 export function getMunicipalityInfo(ibge: string): MunicipalityInfo | null {
   const data = ibgeData as Record<string, MunicipalityInfo>;
   return data[ibge] || null;
-}
-
-export async function getIBGECode(cityName: string, stateName: string): Promise<string | null> {
-  const url = `https://servicodados.ibge.gov.br/api/v1/localidades/municipios?nome=${encodeURIComponent(cityName)}`;
-  const res = await fetch(url);
-  if (!res.ok) return null;
-
-  const results = await res.json();
-  if (!Array.isArray(results) || results.length === 0) return null;
-
-  // Strict match by city + state. Homonymous names (e.g. "São Francisco"
-  // exists in a dozen states) make a first-result fallback unsafe — it would
-  // silently pin the wrong IBGE on the shared city context. When we can't
-  // confirm the state, surface null and let the caller show an error.
-  const match = (results as IBGEResult[]).find((m) =>
-    m.nome.toLowerCase() === cityName.toLowerCase() &&
-    (stateName === "" || m.microrregiao.mesorregiao.UF.nome.toLowerCase() === stateName.toLowerCase())
-  );
-
-  return match ? String(match.id) : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -117,8 +82,6 @@ export async function getIBGECode(cityName: string, stateName: string): Promise<
 // a JS chunk that counts against the entry-payload budget enforced by
 // scripts/check-bundle-size.mjs. Loading via fetch() keeps it as a static
 // asset — cached separately by the browser, never blocking the cold path.
-
-import { resolve as resolveHref } from './baseUrl';
 
 type CentroidRow = readonly [ibge: string, nome: string, uf: string, lat: number, lng: number];
 
@@ -192,18 +155,15 @@ export async function findNearestMunicipality(
 // ---------------------------------------------------------------------------
 // Brazil boundary point-in-polygon test
 // ---------------------------------------------------------------------------
-// Replaces a coarse bounding-box check that wrongly accepted parts of
-// Paraguay / Argentina / Colombia and silently snapped them onto the nearest
-// Brazilian municipality (regression vs. the old Nominatim flow, flagged by
-// Codex on PR #498).
-//
-// Boundary source: Natural Earth 50m admin_0_countries (public domain),
+// Boundary source: Natural Earth 10m admin_0_countries (public domain),
 // extracted to web/public/data/br-boundary.json by build-municipalities.mjs
-// — ~31 KB raw / ~14 KB gzipped, fetched lazily on first geolocation use.
-// 50m resolves ~5 km on the ground, so it correctly rejects Asunción,
-// Bogotá, Caracas, Buenos Aires, etc., but cannot distinguish twin border
-// cities literally on the river (Foz/Ciudad del Este, Tabatinga/Leticia).
-// 10m would cover those at 6× the byte cost — a deliberate trade-off.
+// — ~185 KB raw / ~50 KB gzipped, fetched lazily on first geolocation use.
+// 10m gets Brazil's coastline faithful enough that Rio's Zona Sul
+// (Copacabana, Leblon, Centro) tests as inside; 50m's coastal simplification
+// cut ~5 km off the coast and would have falsely rejected those users.
+// Twin border cities literally on opposite riverbanks (Foz/Ciudad del Este,
+// Tabatinga/Leticia, Chuí/Chuy) remain a precision floor any non-cadastral
+// boundary hits.
 
 type Ring = [number, number][];
 type Polygon = Ring[]; // [outer, hole1, hole2, ...]
@@ -261,4 +221,52 @@ export async function isInsideBrazil(lat: number, lng: number): Promise<boolean>
     if (!inHole) return true;
   }
   return false;
+}
+
+// ---------------------------------------------------------------------------
+// Unified entry point: browser → city
+// ---------------------------------------------------------------------------
+
+export interface ResolvedCity {
+  ibge: string;
+  nome: string;
+  uf: string;
+}
+
+// Distance below which we accept a centroid match even when the polygon test
+// says "outside". Natural Earth 10m simplifies away small islands and
+// peninsulas — Vitória/ES (0.0 km), Florianópolis/SC (0.0 km), Belém/PA
+// (1.4 km), São Luís/MA (2.9 km), and Chuí/RS (0.4 km) all sit a few km
+// outside the polygon despite being canonical Brazilian capitals. The
+// closest non-twin foreign city is Encarnación/PY at 96 km from any
+// Brazilian centroid (Asunción 265 km, Lima 576 km), so a 15 km cutoff
+// admits the island/peninsula capitals without reopening the door to
+// non-Brazilian coordinates the polygon test was added to reject.
+const COASTAL_GAP_KM = 15;
+
+/**
+ * Resolves the active browser location to a Brazilian municipality.
+ *
+ * Pipeline:
+ *   navigator.geolocation → in-Brazil polygon → nearest IBGE centroid
+ *
+ * Errors propagate the GeolocationPositionError shape (`.code === 1` means
+ * permission denied) so callers can branch on the same UX message used by
+ * the underlying browser API.
+ *
+ * @throws {Error} if the centroid dataset is unreachable, the resulting
+ *   coordinate is outside Brazil (and not within COASTAL_GAP_KM of any
+ *   Brazilian centroid), or the user denied geolocation permission.
+ */
+export async function resolveCityFromBrowserLocation(): Promise<ResolvedCity> {
+  const coords = await getUserCoordinates();
+  const nearest = await findNearestMunicipality(coords.latitude, coords.longitude);
+  if (!nearest) {
+    throw new Error('Não foi possível localizar um município brasileiro.');
+  }
+  const inside = await isInsideBrazil(coords.latitude, coords.longitude);
+  if (!inside && nearest.distanceKm > COASTAL_GAP_KM) {
+    throw new Error('Coordenadas fora do território brasileiro.');
+  }
+  return { ibge: nearest.ibge, nome: nearest.nome, uf: nearest.uf };
 }
