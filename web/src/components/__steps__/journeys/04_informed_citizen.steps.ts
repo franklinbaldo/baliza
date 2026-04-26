@@ -184,6 +184,9 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   Scenario('Geographic context is shown when available', ({ Given, Then }) => {
     Given('the user opens "/municipio?ibge=3550308"', async () => {
       window.history.replaceState({}, '', '/?ibge=3550308');
+      // PNCP returns a contract that already carries município + UF — the
+      // detail view's fallback chain reads them when the geo enrichment
+      // (centroids JSON) isn't available in the test environment.
       global.fetch = vi
         .fn()
         .mockImplementation(async () => new Response(JSON.stringify({
@@ -192,7 +195,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
             dataPublicacaoPncp: '2024-01-01',
             objetoCompra: 'dummy',
             orgaoEntidade: { razaoSocial: 'A', cnpj: 'B' },
-            unidadeOrgao: { nomeUnidade: 'C' }
+            unidadeOrgao: { nomeUnidade: 'C', municipioNome: 'São Paulo', ufSigla: 'SP' }
           }]
         }), { status: 200 }));
       render(CityDetailView);
@@ -200,10 +203,16 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     });
 
     Then('the user sees the municipality population and the state it belongs to', async () => {
+      // Population was a stub-only field (only São Paulo had a value in the
+      // 1-entry ibge-data.json). After the centroids migration it was
+      // removed; the geographic context now comes through as municipality
+      // name + UF sigla in the page title and IBGE code in the meta row.
       await waitFor(
         () => {
+          expect(document.body.textContent).toContain('São Paulo');
+          expect(document.body.textContent).toContain('SP');
           const meta = screen.getByTestId('city-meta');
-          expect(meta.textContent).toContain('População: 11.451.999');
+          expect(meta.textContent).toContain('Cód. IBGE: 3550308');
         },
         { timeout: 2000 }
       );

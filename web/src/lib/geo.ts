@@ -10,7 +10,6 @@
  */
 
 import { resolve as resolveHref } from './baseUrl';
-import ibgeData from './ibge-data.json';
 
 export interface GeoLocation {
   latitude: number;
@@ -57,12 +56,84 @@ export function ufNomeToSigla(name: string | undefined | null): string {
 export interface MunicipalityInfo {
   nome: string;
   uf: string;
-  populacao: number;
 }
 
-export function getMunicipalityInfo(ibge: string): MunicipalityInfo | null {
-  const data = ibgeData as Record<string, MunicipalityInfo>;
-  return data[ibge] || null;
+/**
+ * Looks up `{nome, uf}` by IBGE code in the centroids dataset. Lazy-
+ * loads the centroids JSON on first call (then re-uses the cached
+ * promise). Returns null when the code isn't recognised.
+ *
+ * Replaces the previous synchronous `getMunicipalityInfo()` that read
+ * a 1-entry stub at `lib/ibge-data.json`. Now backed by the same 5571
+ * municipalities the rest of the geo layer already uses.
+ */
+export async function findMunicipalityByIbge(
+  ibge: string,
+): Promise<MunicipalityInfo | null> {
+  if (!/^\d{7}$/.test(ibge)) return null;
+  // Best-effort enrichment: if the centroids dataset can't be loaded
+  // (offline, fetch blocked in tests, …) return null and let the caller
+  // fall back to whatever the PNCP/parquet payload exposes. The detail
+  // view chain already handles `info: null` gracefully.
+  let rows: readonly CentroidRow[];
+  try {
+    rows = await loadCentroids();
+  } catch {
+    return null;
+  }
+  for (const row of rows) {
+    if (row[0] === ibge) return { nome: row[1], uf: row[2] };
+  }
+  return null;
+}
+
+/**
+ * Diacritic-insensitive substring match against the centroids dataset
+ * for CityPicker's forward-search box. Returns up to `limit` rows in
+ * a stable sort (capitals first, then alphabetical) so a query like
+ * `'sao'` lands São Paulo / São Luís / São Gonçalo at the top.
+ *
+ * Runs entirely in-browser — no IBGE Localidades round-trip — so the
+ * picker UX is instant and works offline once the centroids file is
+ * cached.
+ */
+export interface SearchMatch {
+  ibge: string;
+  nome: string;
+  uf: string;
+}
+
+export async function searchMunicipalities(
+  query: string,
+  limit = 12,
+): Promise<SearchMatch[]> {
+  const term = fold(query.trim());
+  if (term.length < 2) return [];
+  // Same fail-soft posture as findMunicipalityByIbge: return [] on
+  // dataset load errors so the picker shows "no results" instead of
+  // throwing into the UI.
+  let rows: readonly CentroidRow[];
+  try {
+    rows = await loadCentroids();
+  } catch {
+    return [];
+  }
+  const out: SearchMatch[] = [];
+  for (const row of rows) {
+    if (fold(row[1]).includes(term)) {
+      out.push({ ibge: row[0], nome: row[1], uf: row[2] });
+    }
+  }
+  // Stable order: nome ASC, then UF for tie-break (homonyms like "São
+  // Francisco" exist in 11 states).
+  out.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR') || a.uf.localeCompare(b.uf));
+  return out.slice(0, limit);
+}
+
+function fold(s: string): string {
+  // NFD splits accented chars into base + combining; the regex strips the
+  // combining marks. Then lowercase. Standard pattern, no library needed.
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
 
 // ---------------------------------------------------------------------------
