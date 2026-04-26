@@ -2,7 +2,7 @@
   import CityPicker from './CityPicker.svelte';
   import { cityState, hydrateCityContext, setCity } from '../lib/cityContext.svelte';
   import { resolve } from '../lib/baseUrl';
-  import { getUserCoordinates, getCityFromCoords, getIBGECode, ufNomeToSigla } from '../lib/geo';
+  import { getUserCoordinates, findNearestMunicipality } from '../lib/geo';
 
   hydrateCityContext();
 
@@ -19,14 +19,20 @@
   type GeoStatus = 'idle' | 'locating' | 'ready' | 'denied' | 'error';
   let geoStatus = $state<GeoStatus>('idle');
 
+  // Centroid lookup is approximate; flag the rare case where the closest
+  // municipality is so far away that the result is almost certainly wrong
+  // (user outside Brazil, or geolocation returned a coarse fallback).
+  const NEAREST_SANITY_KM = 80;
+
   async function handleFindLocal() {
     geoStatus = 'locating';
     try {
       const coords = await getUserCoordinates();
-      const cityData = await getCityFromCoords(coords.latitude, coords.longitude);
-      const code = await getIBGECode(cityData.city, cityData.state);
-      if (!code) throw new Error('Não foi possível localizar o código IBGE para este município.');
-      setCity({ ibge: code, nome: cityData.city, uf: ufNomeToSigla(cityData.state) }, 'storage');
+      const nearest = await findNearestMunicipality(coords.latitude, coords.longitude);
+      if (!nearest || nearest.distanceKm > NEAREST_SANITY_KM) {
+        throw new Error('Não foi possível localizar um município brasileiro próximo.');
+      }
+      setCity({ ibge: nearest.ibge, nome: nearest.nome, uf: nearest.uf }, 'storage');
       geoStatus = 'ready';
     } catch (err) {
       console.error(err);

@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DIST_DIR = join(__dirname, '..', 'dist', '_astro');
 
-// Current baseline: 330_000 bytes — measured size (~318 KB) plus headroom,
+// Current baseline: 335_000 bytes — measured size (~324 KB) plus headroom,
 // with room absorbed by the SupplierDetailView shipped for Journey 1 @green
 // (/fornecedor?cnpj= supplier prospecting page), the citizen-first
 // homepage islands (CityHero + CityPulse + CityNavLink + shared
@@ -26,11 +26,15 @@ const DIST_DIR = join(__dirname, '..', 'dist', '_astro');
 // filters with aggregate strip (Journey 1 "Filter contracts by UF and
 // modality recomputes aggregates") plus the lazy-loaded accent lexicon
 // behind the zero-result suggestion path ("Empty search suggests accent-
-// tolerant alternatives"), and the Curva & Concreto refresh + IA-derived
+// tolerant alternatives"), the Curva & Concreto refresh + IA-derived
 // /status page from PR #471 (RawArchiveStatus island + dual PNCP/Consulta
-// boundary schemas in pncp.ts). When an intentional feature increases the
-// baseline, raise this constant in the same commit and note what landed.
-const BUDGET_BYTES = 330_000;
+// boundary schemas in pncp.ts), and the homepage UX redesign (PR #496:
+// hero omni-search, Navigation dropdown) plus its offline geocoding follow-
+// up (findNearestMunicipality in geo.ts; the 270 KB centroids dataset is a
+// static asset and does NOT count against this entry-payload budget). When
+// an intentional feature increases the baseline, raise this constant in the
+// same commit and note what landed.
+const BUDGET_BYTES = 335_000;
 
 function isClientEntryFile(name) {
   if (!name.endsWith('.js')) return false;
