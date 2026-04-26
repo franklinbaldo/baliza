@@ -2,7 +2,7 @@
 import Layout from '../layouts/Layout.astro';
 import HomeSection from '../components/HomeSection.astro';
 import CityHero from '../components/CityHero.svelte';
-import CityPulse from '../components/CityPulse.svelte';
+import CityWowStrip from '../components/CityWowStrip.svelte';
 import MonitorGrid from '../components/MonitorGrid.astro';
 import TrustStrip from '../components/TrustStrip.astro';
 import OrnamentBand from '../components/OrnamentBand.astro';
@@ -60,8 +60,11 @@ const TOOLS: Array<{
   <!-- 1. Hero: city-first. Defaults to Porto Velho, RO until the visitor picks. -->
   <CityHero client:load />
 
-  <!-- 2. Immediate utility: real recent activity for the active city. -->
-  <CityPulse client:load />
+  <!-- 2. Wow strip: big-number magnitude tiles for the active city,
+       computed in-browser from the archived parquet (DuckDB-WASM). Each
+       tile links to /busca?ibge=X — the canonical search view that
+       owns the detailed live list. -->
+  <CityWowStrip client:load />
 
   <OrnamentBand variant="wave" height={36} />
 

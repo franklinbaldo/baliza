@@ -288,3 +288,160 @@ export function queryArchivedFornecedores(
 ) {
   return queryArchivedTable('fornecedores', column, value, opts);
 }
+
+// ---------------------------------------------------------------------------
+// City-level aggregates for the homepage WowStrip
+// ---------------------------------------------------------------------------
+// PNCP's live API has no GROUP BY; the homepage's "magnitude tiles" — total
+// contracts, total estimated value, top buyer — would otherwise require
+// fetching ~hundreds of rows from PNCP and aggregating client-side per
+// city, which is slow and tied to PNCP availability. Querying the archived
+// parquet via DuckDB-WASM is faster (sub-second after the first parquet
+// shard load), covers the full historical range (years, not weeks), and
+// has no upstream rate limit.
+
+export interface CityArchiveAggregates {
+  /** COUNT(*) of archived contratos for the city. */
+  contratos: number;
+  /** SUM(valor_global) treating NULLs as zero. */
+  valorTotal: number;
+  /** MAX(data_publicacao_pncp) — most recent publish timestamp seen. */
+  ultimaPublicacao: string | null;
+  /** MIN(data_particao) — earliest snapshot the city appears in. */
+  primeiraParticao: string | null;
+  /** MAX(data_particao) — most recent snapshot, used for IA attribution. */
+  ultimaParticao: string | null;
+  /** Most frequent contracting órgão for the city. */
+  topOrgao: { cnpj: string; razaoSocial: string | null; n: number } | null;
+}
+
+interface AggregateRow {
+  contratos: number | bigint;
+  valor_total: number | null;
+  ultima_publicacao: string | null;
+  primeira_particao: string | null;
+  ultima_particao: string | null;
+}
+interface TopOrgaoRow {
+  cnpj_orgao: string;
+  razao_social_orgao: string | null;
+  n: number | bigint;
+}
+
+const CITY_AGGREGATES_TABLE: ArchivedTable = 'contratos';
+
+export async function queryCityAggregates(
+  ibge: string,
+  opts: { timeoutMs?: number } = {},
+): Promise<ArchiveResult<CityArchiveAggregates>> {
+  // Defensive: only ever pass 7-digit IBGE codes through to SQL even though
+  // upstream callers (cityState) already validate. The parquet column is a
+  // string so a malformed value would silently match zero rows — better to
+  // reject early.
+  if (!/^\d{7}$/.test(ibge)) {
+    logFallbackFailed(CITY_AGGREGATES_TABLE, 'codigo_ibge', 'sql_error');
+    return { ok: false, reason: 'sql_error' };
+  }
+
+  // Reuse the shared shard-resolver. UF-sharded parquets aren't applicable
+  // here (we filter by IBGE, not UF) so always hit the canonical info.
+  const info = await getLatestParquetInfo(CITY_AGGREGATES_TABLE);
+  if (!info) {
+    logFallbackFailed(CITY_AGGREGATES_TABLE, 'codigo_ibge', 'no_manifest');
+    return { ok: false, reason: 'no_manifest' };
+  }
+
+  let conn;
+  try {
+    ({ conn } = await getDuckDB());
+  } catch {
+    logFallbackFailed(CITY_AGGREGATES_TABLE, 'codigo_ibge', 'duckdb_init_failed');
+    return { ok: false, reason: 'duckdb_init_failed' };
+  }
+
+  const safeIbge = escapeSqlLiteral(ibge);
+  const readClause = `read_parquet('${escapeSqlLiteral(info.url)}')`;
+  const totalsSql = `SELECT
+      COUNT(*) AS contratos,
+      COALESCE(SUM(valor_global), 0) AS valor_total,
+      MAX(data_publicacao_pncp) AS ultima_publicacao,
+      MIN(data_particao) AS primeira_particao,
+      MAX(data_particao) AS ultima_particao
+    FROM ${readClause}
+    WHERE codigo_ibge = '${safeIbge}'`;
+  const topOrgaoSql = `SELECT cnpj_orgao, razao_social_orgao, COUNT(*) AS n
+    FROM ${readClause}
+    WHERE codigo_ibge = '${safeIbge}'
+    GROUP BY 1, 2
+    ORDER BY n DESC
+    LIMIT 1`;
+
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_QUERY_TIMEOUT_MS;
+  let timedOut = false;
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+  // Run the two queries in parallel — they're independent and DuckDB's
+  // worker can pipeline them. Cancel on timeout via the shared cancelSent.
+  const totalsPromise = conn.query(totalsSql);
+  const topOrgaoPromise = conn.query(topOrgaoSql);
+  totalsPromise.catch(() => null);
+  topOrgaoPromise.catch(() => null);
+  const timeoutPromise = new Promise<'__timeout__'>((resolve) => {
+    timeoutHandle = setTimeout(() => {
+      timedOut = true;
+      void conn.cancelSent().catch(() => null);
+      resolve('__timeout__');
+    }, Math.max(0, timeoutMs));
+  });
+
+  try {
+    const raced = await Promise.race([
+      Promise.all([totalsPromise, topOrgaoPromise]),
+      timeoutPromise,
+    ]);
+    if (raced === '__timeout__') {
+      logFallbackFailed(CITY_AGGREGATES_TABLE, 'codigo_ibge', 'timeout');
+      return { ok: false, reason: 'timeout' };
+    }
+    const [totalsResult, topOrgaoResult] = raced;
+    const totalsRows = totalsResult.toArray().map((r: unknown) => {
+      const anyRow = r as { toJSON?: () => unknown };
+      return (typeof anyRow.toJSON === 'function' ? anyRow.toJSON() : r) as AggregateRow;
+    });
+    if (totalsRows.length === 0) {
+      logFallbackFailed(CITY_AGGREGATES_TABLE, 'codigo_ibge', 'sql_error');
+      return { ok: false, reason: 'sql_error' };
+    }
+    const totals = totalsRows[0];
+    const topOrgaoRows = topOrgaoResult.toArray().map((r: unknown) => {
+      const anyRow = r as { toJSON?: () => unknown };
+      return (typeof anyRow.toJSON === 'function' ? anyRow.toJSON() : r) as TopOrgaoRow;
+    });
+    const topOrgaoRow = topOrgaoRows[0];
+
+    const aggregates: CityArchiveAggregates = {
+      contratos: Number(totals.contratos),
+      valorTotal: Number(totals.valor_total ?? 0),
+      ultimaPublicacao: totals.ultima_publicacao ?? null,
+      primeiraParticao: totals.primeira_particao ?? null,
+      ultimaParticao: totals.ultima_particao ?? null,
+      topOrgao: topOrgaoRow
+        ? {
+            cnpj: topOrgaoRow.cnpj_orgao,
+            razaoSocial: topOrgaoRow.razao_social_orgao,
+            n: Number(topOrgaoRow.n),
+          }
+        : null,
+    };
+    logFallbackServed(CITY_AGGREGATES_TABLE, 'codigo_ibge', aggregates.contratos);
+    return { ok: true, rows: [aggregates], dataParticao: info.dataParticao };
+  } catch {
+    if (timedOut) {
+      logFallbackFailed(CITY_AGGREGATES_TABLE, 'codigo_ibge', 'timeout');
+      return { ok: false, reason: 'timeout' };
+    }
+    logFallbackFailed(CITY_AGGREGATES_TABLE, 'codigo_ibge', 'sql_error');
+    return { ok: false, reason: 'sql_error' };
+  } finally {
+    if (timeoutHandle !== null) clearTimeout(timeoutHandle);
+  }
+}
