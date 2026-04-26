@@ -74,6 +74,34 @@ export const FILTERS: Readonly<Record<string, FilterDef>> = {
     label: 'CNPJ do Órgão',
     placeholder: 'Apenas números (14 dígitos)',
   },
+  modo: {
+    key: 'modo',
+    apiParam: 'codigoModoDisputa',
+    // PNCP "modo de disputa" codes: 1 Aberto, 2 Fechado, 3 Aberto-Fechado,
+    // 4 Dispensa-Inversão, 5 Fechado-Aberto. Validate as a 1-2 digit
+    // integer; PNCP rejects everything else.
+    normalise: (raw) => {
+      const v = raw.trim();
+      return /^\d{1,2}$/.test(v) ? v : null;
+    },
+    aliases: ['modo', 'disputa'],
+    label: 'Modo de disputa (código)',
+    placeholder: '1 Aberto · 2 Fechado · 3 Aberto-Fechado · 5 Fechado-Aberto',
+  },
+  unidade: {
+    key: 'unidade',
+    apiParam: 'codigoUnidadeAdministrativa',
+    // No fixed length — PNCP unit codes are alphanumeric strings up to ~10
+    // chars in practice. Strip whitespace and reject anything with
+    // characters that wouldn't survive URL serialisation cleanly.
+    normalise: (raw) => {
+      const v = raw.trim();
+      return /^[A-Za-z0-9._-]{1,32}$/.test(v) ? v : null;
+    },
+    aliases: ['unidade'],
+    label: 'Código da unidade administrativa',
+    placeholder: 'Ex.: 925330',
+  },
   ufFiltro: {
     // URL key intentionally `ufFiltro`, not `uf`. cityContext.svelte.ts:62
     // already reads `?uf=` as the active municipality's UF (paired with
