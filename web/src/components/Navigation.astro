@@ -22,13 +22,14 @@ const isCityActive = cleanPath === cityPrefix;
       <span><span class="logo-accent">Baliza</span> Monitor</span>
     </a>
 
-    <input type="checkbox" id="nav-toggle" class="nav-toggle-checkbox" aria-label="Alternar menu" />
-    <label for="nav-toggle" class="nav-toggle-label" aria-hidden="true">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <input type="checkbox" id="nav-toggle" class="nav-toggle-checkbox sr-only" aria-label="Alternar menu" />
+    <label for="nav-toggle" class="nav-toggle-label">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
         <line x1="3" y1="12" x2="21" y2="12" class="line-mid"></line>
         <line x1="3" y1="6" x2="21" y2="6" class="line-top"></line>
         <line x1="3" y1="18" x2="21" y2="18" class="line-bot"></line>
       </svg>
+      <span class="sr-only">Alternar menu</span>
     </label>
 
     <div class="nav-menu">
@@ -130,7 +131,6 @@ const isCityActive = cleanPath === cityPrefix;
     align-items: center;
     gap: var(--space-4);
   }
-  .nav-toggle-checkbox,
   .nav-toggle-label {
     display: none;
   }

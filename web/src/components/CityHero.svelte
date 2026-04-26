@@ -69,11 +69,15 @@
       </p>
 
       <form class="hero-search" method="get" action={resolve('busca')}>
+        {#if cityState.source !== 'default'}
+          <input type="hidden" name="ibge" value={cityState.ibge} />
+        {/if}
         <input
           type="search"
           name="q"
-          value={cityState.nome}
-          placeholder="Ex: hospital municipal, merenda, obras..."
+          placeholder={cityState.source === 'default'
+            ? 'Ex: hospital municipal, merenda, obras...'
+            : `Buscar em ${cityState.nome} — ex.: merenda, obras...`}
           aria-label="Buscar no PNCP"
         />
         <button type="submit" class="btn btn-primary btn-search">
@@ -87,7 +91,7 @@
           Ver painel de {cityState.nome}
         </a>
 
-        {#if cityState.source === 'default'}
+        {#if geoStatus !== 'ready'}
           <button
             type="button"
             class="btn btn-secondary btn-lg geo-btn"
