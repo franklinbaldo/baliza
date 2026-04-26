@@ -95,7 +95,7 @@
   );
 </script>
 
-<section class="city-pulse" aria-labelledby="pulse-title">
+<section class="city-pulse" aria-label="Painel da cidade — mês corrente">
   <div class="container">
     {#if !ibge}
       <EmptyState
