@@ -15,6 +15,7 @@
   import EntityDetailLayout from './EntityDetailLayout.svelte';
   import EmptyState from './EmptyState.svelte';
   import ContractCard from './ContractCard.svelte';
+  import PaginatedList from './PaginatedList.svelte';
   import { addWatch, isWatched, hydrateWatches } from '../lib/watchStore.svelte';
 
   setQueryClientContext(getQueryClient());
@@ -241,15 +242,19 @@
         <div class="recent-header">
           <h3>Histórico de contratações (últimos 50 do arquivo)</h3>
         </div>
-        {#each data.contracts as item (item.numeroControlePNCP)}
-          <ContractCard
-            id={item.numeroControlePNCP}
-            date={item.dataPublicacaoPncp}
-            obj={item.objetoContratacao}
-            valor={item.valorTotalEstimado}
-            buyer={item.orgaoEntidade.razaoSocial}
-          />
-        {/each}
+        <PaginatedList items={data.contracts} pageSize={10}>
+          {#snippet children(pageItems)}
+            {#each pageItems as item (item.numeroControlePNCP)}
+              <ContractCard
+                id={item.numeroControlePNCP}
+                date={item.dataPublicacaoPncp}
+                obj={item.objetoContratacao}
+                valor={item.valorTotalEstimado}
+                buyer={item.orgaoEntidade.razaoSocial}
+              />
+            {/each}
+          {/snippet}
+        </PaginatedList>
       </section>
     {/if}
   {/if}

@@ -11,6 +11,7 @@
   import { formatBRL, formatDate } from '../lib/format';
   import AlertBanner from './AlertBanner.svelte';
   import EmptyState from './EmptyState.svelte';
+  import PaginatedList from './PaginatedList.svelte';
 
   setQueryClientContext(getQueryClient());
 
@@ -356,23 +357,27 @@
         message="Ajuste a UF ou a modalidade para ver mais contratações."
       />
     {:else}
-      <ul role="listbox" class="busca-results" data-testid="busca-results">
-        {#each filteredResults as c (c.numeroControlePNCP)}
-          <li role="option" aria-selected="false" data-testid="busca-result-item">
-            <a href={linkFor(c)} class="result-card">
-              <div class="result-head">
-                <span class="agency">{c.orgaoEntidade?.razaoSocial ?? 'Órgão'}</span>
-                <span class="modality">{c.modalidadeNome ?? ''}</span>
-              </div>
-              <p class="objeto" title={c.objetoContratacao}>{truncate(c.objetoContratacao, 180)}</p>
-              <div class="result-foot">
-                <span class="date">{formatDate(c.dataPublicacaoPncp ?? '')}</span>
-                <span class="valor">{formatBRL(c.valorTotalEstimado ?? null)}</span>
-              </div>
-            </a>
-          </li>
-        {/each}
-      </ul>
+      <PaginatedList items={filteredResults} pageSize={20} resetTrigger={`${submittedQ}${selectedUf}${selectedModality}`}>
+        {#snippet children(pageItems)}
+          <ul role="listbox" class="busca-results" data-testid="busca-results">
+            {#each pageItems as c (c.numeroControlePNCP)}
+              <li role="option" aria-selected="false" data-testid="busca-result-item">
+                <a href={linkFor(c)} class="result-card">
+                  <div class="result-head">
+                    <span class="agency">{c.orgaoEntidade?.razaoSocial ?? 'Órgão'}</span>
+                    <span class="modality">{c.modalidadeNome ?? ''}</span>
+                  </div>
+                  <p class="objeto" title={c.objetoContratacao}>{truncate(c.objetoContratacao, 180)}</p>
+                  <div class="result-foot">
+                    <span class="date">{formatDate(c.dataPublicacaoPncp ?? '')}</span>
+                    <span class="valor">{formatBRL(c.valorTotalEstimado ?? null)}</span>
+                  </div>
+                </a>
+              </li>
+            {/each}
+          </ul>
+        {/snippet}
+      </PaginatedList>
     {/if}
   {/if}
 </div>
