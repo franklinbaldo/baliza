@@ -3,8 +3,8 @@
   "version": "1.1.0",
   "type": "module",
   "scripts": {
-    "dev": "node scripts/build-data.mjs && astro dev",
-    "build": "node scripts/build-data.mjs && astro check && astro build && node scripts/check-bundle-size.mjs",
+    "dev": "node scripts/build-data.mjs && node scripts/build-municipalities.mjs && astro dev",
+    "build": "node scripts/build-data.mjs && node scripts/build-municipalities.mjs && astro check && astro build && node scripts/check-bundle-size.mjs",
     "preview": "astro preview",
     "astro": "astro",
     "lint": "eslint . --fix",
