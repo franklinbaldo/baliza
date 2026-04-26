@@ -23,13 +23,29 @@
   }
 
   let searchInput = $state(qProp ? qProp.trim() : initialParam('q'));
-  let submittedQ = $state(searchInput);
+  
+  function parseInput(raw: string) {
+    let ibge = initialParam('ibge'); // fallback to old query param if present
+    let cnpj = initialParam('cnpj');
+    let term = raw;
 
-  let searchCnpj = $state(initialParam('cnpj'));
-  let submittedCnpj = $state(searchCnpj);
+    const ibgeMatch = term.match(/ibge:(\d+)/i);
+    if (ibgeMatch) { ibge = ibgeMatch[1]; term = term.replace(ibgeMatch[0], ''); }
 
-  let searchIbge = $state(initialParam('ibge'));
-  let submittedIbge = $state(searchIbge);
+    const cnpjMatch = term.match(/cnpj:(\d+)/i);
+    if (cnpjMatch) { cnpj = cnpjMatch[1]; term = term.replace(cnpjMatch[0], ''); }
+
+    return { term: term.trim(), ibge, cnpj };
+  }
+
+  const initialParsed = parseInput(searchInput);
+
+  let submittedQ = $state(initialParsed.term);
+  let submittedCnpj = $state(initialParsed.cnpj);
+  let submittedIbge = $state(initialParsed.ibge);
+
+  let searchCnpj = $state(initialParsed.cnpj);
+  let searchIbge = $state(initialParsed.ibge);
 
   let selectedUf = $state('');
   let selectedModality = $state('');
@@ -139,9 +155,30 @@
 
   function handleSubmit(ev: Event) {
     ev.preventDefault();
-    const term = searchInput.trim();
-    const cnpj = searchCnpj.replace(/\D/g, '');
-    const ibge = searchIbge.replace(/\D/g, '');
+    let raw = searchInput.trim();
+    
+    // If they typed into the advanced boxes, append it to raw string so it stays in sync
+    let ibge = searchIbge.replace(/\D/g, '');
+    let cnpj = searchCnpj.replace(/\D/g, '');
+    let term = raw;
+
+    // But if the main input HAS tags, they take precedence
+    const ibgeMatch = term.match(/ibge:(\d+)/i);
+    if (ibgeMatch) { ibge = ibgeMatch[1]; term = term.replace(ibgeMatch[0], ''); }
+    
+    const cnpjMatch = term.match(/cnpj:(\d+)/i);
+    if (cnpjMatch) { cnpj = cnpjMatch[1]; term = term.replace(cnpjMatch[0], ''); }
+    
+    term = term.trim();
+
+    // Reconstruct searchInput
+    const tags = [];
+    if (ibge) tags.push(`ibge:${ibge}`);
+    if (cnpj) tags.push(`cnpj:${cnpj}`);
+    searchInput = (tags.join(' ') + (term ? ' ' + term : '')).trim();
+
+    searchIbge = ibge;
+    searchCnpj = cnpj;
 
     if (isPncpId(term)) {
       nav.navigate(resolve(`contratacao?id=${term}`));
@@ -156,9 +193,7 @@
 
     if (typeof window === 'undefined') return;
     const paramObj: Record<string, string> = {};
-    if (term) paramObj.q = term;
-    if (cnpj) paramObj.cnpj = cnpj;
-    if (ibge) paramObj.ibge = ibge;
+    if (searchInput) paramObj.q = searchInput;
     const qs = Object.keys(paramObj).length ? `?${new URLSearchParams(paramObj).toString()}` : '';
     window.history.replaceState(
       {},

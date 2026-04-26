@@ -97,17 +97,6 @@
 
 <section class="city-pulse" aria-labelledby="pulse-title">
   <div class="container">
-    <header class="pulse-head">
-      <span class="kicker">Monitorar agora</span>
-      <h2 id="pulse-title">
-        Mês corrente em <em>{cityState.nome}</em>
-      </h2>
-      <p class="pulse-sub">
-        Pregões eletrônicos publicados no PNCP neste mês.
-        Quando o PNCP está indisponível, Baliza mostra o último snapshot arquivado no Internet Archive.
-      </p>
-    </header>
-
     {#if !ibge}
       <EmptyState
         title="Escolha uma cidade"
@@ -257,28 +246,6 @@
     height: 5px;
     margin: 0 0 var(--space-6);
     background: repeating-linear-gradient(90deg, var(--color-accent) 0 36px, var(--color-ouro) 36px 50px, var(--color-azul) 50px 82px);
-  }
-  .pulse-head {
-    max-width: 720px;
-    margin-bottom: var(--space-6);
-    display: grid;
-    gap: var(--space-2);
-  }
-  .pulse-head h2 {
-    font-family: var(--font-display);
-    font-weight: 300;
-    font-size: clamp(28px, 3vw, 40px);
-    line-height: 1.15;
-    letter-spacing: -0.02em;
-  }
-  .pulse-head h2 em {
-    font-style: normal;
-    color: var(--color-accent);
-  }
-  .pulse-sub {
-    color: var(--color-text-dim);
-    font-size: var(--text-md);
-    line-height: 1.6;
   }
   .pulse-grid {
     display: grid;

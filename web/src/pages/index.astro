@@ -64,21 +64,6 @@ const TOOLS: Array<{
   <!-- 2. Immediate utility: real recent activity for the active city. -->
   <CityPulse client:load />
 
-  <!-- 2b. Free-text escape hatch for visitors who know what they're looking
-       for. Plain HTML GET form — zero JS on the homepage path (the island
-       ships no client directive; Astro renders it to HTML at build time).
-       BuscaView on the target page detects canonical PNCP-id shapes and
-       forwards them to /contratacao. -->
-  <HomeSection
-    id="home-busca-title"
-    title="Buscar no PNCP"
-    titleHidden={true}
-    tone="surface"
-    divider="bottom"
-  >
-    <HomeBuscaForm />
-  </HomeSection>
-
   <OrnamentBand variant="wave" height={36} />
 
   <!-- 3. What you can monitor — compact, citizen-legible prompts. -->
