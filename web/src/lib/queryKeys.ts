@@ -7,5 +7,10 @@ export const QUERY_KEYS = {
   localBids:   (ibge: string)               => ['local-bids', ibge]            as const,
   atas:        (objeto: string)             => ['atas', objeto]                as const,
   dispensas:   (objeto: string)             => ['dispensas', objeto]           as const,
-  busca:       (q: string, cnpj?: string, ibge?: string) => ['busca', q, cnpj, ibge] as const,
+  // `extras` carries any additional registry filters (uf, modo, …) so
+  // adding a filter in lib/searchFilters doesn't require touching this
+  // file. Identity (===) on the dict is fine for tanstack-query because
+  // BuscaView builds a fresh object on every submit.
+  busca:       (q: string, cnpj?: string, ibge?: string, extras?: Record<string, string>) =>
+    ['busca', q, cnpj, ibge, extras] as const,
 } as const;
