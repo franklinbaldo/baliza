@@ -2,7 +2,7 @@
   import CityPicker from './CityPicker.svelte';
   import { cityState, hydrateCityContext, setCity } from '../lib/cityContext.svelte';
   import { resolve } from '../lib/baseUrl';
-  import { getUserCoordinates, findNearestMunicipality, isInsideBrazil } from '../lib/geo';
+  import { resolveCityFromBrowserLocation } from '../lib/geo';
 
   hydrateCityContext();
 
@@ -19,31 +19,11 @@
   type GeoStatus = 'idle' | 'locating' | 'ready' | 'denied' | 'error';
   let geoStatus = $state<GeoStatus>('idle');
 
-  // The Natural Earth 10m boundary still simplifies away small islands and
-  // peninsulas — the centroids of Vitória/ES, Florianópolis/SC, Belém/PA,
-  // and São Luís/MA fall a few km outside the polygon even though they're
-  // canonical Brazilian capitals. So the country check is OR'd with a
-  // tight centroid-distance fallback: if the nearest IBGE centroid is
-  // within 15 km, treat the location as Brazilian even when the polygon
-  // says otherwise. Foreign capitals are well beyond 15 km from any
-  // Brazilian centroid (Asunción 265 km, Encarnación/Posadas 96 km, Lima
-  // 576 km), so this fallback doesn't reopen the door to non-Brazilian
-  // coordinates the polygon test was put in place to reject.
-  const COASTAL_GAP_KM = 15;
-
   async function handleFindLocal() {
     geoStatus = 'locating';
     try {
-      const coords = await getUserCoordinates();
-      const nearest = await findNearestMunicipality(coords.latitude, coords.longitude);
-      if (!nearest) {
-        throw new Error('Não foi possível localizar um município brasileiro.');
-      }
-      const inside = await isInsideBrazil(coords.latitude, coords.longitude);
-      if (!inside && nearest.distanceKm > COASTAL_GAP_KM) {
-        throw new Error('Coordenadas fora do território brasileiro.');
-      }
-      setCity({ ibge: nearest.ibge, nome: nearest.nome, uf: nearest.uf }, 'storage');
+      const city = await resolveCityFromBrowserLocation();
+      setCity(city, 'storage');
       geoStatus = 'ready';
     } catch (err) {
       console.error(err);

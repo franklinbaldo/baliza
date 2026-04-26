@@ -6,12 +6,7 @@
     setCity,
     DEFAULT_CITY,
   } from '../lib/cityContext.svelte';
-  import {
-    getUserCoordinates,
-    getCityFromCoords,
-    getIBGECode,
-    ufNomeToSigla,
-  } from '../lib/geo';
+  import { resolveCityFromBrowserLocation, ufNomeToSigla } from '../lib/geo';
 
   interface Props {
     compact?: boolean;
@@ -103,15 +98,7 @@
   async function useMyLocation() {
     geoStatus = 'locating';
     try {
-      const coords = await getUserCoordinates();
-      const cityData = await getCityFromCoords(coords.latitude, coords.longitude);
-      const code = await getIBGECode(cityData.city, cityData.state);
-      if (!code) throw new Error('Município não encontrado.');
-      const next = {
-        ibge: code,
-        nome: cityData.city,
-        uf: ufNomeToSigla(cityData.state),
-      };
+      const next = await resolveCityFromBrowserLocation();
       setCity(next, 'storage');
       geoStatus = 'idle';
       onselect?.(next);
