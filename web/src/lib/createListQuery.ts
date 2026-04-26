@@ -30,7 +30,7 @@ export interface ListQueryConfig<TData, TRow = ArchivedContrato> {
   buildFromArchive: (result: {
     rows: TRow[];
     dataParticao: string | null;
-  }) => TData;
+  }) => TData | Promise<TData>;
 }
 
 // List-shaped counterpart to createDetailQuery. When the live call throws we
@@ -77,7 +77,7 @@ export function createListQuery<TData, TRow = ArchivedContrato>(
         if (!archived.ok) {
           throw new Error(archiveErrorMessage(archived.reason), { cause: pncpErr });
         }
-        return config.buildFromArchive({
+        return await config.buildFromArchive({
           rows: archived.rows,
           dataParticao: archived.dataParticao,
         });

@@ -5,6 +5,19 @@ import { tick } from 'svelte';
 import { render } from './shared';
 import CityDetailViewRaw from '../CityDetailView.svelte';
 
+// CityDetailView calls findMunicipalityByIbge() to enrich the title with a
+// canonical {nome, uf}. In the test env we don't want the lookup to hit the
+// real centroids dataset (the global.fetch mock returns PNCP shapes for
+// every URL), so we stub it to null and let the fallback chain pick the
+// values out of the contract payload.
+vi.mock('../../lib/geo', async () => {
+  const actual = await vi.importActual<typeof import('../../lib/geo')>('../../lib/geo');
+  return {
+    ...actual,
+    findMunicipalityByIbge: vi.fn().mockResolvedValue(null),
+  };
+});
+
 const CityDetailView = CityDetailViewRaw as unknown as Parameters<typeof render>[0];
 const feature = await loadFeature('features/city-detail.feature');
 
