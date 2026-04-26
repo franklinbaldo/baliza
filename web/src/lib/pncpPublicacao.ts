@@ -163,24 +163,7 @@ export async function fetchPublicacaoList(
 export const MAX_DISPENSA_PAGES = 5;
 const DISPENSA_SINCE_DAYS = 365;
 
-function buildPageUrl(
-  filters: PublicacaoFilters,
-  modalidade: number,
-  pagina: number,
-  dataInicial: string,
-  dataFinal: string,
-): string {
-  const paramObj: Record<string, string> = {
-    dataInicial,
-    dataFinal,
-    codigoModalidadeContratacao: String(modalidade),
-    pagina: String(pagina),
-    tamanhoPagina: '50',
-    ...(filters.cnpj ? { cnpj: filters.cnpj } : {}),
-    ...(filters.codigoMunicipioIbge ? { codigoMunicipioIbge: filters.codigoMunicipioIbge } : {}),
-  };
-  return `${PUBLICACAO_URL}?${new URLSearchParams(paramObj).toString()}`;
-}
+
 
 // Free-text search across the DEFAULT_MODALIDADES (covers ~95% of municipal
 // procurement). PNCP has no server-side `objeto` filter, so we paginate each
@@ -221,7 +204,7 @@ export async function fetchPublicacaoPagesForObjeto(
     for (let pagina = 1; pagina <= maxPages; pagina++) {
       fetches.push(
         (async () => {
-          const res = await fetch(buildPageUrl(opts.filters || {}, modalidade, pagina, dataInicial, dataFinal));
+          const res = await fetchWithTimeout(buildUrl(opts.filters || {}, modalidade, pagina, dataInicial, dataFinal, 50), 10_000);
           if (!res.ok) {
             throw new Error(
               `PNCP publicacao returned ${res.status} for modalidade ${modalidade} page ${pagina}`,
@@ -278,7 +261,7 @@ export async function fetchDispensaPagesForObjeto(
 
   const collected = new Map<string, PNCPContract>();
   for (let pagina = 1; pagina <= maxPages; pagina++) {
-    const res = await fetch(buildPageUrl(opts.filters || {}, 8, pagina, dataInicial, dataFinal));
+    const res = await fetchWithTimeout(buildUrl(opts.filters || {}, 8, pagina, dataInicial, dataFinal, 50), 10_000);
     if (!res.ok) {
       // Surface a real error instead of silently returning a partial result —
       // an empty list would render "Nenhuma base legal encontrada" and mask
