@@ -326,6 +326,30 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                                 pass
                             return False
 
+                        # For past months: if the raw ZIP is already on IA,
+                        # restore from it instead of re-fetching from PNCP.
+                        # This must happen BEFORE the sentinel/probe checks below,
+                        # so that an outage in PNCP doesn't block the restore path.
+                        today_month = date.today().replace(day=1)
+                        manifest_row = manifest_by_month.get(month_str, {})
+                        raw_zip_url = manifest_row.get("raw_zip_url", "")
+                        
+                        # A full cache miss can be approximated by lacking page 1
+                        is_full_miss = not _page_is_cached(1)
+
+                        if (
+                            raw_zip_url
+                            and start_of_month < today_month
+                            and is_full_miss
+                        ):
+                            progress.update(
+                                tid,
+                                total=2,
+                                advance=1,
+                                description=f"Month {month_str} [Restoring from IA]",
+                            )
+                            restore_from_raw_zip(raw_zip_url, raw_month_dir)
+
                         # Sentinel optimisation: a prior run wrote .fetched
                         # after fetching all expected pages, so we can read
                         # totalPaginas from the cached page 1 and skip the
@@ -416,30 +440,6 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                                 pages_total=total_pages,
                                 pages_to_fetch=len(missing_pages),
                             )
-
-                            # For past months: if the raw ZIP is already on IA,
-                            # restore from it instead of re-fetching from PNCP.
-                            today_month = date.today().replace(day=1)
-                            manifest_row = manifest_by_month.get(month_str, {})
-                            raw_zip_url = manifest_row.get("raw_zip_url", "")
-                            if (
-                                raw_zip_url
-                                and start_of_month < today_month
-                                and not cached_pages  # only on full cache miss
-                            ):
-                                progress.update(
-                                    tid,
-                                    total=2,
-                                    advance=1,
-                                    description=f"Month {month_str} [Restoring from IA]",
-                                )
-                                restored = restore_from_raw_zip(raw_zip_url, raw_month_dir)
-                                if restored:
-                                    # Re-evaluate missing pages after extraction
-                                    missing_pages = [
-                                        p for p in range(1, (total_pages or 0) + 1)
-                                        if not _page_is_cached(p)
-                                    ]
 
                             if missing_pages:
                                 progress.update(
