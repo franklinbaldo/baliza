@@ -5,13 +5,14 @@
   import { prefetchArchive } from '../lib/parquetFallback';
   import { archivedContratoToInternalContract, type PNCPContract } from '../lib/pncp';
   import { fetchPublicacaoList } from '../lib/pncpPublicacao';
-  import { formatParticao } from '../lib/format';
+  import { formatBRL, formatParticao } from '../lib/format';
   import { resolve } from '../lib/baseUrl';
   import { createListQuery } from '../lib/createListQuery';
   import EntityDetailLayout from './EntityDetailLayout.svelte';
   import EmptyState from './EmptyState.svelte';
   import StatCard from './StatCard.svelte';
   import ContractCard from './ContractCard.svelte';
+  import PaginatedList from './PaginatedList.svelte';
   import { getMunicipalityInfo } from '../lib/geo';
 
   setQueryClientContext(getQueryClient());
@@ -27,8 +28,8 @@
 
   const ibgeValid = $derived(/^\d{7}$/.test(ibge));
 
-  const CITY_LOOKBACK_DAYS = 1;
-  const CITY_END_DAYS_AGO = 1;
+  const CITY_LOOKBACK_DAYS = 30;
+  const CITY_END_DAYS_AGO = 0;
 
   $effect(() => {
     if (ibge) prefetchArchive('contratos');
@@ -57,7 +58,7 @@
         if (!ibge) return null;
         const contracts = await fetchPublicacaoList(
           { codigoMunicipioIbge: ibge },
-          { sinceDays: CITY_LOOKBACK_DAYS, endDaysAgo: CITY_END_DAYS_AGO, tamanhoPagina: 10 },
+          { sinceDays: CITY_LOOKBACK_DAYS, endDaysAgo: CITY_END_DAYS_AGO, tamanhoPagina: 50 },
         );
         const info = getMunicipalityInfo(ibge);
         const cityName = info?.nome || contracts[0]?.municipio?.nomeMunicipio || contracts[0]?.unidadeOrgao?.municipioNome || "Município";
@@ -78,6 +79,18 @@
   const data = $derived(cityQuery.data);
   const loading = $derived(cityQuery.isFetching);
   const error = $derived(cityQuery.error instanceof Error ? cityQuery.error : null);
+
+  const stats = $derived.by(() => {
+    if (!data?.contracts) return { count: 0, totalValue: 0 };
+    let totalValue = 0;
+    for (const c of data.contracts) {
+      if (typeof c.valorTotalEstimado === 'number') {
+        totalValue += c.valorTotalEstimado;
+      }
+    }
+    return { count: data.contracts.length, totalValue };
+  });
+
   const errorTitle = $derived.by(() => {
     if (!error) return 'Erro ao carregar município';
     return error.message.includes('Arquivo histórico indisponível')
@@ -116,7 +129,8 @@
 
   {#if data}
     <div class="stats-row">
-      <StatCard title="Contratações Recentes" value={data.contracts.length} />
+      <StatCard title="Contratações Recentes" value={stats.count} hint="Últimos 30 dias (máx. 50)" />
+      <StatCard title="Valor Estimado (Amostra)" value={formatBRL(stats.totalValue)} tone="success" hint="Soma das contratações listadas" />
     </div>
 
     {#if data.contracts.length === 0}
@@ -129,14 +143,18 @@
     {:else}
       <section class="recent-list">
         <h3>Contratações Recentes neste Município</h3>
-        {#each data.contracts as item (item.numeroControlePNCP)}
-          <ContractCard
-            id={item.numeroControlePNCP}
-            date={item.dataPublicacaoPncp}
-            obj={item.objetoContratacao}
-            valor={item.valorTotalEstimado}
-          />
-        {/each}
+        <PaginatedList items={data.contracts} pageSize={10}>
+          {#snippet children(pageItems)}
+            {#each pageItems as item (item.numeroControlePNCP)}
+              <ContractCard
+                id={item.numeroControlePNCP}
+                date={item.dataPublicacaoPncp}
+                obj={item.objetoContratacao}
+                valor={item.valorTotalEstimado}
+              />
+            {/each}
+          {/snippet}
+        </PaginatedList>
       </section>
     {/if}
   {/if}

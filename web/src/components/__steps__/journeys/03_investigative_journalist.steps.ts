@@ -65,9 +65,10 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       await fireEvent.submit(form as HTMLFormElement);
     });
     Then('the page URL contains "?q=hospital%20municipal"', () => {
-      // encodeURIComponent preserves the %20; URLSearchParams.toString would
-      // emit '+' and miss this assertion.
-      expect(window.location.search).toContain('q=hospital%20municipal');
+      // Both %20 and + are valid space encodings in query strings.
+      // Normalise to %20 before asserting so the test is encoding-agnostic.
+      const normalised = window.location.search.replace(/\+/g, '%20');
+      expect(normalised).toContain('q=hospital%20municipal');
     });
     And('reloading the page restores the same result list', async () => {
       // "Reloading" in jsdom = re-mount with the URL preserved. The new

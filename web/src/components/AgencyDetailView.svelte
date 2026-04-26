@@ -14,6 +14,7 @@
   import EmptyState from './EmptyState.svelte';
   import LookbackWindow from './LookbackWindow.svelte';
   import ContractCard from './ContractCard.svelte';
+  import PaginatedList from './PaginatedList.svelte';
   import { DEFAULT_SINCE_DAYS } from '../lib/pncpPublicacao';
   import { addWatch, isWatched, hydrateWatches } from '../lib/watchStore.svelte';
 
@@ -272,14 +273,18 @@
           <h3>Portfólio de Contratações Recentes</h3>
           <LookbackWindow value={dias} onchange={updateDias} />
         </div>
-        {#each data.contracts as item (item.numeroControlePNCP)}
-          <ContractCard
-            id={item.numeroControlePNCP}
-            date={item.dataPublicacaoPncp}
-            obj={item.objetoContratacao}
-            valor={item.valorTotalEstimado}
-          />
-        {/each}
+        <PaginatedList items={data.contracts} pageSize={10} resetTrigger={dias}>
+          {#snippet children(pageItems)}
+            {#each pageItems as item (item.numeroControlePNCP)}
+              <ContractCard
+                id={item.numeroControlePNCP}
+                date={item.dataPublicacaoPncp}
+                obj={item.objetoContratacao}
+                valor={item.valorTotalEstimado}
+              />
+            {/each}
+          {/snippet}
+        </PaginatedList>
       </section>
     {/if}
   {/if}

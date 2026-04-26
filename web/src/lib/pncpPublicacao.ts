@@ -6,7 +6,7 @@
 // to fan out across the common modalities and merge the results. The callers
 // used to omit every required parameter and silently 400'd — see PR #355.
 
-import { parsePncpPublicacaoList, type PNCPContract } from './pncp';
+import { parsePncpPublicacaoList, parsePncpPublicacaoPage, type PNCPContract } from './pncp';
 
 // Covers ~95% of municipal procurement by document count:
 // 4 Concorrência Eletrônica, 5 Concorrência Presencial, 6 Pregão Eletrônico,
@@ -50,20 +50,21 @@ function yyyymmdd(d: Date): string {
 function buildUrl(
   filters: PublicacaoFilters,
   modalidade: number,
+  pagina: number,
   dataInicial: string,
   dataFinal: string,
   tamanhoPagina: number,
 ): string {
-  const params = new URLSearchParams({
+  const paramObj: Record<string, string> = {
     dataInicial,
     dataFinal,
     codigoModalidadeContratacao: String(modalidade),
-    pagina: '1',
+    pagina: String(pagina),
     tamanhoPagina: String(tamanhoPagina),
-  });
-  if (filters.cnpj) params.set('cnpj', filters.cnpj);
-  if (filters.codigoMunicipioIbge) params.set('codigoMunicipioIbge', filters.codigoMunicipioIbge);
-  return `${PUBLICACAO_URL}?${params.toString()}`;
+    ...(filters.cnpj ? { cnpj: filters.cnpj } : {}),
+    ...(filters.codigoMunicipioIbge ? { codigoMunicipioIbge: filters.codigoMunicipioIbge } : {}),
+  };
+  return `${PUBLICACAO_URL}?${new URLSearchParams(paramObj).toString()}`;
 }
 
 async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
@@ -107,10 +108,29 @@ export async function fetchPublicacaoList(
 
   const settled = await Promise.allSettled(
     modalidades.map(async (modalidade) => {
-      const url = buildUrl(filters, modalidade, dataInicial, dataFinal, clamped);
+      const url = buildUrl(filters, modalidade, 1, dataInicial, dataFinal, clamped);
       const res = await fetchWithTimeout(url, timeoutMs);
       if (!res.ok) throw new Error(`PNCP publicacao returned ${res.status} for modalidade ${modalidade}`);
-      return parsePncpPublicacaoList(await res.json());
+      
+      const page1 = parsePncpPublicacaoPage(await res.json());
+      if (page1.totalPaginas <= 1) {
+        return page1.data;
+      }
+
+      // PNCP API returns oldest first. To get the newest, we must fetch the last page.
+      const lastUrl = buildUrl(filters, modalidade, page1.totalPaginas, dataInicial, dataFinal, clamped);
+      try {
+        const lastRes = await fetchWithTimeout(lastUrl, timeoutMs);
+        if (lastRes.ok) {
+          const lastPage = parsePncpPublicacaoPage(await lastRes.json());
+          // Combine both pages; the final sort and slice will keep the actual newest ones.
+          return [...page1.data, ...lastPage.data];
+        }
+      } catch (err) {
+        // If the second call fails, gracefully fallback to whatever we got on page 1
+        console.warn(`[pncp] Failed to fetch last page for modalidade ${modalidade}`, err);
+      }
+      return page1.data;
     }),
   );
 
@@ -150,16 +170,16 @@ function buildPageUrl(
   dataInicial: string,
   dataFinal: string,
 ): string {
-  const params = new URLSearchParams({
+  const paramObj: Record<string, string> = {
     dataInicial,
     dataFinal,
     codigoModalidadeContratacao: String(modalidade),
     pagina: String(pagina),
     tamanhoPagina: '50',
-  });
-  if (filters.cnpj) params.set('cnpj', filters.cnpj);
-  if (filters.codigoMunicipioIbge) params.set('codigoMunicipioIbge', filters.codigoMunicipioIbge);
-  return `${PUBLICACAO_URL}?${params.toString()}`;
+    ...(filters.cnpj ? { cnpj: filters.cnpj } : {}),
+    ...(filters.codigoMunicipioIbge ? { codigoMunicipioIbge: filters.codigoMunicipioIbge } : {}),
+  };
+  return `${PUBLICACAO_URL}?${new URLSearchParams(paramObj).toString()}`;
 }
 
 // Free-text search across the DEFAULT_MODALIDADES (covers ~95% of municipal

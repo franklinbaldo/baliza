@@ -104,6 +104,7 @@ const PNCPConsultaContractSchema = z
 
 export const PNCPPublicacaoListSchema = z
   .object({
+    totalPaginas: z.number().optional(),
     data: z.array(PNCPConsultaContractSchema),
   })
   .passthrough();
@@ -169,6 +170,19 @@ export function parsePncpContract(raw: unknown): PNCPContract {
 export function parsePncpPublicacaoList(raw: unknown): PNCPContract[] {
   try {
     return PNCPPublicacaoListSchema.parse(raw).data.map(toInternalContract);
+  } catch (err) {
+    console.info('[pncp] parse failed', { reason: PNCP_INVALID });
+    throw err;
+  }
+}
+
+export function parsePncpPublicacaoPage(raw: unknown): { data: PNCPContract[]; totalPaginas: number } {
+  try {
+    const parsed = PNCPPublicacaoListSchema.parse(raw);
+    return {
+      data: parsed.data.map(toInternalContract),
+      totalPaginas: parsed.totalPaginas ?? 1,
+    };
   } catch (err) {
     console.info('[pncp] parse failed', { reason: PNCP_INVALID });
     throw err;
