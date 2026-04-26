@@ -31,6 +31,29 @@
       geoStatus = code === 1 ? 'denied' : 'error';
     }
   }
+
+  // Silently re-detect the visitor's city when (a) they're still on the
+  // Porto Velho default (no URL or storage pin) and (b) the browser has a
+  // 'granted' geolocation permission from a previous session. Never
+  // triggers the permission prompt — new visitors keep seeing the default
+  // until they click the manual button. Combined with WowStrip below, the
+  // returning visitor's city snaps in without any interaction.
+  async function maybeAutoDetect(): Promise<void> {
+    if (cityState.source !== 'default') return;
+    if (typeof navigator === 'undefined' || !('permissions' in navigator)) return;
+    try {
+      const status = await navigator.permissions.query({ name: 'geolocation' as PermissionName });
+      if (status.state !== 'granted') return;
+      const city = await resolveCityFromBrowserLocation();
+      setCity(city, 'storage');
+    } catch {
+      // Silent — the manual "Usar minha localização" button stays available
+      // for anyone the silent path can't help.
+    }
+  }
+  $effect(() => {
+    void maybeAutoDetect();
+  });
 </script>
 
 <section class="city-hero" aria-labelledby="city-hero-title">

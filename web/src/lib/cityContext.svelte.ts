@@ -73,7 +73,7 @@ export function resolveInitialCity(opts: ResolveOpts = {}): ActiveCity {
   const fromUrl = readUrl(opts.urlParams);
   const fromStorage = readStorage(opts.storage);
   if (fromUrl) {
-    // Homepage CTAs (MonitorGrid, CityPulse) usually carry only ?ibge=.
+    // Homepage CTAs (MonitorGrid, CityWowStrip) usually carry only ?ibge=.
     // `sanitize` fills `nome: 'Município'` and empty UF in that case, which
     // would otherwise clobber the name/UF the user already had in storage —
     // degrading nav/hero to "Município" after in-app navigation. When the

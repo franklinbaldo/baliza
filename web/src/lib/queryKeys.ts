@@ -13,4 +13,9 @@ export const QUERY_KEYS = {
   // BuscaView builds a fresh object on every submit.
   busca:       (q: string, cnpj?: string, ibge?: string, extras?: Record<string, string>) =>
     ['busca', q, cnpj, ibge, extras] as const,
+  // Wow strip on the homepage: aggregates over the full archived parquet
+  // for a single city, computed in-browser via DuckDB-WASM. Decoupled
+  // from `busca` because it doesn't share the live PNCP fetch path —
+  // colocating them would invalidate cache cross-page on every search.
+  cityAggregates: (ibge: string) => ['city-aggregates', ibge] as const,
 } as const;

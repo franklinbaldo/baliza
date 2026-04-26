@@ -16,11 +16,11 @@ export const DEFAULT_SINCE_DAYS = 90;
 const PUBLICACAO_URL = 'https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao';
 
 // Map from PNCP swagger field names to their values. The two convenience
-// entries below are typed for autocomplete in the long-standing callers
-// (CityPulse, LocalBids); the open index signature lets the BuscaView
-// registry forward any other parameter PNCP accepts without requiring a
-// structural change here. See lib/searchFilters.ts for the canonical
-// list of filters the UI exposes.
+// entries below are typed for autocomplete in long-standing callers
+// (LocalBids); the open index signature lets the BuscaView registry
+// forward any other parameter PNCP accepts without requiring a structural
+// change here. See lib/searchFilters.ts for the canonical list of filters
+// the UI exposes.
 export interface PublicacaoFilters {
   /** Órgão CNPJ (14 digits). Sent as `cnpj=…` (swagger name), NOT `cnpjOrgao`. */
   cnpj?: string;

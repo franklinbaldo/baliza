@@ -9,8 +9,8 @@ const resolve = (href: string) => `${BASE}${href.replace(/^\//, '')}`;
 
 // /municipio and /orgao render EntityNotFound without their query params, so
 // static homepage CTAs land a cold visitor on the default-lens city page.
-// Users who have already picked a city get the personalized view in CityPulse
-// above; this grid is the "what else you can do" showcase.
+// Users who have already picked a city get the personalized view in
+// CityWowStrip above; this grid is the "what else you can do" showcase.
 const DEFAULT_CITY_HREF = `municipio?ibge=${DEFAULT_CITY.ibge}`;
 
 const ITEMS = [
