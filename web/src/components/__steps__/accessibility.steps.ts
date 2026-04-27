@@ -1,6 +1,6 @@
 import { loadFeature, describeFeature } from '@amiceli/vitest-cucumber';
 import { screen, waitFor } from '@testing-library/svelte/pure';
-import { render } from './shared';
+import { render, mockFetchError } from './shared';
 import userEvent from '@testing-library/user-event';
 import { expect, vi } from 'vitest';
 import { tick } from 'svelte';
@@ -59,7 +59,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
         ],
         dataParticao: '2024-01-01',
       });
-      global.fetch = vi.fn().mockResolvedValue(new Response('Error', { status: 503 }));
+      mockFetchError();
 
       // Need a stable container
       const container = document.body.appendChild(document.createElement('div'));

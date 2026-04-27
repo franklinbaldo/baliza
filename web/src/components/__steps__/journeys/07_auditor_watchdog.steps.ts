@@ -1,5 +1,5 @@
 import { loadFeature, describeFeature } from '@amiceli/vitest-cucumber';
-import { noop, plannedStep, render } from './_shared';
+import { noop, plannedStep, render, mockFetchError } from './_shared';
 import { screen, fireEvent, waitFor, cleanup } from '@testing-library/svelte/pure';
 import { expect, vi } from 'vitest';
 import { tick } from 'svelte';
@@ -85,7 +85,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
         ],
         dataParticao: '2024-01-01',
       });
-      global.fetch = vi.fn().mockResolvedValue(new Response('Error', { status: 503 }));
+      mockFetchError();
       render(AgencyDetailView, { props: { cnpj: '00000000000191' } });
       await tick();
     });
@@ -129,7 +129,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
           dataParticao: '2024-01-01',
         });
 
-        global.fetch = vi.fn().mockResolvedValue(new Response('Error', { status: 503 }));
+        mockFetchError();
 
         render(ContractDetailView, { props: { id: '12345678000195-1-000001/2024' } });
         await tick();
