@@ -57,14 +57,14 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       // Need a stable container
       const container = document.body.appendChild(document.createElement('div'));
 
-      const { container: cityContainer } = render(CityDetailView, { target: container, props: { ibge: '3550308' } });
+      render(CityDetailView, { target: container, props: { ibge: '3550308' } });
 
       await waitFor(() => {
         expect(screen.getByText('Test Bid')).toBeInTheDocument();
       });
       await tick();
 
-      const { container: emptyContainer } = render(EmptyState, { target: container, props: { title: 'No results', message: 'Try again', actionLabel: 'Voltar', actionHref: '/busca' }});
+      render(EmptyState, { target: container, props: { title: 'No results', message: 'Try again', actionLabel: 'Voltar', actionHref: '/busca' }});
       await tick();
     });
 
