@@ -88,6 +88,7 @@ relevant to graph modeling:
 | `codigo_unidade`, `nome_unidade` | `string` | Sub-unit inside the agency. |
 | `uf_sigla`, `uf_nome`, `municipio_nome`, `codigo_ibge` | `string` | Geographic context — `codigo_ibge` is the canonical municipality key. |
 | `cnpj_orgao_subrogado`, `razao_social_orgao_subrogado` | `string` | Sub-rogated agency (when applicable). |
+| `codigo_unidade_subrogada`, `nome_unidade_subrogada`, `uf_sigla_subrogada` | `string` | Sub-unit inside the sub-rogated agency (when applicable). |
 | `ni_fornecedor` | `string` | Supplier identifier — CNPJ for `tipo_pessoa='J'`, CPF for `'F'`, foreign ID otherwise. **Use this for `Supplier` nodes.** |
 | `tipo_pessoa` | `string` | `J` (legal entity), `F` (individual), or other. |
 | `nome_razao_social_fornecedor` | `string` | Supplier display name. |
@@ -96,7 +97,9 @@ relevant to graph modeling:
 | `tipo_contrato_id`, `tipo_contrato_nome` | `int`, `string` | Contract typology. |
 | `categoria_processo_id`, `categoria_processo_nome` | `int`, `string` | Process category. |
 | `valor_inicial`, `valor_global`, `valor_acumulado`, `valor_parcela`, `numero_parcelas` | `decimal` | Money fields in BRL. `valor_global` is the canonical headline value. |
-| `data_publicacao`, `data_assinatura`, `data_vigencia_inicio`, `data_vigencia_fim`, `data_atualizacao_global` | `date`/`timestamp` | Lifecycle dates. |
+| `data_publicacao` | `date`/`timestamp` | Publication date (aliased from `dataPublicacaoPncp`; also emitted as `data_publicacao_pncp` for compatibility). |
+| `data_assinatura`, `data_vigencia_inicio`, `data_vigencia_fim` | `date` | Signing and validity window. |
+| `data_atualizacao`, `data_atualizacao_global` | `timestamp` | Last modification timestamps — record-level and global. |
 | `objeto_contrato`, `informacao_complementar`, `processo` | `string` | Free-text description and procedure number. |
 
 Bloom filters are pre-built on `cnpj_orgao | ni_fornecedor | codigo_ibge` —
