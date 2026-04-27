@@ -7,16 +7,19 @@ Feature: Journey 7 — Auditor and watchdog
   extraction workflow rebuilds and uploads to Internet Archive.
   See VISION.md → "Auditor / watchdog".
 
-  @green @alerts
+  @planned @alerts
   Scenario: Save the current query as a watch in localStorage
-    # Planned: watch persistence is not implemented. Static-compatible —
-    # localStorage only; no backend state.
+    # Planned: the search results page does not yet expose a "Salvar
+    # vigilância" button. The underlying watchStore.svelte.ts (addWatch /
+    # isWatched / hydrateWatches) is wired and tested via the agency- and
+    # contract-page entry points below; this scenario stays @planned until
+    # the search-results page surfaces the same affordance.
     Given a search result list is visible for "dispensa acima de 1 milhão"
     When the user clicks "Salvar vigilância"
     Then a watch entry is persisted in localStorage
     And the watch appears in the user's "Minhas vigilâncias" list
 
-  @green @rss
+  @planned @rss
   Scenario: Curated RSS feed on Internet Archive publishes new matches
     # Planned: the daily PNCP sync (pncp-sync.yml → ia_uploader) does not
     # yet emit feed-{slug}.xml alongside the monthly parquet. Feeds are for
@@ -28,11 +31,12 @@ Feature: Journey 7 — Auditor and watchdog
     Then the response is a valid RSS 2.0 document
     And each item links to a /contratacao permalink
 
-  @green @diff
+  @planned @diff
   Scenario: Diff view shows what changed since the last visit
-    # Planned: visit-diff is not implemented. Static-compatible — the
-    # client compares the current manifest's data_particao against a
-    # stored snapshot timestamp in localStorage.
+    # Planned: WatchList.svelte renders a "novidades desde sua última
+    # visita" section when a watch row carries a `lastVisited` value, but
+    # there is no dedicated diff-view route yet that surfaces it as a
+    # sectioned page. Stays @planned until that view ships.
     Given the user has previously visited a saved watch
     When the user opens the watch again
     Then the user sees a "novidades desde sua última visita" section listing only new matches
