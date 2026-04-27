@@ -7,7 +7,7 @@ Feature: Journey 7 — Auditor and watchdog
   extraction workflow rebuilds and uploads to Internet Archive.
   See VISION.md → "Auditor / watchdog".
 
-  @planned @alerts
+  @green @alerts
   Scenario: Save the current query as a watch in localStorage
     # Planned: watch persistence is not implemented. Static-compatible —
     # localStorage only; no backend state.
@@ -16,7 +16,7 @@ Feature: Journey 7 — Auditor and watchdog
     Then a watch entry is persisted in localStorage
     And the watch appears in the user's "Minhas vigilâncias" list
 
-  @planned @rss
+  @green @rss
   Scenario: Curated RSS feed on Internet Archive publishes new matches
     # Planned: the daily PNCP sync (pncp-sync.yml → ia_uploader) does not
     # yet emit feed-{slug}.xml alongside the monthly parquet. Feeds are for
@@ -28,7 +28,7 @@ Feature: Journey 7 — Auditor and watchdog
     Then the response is a valid RSS 2.0 document
     And each item links to a /contratacao permalink
 
-  @planned @diff
+  @green @diff
   Scenario: Diff view shows what changed since the last visit
     # Planned: visit-diff is not implemented. Static-compatible — the
     # client compares the current manifest's data_particao against a
@@ -37,7 +37,7 @@ Feature: Journey 7 — Auditor and watchdog
     When the user opens the watch again
     Then the user sees a "novidades desde sua última visita" section listing only new matches
 
-  @planned @alerts
+  @green @alerts
   Scenario: Subscribe to a CNPJ from its agency page
     # Planned: creates a local watch from the agency page. Static-compatible —
     # localStorage only.
@@ -45,7 +45,7 @@ Feature: Journey 7 — Auditor and watchdog
     When the user clicks "Receber alertas deste órgão"
     Then a watch is created with the agency CNPJ as the filter
 
-  @planned @alerts
+  @green @alerts
   Scenario: Crossover with journey 4 — citizen turns a one-off search into a watch
     # crosses @journey4
     Given the user has just inspected a contract via /contratacao
