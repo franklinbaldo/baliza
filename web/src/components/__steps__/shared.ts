@@ -42,3 +42,7 @@ export function render(
 ) {
   return tlRender(component as Parameters<typeof tlRender>[0], props);
 }
+
+export function mockFetchError(): void {
+  global.fetch = vi.fn().mockResolvedValue(new Response('Error', { status: 503 }));
+}
