@@ -21,7 +21,7 @@ O pipeline atual tem dois problemas relacionados:
 | Allowlist do frontend | `schema.ts` + `parquetFallback.ts` | duas edições manuais por tabela |
 | Dados de build-time | `build-data.mjs` | stub de manifesto hardcoded |
 
-**Problema 2 — ontologia errada:** `contratos` foi usado como modelo arquitetural, mas é o caso mais simples possível. Isso cria semântica fraca quando endpoints futuros (PCA, ATAS, empenhos) têm estrutura pai/filho, múltiplas tabelas e artefatos derivados.
+**Problema 2 — ontologia errada:** `contratos` foi usado como modelo arquitetural porque hoje é o caso mais simples na camada canônica inicial. Mas isso não significa que o recurso `contratos` seja intrinsecamente 1:1:1: ele também pode gerar múltiplas tabelas derivadas e artefatos para consulta, frontend e agregações. Usar `contratos` como modelo criou semântica fraca para endpoints com estrutura pai/filho (PCA, ATAS, empenhos) que naturalmente produzem múltiplas tabelas e artefatos.
 
 A solução não é só trocar nomes — é corrigir a ontologia do pipeline.
 
@@ -62,9 +62,42 @@ EMPENHOS  = PNCPResource(resource_name="empenhos",  endpoint="/v1/empenhos", ...
 ```
 
 Responsabilidades:
-- descrever o endpoint e a estratégia de fetch/paginação
-- declarar a estratégia de partição e raw mirror
-- agrupar as camadas abaixo
+- descrever o endpoint e a estratégia de fetch/paginação (`FetchSpec`)
+- declarar a estratégia de raw mirror (`RawDatasetSpec`)
+- agrupar as demais camadas (`EntitySpec[]`, `CanonicalTableSpec[]`, `DerivedTableSpec[]`, `ArtifactSpec[]`, `FrontendExposureSpec[]`)
+
+### `FetchSpec`
+
+Descreve como o recurso é paginado e coletado. Separado do `PNCPResource` para que a lógica de retry/cache/validação do extractor possa ser compartilhada entre recursos sem acoplamento ao domínio.
+
+```python
+@dataclass
+class FetchSpec:
+    endpoint: str               # "/v1/contratos", "/v1/pca/atualizacao"
+    pagination_param: str       # "pagina" (contratos) — difere entre endpoints
+    page_size_param: str        # "tamanhoPagina"
+    max_page_size: int          # 500 para PCA, 50 para publicação
+    date_param_start: str       # "dataInicial" (contratos) vs "dataInicio" (PCA) — atenção
+    date_param_end: str         # "dataFinal" vs "dataFim"
+    response_data_key: str      # chave do array na resposta JSON ("data", "items", etc.)
+```
+
+**Nota:** `/v1/contratos` usa `dataInicial`/`dataFinal`; `/v1/pca/atualizacao` usa `dataInicio`/`dataFim`. Não assumir paridade de parâmetros entre endpoints.
+
+### `RawDatasetSpec`
+
+Descreve o raw mirror: como o dado bruto é espelhado antes de qualquer transformação.
+
+```python
+@dataclass
+class RawDatasetSpec:
+    ia_item_id: str             # item no IA onde o ZIP bruto vai
+    filename_fn: Callable       # partição → nome do arquivo ZIP
+    partition_strategy: str     # "monthly" (contratos) | "annual" (PCA) | "weekly"
+    retention_policy: str       # "all" | "last_n=12"
+```
+
+A estratégia de partição do raw mirror **não precisa coincidir** com a partição dos artefatos publicados. Ex.: coletar PCA diariamente por janela de atualização e publicar Parquet anual consolidado.
 
 ### `EntitySpec`
 
@@ -105,7 +138,7 @@ atas_canonical           pk: "numero_controle_pncp"
 ata_itens_canonical      pk: ["numero_controle_pncp", "numero_item"]
 ```
 
-**Nota sobre `schema_version`:** `CanonicalTableSpec` define sua própria versão. A lógica de reprocessamento por schema bump deve ser delegada ao `PNCPResource` (e ao `PcaExporter` ou equivalente) — não assume-se que `builder.py` lida com isso automaticamente (ver PR A).
+**Nota sobre `schema_version`:** `CanonicalTableSpec` define sua própria versão. A lógica de reprocessamento por schema bump deve ser delegada ao `PNCPResource` — não assume-se que `builder.py` lida com isso automaticamente (PR D refatora o builder para despachar por contrato em vez de `strptime` hardcoded; PR E formaliza a versão no manifest via `ArtifactSpec`).
 
 ### `DerivedTableSpec`
 
@@ -341,19 +374,24 @@ em vez de fazer INSTALL dentro do script de cada query — assim o script usa s�
 A separação entre "buscar manifest" (Node.js fetch) e "ler Parquet" (DuckDB httpfs pré-instalado)
 torna o fallback de CI alcançável sem depender de conectividade de extensão.
 
-### `parse_data_particao` em `CanonicalTableSpec`
+### Responsabilidade de `data_particao`
 
-Cada `CanonicalTableSpec` sabe como derivar `data_particao` de uma row:
+A partição pertence a pelo menos três camadas diferentes — não misturá-las:
+
+```
+RawDatasetSpec.partition_strategy  → como o bruto é espelhado (mensal, anual, semanal)
+CanonicalTableSpec                 → pode conter coluna data_particao como dado persistido,
+                                     mas NÃO define a estratégia de particionamento
+ArtifactSpec.partition_fn          → como o artefato publicado é particionado (mensal, anual, por UF)
+```
+
+`CanonicalTableSpec` **não define** `data_particao_fn`. A tabela canônica pode incluir a coluna como campo persistido (ex.: `contratos_canonical.data_particao = "2025-01"`), mas a estratégia de particionamento do raw mirror e dos artefatos publicados fica em `RawDatasetSpec` e `ArtifactSpec` respectivamente.
+
+Exemplo de `contratos_canonical` — sem partição na spec da tabela:
 
 ```python
-def _contratos_particao(row: dict) -> str:
-    v = row.get("data_particao")
-    if not v:
-        raise ValueError("Missing data_particao in contratos row")
-    return v
-
-# _flatten_contrato já existe em src/baliza/extractor.py — referenciada aqui
-# por nome; PR C importa e registra a função sem reimplementá-la.
+# _flatten_contrato já existe em src/baliza/extractor.py — PR C importa
+# sem reimplementar; a coluna data_particao já está no output de _flatten_contrato.
 contratos_canonical = CanonicalTableSpec(
     table_name="contratos_canonical",
     schema_version="2.0.0",
@@ -363,6 +401,7 @@ contratos_canonical = CanonicalTableSpec(
     source_entity="contrato",
     sort_columns=["cnpj_orgao", "data_publicacao_pncp"],
     bloom_filter_columns=["cnpj_orgao"],
+    # SEM partition_fn — particionamento é responsabilidade de ArtifactSpec
 )
 ```
 
@@ -427,7 +466,7 @@ PR G — provar arquitetura com caso composto (PCA ou ATAS)
 | Risco | Mitigação |
 |---|---|
 | Ibis `anti_join` composto com bug | Teste isolado em PR A antes de integrar |
-| `build-data.mjs` com httpfs falha em CI sem credencial IA | Leitura condicional; fallback para manifesto local em `test` |
+| `build-data.mjs`: fetch do manifest.csv falha em CI sem acesso à rede | `BALIZA_MANIFEST_FIXTURE` aponta para fixture local em CI; `httpfs` reservado para Parquet remotos, não para o manifest |
 | `builder.py` refactor quebra reprocessamento de contratos | PR 0 trava o comportamento atual; PR D deve passar esses testes |
 | manifest CSV com colunas inconsistentes entre recursos | Definir `BASE_MANIFEST_FIELDS` global; não adicionar por recurso ad-hoc |
 | `isCanonicalRow` silencia novos `file_type` | PR F obrigatoriamente estende a função antes do PR G |
