@@ -42,12 +42,26 @@ class TableContract(BaseModel, arbitrary_types_allowed=True):
     bloom_filter_columns: list[str]
     manifest_extra_fields: dict[str, Any] = {}  # campos adicionais além dos padrão
 
+    def parse_data_particao(self, row: dict) -> str:
+        """Extrai e valida data_particao; delega para data_particao_fn.
+        Lança ValueError se o resultado for vazio — propagado pelo builder."""
+        result = self.data_particao_fn(row)
+        if not result:
+            raise ValueError(f"data_particao_fn returned empty for table {self.table_name}")
+        return result
+
+def _contratos_particao(row: dict) -> str:
+    v = row.get("data_particao")
+    if not v:
+        raise ValueError("Missing data_particao in contratos row")
+    return v
+
 # Contratos já existentes declarados aqui
 CONTRATOS = TableContract(
     table_name="contratos",
     schema_version="2.0.0",
     pk="numeroControlePNCP",
-    data_particao_fn=lambda row: row["data_particao"],   # já é "YYYY-MM"
+    data_particao_fn=_contratos_particao,  # já é "YYYY-MM"; lança se ausente
     sort_columns=["cnpj_orgao", "data_publicacao_pncp"],
     bloom_filter_columns=["cnpj_orgao"],
 )
@@ -99,18 +113,28 @@ contract = REGISTRY.get(row.get("table_name", "contratos"))
 if contract is None:
     continue
 try:
-    period = contract.parse_data_particao(part)  # valida o formato esperado por tabela
+    period = contract.parse_data_particao(row)  # método em TableContract; lança ValueError se inválido
 except ValueError:
     continue
 ```
 
-`parse_data_particao` é método do `TableContract` que sabe o formato esperado por tabela — mensal para contratos, anual para PCA, etc.
+`parse_data_particao(row)` está definido em `TableContract` (ver seção acima) — delega para `data_particao_fn` e levanta `ValueError` se o resultado for vazio, o que o `builder.py` captura e pula a row.
 
 ### 3. `ia_uploader.py` — campos por contrato
 
 ```python
 # antes: MANIFEST_FIELDNAMES hardcoded para contratos
 MANIFEST_FIELDNAMES = ["data_particao", "table_name", "parquet_url", ...]
+
+# campos base extraídos de MANIFEST_FIELDNAMES atual (ia_uploader.py:86-108)
+BASE_MANIFEST_FIELDS = [
+    "data_particao", "table_name", "row_count", "quarantine_count",
+    "ia_item_id", "raw_zip_url", "parquet_url", "quarantine_url",
+    "uploaded_at", "file_type", "uf_sigla", "sort_key", "row_group_size",
+    "bloom_filter_columns", "sha256", "file_size_bytes",
+    "mirror_uploaded_at", "raw_zip_sha256", "raw_zip_size_bytes",
+    "parquet_uploaded_at", "parquet_schema_version",
+]
 
 # depois: campos base + extras do contrato
 def manifest_fields_for(contract: TableContract) -> list[str]:
