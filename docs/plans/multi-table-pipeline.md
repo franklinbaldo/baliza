@@ -149,11 +149,12 @@ Validação Pydantic antes de gravar: linha do manifest que violar `data_partica
 // antes: stub hardcoded
 db.run(`CREATE TABLE IF NOT EXISTS manifest AS SELECT '2024-04-01' as date...`);
 
-// depois: leitura real via httpfs
+// depois: leitura real via httpfs — manifesto é CSV, não JSON
+// URL: https://archive.org/download/baliza-pncp-manifest/manifest.csv
 db.run(`
   INSTALL httpfs; LOAD httpfs;
   CREATE TABLE manifest AS
-  SELECT * FROM read_json_auto('${IA_MANIFEST_URL}');
+  SELECT * FROM read_csv_auto('${IA_MANIFEST_CSV_URL}', header=true);
 `);
 ```
 
