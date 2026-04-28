@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from ibis.common.exceptions import IbisTypeError
 
 from baliza.builder import _pending_build_months
 from baliza.engine import BalizaEngine
@@ -75,8 +76,9 @@ def test_engine_upsert_single_pk():
 
     # Verify that the current interface of upsert_rows only accepts a string for pk
     # (or rather, we characterize how it fails if given a list)
-    with pytest.raises(Exception):
-        # Ibis will fail if we pass a list to `~t_existing[pk].isin()`
+    with pytest.raises(IbisTypeError):
+        # Ibis raises IbisTypeError (column not found) when pk is a list
+        # — current engine only supports single-column pk
         engine.upsert_rows([{"k1": "v1", "k2": "v2"}], "test_table", pk=["k1", "k2"])
 
 
@@ -137,16 +139,18 @@ def test_frontend_archived_tables_includes_contratos():
     assert set(tables) == {"contratos", "orgaos", "unidades", "fornecedores"}
 
 
-# 5. build-data.mjs has a hardcoded stub
+# 5. build-data.mjs uses real manifest loading (no hardcoded stub)
 def test_build_data_stub_shape():
     build_data_path = Path("web/scripts/build-data.mjs")
     content = build_data_path.read_text()
 
-    # Check for the stub creation SQL
-    assert "CREATE TABLE IF NOT EXISTS manifest AS" in content
-    assert "SELECT '2024-04-01' as date" in content
+    # Real manifest loading: BALIZA_MANIFEST_FIXTURE for CI fixture mode
+    assert "BALIZA_MANIFEST_FIXTURE" in content
+    assert "read_csv_auto" in content
 
-    # Ensure it's not using httpfs to download the manifest in the current version
-    assert "INSTALL httpfs" not in content
-    assert "LOAD httpfs" not in content
-    assert "manifest.csv" not in content
+    # httpfs loaded conditionally (not unconditionally installed)
+    assert "LOAD httpfs" in content
+    assert "INSTALL httpfs" in content
+
+    # Old hardcoded stub is gone
+    assert "SELECT '2024-04-01'" not in content

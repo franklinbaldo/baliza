@@ -40,52 +40,39 @@ function processQmd(filePath) {
 
 const IA_MANIFEST_CSV_URL = process.env.IA_MANIFEST_CSV_URL ?? 'https://archive.org/download/baliza-pncp-manifest/manifest.csv';
 
-async function build() {
-  if (!fs.existsSync(QUERIES_DIR)) fs.mkdirSync(QUERIES_DIR, { recursive: true });
-  
-  let csvPath = process.env.BALIZA_MANIFEST_FIXTURE;
+async function loadManifest() {
+  const csvPath = process.env.BALIZA_MANIFEST_FIXTURE ?? IA_MANIFEST_CSV_URL;
   let filePath = csvPath;
-
-  if (!csvPath) {
-    csvPath = IA_MANIFEST_CSV_URL;
-  }
-
   if (csvPath.startsWith('http')) {
     const resp = await fetch(csvPath);
-    if (!resp.ok) {
-      throw new Error(`manifest fetch failed: ${resp.status} ${resp.url}`);
-    }
+    if (!resp.ok) throw new Error(`manifest fetch failed: ${resp.status} ${resp.url}`);
     const csv = await resp.text();
     filePath = path.join(os.tmpdir(), 'baliza-manifest.csv');
     fs.writeFileSync(filePath, csv, 'utf-8');
   }
+  await new Promise((resolve, reject) =>
+    db.run(
+      `CREATE TABLE manifest AS SELECT * FROM read_csv_auto('${filePath}', header=true)`,
+      (err) => (err ? reject(err) : resolve()),
+    ),
+  );
+}
 
-  db.run(`CREATE TABLE manifest AS SELECT * FROM read_csv_auto('${filePath}', header=true)`, (err) => {
-    if (err) {
-      console.error('Error creating manifest table:', err);
-      return;
-    }
+async function ensureHttpfs() {
+  if (process.env.BALIZA_MANIFEST_FIXTURE) return;
+  await new Promise((resolve, reject) =>
+    db.run('LOAD httpfs;', (err) => {
+      if (!err) return resolve();
+      db.run('INSTALL httpfs; LOAD httpfs;', (e2) => (e2 ? reject(e2) : resolve()));
+    }),
+  );
+}
 
-    // We should ensure httpfs is loaded for the Parquet parts
-    // Conditionally load/install httpfs if not in fixture mode
-    if (!process.env.BALIZA_MANIFEST_FIXTURE) {
-       db.run('LOAD httpfs;', (errLoad) => {
-          if (errLoad) {
-             db.run('INSTALL httpfs; LOAD httpfs;', (errInstall) => {
-                if (errInstall) {
-                   console.error('Failed to install/load httpfs', errInstall);
-                } else {
-                   processFiles();
-                }
-             });
-          } else {
-             processFiles();
-          }
-       });
-    } else {
-       processFiles();
-    }
-  });
+async function build() {
+  if (!fs.existsSync(QUERIES_DIR)) fs.mkdirSync(QUERIES_DIR, { recursive: true });
+  await loadManifest();
+  await ensureHttpfs();
+  processFiles();
 }
 
 function processFiles() {
