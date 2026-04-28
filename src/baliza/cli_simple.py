@@ -133,13 +133,16 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
             try:
                 # manifest dates in monthly strategy are strings "YYYY-MM"
                 raw_manifest = uploader._read_manifest_from_ia()
-                # A month is "done" only when its Parquet is on IA (parquet_url non-empty).
-                # Months that went through `mirror` only have raw_zip_url set — they still
-                # need `build` (or `sync`) to produce the Parquet.
+                # A month is "done" only when its Parquet is on IA AND we have a sha256
+                # to prove the upload was confirmed. parquet_url alone is not sufficient:
+                # old manifest-recovery runs wrote the expected URL before the file existed,
+                # leaving entries that 404 and cause the consolidator to skip the whole year.
                 uploaded = {
                     row["data_particao"]
                     for row in raw_manifest
-                    if row.get("data_particao") and row.get("parquet_url")
+                    if row.get("data_particao")
+                    and row.get("parquet_url")
+                    and row.get("sha256")
                 }
                 # Lookup for raw_zip_url by month — used to skip PNCP fetch
                 # when we already have the ZIP on IA for a past month.
