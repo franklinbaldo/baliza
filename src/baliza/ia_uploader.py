@@ -681,7 +681,11 @@ class IAUploader:
             "quarantine_count": q_stats.get("quarantine", 0) if q_stats else 0,
             "ia_item_id": item_id,
             "raw_zip_url": f"https://archive.org/download/{item_id}/raw-{month_str}.zip",
-            "parquet_url": parquet_url,
+            # Only write parquet_url when we confirmed the file was in the upload set.
+            # An empty sha256 means the Parquet was never generated; writing the URL
+            # anyway produces a manifest entry that points to a non-existent file and
+            # causes the consolidator to 404 and the sync to skip the month forever.
+            "parquet_url": parquet_url if parquet_sha256 else "",
             "quarantine_url": f"https://archive.org/download/{item_id}/quarentena-{month_str}.csv"
             if q_stats and q_stats.get("quarantine", 0) > 0
             else "",
