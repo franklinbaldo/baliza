@@ -164,6 +164,7 @@ valor_unitario
 valor_total
 valor_orcamento_exercicio
 unidade_fornecimento
+unidade_requisitante
 grupo_contratacao_codigo
 grupo_contratacao_nome
 classificacao_superior_codigo
