@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import duckdb from 'duckdb';
 
 const QUERIES_DIR = path.resolve('./src/queries');
@@ -37,22 +38,64 @@ function processQmd(filePath) {
   });
 }
 
-function build() {
+const IA_MANIFEST_CSV_URL = process.env.IA_MANIFEST_CSV_URL ?? 'https://archive.org/download/baliza-pncp-manifest/manifest.csv';
+
+async function build() {
   if (!fs.existsSync(QUERIES_DIR)) fs.mkdirSync(QUERIES_DIR, { recursive: true });
   
-  // For the sake of this prototype, we'll create a fake manifest table
-  // In production, this would read from the actual internet archive via httpfs extension
-  db.run(`CREATE TABLE IF NOT EXISTS manifest AS 
-          SELECT '2024-04-01' as date, 1754 as row_count, 0 as quarantine_count
-          UNION ALL SELECT '2024-04-02', 2100, 3
-          UNION ALL SELECT '2024-04-03', 1950, 0;`, 
-  (err) => {
-    if(err) console.error(err);
-    const files = fs.readdirSync(QUERIES_DIR).filter(f => f.endsWith('.qmd'));
-    for (const file of files) {
-      processQmd(path.join(QUERIES_DIR, file));
+  let csvPath = process.env.BALIZA_MANIFEST_FIXTURE;
+  let filePath = csvPath;
+
+  if (!csvPath) {
+    csvPath = IA_MANIFEST_CSV_URL;
+  }
+
+  if (csvPath.startsWith('http')) {
+    const resp = await fetch(csvPath);
+    if (!resp.ok) {
+      throw new Error(`manifest fetch failed: ${resp.status} ${resp.url}`);
+    }
+    const csv = await resp.text();
+    filePath = path.join(os.tmpdir(), 'baliza-manifest.csv');
+    fs.writeFileSync(filePath, csv, 'utf-8');
+  }
+
+  db.run(`CREATE TABLE manifest AS SELECT * FROM read_csv_auto('${filePath}', header=true)`, (err) => {
+    if (err) {
+      console.error('Error creating manifest table:', err);
+      return;
+    }
+
+    // We should ensure httpfs is loaded for the Parquet parts
+    // Conditionally load/install httpfs if not in fixture mode
+    if (!process.env.BALIZA_MANIFEST_FIXTURE) {
+       db.run('LOAD httpfs;', (errLoad) => {
+          if (errLoad) {
+             db.run('INSTALL httpfs; LOAD httpfs;', (errInstall) => {
+                if (errInstall) {
+                   console.error('Failed to install/load httpfs', errInstall);
+                } else {
+                   processFiles();
+                }
+             });
+          } else {
+             processFiles();
+          }
+       });
+    } else {
+       processFiles();
     }
   });
 }
 
-build();
+function processFiles() {
+  const files = fs.readdirSync(QUERIES_DIR).filter(f => f.endsWith('.qmd'));
+  for (const file of files) {
+    processQmd(path.join(QUERIES_DIR, file));
+  }
+}
+
+build().catch(err => {
+  console.error("Build failed:", err);
+  process.exit(1);
+});
