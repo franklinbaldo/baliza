@@ -374,18 +374,24 @@ queries `.qmd`. O CI usa o pacote npm `duckdb` (Node.js), **não** um binário C
 via Node.js API no próprio `build-data.mjs`, uma única vez antes de rodar as queries:
 
 ```javascript
-// instalar httpfs via Node.js API — sem depender do CLI duckdb
-await new Promise((resolve, reject) =>
-  db.run('INSTALL httpfs; LOAD httpfs;', (err) => (err ? reject(err) : resolve()))
-);
-
-// .qmd queries que leem Parquet do IA podem agora usar apenas:
-// SELECT * FROM read_parquet('https://archive.org/...')
-// (httpfs já carregada pela conexão acima)
+// Carregar httpfs via Node.js API — condicional para suportar CI offline:
+// 1. Tentar LOAD primeiro (não acessa rede se extensão já estiver instalada)
+// 2. Se LOAD falhar (extensão ausente) e houver conectividade, fazer INSTALL + LOAD
+// 3. Se estiver em modo fixture (BALIZA_MANIFEST_FIXTURE definido), pular — queries
+//    .qmd não vão ler Parquet remoto nesse modo
+async function ensureHttpfs(db) {
+  if (process.env.BALIZA_MANIFEST_FIXTURE) return; // modo fixture: sem Parquet remoto
+  await new Promise((resolve, reject) =>
+    db.run('LOAD httpfs;', (err) => {
+      if (!err) return resolve();
+      // LOAD falhou — extensão não instalada; tentar INSTALL (requer rede)
+      db.run('INSTALL httpfs; LOAD httpfs;', (e2) => (e2 ? reject(e2) : resolve()));
+    }),
+  );
+}
 ```
 
-A separação entre "buscar manifest" (Node.js fetch) e "ler Parquet" (DuckDB httpfs pré-instalado)
-torna o fallback de CI alcançável sem depender de conectividade de extensão.
+`LOAD httpfs` não acessa a rede se a extensão já estiver em cache local (ex.: imagem Docker com extensão pré-instalada). `INSTALL` só é chamado se `LOAD` falhar, e apenas quando não estamos em modo fixture. Em CI offline sem extensão em cache, as queries `.qmd` que leem Parquet remoto são simplesmente saltadas via `BALIZA_MANIFEST_FIXTURE`.
 
 ### Responsabilidade de `data_particao`
 
