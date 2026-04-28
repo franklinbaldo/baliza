@@ -1,8 +1,13 @@
 # Plano: Pipeline PCA → CATMAT
 
-**Status:** v4 — data_particao obrigatório, pca_itens normalizado, alavancas de stack  
+**Status:** v7 — data_particao obrigatório, pca_itens normalizado, alavancas de stack  
 **Escopo:** pipeline Python + Parquet novo + camada web  
 **Estimativa:** 2–3 semanas (happy path após probe favorável: ~10 dias)
+
+> ⚠️ **Pré-requisito:** este plano depende de `docs/plans/multi-table-pipeline.md` (PR #509).
+> Os PRs A–D daquele plano devem ser mergeados antes dos PRs 3–4 deste.
+> Sem o refactoring do `TableContract`, a implementação do PCA reproduz os cinco
+> pontos de acoplamento hard-coded identificados na auto-análise de stack.
 
 ---
 
