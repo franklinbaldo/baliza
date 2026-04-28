@@ -1,114 +1,160 @@
 # Plano: Pipeline PCA → CATMAT
 
-**Status:** proposta para revisão  
+**Status:** v2 — incorpora revisão do PR #506  
 **Escopo:** pipeline Python + Parquet novo + camada web  
-**Estimativa:** 3–4 semanas (pipeline) + 1 semana (web)
+**Estimativa:** 2–3 semanas (happy path após probe favorável: ~10 dias)
 
 ---
 
 ## Contexto e motivação
 
-O `catmat.json` já tem 13.280 entradas reais do gov.br (10.375 CATMAT + 2.905 CATSER).
-A `CatmatSearch` já funciona como ferramenta de lookup em `/catmat`.
+O Baliza tem como objetivo fazer o backup de todos os endpoints públicos do PNCP.
+O PCA (Plano de Contratações Anuais) é um endpoint público documentado no OpenAPI
+do PNCP — portanto está dentro do escopo de coleta independentemente do valor de produto.
 
-O problema: **nenhum contrato exibido no sistema tem o código CATMAT vinculado**.
-Os endpoints do PNCP que usamos hoje (`/v1/contratacoes/publicacao`, `/v1/contratos`)
-retornam apenas `objetoCompra` em texto livre — sem código de catálogo por item.
+O valor de produto adicional: o PCA expõe `codigoItem` (código CATMAT/CATSER) por item
+planejado, transformando o `catmat.json` estático de "lookup de código" em "demanda
+planejada consultável por código".
 
-O único endpoint PNCP que expõe `codigoItem` (= código CATMAT/CATSER) é o
-**Plano de Contratações Anuais (PCA)** — `/v1/pca/atualizacao`.
+Os endpoints que usamos hoje (`/v1/contratacoes/publicacao`, `/v1/contratos`) retornam
+apenas `objetoCompra` em texto livre — sem código de catálogo por item.
+
+> **Aviso de produto obrigatório na UI:** PCA é demanda planejada, não contrato firmado.
+> O Baliza deve deixar explícito: "Esses dados indicam intenção/planejamento informado
+> ao PNCP, não contratação realizada."
 
 ---
 
-## Investigação: o que o PCA tem
+## Schema real do endpoint PCA
 
-### Endpoint disponível
+Baseado no OpenAPI do repo (`docs/openapi/api-pncp-consulta.json`) e em
+`src/baliza/models.py` — não em suposição:
 
-```
-GET /v1/pca/atualizacao
-  dataInicio   (required) — ex: 2025-01-01
-  dataFim      (required) — ex: 2025-01-31
-  cnpj         (optional) — filtro por órgão
-  codigoUnidade(optional)
-  pagina       (required, min 1)
-  tamanhoPagina(optional, 10–500)
-```
-
-Resposta: `PaginaRetornoPlanoContratacaoComItensDoUsuarioDTO`
+### `PlanoContratacaoComItensDoUsuarioDTO` (pai, por PCA)
 
 ```
-data[]:
-  orgaoEntidade.cnpj
-  orgaoEntidade.razaoSocial
-  unidadeOrgao.codigoUnidade
-  unidadeOrgao.nomeUnidade
-  unidadeOrgao.codigoIbge
-  anoCompra  (ano do PCA)
-  itens[]:
-    codigoItem              ← CATMAT/CATSER code
-    pdmCodigo               ← PDM (Padrão Descritivo de Material)
-    pdmDescricao
-    nomeClassificacaoCatalogo
-    descricaoItem           ← descrição em texto livre
-    quantidadeEstimada
-    valorUnitario
-    valorTotal
-    valorOrcamentoExercicio
-    unidadeFornecimento
-    grupoContratacaoCodigo
-    grupoContratacaoNome
-    classificacaoSuperiorCodigo
-    classificacaoSuperiorNome
+idPcaPncp               string  ← chave do PCA
+anoPca                  integer
+orgaoEntidadeCnpj       string
+orgaoEntidadeRazaoSocial string
+codigoUnidade           string
+nomeUnidade             string
+dataPublicacaoPNCP      string
+dataAtualizacaoGlobalPCA string
+itens[]                 → ver abaixo
 ```
 
-### Incerteza a validar antes de implementar
+**Nota importante:** não há `codigoIbge`, `ufSigla` nem `municipioNome` no DTO.
+Dados geográficos exigem join externo com a tabela `unidades` (que tem `codigo_ibge`
+via `codigo_unidade`). Qualquer UI de heatmap por UF depende desse join.
 
-Não temos acesso à rede no ambiente de dev. Precisamos confirmar empiricamente:
+### `PlanoContratacaoItemDTO` (item)
 
-1. **`codigoItem` bate com `code` em `catmat.json`?**  
-   A hipótese é que sim (ambos são o código CATMAT/CATSER oficial), mas o formato
-   pode divergir (zero-padded? diferente número de dígitos?).
-
-2. **Cobertura real**: qual % dos itens PCA têm `codigoItem` preenchido?  
-   Muitos órgãos podem não informar o código.
-
-3. **Volume**: quantos itens PCA existem por mês? Necessário para estimar o tamanho
-   do Parquet e o custo de coleta.
-
-**Ação imediata antes de qualquer implementação:**
-```python
-# scripts/probe_pca.py — rodar uma vez, jogar output aqui como comentário
-GET /v1/pca/atualizacao?dataInicio=2025-01-01&dataFim=2025-01-31&pagina=1&tamanhoPagina=500
-→ imprimir: totalRegistros, % codigoItem preenchido, amostra de codigoItem vs catmat.json
+```
+numeroItem              integer  ← parte da chave primária (ver dedup)
+codigoItem              string   ← CATMAT/CATSER — SEMPRE tratar como string
+pdmCodigo               string
+pdmDescricao            string
+nomeClassificacaoCatalogo string
+descricaoItem           string
+quantidadeEstimada      number
+valorUnitario           number
+valorTotal              number
+valorOrcamentoExercicio number
+unidadeFornecimento     string
+grupoContratacaoCodigo  string
+grupoContratacaoNome    string
+classificacaoSuperiorCodigo string
+classificacaoSuperiorNome   string
+classificacaoCatalogoId integer
+categoriaItemPcaNome    string
+dataInclusao            datetime
+dataAtualizacao         datetime
+dataDesejada            date
 ```
 
 ---
 
-## Arquitetura proposta
+## Deduplicação — decisão necessária antes do Parquet
+
+`/v1/pca/atualizacao` é um fluxo por data de atualização global. O mesmo PCA/item pode
+reaparecer em coletas diferentes se for alterado. O plano precisa de uma regra explícita.
+
+**Chave primária proposta:** `(idPcaPncp, numeroItem)`
+
+**Estratégia de tabela:**
+
+| Opção | Descrição | Prós | Contras |
+|---|---|---|---|
+| **current-state por ano PCA** | última versão de cada `(idPcaPncp, numeroItem)` por `anoPca` | simples de querir, menor volume | perde histórico de alterações |
+| **event-log append-only** | toda ocorrência preservada | histórico completo | dedup na query; volume maior |
+
+**Recomendação:** `current-state por ano PCA` para a primeira feature. Adicionar
+campos de auditoria: `data_publicacao_pncp`, `data_atualizacao_global_pca`,
+`data_inclusao`, `data_atualizacao`, `data_coleta`.
+
+---
+
+## PR 2 — Probe (obrigatório antes de qualquer implementação)
+
+Uma página de um mês não valida a hipótese. A probe deve ser um script Python robusto
+(`scripts/probe_pca.py`) que rode e produza um relatório Markdown/JSON commitado no PR,
+cobrindo:
+
+```
+Janelas a cobrir:
+  2025-01, 2025-06, 2025-12 (ou mês mais recente disponível)
+  + uma janela com cnpj específico de órgão grande (ex: prefeitura SP)
+
+Por janela, extrair:
+  totalRegistros, totalPaginas
+  total de itens explodidos
+  % de itens com codigoItem preenchido
+  % de match exato codigoItem → catmat.json (string, sem conversão)
+  % de match normalizado (strip zeros à esquerda, etc.)
+  exemplos de codigoItem sem match em catmat.json
+  presença/nulidade dos campos críticos (idPcaPncp, numeroItem, anoPca)
+  duplicatas por (idPcaPncp, numeroItem) dentro da janela
+  tamanho médio por página
+  estimativa extrapolada de Parquet por ano (row count × avg row size)
+  verificar se codigoItem tem zeros à esquerda (ex: "07510" vs "7510")
+```
+
+**Regra:** `codigoItem` é sempre string — nunca converter para int, para não
+destruir zeros à esquerda. Idem no `catmat.ts` frontend (`code: string`).
+
+O resultado da probe define se o plano avança ou precisa ser reescrito.
+
+---
+
+## Arquitetura proposta (sujeita a resultado da probe)
 
 ### A. Coletor Python (`src/baliza/pca_extractor.py`)
 
-Seguir o padrão de `extractor.py` (httpx + tenacity retry + structlog):
+Reutilizar padrões de retry/cache/validação do `extractor.py`, mas **não reutilizar
+`fetch_page` diretamente** — o endpoint PCA usa `dataInicio`/`dataFim` (não
+`dataInicial`/`dataFinal`) e o flattening é diferente (explode itens do pai para linhas).
 
 ```python
-async def fetch_pca_month(year: int, month: int) -> list[PcaItemRow]:
-    """Coleta todos os itens PCA publicados/atualizados no mês via /pca/atualizacao."""
-    data_inicio = f"{year}-{month:02d}-01"
-    data_fim    = last_day_of_month(year, month)
-    # página a página, tamanhoPagina=500
-    # para cada PlanoContratacaoComItensDoUsuarioDTO, explode itens
-    # retorna lista plana de PcaItemRow
+async def fetch_pca_window(data_inicio: str, data_fim: str) -> list[PcaItemRow]:
+    """Coleta e explode itens PCA de uma janela temporal via /pca/atualizacao."""
+    # tamanhoPagina=500 (max do endpoint)
+    # Para cada PlanoContratacaoComItensDoUsuarioDTO, explode itens em linhas planas
+    # codigoItem → sempre str, nunca int
 ```
 
-Schema de saída plano (`PcaItemRow`):
+Schema plano de saída (`PcaItemRow`) — campo a campo do OpenAPI, snake_case:
 ```
+id_pca_pncp
 ano_pca
 cnpj_orgao
 razao_social_orgao
-codigo_unidade
+codigo_unidade           ← join com unidades para obter codigo_ibge
 nome_unidade
-codigo_ibge
-codigo_item       ← CATMAT/CATSER code
+data_publicacao_pncp
+data_atualizacao_global_pca
+numero_item
+codigo_item              ← string, nunca int
 pdm_codigo
 pdm_descricao
 nome_classificacao_catalogo
@@ -122,45 +168,57 @@ grupo_contratacao_codigo
 grupo_contratacao_nome
 classificacao_superior_codigo
 classificacao_superior_nome
-data_coleta       ← data de coleta (partition key)
+classificacao_catalogo_id
+categoria_item_pca_nome
+data_inclusao
+data_atualizacao
+data_desejada
+data_coleta              ← timestamp da coleta (adicionado pelo extractor)
 ```
 
-### B. Exportador Parquet (`src/baliza/pca_exporter.py`)
+### B. Estratégia de Parquet (decisão pendente de benchmark)
 
-Um Parquet por **ano PCA** (não por data de publicação):
+**B1 — Parquet único por ano PCA** (proposta inicial):
 ```
-data/pca/ano_pca=2024/pca_items.parquet
-data/pca/ano_pca=2025/pca_items.parquet
-```
-
-Tamanho estimado: ~50–200 MB por ano (a confirmar na probe).
-
-**Alternativa B2 — Parquet único por ano sem partição Hive:**
-```
-data/pca/pca_2025.parquet  (~50 MB gzipped)
+data/pca/pca_2024.parquet
+data/pca/pca_2025.parquet
 ```
 
-Mais simples para o DuckDB-WASM carregar sem precisar descobrir partições.
-Preferir B2 enquanto o volume for pequeno (< 100 MB).
+**B2 — Tabela agregada pequena por código** (sugerida na revisão):
+```
+data/pca/pca_demanda_por_codigo_2025.parquet
+  ano_pca, codigo_item, tipo_catalogo, descricao_catalogo,
+  orgaos_count, unidades_count, quantidade_total, valor_total
+```
+
+**Decisão pendente:** benchmarkar no browser (`read_parquet(url_ia)` via DuckDB-WASM)
+se há range requests / pushdown para filtro `WHERE codigo_item = ?`.
+A documentação do DuckDB menciona pushdown Parquet com HTTP range requests, mas o
+comportamento específico com duckdb-wasm + IA como servidor HTTP precisa ser medido
+no nosso stack — não assuma.
+
+Se não houver pushdown útil, B2 (tabela agregada pequena) sustenta o CatmatSearch
+inline sem baixar arquivo grande; B1 fica para o caso de uso de detalhes por órgão.
 
 ### C. IA uploader
 
-Adicionar tabela `pca` ao manifest e upload via `ia_uploader.py`.
-Seguir padrão existente de `contratos`.
+Adicionar tabela `pca` ao manifest e upload via `ia_uploader.py` (padrão existente).
 
 ### D. Web layer
 
-#### D.1 — Schema TypeScript (`web/src/lib/archive/schema.ts`)
+#### D.1 Schema TypeScript (`web/src/lib/archive/schema.ts`)
 
 ```typescript
 export interface ArchivedPcaItem {
+  id_pca_pncp: string;
+  numero_item: number;
   ano_pca: number;
   cnpj_orgao: string;
   razao_social_orgao: string | null;
   codigo_unidade: string | null;
   nome_unidade: string | null;
-  codigo_ibge: string | null;
-  codigo_item: string;          // CATMAT/CATSER code
+  // sem codigo_ibge direto — join externo com unidades se necessário
+  codigo_item: string;        // CATMAT/CATSER, sempre string
   pdm_codigo: string | null;
   pdm_descricao: string | null;
   nome_classificacao_catalogo: string | null;
@@ -173,99 +231,69 @@ export interface ArchivedPcaItem {
   classificacao_superior_nome: string | null;
   data_coleta: string;
 }
-
-// Adicionar 'pca_itens' ao ARCHIVED_TABLES
 ```
 
-#### D.2 — Query key (`web/src/lib/queryKeys.ts`)
+#### D.2 Página `/pca?codigo=7510` (Opção 2 — escopo inicial)
 
-```typescript
-pcaItens: (codigoItem: string) => ['pca-itens', codigoItem] as const,
-```
+- Lista órgãos/unidades com aquele `codigo_item` no PCA do ano corrente
+- Agrega: total de unidades, quantidade planejada, valor total estimado
+- **Aviso obrigatório:** "Demanda planejada no PCA. Indica intenção, não contrato."
+- BDD scenario `@green @pca-demand` em Journey 1 (fornecedor)
 
-#### D.3 — Integração no frontend
-
-**Opção 1 — Inline no `CatmatSearch`:**  
-Ao selecionar um resultado CATMAT, mostrar quantos órgãos planejam comprar aquele
-item (agregado de `pca_itens WHERE codigo_item = $code`). Útil para fornecedor.
-
-**Opção 2 — Página `/pca?codigo=7510`:**  
-Nova página "Demanda planejada" que mostra todos os órgãos com esse item no PCA,
-com valor estimado e quantidade. Heatmap por UF opcional.
-
-**Opção 3 — Enriquecer `ContractDetailView`:**  
-Se o contrato tem `numeroControlePncpCompra`, buscar o PCA associado e mostrar
-quais itens foram planejados (com `codigoItem` resolvido para CATMAT).
-
-Recomendação: **Opção 2 primeiro** (escopo isolado, BDD testável), depois integrar
-nas demais views conforme valor comprovado.
+Integração com CatmatSearch (Opção 1) e ContractDetailView (Opção 3) ficam para depois
+que o valor da Opção 2 for confirmado.
 
 ---
 
-## Particionamento e queries DuckDB-WASM
+## Anos a coletar
 
-O DuckDB-WASM carrega o arquivo inteiro antes de executar queries — não tem
-pushdown de predicados para arquivos remotos. Portanto:
-
-- **Parquet único por ano** (B2) é melhor que partição Hive: 1 fetch vs N
-- Comprimir com Zstd (DuckDB default): ~60–80% de compressão esperada
-- Arquivos por ano PCA: estimativa pessimista 200 MB raw → ~50 MB Zstd
-- Budget atual do bundle web: 320 KB JS — Parquet fica em IA, não no bundle
-
-Para evitar recarregar o arquivo a cada query, usar o mesmo padrão de
-`parquetFallback.ts`: fetch-once + cache em memória (via DuckDB WASM table).
+Começar por **2025 e 2026** (anos com PCA atualizados e com data de atualizacao global
+disponível a partir de 25/02/2025). Não assumir que o endpoint de atualizacao sirve bem
+para backfill de 2023/2024 sem testar — validar na probe com janelas 2024-Q4/2025-Q1
+para avaliar disponibilidade histórica.
 
 ---
 
 ## Estimativa de esforço
 
-| Tarefa | Esforço | Dependências |
+| Tarefa | Happy path | Estimativa realista |
 |---|---|---|
-| **Probe script** (`scripts/probe_pca.py`) | 2h | — |
-| **Validação codigoItem vs catmat.json** | 1h | probe |
-| **`PcaItemRow` + `pca_extractor.py`** | 1d | probe |
-| **`pca_exporter.py` + Parquet** | 1d | extractor |
-| **IA uploader + manifest** | 0.5d | exporter |
-| **Schema TS + `ArchivedPcaItem`** | 2h | — |
-| **`queryPcaItems` helper** | 2h | schema |
-| **`/pca` page + BDD scenario** | 2d | helper |
-| **Integração `CatmatSearch`** | 1d | pca page |
-| **CI: refresh PCA mensal** | 0.5d | extractor |
+| Probe script + relatório (PR 2) | 0.5d | 1d |
+| `pca_extractor.py` + testes | 1d | 2d |
+| `pca_exporter.py` + Parquet | 1d | 2d |
+| IA uploader + manifest | 0.5d | 1d |
+| Benchmark DuckDB-WASM | — | 0.5d |
+| Schema TS + query helper | 0.5d | 1d |
+| Página `/pca` + BDD | 2d | 3d |
+| CI: refresh PCA mensal | 0.5d | 1d |
+| **Total** | **~6d** | **~11.5d (2–3 semanas)** |
 
-**Total estimado: ~10 dias de trabalho** (não incluindo retrabalhados dependentes
-do resultado da probe).
+Se cobertura/matching da probe forem ruins: replanejar antes da web layer.
 
 ---
 
-## Riscos e trade-offs
+## Riscos
 
 | Risco | Impacto | Mitigação |
 |---|---|---|
-| `codigoItem` não bate com `catmat.json` | Alto — invalidaria toda a cadeia | Rodar probe antes de implementar |
-| Cobertura baixa de `codigoItem` (< 20%) | Médio — feature pouco útil | Mostrar % de cobertura na UI |
-| Volume > 200 MB/ano de Parquet | Médio — DuckDB-WASM lento | Filtrar por ano PCA, lazy-load |
-| PCA endpoint instável / rate-limited | Baixo | Retry com backoff (já no padrão) |
-| Join PCA → contrato não disponível | Alto — dificulta integração futura | Documentar limitação; Opção 2 não depende do join |
+| `codigoItem` não bate com `catmat.json` | Alto | Probe antes de tudo |
+| Cobertura < 20% de `codigoItem` | Médio | Mostrar % cobertura na UI |
+| Zeros à esquerda destruídos por parse int | Alto | Sempre string |
+| DuckDB-WASM baixa arquivo inteiro | Médio | Benchmark; usar tabela agregada se necessário |
+| `/pca/atualizacao` não cobre backfill 2023/2024 | Médio | Testar na probe |
+| UI confunde PCA com contrato real | Alto (produto) | Aviso obrigatório na página |
+| Volume > 200 MB/ano | Médio | Filtrar por ano, lazy-load, tabela agregada |
 
 ---
 
-## Decisões necessárias antes de começar
-
-1. **Rodar `probe_pca.py` primeiro?** (recomendado — valida a hipótese central)
-2. **Escopo inicial do web layer**: Opção 1, 2 ou 3?
-3. **Anos de PCA a coletar**: só 2025 ou histórico desde 2023?
-4. **Parquet único por ano (B2) ou partição Hive (B)?**
-5. **Prioridade relativa aos outros `@planned` de jornada** (`@alerts`, `@changelog`, `@api`)?
-
----
-
-## Sequência de implementação sugerida
+## Sequência de PRs
 
 ```
-PR 1 (este) — plano (este documento)
-PR 2 — scripts/probe_pca.py + resultado da probe como comentário no PR
-PR 3 — pca_extractor.py + pca_exporter.py + testes unitários Python
-PR 4 — IA uploader + manifest + schema TS + queryPcaItems
-PR 5 — /pca page + BDD @green @catmat-demand
-PR 6 — integração CatmatSearch (Opção 1) se valor confirmado
+PR 1 (este) — plano revisado (este documento)
+PR 2 — scripts/probe_pca.py + relatório de cobertura/matching
+PR 3 — pca_extractor.py + pca_exporter.py + testes Python
+         decisão de particionamento baseada em benchmark DuckDB-WASM
+PR 4 — IA uploader + manifest + schema TS + query helper
+PR 5 — /pca?codigo=... page + BDD @green @pca-demand
+PR 6 — integração CatmatSearch (Opção 1) se valor confirmado pela Opção 2
 ```
