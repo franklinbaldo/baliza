@@ -259,6 +259,12 @@ que:
   sintética `pca_row_id = f"{id_pca_pncp}__{numero_item}"` no `_flatten_pca()` e
   passá-la como `pk`. Alternativa: estender `upsert_rows` para aceitar
   `pk: str | list[str]` — mas isso é mudança de contrato do helper existente.
+- **Nulos na PK sintética:** `idPcaPncp` e `numeroItem` são nullable em `models.py`
+  (linhas 242 e 28). Rows com qualquer parte nula colapsam para a mesma chave
+  (ex: `"None__None"`) e `upsert_rows` pode sobrescrever/descartar dados. Requisito:
+  `_flatten_pca()` deve **rejeitar** (quarentena, não silenciar) qualquer row onde
+  `id_pca_pncp` seja `None`/vazio **ou** `numero_item` seja `None`/zero antes de
+  construir `pca_row_id`.
 
 ### C. IA uploader
 
