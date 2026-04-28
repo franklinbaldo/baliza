@@ -369,14 +369,19 @@ async function loadManifest(db) {
 ```
 
 `httpfs` continua necessário apenas para leitura de **Parquet remotos** (artefatos do IA) nas
-queries `.qmd`. Nesse caso, pre-provisionar a extensão no ambiente de build (`duckdb -c "INSTALL httpfs"`)
-em vez de fazer INSTALL dentro do script de cada query — assim o script usa só `LOAD httpfs`
-(que não acessa a rede se a extensão já estiver instalada localmente).
+queries `.qmd`. O CI usa o pacote npm `duckdb` (Node.js), **não** um binário CLI — portanto
+`duckdb -c "INSTALL httpfs"` falharia com `command not found`. A instalação deve ser feita
+via Node.js API no próprio `build-data.mjs`, uma única vez antes de rodar as queries:
 
 ```javascript
-// .qmd queries que leem Parquet do IA:
-// LOAD httpfs;  ← sem INSTALL — extensão deve estar pré-instalada no ambiente
+// instalar httpfs via Node.js API — sem depender do CLI duckdb
+await new Promise((resolve, reject) =>
+  db.run('INSTALL httpfs; LOAD httpfs;', (err) => (err ? reject(err) : resolve()))
+);
+
+// .qmd queries que leem Parquet do IA podem agora usar apenas:
 // SELECT * FROM read_parquet('https://archive.org/...')
+// (httpfs já carregada pela conexão acima)
 ```
 
 A separação entre "buscar manifest" (Node.js fetch) e "ler Parquet" (DuckDB httpfs pré-instalado)
@@ -472,7 +477,7 @@ Dois ajustes de CI são necessários no PR B — não são opcionais:
 
 1. **`BALIZA_MANIFEST_FIXTURE`** — definir a variável apontando para um `manifest.csv` de fixture local no job de build/test, para que `loadManifest` não tente fazer fetch remoto em CI offline/air-gapped.
 
-2. **`httpfs` pré-instalada** — adicionar passo `duckdb -c "INSTALL httpfs"` no job de build antes de executar as queries `.qmd`, para que os scripts usem apenas `LOAD httpfs` (sem rede) em vez de `INSTALL httpfs` (requer acesso ao registry DuckDB).
+2. **`httpfs` instalada via Node.js API** — o CI usa o pacote npm `duckdb`, não um binário CLI; `duckdb -c "INSTALL httpfs"` falharia com `command not found`. A instalação deve ser feita com `db.run('INSTALL httpfs; LOAD httpfs;', ...)` no início de `build-data.mjs`, antes de executar qualquer query `.qmd` que leia Parquet remoto.
 
 Sem esses dois ajustes, o fallback offline documentado no plano não funciona em CI.
 
