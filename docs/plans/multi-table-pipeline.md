@@ -299,16 +299,39 @@ Alternativa segura ao `isin` multi-coluna: `anti_join` com predicados compostos 
 
 ### `build-data.mjs` — manifest real
 
+O manifest é um CSV leve (`manifest.csv`). Não use `INSTALL httpfs` para buscá-lo:
+`INSTALL` baixa o binário da extensão do registry do DuckDB e falha em CI offline/air-gapped
+antes do fallback poder rodar. Para o CSV do manifest, prefira `fetch()` Node.js:
+
 ```javascript
-// manifest atual é CSV, não JSON
-// URL: https://archive.org/download/baliza-pncp-manifest/manifest.csv
-db.run(`
-  INSTALL httpfs; LOAD httpfs;
-  CREATE TABLE manifest AS
-  SELECT * FROM read_csv_auto('${IA_MANIFEST_CSV_URL}', header=true);
-`);
-// fallback para fixture local em ambiente de teste/CI sem acesso ao IA
+// manifest.csv: fetch via Node.js — sem httpfs, sem INSTALL
+const IA_MANIFEST_CSV_URL = process.env.IA_MANIFEST_CSV_URL
+  ?? 'https://archive.org/download/baliza-pncp-manifest/manifest.csv';
+
+const LOCAL_FIXTURE = process.env.BALIZA_MANIFEST_FIXTURE; // set in CI/test
+
+async function loadManifest(db) {
+  const csv = LOCAL_FIXTURE
+    ? fs.readFileSync(LOCAL_FIXTURE, 'utf-8')
+    : await fetch(IA_MANIFEST_CSV_URL).then(r => r.text());
+  // ingest via DuckDB in-memory (read_csv_auto de string ou arquivo local)
+  db.run(`CREATE TABLE manifest AS SELECT * FROM read_csv_auto('${tmpCsvPath}', header=true)`);
+}
 ```
+
+`httpfs` continua necessário apenas para leitura de **Parquet remotos** (artefatos do IA) nas
+queries `.qmd`. Nesse caso, pre-provisionar a extensão no ambiente de build (`duckdb -c "INSTALL httpfs"`)
+em vez de fazer INSTALL dentro do script de cada query — assim o script usa só `LOAD httpfs`
+(que não acessa a rede se a extensão já estiver instalada localmente).
+
+```javascript
+// .qmd queries que leem Parquet do IA:
+// LOAD httpfs;  ← sem INSTALL — extensão deve estar pré-instalada no ambiente
+// SELECT * FROM read_parquet('https://archive.org/...')
+```
+
+A separação entre "buscar manifest" (Node.js fetch) e "ler Parquet" (DuckDB httpfs pré-instalado)
+torna o fallback de CI alcançável sem depender de conectividade de extensão.
 
 ### `parse_data_particao` em `CanonicalTableSpec`
 
