@@ -281,6 +281,12 @@ A implementação requer:
   `data_particao.localeCompare`. Para PCA (que não tem mês natural), usar
   `data_particao = f"{ano_pca}-12-31"` em cada linha de manifesto. Sem isso, o
   frontend nunca resolve arquivos PCA (`r.table_name === tableName` é exact match).
+- **`file_type` obrigatório — crítico:** `isCanonicalRow()` em `ia-manifest.ts:89`
+  aceita apenas `!r.file_type` (ausente/vazio) ou `r.file_type === 'monthly_canonical'`.
+  Qualquer outro valor (ex: `"pca_canonical"`) é silenciosamente ignorado pelo resolver
+  e `/pca` retorna sempre `no_manifest`. PCA deve usar `file_type` **vazio/ausente**,
+  ou o PR D da arquitetura (`multi-table-pipeline.md`) deve estender `isCanonicalRow`
+  antes desta implementação. Não introduzir novo `file_type` sem atualizar o resolver.
 - `sort_key` e `bloom_filter_columns` específicos para PCA (sugestão: `codigo_item`)
 - tratar múltiplos tipos de tabela em `_update_remote_manifest`
 
@@ -300,7 +306,7 @@ export interface ArchivedPcaItem {
   // sem codigo_ibge direto — join externo com unidades(codigo_unidade, cnpj_orgao)
   data_publicacao_pncp: string | null;
   data_atualizacao_global_pca: string | null;
-  codigo_item: string;        // CATMAT/CATSER, sempre string
+  codigo_item: string | null;  // CATMAT/CATSER, sempre string se presente; nullable (models.py:32)
   pdm_codigo: string | null;
   pdm_descricao: string | null;
   nome_classificacao_catalogo: string | null;
