@@ -45,8 +45,11 @@ itens[]                 → ver abaixo
 ```
 
 **Nota importante:** não há `codigoIbge`, `ufSigla` nem `municipioNome` no DTO.
-Dados geográficos exigem join externo com a tabela `unidades` (que tem `codigo_ibge`
-via `codigo_unidade`). Qualquer UI de heatmap por UF depende desse join.
+Dados geográficos exigem join externo com a tabela `unidades` — mas a chave da tabela
+`unidades` é composta: `(codigo_unidade, cnpj_orgao)` (ver `UNIDADES_SCHEMA` e
+`GROUP BY codigo_unidade, cnpj_orgao` em `daily_exporter.py:315-325`). Um join só por
+`codigo_unidade` pode associar o `codigo_ibge` errado quando órgãos distintos
+compartilham o mesmo código de unidade. O join correto é sempre pelos dois campos.
 
 ### `PlanoContratacaoItemDTO` (item)
 
@@ -283,7 +286,9 @@ export interface ArchivedPcaItem {
   razao_social_orgao: string | null;
   codigo_unidade: string | null;
   nome_unidade: string | null;
-  // sem codigo_ibge direto — join externo com unidades se necessário
+  // sem codigo_ibge direto — join externo com unidades(codigo_unidade, cnpj_orgao)
+  data_publicacao_pncp: string | null;
+  data_atualizacao_global_pca: string | null;
   codigo_item: string;        // CATMAT/CATSER, sempre string
   pdm_codigo: string | null;
   pdm_descricao: string | null;
@@ -292,6 +297,7 @@ export interface ArchivedPcaItem {
   quantidade_estimada: number | null;
   valor_unitario: number | null;
   valor_total: number | null;
+  valor_orcamento_exercicio: number | null;
   unidade_fornecimento: string | null;
   unidade_requisitante: string | null;
   grupo_contratacao_codigo: string | null;  // manter código E nome (não só nome)
