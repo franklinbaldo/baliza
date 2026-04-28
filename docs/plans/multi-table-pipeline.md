@@ -304,6 +304,10 @@ O manifest é um CSV leve (`manifest.csv`). Não use `INSTALL httpfs` para busc�
 antes do fallback poder rodar. Para o CSV do manifest, prefira `fetch()` Node.js:
 
 ```javascript
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
+
 // manifest.csv: fetch via Node.js — sem httpfs, sem INSTALL
 const IA_MANIFEST_CSV_URL = process.env.IA_MANIFEST_CSV_URL
   ?? 'https://archive.org/download/baliza-pncp-manifest/manifest.csv';
