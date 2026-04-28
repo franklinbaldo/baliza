@@ -15,6 +15,8 @@ from pydantic import ValidationError
 from rich.console import Console
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
+from .pncp_resources import CONTRATOS
+
 from .engine import BalizaEngine
 from .models import RecuperarContratoDTO as Contrato
 from .utils import validate_url
@@ -364,9 +366,9 @@ class PNCPExtractor:
         without the snake_case PK. Any lookup error is treated as 'no'."""
         try:
             tables = self.engine.con.list_tables(database="main")
-            if "contratos" not in tables:
+            if CONTRATOS.name not in tables:
                 return False
-            columns = set(self.engine.con.table("contratos", database="main").schema().names)
+            columns = set(self.engine.con.table(CONTRATOS.name, database="main").schema().names)
         except Exception:
             return False
         return "numeroControlePNCP" in columns and "numero_controle_pncp" not in columns
@@ -413,13 +415,13 @@ class PNCPExtractor:
                 except ValidationError as e:
                     stats["quarantine"] += 1
                     logger.warning("validation_failed", error=str(e), entry_id=entry.get("id"))
-                    self.engine.quarantine_record("contratos", start_date, str(e), entry)
+                    self.engine.quarantine_record(CONTRATOS.name, start_date, str(e), entry)
 
             # Ingest valid rows into Ibis (shared engine) via UPSERT
             if valid_rows:
                 # Direct memory ingestion (Idempotent)
                 self.engine.upsert_rows(
-                    valid_rows, "contratos", schema="main", pk="numero_controle_pncp"
+                    valid_rows, CONTRATOS.name, schema="main", pk="numero_controle_pncp"
                 )
 
         return stats
