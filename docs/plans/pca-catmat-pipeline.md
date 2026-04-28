@@ -243,12 +243,19 @@ que:
 - não tem sentinela `.fetched` por dia (a coleta é incremental por janela de datas)
 - o campo `data_coleta` serve como auditoria, não como partition key
 - define `PCA_SCHEMA_VERSION = "1.0.0"` (mesmo padrão de `SCHEMA_VERSION = "2.0.0"`
-  em `daily_exporter.py`); bumpar quando colunas mudarem — `builder.py` detecta
-  versões antigas via `parquet_schema_version` e reprocessa automaticamente
+  em `daily_exporter.py`); bumpar quando colunas mudarem. **Atenção:** `builder.py`
+  aplica `strptime(part, "%Y-%m")` — strings `"YYYY-12-31"` levantam `ValueError` e
+  são silenciosamente ignoradas (linha 58–60). O auto-reprocessamento do builder
+  **não cobre PCA**; `PcaExporter` precisa implementar sua própria checagem de
+  `parquet_schema_version` ao decidir reexportar.
 - sort order: `(codigo_item, cnpj_orgao)` + bloom filter em `codigo_item` para
   pushdown eficiente ao filtrar por código CATMAT no browser ou no build-time
-- usa `BalizaEngine.upsert_rows()` (`engine.py:67`) para dedup — PK
-  `(id_pca_pncp, numero_item)` — não reimplementar a lógica de filter-old+union-new
+- dedup com PK `(id_pca_pncp, numero_item)` — **atenção:** `BalizaEngine.upsert_rows()`
+  (`engine.py:67`) aceita apenas `pk: str` (coluna única, linha 109:
+  `t_existing[pk].isin(t_new[pk])`). Para usar a lógica existente, criar coluna
+  sintética `pca_row_id = f"{id_pca_pncp}__{numero_item}"` no `_flatten_pca()` e
+  passá-la como `pk`. Alternativa: estender `upsert_rows` para aceitar
+  `pk: str | list[str]` — mas isso é mudança de contrato do helper existente.
 
 ### C. IA uploader
 
