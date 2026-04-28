@@ -311,11 +311,15 @@ const IA_MANIFEST_CSV_URL = process.env.IA_MANIFEST_CSV_URL
 const LOCAL_FIXTURE = process.env.BALIZA_MANIFEST_FIXTURE; // set in CI/test
 
 async function loadManifest(db) {
-  const csv = LOCAL_FIXTURE
-    ? fs.readFileSync(LOCAL_FIXTURE, 'utf-8')
-    : await fetch(IA_MANIFEST_CSV_URL).then(r => r.text());
-  // ingest via DuckDB in-memory (read_csv_auto de string ou arquivo local)
-  db.run(`CREATE TABLE manifest AS SELECT * FROM read_csv_auto('${tmpCsvPath}', header=true)`);
+  const csvPath = LOCAL_FIXTURE ?? IA_MANIFEST_CSV_URL;
+  // Se for URL remota, salvar em arquivo temporário para read_csv_auto
+  let filePath = csvPath;
+  if (csvPath.startsWith('http')) {
+    const csv = await fetch(csvPath).then(r => r.text());
+    filePath = path.join(os.tmpdir(), 'baliza-manifest.csv');
+    fs.writeFileSync(filePath, csv, 'utf-8');
+  }
+  db.run(`CREATE TABLE manifest AS SELECT * FROM read_csv_auto('${filePath}', header=true)`);
 }
 ```
 
@@ -344,11 +348,13 @@ def _contratos_particao(row: dict) -> str:
         raise ValueError("Missing data_particao in contratos row")
     return v
 
+# _flatten_contrato já existe em src/baliza/extractor.py — referenciada aqui
+# por nome; PR C importa e registra a função sem reimplementá-la.
 contratos_canonical = CanonicalTableSpec(
     table_name="contratos_canonical",
     schema_version="2.0.0",
     pk="numero_controle_pncp",
-    flatten_fn=_flatten_contrato,
+    flatten_fn=_flatten_contrato,  # from src/baliza/extractor.py
     dedup_strategy="current_state",
     source_entity="contrato",
     sort_columns=["cnpj_orgao", "data_publicacao_pncp"],
