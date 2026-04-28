@@ -349,14 +349,22 @@ const LOCAL_FIXTURE = process.env.BALIZA_MANIFEST_FIXTURE; // set in CI/test
 
 async function loadManifest(db) {
   const csvPath = LOCAL_FIXTURE ?? IA_MANIFEST_CSV_URL;
-  // Se for URL remota, salvar em arquivo temporário para read_csv_auto
   let filePath = csvPath;
   if (csvPath.startsWith('http')) {
-    const csv = await fetch(csvPath).then(r => r.text());
+    const resp = await fetch(csvPath);
+    if (!resp.ok) throw new Error(`manifest fetch failed: ${resp.status} ${resp.url}`);
+    const csv = await resp.text();
     filePath = path.join(os.tmpdir(), 'baliza-manifest.csv');
     fs.writeFileSync(filePath, csv, 'utf-8');
   }
-  db.run(`CREATE TABLE manifest AS SELECT * FROM read_csv_auto('${filePath}', header=true)`);
+  // db.run é callback-based — promisificar para garantir que a tabela
+  // exista antes de qualquer query .qmd ser executada
+  await new Promise((resolve, reject) =>
+    db.run(
+      `CREATE TABLE manifest AS SELECT * FROM read_csv_auto('${filePath}', header=true)`,
+      (err) => (err ? reject(err) : resolve()),
+    ),
+  );
 }
 ```
 
