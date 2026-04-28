@@ -125,6 +125,18 @@ destruir zeros à esquerda. Idem no `catmat.ts` frontend (`code: string`).
 
 O resultado da probe define se o plano avança ou precisa ser reescrito.
 
+**Árvore de decisão pós-probe:**
+
+```
+match rate ≥ 70%  → prosseguir com o plano como descrito
+match rate 30–69% → prosseguir, mas UI mostra apenas itens com match confirmado;
+                    campo "código não resolvido" visível para auditoria
+match rate < 30%  → pivot: não usar codigoItem como link para catmat.json;
+                    usar pdmDescricao/nomeClassificacaoCatalogo como texto de busca
+                    (feature de demanda planejada ainda viável, sem resolução CATMAT)
+cobertura < 20%   → reavaliação completa antes de qualquer implementação
+```
+
 ---
 
 ## Arquitetura proposta (sujeita a resultado da probe)
@@ -135,15 +147,27 @@ Reutilizar padrões de retry/cache/validação do `extractor.py`, mas **não reu
 `fetch_page` diretamente** — o endpoint PCA usa `dataInicio`/`dataFim` (não
 `dataInicial`/`dataFinal`) e o flattening é diferente (explode itens do pai para linhas).
 
+Assim como `extractor.py` tem `_flatten_contrato()`, o `pca_extractor.py` precisa
+de `_flatten_pca(pca: dict, item: dict) -> dict` que:
+- converte todos os campos camelCase do DTO para snake_case
+- explode o item aninhado no contexto do PCA pai
+- garante `codigo_item` como `str` (nunca `int`)
+- adiciona `data_coleta` (timestamp de coleta)
+
 ```python
 async def fetch_pca_window(data_inicio: str, data_fim: str) -> list[PcaItemRow]:
     """Coleta e explode itens PCA de uma janela temporal via /pca/atualizacao."""
     # tamanhoPagina=500 (max do endpoint)
     # Para cada PlanoContratacaoComItensDoUsuarioDTO, explode itens em linhas planas
-    # codigoItem → sempre str, nunca int
+    # usando _flatten_pca(pca, item) → codigoItem sempre str, nunca int
+
+def _flatten_pca(pca: dict, item: dict) -> dict:
+    """Achata DTO camelCase para linha snake_case, codigoItem → str."""
+    ...
 ```
 
-Schema plano de saída (`PcaItemRow`) — campo a campo do OpenAPI, snake_case:
+Schema plano de saída (`PcaItemRow`) — campo a campo do OpenAPI, snake_case
+(conversão camelCase → snake_case feita por `_flatten_pca`):
 ```
 id_pca_pncp
 ano_pca
@@ -201,9 +225,24 @@ no nosso stack — não assuma.
 Se não houver pushdown útil, B2 (tabela agregada pequena) sustenta o CatmatSearch
 inline sem baixar arquivo grande; B1 fica para o caso de uso de detalhes por órgão.
 
+### B.1 Exportador anual vs MonthlyExporter
+
+O `MonthlyExporter` existente usa `data_particao` (DATE) como chave de partição e
+`month_dir` como pasta de upload. O PCA exporta por `ano_pca` (int), não por mês —
+portanto **não reutilizar `MonthlyExporter` diretamente**. Criar `PcaExporter` próprio
+que:
+- escreve `pca_{ano}.parquet` com chave de deduplicação `(id_pca_pncp, numero_item)`
+- não tem sentinela `.fetched` por dia (a coleta é incremental por janela de datas)
+- o campo `data_coleta` serve como auditoria, não como partition key
+
 ### C. IA uploader
 
-Adicionar tabela `pca` ao manifest e upload via `ia_uploader.py` (padrão existente).
+Adicionar tabela `pca` ao manifest e upload via `ia_uploader.py`, mas **não é
+plug-and-play**: `MANIFEST_FIELDNAMES` em `ia_uploader.py` é hardcoded para `contratos`.
+A implementação requer:
+- novo tipo de entrada no manifest (`table: "pca"`, `ano_pca: int`, não `data_particao`)
+- `sort_key` e `bloom_filter_columns` específicos para PCA (sugestão: `codigo_item`)
+- tratar múltiplos tipos de tabela em `_update_remote_manifest`
 
 ### D. Web layer
 
@@ -228,11 +267,27 @@ export interface ArchivedPcaItem {
   valor_unitario: number | null;
   valor_total: number | null;
   unidade_fornecimento: string | null;
+  unidade_requisitante: string | null;
+  grupo_contratacao_codigo: string | null;  // manter código E nome (não só nome)
   grupo_contratacao_nome: string | null;
+  classificacao_superior_codigo: string | null;  // idem
   classificacao_superior_nome: string | null;
+  classificacao_catalogo_id: number | null;
+  categoria_item_pca_nome: string | null;
+  data_inclusao: string | null;
+  data_atualizacao: string | null;
+  data_desejada: string | null;
   data_coleta: string;
 }
 ```
+
+**Nota sobre ARCHIVED_TABLES:** é uma lista fechada (closed allowlist) em
+`web/src/lib/archive/schema.ts`. Adicionar `pca_itens` requer alteração em **dois**
+arquivos: `schema.ts` (interface + entrada no array) e `parquetFallback.ts` (tabela
+permitida no `switch` de validação). Não é só adicionar a interface.
+
+**Nota sobre query keys:** `pcaItens` vai no objeto `QUERY_KEYS` em
+`web/src/lib/queryKeys.ts`, não solto.
 
 #### D.2 Página `/pca?codigo=7510` (Opção 2 — escopo inicial)
 
