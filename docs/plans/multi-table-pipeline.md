@@ -465,7 +465,16 @@ PR G — provar arquitetura com caso composto (PCA ou ATAS)
 
 - Formato dos Parquet de `contratos` existentes (nenhuma migração de dados)
 - Interface pública de `BalizaEngine` (assinatura de `upsert_rows` muda, mas é backward-compatible com `pk` default)
-- Workflows de CI existentes
+
+## O que muda nos workflows de CI
+
+Dois ajustes de CI são necessários no PR B — não são opcionais:
+
+1. **`BALIZA_MANIFEST_FIXTURE`** — definir a variável apontando para um `manifest.csv` de fixture local no job de build/test, para que `loadManifest` não tente fazer fetch remoto em CI offline/air-gapped.
+
+2. **`httpfs` pré-instalada** — adicionar passo `duckdb -c "INSTALL httpfs"` no job de build antes de executar as queries `.qmd`, para que os scripts usem apenas `LOAD httpfs` (sem rede) em vez de `INSTALL httpfs` (requer acesso ao registry DuckDB).
+
+Sem esses dois ajustes, o fallback offline documentado no plano não funciona em CI.
 
 ---
 
