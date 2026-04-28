@@ -1,6 +1,6 @@
 # Plano: Pipeline PCA → CATMAT
 
-**Status:** v2 — incorpora revisão do PR #506  
+**Status:** v4 — data_particao obrigatório, pca_itens normalizado, alavancas de stack  
 **Escopo:** pipeline Python + Parquet novo + camada web  
 **Estimativa:** 2–3 semanas (happy path após probe favorável: ~10 dias)
 
@@ -225,6 +225,14 @@ no nosso stack — não assuma.
 Se não houver pushdown útil, B2 (tabela agregada pequena) sustenta o CatmatSearch
 inline sem baixar arquivo grande; B1 fica para o caso de uso de detalhes por órgão.
 
+**Alavanca de stack já disponível para B2 — `build-data.mjs`:**
+`web/scripts/build-data.mjs` roda DuckDB Node.js em build time, lê arquivos `.qmd`
+de `web/src/queries/` e escreve JSON estático em `public/data/`. Para a tabela
+agregada B2, basta adicionar um `.qmd` com a query de agregação lendo o Parquet do IA
+via `httpfs` — sem DuckDB-WASM no browser. O script já é chamado em `npm run build`
+e `npm run dev`. Nota: o script atual tem um stub de manifesto hardcoded; será
+necessário substituir pela leitura real do manifesto IA para ativar a produção.
+
 ### B.1 Exportador anual vs MonthlyExporter
 
 O `MonthlyExporter` existente usa `data_particao` (DATE) como chave de partição e
@@ -234,13 +242,24 @@ que:
 - escreve `pca_{ano}.parquet` com chave de deduplicação `(id_pca_pncp, numero_item)`
 - não tem sentinela `.fetched` por dia (a coleta é incremental por janela de datas)
 - o campo `data_coleta` serve como auditoria, não como partition key
+- define `PCA_SCHEMA_VERSION = "1.0.0"` (mesmo padrão de `SCHEMA_VERSION = "2.0.0"`
+  em `daily_exporter.py`); bumpar quando colunas mudarem — `builder.py` detecta
+  versões antigas via `parquet_schema_version` e reprocessa automaticamente
+- sort order: `(codigo_item, cnpj_orgao)` + bloom filter em `codigo_item` para
+  pushdown eficiente ao filtrar por código CATMAT no browser ou no build-time
+- usa `BalizaEngine.upsert_rows()` (`engine.py:67`) para dedup — PK
+  `(id_pca_pncp, numero_item)` — não reimplementar a lógica de filter-old+union-new
 
 ### C. IA uploader
 
-Adicionar tabela `pca` ao manifest e upload via `ia_uploader.py`, mas **não é
+Adicionar tabela `pca_itens` ao manifest e upload via `ia_uploader.py`, mas **não é
 plug-and-play**: `MANIFEST_FIELDNAMES` em `ia_uploader.py` é hardcoded para `contratos`.
 A implementação requer:
-- novo tipo de entrada no manifest (`table: "pca"`, `ano_pca: int`, não `data_particao`)
+- novo tipo de entrada no manifest com `table_name: "pca_itens"` — **crítico**:
+  `ia-manifest.ts` valida `data_particao: z.string().min(1)` e ordena as linhas por
+  `data_particao.localeCompare`. Para PCA (que não tem mês natural), usar
+  `data_particao = f"{ano_pca}-12-31"` em cada linha de manifesto. Sem isso, o
+  frontend nunca resolve arquivos PCA (`r.table_name === tableName` é exact match).
 - `sort_key` e `bloom_filter_columns` específicos para PCA (sugestão: `codigo_item`)
 - tratar múltiplos tipos de tabela em `_update_remote_manifest`
 
