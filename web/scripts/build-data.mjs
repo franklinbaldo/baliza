@@ -52,23 +52,13 @@ async function loadManifest() {
     csvText = fs.readFileSync(csvPath, 'utf-8');
   }
 
-  const records = parse(csvText, {
-    columns: true,
-    skip_empty_lines: true
-  });
+  const rawRows = parse(csvText, { columns: false, skip_empty_lines: true });
+  const columns = rawRows.length > 0 ? rawRows[0] : [];
+  const dataRows = rawRows.slice(1);
 
-  if (records.length === 0) {
-    // If empty manifest, create an empty table with some default columns to avoid crashing queries
-    await new Promise((resolve, reject) => {
-      db.run(`CREATE TABLE manifest (date VARCHAR, row_count INTEGER, quarantine_count INTEGER)`, (err) => {
-        if (err) { reject(err); } else { resolve(); }
-      });
-    });
-    return;
-  }
-
-  const columns = Object.keys(records[0]);
-  const tableDef = columns.map(c => `"${c}" VARCHAR`).join(', ');
+  const tableDef = columns.length > 0
+    ? columns.map(c => `"${c}" VARCHAR`).join(', ')
+    : 'data_particao VARCHAR, table_name VARCHAR, parquet_url VARCHAR';
 
   await new Promise((resolve, reject) => {
     db.run(`CREATE TABLE manifest (${tableDef})`, (err) => {
@@ -76,12 +66,13 @@ async function loadManifest() {
     });
   });
 
+  if (dataRows.length === 0) return;
+
   const stmt = db.prepare(`INSERT INTO manifest VALUES (${columns.map(() => '?').join(', ')})`);
 
-  for (const record of records) {
-    const values = columns.map(c => record[c]);
+  for (const row of dataRows) {
     await new Promise((resolve, reject) => {
-      stmt.run(...values, (err) => {
+      stmt.run(...row, (err) => {
         if (err) { reject(err); } else { resolve(); }
       });
     });
