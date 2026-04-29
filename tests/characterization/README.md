@@ -14,3 +14,7 @@ Eles cobrem:
 - O mock do DB em `build-data.mjs`.
 
 Não adicione testes de novas funcionalidades aqui. Use os testes unitários ou de integração normais para isso.
+
+## Como atualizar os snapshots (PRs Multi-Table Pipeline)
+
+Esses testes documentam o **comportamento exato da main antes do PR 0**. Se uma mudança **intencional** for feita no pipeline (ex: `data_particao` injetada pela tabela canônica, PK composta ou `httpfs` sendo movido), os testes de caracterização podem e devem ser atualizados para refletir a nova realidade aprovada. A ideia não é impedir a refatoração, mas sim garantir que não ocorra nenhuma alteração acidental de esquema sem o consentimento e atualização clara nestes testes.
