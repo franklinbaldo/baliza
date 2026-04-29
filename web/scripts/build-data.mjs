@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import duckdb from 'duckdb';
+import { parse } from 'csv-parse/sync';
 
 const QUERIES_DIR = path.resolve('./src/queries');
 const DATA_DIR = path.resolve('./public/data');
@@ -42,20 +43,56 @@ const IA_MANIFEST_CSV_URL = process.env.IA_MANIFEST_CSV_URL ?? 'https://archive.
 
 async function loadManifest() {
   const csvPath = process.env.BALIZA_MANIFEST_FIXTURE ?? IA_MANIFEST_CSV_URL;
-  let filePath = csvPath;
+  let csvText;
+
   if (csvPath.startsWith('http')) {
     const resp = await fetch(csvPath);
     if (!resp.ok) throw new Error(`manifest fetch failed: ${resp.status} ${resp.url}`);
-    const csv = await resp.text();
-    filePath = path.join(os.tmpdir(), 'baliza-manifest.csv');
-    fs.writeFileSync(filePath, csv, 'utf-8');
+    csvText = await resp.text();
+  } else {
+    csvText = fs.readFileSync(csvPath, 'utf-8');
   }
-  await new Promise((resolve, reject) =>
-    db.run(
-      `CREATE TABLE manifest AS SELECT * FROM read_csv_auto('${filePath}', header=true)`,
-      (err) => (err ? reject(err) : resolve()),
-    ),
-  );
+
+  const records = parse(csvText, {
+    columns: true,
+    skip_empty_lines: true
+  });
+
+  if (records.length === 0) {
+    // If empty manifest, create an empty table with some default columns to avoid crashing queries
+    await new Promise((resolve, reject) => {
+      db.run(`CREATE TABLE manifest (date VARCHAR, row_count INTEGER, quarantine_count INTEGER)`, (err) => {
+        err ? reject(err) : resolve();
+      });
+    });
+    return;
+  }
+
+  const columns = Object.keys(records[0]);
+  const tableDef = columns.map(c => `"${c}" VARCHAR`).join(', ');
+
+  await new Promise((resolve, reject) => {
+    db.run(`CREATE TABLE manifest (${tableDef})`, (err) => {
+      err ? reject(err) : resolve();
+    });
+  });
+
+  const stmt = db.prepare(`INSERT INTO manifest VALUES (${columns.map(() => '?').join(', ')})`);
+
+  for (const record of records) {
+    const values = columns.map(c => record[c]);
+    await new Promise((resolve, reject) => {
+      stmt.run(...values, (err) => {
+        err ? reject(err) : resolve();
+      });
+    });
+  }
+
+  await new Promise((resolve, reject) => {
+    stmt.finalize((err) => {
+      err ? reject(err) : resolve();
+    });
+  });
 }
 
 async function ensureHttpfs() {
