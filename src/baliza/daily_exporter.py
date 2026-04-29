@@ -19,8 +19,7 @@ import duckdb
 import pyarrow as pa
 from rich.console import Console
 
-from .pncp_resources import CONTRATOS
-
+from .resources import CONTRATOS
 from .utils import PARQUET_ROW_GROUP_SIZE, validate_identifier, write_optimized_parquet
 
 console = Console()

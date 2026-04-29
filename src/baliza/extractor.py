@@ -15,10 +15,9 @@ from pydantic import ValidationError
 from rich.console import Console
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
-from .pncp_resources import CONTRATOS
-
 from .engine import BalizaEngine
 from .models import RecuperarContratoDTO as Contrato
+from .resources import CONTRATOS
 from .utils import validate_url
 
 logger = structlog.get_logger()
@@ -36,99 +35,20 @@ PAGE_SIZE = 500
 FETCHED_SENTINEL = ".fetched"
 
 
-def _flatten_contrato(dumped: dict[str, Any]) -> dict[str, Any]:
-    """Flatten a Pydantic-dumped RecuperarContratoDTO into the snake_case
-    scalar shape that MonthlyExporter, DailyExporter, and consolidator all
-    expect.
-
-    The PNCP API (and therefore our DTOs) use camelCase + nested structs for
-    orgaoEntidade / unidadeOrgao / tipoContrato / categoriaProcesso. Downstream
-    SQL joins on scalar columns like cnpj_orgao, data_publicacao,
-    numero_controle_pncp — so we collapse those structs here rather than
-    forcing every reader to learn the wire schema.
-    """
-    orgao = dumped.get("orgaoEntidade") or {}
-    unidade = dumped.get("unidadeOrgao") or {}
-    orgao_sub = dumped.get("orgaoSubRogado") or {}
-    unidade_sub = dumped.get("unidadeSubRogada") or {}
-    tipo_contrato = dumped.get("tipoContrato") or {}
-    categoria = dumped.get("categoriaProcesso") or {}
-    # dataPublicacao is not emitted by the contratos endpoint — surface
-    # dataPublicacaoPncp under both names so WHERE/ORDER BY clauses that
-    # target the canonical `data_publicacao` don't end up NULL-filtered.
-    data_publicacao = dumped.get("dataPublicacaoPncp")
-
-    return {
-        "numero_controle_pncp": dumped.get("numeroControlePNCP"),
-        "numero_controle_pncp_compra": dumped.get("numeroControlePncpCompra"),
-        "ano_contrato": dumped.get("anoContrato"),
-        "sequencial_contrato": dumped.get("sequencialContrato"),
-        "numero_contrato_empenho": dumped.get("numeroContratoEmpenho"),
-        "numero_retificacao": dumped.get("numeroRetificacao"),
-        "processo": dumped.get("processo"),
-        "cnpj_orgao": orgao.get("cnpj"),
-        "razao_social_orgao": orgao.get("razaoSocial"),
-        "poder_id": orgao.get("poderId"),
-        "esfera_id": orgao.get("esferaId"),
-        "codigo_unidade": unidade.get("codigoUnidade"),
-        "nome_unidade": unidade.get("nomeUnidade"),
-        "uf_sigla": unidade.get("ufSigla"),
-        "uf_nome": unidade.get("ufNome"),
-        "municipio_nome": unidade.get("municipioNome"),
-        "codigo_ibge": unidade.get("codigoIbge"),
-        "cnpj_orgao_subrogado": orgao_sub.get("cnpj"),
-        "razao_social_orgao_subrogado": orgao_sub.get("razaoSocial"),
-        "codigo_unidade_subrogada": unidade_sub.get("codigoUnidade"),
-        "nome_unidade_subrogada": unidade_sub.get("nomeUnidade"),
-        "uf_sigla_subrogada": unidade_sub.get("ufSigla"),
-        "ni_fornecedor": dumped.get("niFornecedor"),
-        "tipo_pessoa": dumped.get("tipoPessoa"),
-        "nome_razao_social_fornecedor": dumped.get("nomeRazaoSocialFornecedor"),
-        "codigo_pais_fornecedor": dumped.get("codigoPaisFornecedor"),
-        "ni_fornecedor_subcontratado": dumped.get("niFornecedorSubContratado"),
-        "nome_fornecedor_subcontratado": dumped.get("nomeFornecedorSubContratado"),
-        "tipo_pessoa_subcontratada": dumped.get("tipoPessoaSubContratada"),
-        "tipo_contrato_id": tipo_contrato.get("id"),
-        "tipo_contrato_nome": tipo_contrato.get("nome"),
-        "categoria_processo_id": categoria.get("id"),
-        "categoria_processo_nome": categoria.get("nome"),
-        "receita": dumped.get("receita"),
-        "valor_inicial": dumped.get("valorInicial"),
-        "valor_parcela": dumped.get("valorParcela"),
-        "valor_global": dumped.get("valorGlobal"),
-        "valor_acumulado": dumped.get("valorAcumulado"),
-        "numero_parcelas": dumped.get("numeroParcelas"),
-        "data_publicacao": data_publicacao,
-        "data_publicacao_pncp": data_publicacao,
-        "data_assinatura": dumped.get("dataAssinatura"),
-        "data_vigencia_inicio": dumped.get("dataVigenciaInicio"),
-        "data_vigencia_fim": dumped.get("dataVigenciaFim"),
-        "data_atualizacao": dumped.get("dataAtualizacao"),
-        "data_atualizacao_global": dumped.get("dataAtualizacaoGlobal"),
-        "objeto_contrato": dumped.get("objetoContrato"),
-        "informacao_complementar": dumped.get("informacaoComplementar"),
-        "identificador_cipi": dumped.get("identificadorCipi"),
-        "url_cipi": dumped.get("urlCipi"),
-        "usuario_nome": dumped.get("usuarioNome"),
-    }
 
 
-def _is_retryable_error(exc: BaseException) -> bool:
-    """Determine if an exception should trigger a retry."""
-    if isinstance(exc, httpx.HTTPStatusError):
-        # Retry on 429 (Rate Limit) and 5xx (Server Errors)
-        return exc.response.status_code == 429 or exc.response.status_code >= 500
-    if isinstance(exc, (httpx.ConnectError, httpx.TimeoutException)):
+
+def _is_retryable_error(exception: BaseException) -> bool:
+    if isinstance(exception, httpx.HTTPStatusError):
+        # Retry on standard 5xx/429
+        if exception.response.status_code in {429, 500, 502, 503, 504}:
+            return True
+        # Explicit 404 block -- don't retry, let it bubble
+        if exception.response.status_code == 404:
+            return False
+    elif isinstance(exception, RetryablePayloadError | httpx.RequestError | subprocess.CalledProcessError):
         return True
-    if isinstance(exc, RetryablePayloadError):
-        return True
-
-    # DO NOT retry on validation errors
-    if isinstance(exc, ValueError):
-        return False
-
     return False
-
 
 def _validate_resource(resource: str):
     """Prevent path traversal and injection by validating resource name."""
@@ -410,7 +330,11 @@ class PNCPExtractor:
                     # Validate with Pydantic, then flatten to the snake_case
                     # schema the monthly/daily exporters and consolidator share.
                     validated = Contrato.model_validate(entry)
-                    valid_rows.append(_flatten_contrato(validated.model_dump()))
+                    flatten_fn = CONTRATOS.canonical_tables[0].flatten_fn
+                    if flatten_fn:
+                        valid_rows.append(flatten_fn(validated.model_dump()))
+                    else:
+                        valid_rows.append(validated.model_dump())
                     stats["valid"] += 1
                 except ValidationError as e:
                     stats["quarantine"] += 1
@@ -420,9 +344,10 @@ class PNCPExtractor:
             # Ingest valid rows into Ibis (shared engine) via UPSERT
             if valid_rows:
                 # Direct memory ingestion (Idempotent)
-                self.engine.upsert_rows(
-                    valid_rows, CONTRATOS.name, schema="main", pk="numero_controle_pncp"
-                )
+                for table_spec in CONTRATOS.canonical_tables:
+                    self.engine.upsert_rows(
+                        valid_rows, table_spec.table_name, schema="main", pk=table_spec.pk
+                    )
 
         return stats
 

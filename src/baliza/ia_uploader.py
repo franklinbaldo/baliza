@@ -16,7 +16,7 @@ import internetarchive as ia
 from rich.console import Console
 
 from .engine import BalizaEngine
-from .pncp_resources import CONTRATOS
+from .resources import CONTRATOS
 from .utils import DUCKDB_PARQUET_COPY_OPTIONS, PARQUET_ROW_GROUP_SIZE
 
 console = Console()
