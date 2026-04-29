@@ -72,7 +72,7 @@ async function loadManifest() {
 
   await new Promise((resolve, reject) => {
     db.run(`CREATE TABLE manifest (${tableDef})`, (err) => {
-      err ? reject(err) : resolve();
+      if (err) { reject(err); } else { resolve(); }
     });
   });
 
@@ -89,7 +89,7 @@ async function loadManifest() {
 
   await new Promise((resolve, reject) => {
     stmt.finalize((err) => {
-      err ? reject(err) : resolve();
+      if (err) { reject(err); } else { resolve(); }
     });
   });
 }
