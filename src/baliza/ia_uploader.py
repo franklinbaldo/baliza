@@ -16,6 +16,7 @@ import internetarchive as ia
 from rich.console import Console
 
 from .engine import BalizaEngine
+from .pncp_resources import CONTRATOS
 from .utils import DUCKDB_PARQUET_COPY_OPTIONS, PARQUET_ROW_GROUP_SIZE
 
 console = Console()
@@ -283,7 +284,7 @@ class MonthlyExporter:
         files: dict[str, Path] = {}
 
         month_str = start_date.strftime("%Y-%m")
-        table_name = "contratos"
+        table_name = CONTRATOS.name
         filename = f"{table_name}-{month_str}.parquet"
         out_path = output_dir / filename
 
@@ -359,7 +360,7 @@ class IAUploader:
             for i, row in enumerate(manifest):
                 if (
                     row.get("data_particao") == month_str
-                    and row.get("table_name") == "contratos"
+                    and row.get("table_name") == CONTRATOS.name
                     and row.get("file_type", "") in ("", "monthly_canonical")
                 ):
                     existing_idx = i
@@ -371,7 +372,7 @@ class IAUploader:
             else:
                 new_row: dict[str, Any] = {
                     "data_particao": month_str,
-                    "table_name": "contratos",
+                    "table_name": CONTRATOS.name,
                     "row_count": 0,
                     "quarantine_count": 0,
                     "ia_item_id": parquet_item_id,
@@ -683,7 +684,7 @@ class IAUploader:
 
         new_row = {
             "data_particao": month_str,
-            "table_name": "contratos",
+            "table_name": CONTRATOS.name,
             "row_count": q_stats.get("valid", 0) if q_stats else 0,
             "quarantine_count": q_stats.get("quarantine", 0) if q_stats else 0,
             "ia_item_id": item_id,
@@ -719,7 +720,7 @@ class IAUploader:
                 for r in manifest
                 if not (
                     r["data_particao"] == month_str
-                    and r["table_name"] == "contratos"
+                    and r["table_name"] == CONTRATOS.name
                     and r.get("file_type", "") in ("", "monthly_canonical")
                 )
             ]
