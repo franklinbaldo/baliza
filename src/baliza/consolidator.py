@@ -19,7 +19,7 @@ import internetarchive as ia
 from rich.console import Console
 
 from .ia_uploader import read_manifest_from_ia, register_monthly_uf_shards
-from .pncp_resources import CONTRATOS
+from .resources import CONTRATOS
 from .utils import DUCKDB_PARQUET_COPY_OPTIONS
 
 CONSOLIDATED_IA_ITEM = "baliza-pncp-consolidated"
