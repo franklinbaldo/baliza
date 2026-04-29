@@ -15,10 +15,9 @@ from pydantic import ValidationError
 from rich.console import Console
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
-from .pncp_resources import CONTRATOS
-
 from .engine import BalizaEngine
 from .models import RecuperarContratoDTO as Contrato
+from .pncp_resources import CONTRATOS
 from .utils import validate_url
 
 logger = structlog.get_logger()
