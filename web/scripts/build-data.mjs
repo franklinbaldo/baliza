@@ -1,6 +1,5 @@
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
 import duckdb from 'duckdb';
 import { parse } from 'csv-parse/sync';
 
@@ -62,7 +61,7 @@ async function loadManifest() {
     // If empty manifest, create an empty table with some default columns to avoid crashing queries
     await new Promise((resolve, reject) => {
       db.run(`CREATE TABLE manifest (date VARCHAR, row_count INTEGER, quarantine_count INTEGER)`, (err) => {
-        err ? reject(err) : resolve();
+        if (err) { reject(err); } else { resolve(); }
       });
     });
     return;
@@ -83,7 +82,7 @@ async function loadManifest() {
     const values = columns.map(c => record[c]);
     await new Promise((resolve, reject) => {
       stmt.run(...values, (err) => {
-        err ? reject(err) : resolve();
+        if (err) { reject(err); } else { resolve(); }
       });
     });
   }
@@ -100,7 +99,7 @@ async function ensureHttpfs() {
   await new Promise((resolve, reject) =>
     db.run('LOAD httpfs;', (err) => {
       if (!err) return resolve();
-      db.run('INSTALL httpfs; LOAD httpfs;', (e2) => (e2 ? reject(e2) : resolve()));
+      db.run('INSTALL httpfs; LOAD httpfs;', (e2) => { if (e2) { reject(e2); } else { resolve(); } });
     }),
   );
 }
