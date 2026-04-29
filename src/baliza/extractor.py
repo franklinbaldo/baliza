@@ -40,8 +40,8 @@ FETCHED_SENTINEL = ".fetched"
 
 def _is_retryable_error(exception: BaseException) -> bool:
     if isinstance(exception, httpx.HTTPStatusError):
-        # Retry on standard 5xx/429
-        if exception.response.status_code in {429, 500, 502, 503, 504}:
+        # Retry on 429 and any 5xx (covers 501, 505, proxy 52x, etc.)
+        if exception.response.status_code == 429 or exception.response.status_code >= 500:
             return True
         # Explicit 404 block -- don't retry, let it bubble
         if exception.response.status_code == 404:
