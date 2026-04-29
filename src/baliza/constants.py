@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from datetime import date
 
-RESOURCE_CONTRATOS = "contratos"
+from .pncp_resources import CONTRATOS
+
+RESOURCE_CONTRATOS = CONTRATOS.name
 
 # PNCP's contratos endpoint has no data before 2021-09-06. Treat this as
 # immutable product-domain knowledge so backfills never waste runs probing

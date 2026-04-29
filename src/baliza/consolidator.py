@@ -19,6 +19,7 @@ import internetarchive as ia
 from rich.console import Console
 
 from .ia_uploader import read_manifest_from_ia, register_monthly_uf_shards
+from .pncp_resources import CONTRATOS
 from .utils import DUCKDB_PARQUET_COPY_OPTIONS
 
 CONSOLIDATED_IA_ITEM = "baliza-pncp-consolidated"
@@ -69,7 +70,7 @@ def _current_year_is_fresh(manifest: list[dict], year: int) -> bool:
     canonical_mtimes: list[datetime.datetime] = []
     shard_mtimes: list[datetime.datetime] = []
     for row in manifest:
-        if row.get("table_name") != "contratos":
+        if row.get("table_name") != CONTRATOS.name:
             continue
         part = row.get("data_particao") or ""
         if not part.startswith(year_str):
@@ -125,7 +126,7 @@ class IAConsolidator:
             file_type = row.get("file_type", "")
             if (
                 (row.get("data_particao") or "").startswith(year_str)
-                and row.get("table_name") == "contratos"
+                and row.get("table_name") == CONTRATOS.name
                 and file_type in ("", "monthly_canonical")
             ):
                 url = row.get("parquet_url") or row.get("file_url")
@@ -271,7 +272,7 @@ class IAConsolidator:
                     ]
                     register_monthly_uf_shards(
                         year=year,
-                        table_name="contratos",
+                        table_name=CONTRATOS.name,
                         shards=shard_rows,
                         access_key=ia_access_key,
                         secret_key=ia_secret_key,

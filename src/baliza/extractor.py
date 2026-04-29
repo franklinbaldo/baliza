@@ -17,6 +17,7 @@ from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponen
 
 from .engine import BalizaEngine
 from .models import RecuperarContratoDTO as Contrato
+from .pncp_resources import CONTRATOS
 from .utils import validate_url
 
 logger = structlog.get_logger()
@@ -364,9 +365,9 @@ class PNCPExtractor:
         without the snake_case PK. Any lookup error is treated as 'no'."""
         try:
             tables = self.engine.con.list_tables(database="main")
-            if "contratos" not in tables:
+            if CONTRATOS.name not in tables:
                 return False
-            columns = set(self.engine.con.table("contratos", database="main").schema().names)
+            columns = set(self.engine.con.table(CONTRATOS.name, database="main").schema().names)
         except Exception:
             return False
         return "numeroControlePNCP" in columns and "numero_controle_pncp" not in columns
@@ -413,13 +414,26 @@ class PNCPExtractor:
                 except ValidationError as e:
                     stats["quarantine"] += 1
                     logger.warning("validation_failed", error=str(e), entry_id=entry.get("id"))
-                    self.engine.quarantine_record("contratos", start_date, str(e), entry)
+                    self.engine.quarantine_record(CONTRATOS.name, start_date, str(e), entry)
 
             # Ingest valid rows into Ibis (shared engine) via UPSERT
             if valid_rows:
                 # Direct memory ingestion (Idempotent)
-                self.engine.upsert_rows(
-                    valid_rows, "contratos", schema="main", pk="numero_controle_pncp"
+                for ct in CONTRATOS.canonical_tables:
+                    self.engine.upsert_rows(
+                        valid_rows, ct.name, schema="main", pk=ct.pk
+                    )
+
+        # Apply derived table transformations if any
+        for dt in CONTRATOS.derived_tables:
+            transform_fn = getattr(self.engine, dt.transform, None)
+            if callable(transform_fn):
+                transform_fn()
+            else:
+                logger.warning(
+                    "missing_derived_transform",
+                    transform=dt.transform,
+                    table=dt.name
                 )
 
         return stats
