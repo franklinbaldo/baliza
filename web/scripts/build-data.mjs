@@ -42,7 +42,7 @@ function processQmd(filePath) {
 const IA_MANIFEST_CSV_URL = process.env.IA_MANIFEST_CSV_URL ?? 'https://archive.org/download/baliza-pncp-manifest/manifest.csv';
 
 async function loadManifest() {
-  const csvPath = process.env.BALIZA_MANIFEST_FIXTURE ?? IA_MANIFEST_CSV_URL;
+  const csvPath = process.env.BALIZA_MANIFEST_FIXTURE || IA_MANIFEST_CSV_URL;
   let csvText;
 
   if (csvPath.startsWith('http')) {

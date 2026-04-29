@@ -49,13 +49,13 @@ jobs:
         run: npm run test
         working-directory: web
 
+      - name: Use manifest fixture for PR builds
+        if: github.event_name == 'pull_request'
+        run: echo "BALIZA_MANIFEST_FIXTURE=${{ github.workspace }}/web/fixtures/manifest.csv" >> $GITHUB_ENV
+
       - name: Build Portal
         run: npm run build
         working-directory: web
-        env:
-          # PR builds use a local fixture so the build doesn't depend on IA availability.
-          # Push-to-main builds fetch the real manifest from IA.
-          BALIZA_MANIFEST_FIXTURE: ${{ github.event_name == 'pull_request' && format('{0}/web/fixtures/manifest.csv', github.workspace) || '' }}
 
       - name: Upload artifact
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
