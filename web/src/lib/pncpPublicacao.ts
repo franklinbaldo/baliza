@@ -141,6 +141,7 @@ export async function fetchDispensaPagesForObjeto(
 ): Promise<PNCPContract[]> {
   const term = objeto.trim().toLowerCase();
   if (!term) return [];
+  const termWords = term.split(/\s+/).filter((w) => w.length > 0);
   const { maxPages = MAX_DISPENSA_PAGES, sinceDays = DISPENSA_SINCE_DAYS, now = new Date() } = opts;
 
   const end = new Date(now);
@@ -162,7 +163,7 @@ export async function fetchDispensaPagesForObjeto(
     if (!page.length) break;
     for (const c of page) {
       const objetoLower = (c.objetoContratacao ?? '').toLowerCase();
-      if (!objetoLower.includes(term)) continue;
+      if (!termWords.every((w) => objetoLower.includes(w))) continue;
       if (c.numeroControlePNCP && !collected.has(c.numeroControlePNCP)) {
         collected.set(c.numeroControlePNCP, c);
       }

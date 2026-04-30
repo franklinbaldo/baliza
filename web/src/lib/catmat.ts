@@ -80,7 +80,7 @@ export async function searchCatmat(query: string, limit = 50): Promise<CatmatEnt
   type Scored = { entry: CatmatEntry; score: number; desc: string };
   const scored: Scored[] = [];
   for (const { entry, desc, code } of entries) {
-    if (code === q) {
+    if (code === q || code.startsWith(q)) {
       scored.push({ entry, score: 1000, desc });
       continue;
     }
