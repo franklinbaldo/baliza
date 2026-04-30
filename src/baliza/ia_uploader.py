@@ -45,10 +45,14 @@ def restore_from_raw_zip(raw_zip_url: str, raw_month_dir: Path) -> bool:
         with zipfile.ZipFile(tmp_path) as zf:
             zf.extractall(raw_month_dir)
         tmp_path.unlink(missing_ok=True)
-        console.print(f"  [green]✓ Restored from IA ZIP ({len(list(raw_month_dir.iterdir()))} files)[/green]")
+        console.print(
+            f"  [green]✓ Restored from IA ZIP ({len(list(raw_month_dir.iterdir()))} files)[/green]"
+        )
         return True
     except Exception as e:
-        console.print(f"  [yellow]⚠ Could not restore from IA ZIP: {e} — will fetch from PNCP[/yellow]")
+        console.print(
+            f"  [yellow]⚠ Could not restore from IA ZIP: {e} — will fetch from PNCP[/yellow]"
+        )
         try:
             tmp_path.unlink(missing_ok=True)
         except Exception:
@@ -137,9 +141,7 @@ def read_manifest_from_ia() -> list[dict[str, Any]]:
     if resp.status_code == 404:
         return []
     if resp.status_code != 200:
-        raise ManifestReadError(
-            f"unexpected status {resp.status_code} reading manifest.csv"
-        )
+        raise ManifestReadError(f"unexpected status {resp.status_code} reading manifest.csv")
     try:
         f = io.StringIO(resp.text)
         return list(csv.DictReader(f))
@@ -160,14 +162,10 @@ def try_read_manifest_from_ia() -> list[dict[str, Any]]:
         return []
 
 
-def write_manifest_to_ia(
-    rows: list[dict[str, Any]], access_key: str, secret_key: str
-) -> None:
+def write_manifest_to_ia(rows: list[dict[str, Any]], access_key: str, secret_key: str) -> None:
     """Serialize manifest rows to CSV and upload to IA."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as tf:
-        writer = csv.DictWriter(
-            tf, fieldnames=MANIFEST_FIELDNAMES, extrasaction="ignore"
-        )
+        writer = csv.DictWriter(tf, fieldnames=MANIFEST_FIELDNAMES, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(rows)
         temp_csv = tf.name
@@ -302,9 +300,7 @@ class MonthlyExporter:
             if out_path.exists() and out_path.stat().st_size > 0:
                 files[table_name] = out_path
         except Exception as e:
-            console.print(
-                f"[yellow]⚠ No data found for {table_name} on {month_str}: {e}[/yellow]"
-            )
+            console.print(f"[yellow]⚠ No data found for {table_name} on {month_str}: {e}[/yellow]")
 
         return files
 
@@ -455,7 +451,9 @@ class IAUploader:
             shutil.rmtree(raw_dir)
             console.print(f"[green]✓ {month_str} mirrored and local pages cleaned.[/green]")
         elif success and keep_raw_dir:
-            console.print(f"[green]✓ {month_str} ZIP updated (pages kept for incremental next run).[/green]")
+            console.print(
+                f"[green]✓ {month_str} ZIP updated (pages kept for incremental next run).[/green]"
+            )
         else:
             console.print(
                 f"[yellow]⚠ {month_str} ZIP uploaded but NOT cleaned due to manifest error.[/yellow]"
@@ -477,7 +475,9 @@ class IAUploader:
         Returns True on success.
         """
         if self.engine is None or self.exporter is None:
-            raise RuntimeError("upload_parquet requires an engine — construct IAUploader(engine=...)")
+            raise RuntimeError(
+                "upload_parquet requires an engine — construct IAUploader(engine=...)"
+            )
 
         month_str = start_date.strftime("%Y-%m")
         item_id = f"baliza-pncp-{month_str}"

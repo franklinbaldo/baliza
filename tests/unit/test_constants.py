@@ -15,9 +15,7 @@ def test_known_data_start_month_for_contratos():
 
 
 def test_clamp_to_known_data_start_month_clamps_pre_history_date():
-    assert clamp_to_known_data_start_month(RESOURCE_CONTRATOS, date(2020, 1, 1)) == date(
-        2021, 9, 1
-    )
+    assert clamp_to_known_data_start_month(RESOURCE_CONTRATOS, date(2020, 1, 1)) == date(2021, 9, 1)
 
 
 def test_clamp_to_known_data_start_month_normalizes_later_date_to_month_start():

@@ -72,7 +72,7 @@ OUT_PATH = REPO_ROOT / "web" / "public" / "data" / "cnpj-orgaos-publicos.json"
 # it instead of hardcoding a date so this script keeps working past the
 # next dump rotation.
 INDEX_URL = "https://arquivos.receitafederal.gov.br/dados/cnpj/dados_abertos_cnpj/"
-EMPRESAS_FILE_RE = re.compile(r'Empresas\d+\.zip', re.IGNORECASE)
+EMPRESAS_FILE_RE = re.compile(r"Empresas\d+\.zip", re.IGNORECASE)
 
 # Public-administration natureza_juridica band. Codes 1015..1309 cover:
 # - Direct admin (federal/state/municipal)
@@ -182,7 +182,9 @@ def main() -> int:
                 public_records.setdefault(rec["raiz"], rec)
             log.info(
                 "after %s: %d rows scanned, %d public-sector raizes captured",
-                fname, total_rows, len(public_records),
+                fname,
+                total_rows,
+                len(public_records),
             )
 
     if len(public_records) < 1000:
@@ -200,7 +202,9 @@ def main() -> int:
     size_kb = OUT_PATH.stat().st_size / 1024
     log.info(
         "wrote %d public-sector CNPJ raizes to %s (%.1f KB)",
-        len(sorted_records), OUT_PATH.relative_to(REPO_ROOT), size_kb,
+        len(sorted_records),
+        OUT_PATH.relative_to(REPO_ROOT),
+        size_kb,
     )
     return 0
 

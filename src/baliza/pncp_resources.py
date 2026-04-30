@@ -1,11 +1,13 @@
 from dataclasses import dataclass, field
 
 
+
 @dataclass(frozen=True)
 class FetchSpec:
     endpoint: str
     date_param: str  # e.g., "data_publicacao"
     paginate_by: str  # e.g., "month"
+
 
 @dataclass(frozen=True)
 class CanonicalTableSpec:
@@ -26,6 +28,7 @@ class PNCPResource:
     fetch: FetchSpec
     canonical_tables: list[CanonicalTableSpec]
     derived_tables: list[DerivedTableSpec] = field(default_factory=list)
+
 
 CONTRATOS = PNCPResource(
     name="contratos",

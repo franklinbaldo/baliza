@@ -9,6 +9,7 @@ Usage:
     uv run python scripts/migrate_zips_to_single_item.py --dry-run
     uv run python scripts/migrate_zips_to_single_item.py --force-month 2024-03
 """
+
 from __future__ import annotations
 
 import argparse
@@ -128,9 +129,15 @@ def update_manifest_urls(
 
 def main() -> None:  # noqa: PLR0912
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--dry-run", action="store_true", help="Show what would be done without uploading")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Show what would be done without uploading"
+    )
     parser.add_argument("--force-month", help="Migrate only this month (YYYY-MM)")
-    parser.add_argument("--no-manifest-update", action="store_true", help="Skip updating manifest URLs after migration")
+    parser.add_argument(
+        "--no-manifest-update",
+        action="store_true",
+        help="Skip updating manifest URLs after migration",
+    )
     args = parser.parse_args()
 
     access_key = os.environ.get("IA_ACCESS_KEY") or os.environ.get("IAS3_ACCESS_KEY")
@@ -169,7 +176,9 @@ def main() -> None:  # noqa: PLR0912
         console.print("[green]✓ Nothing to migrate.[/green]")
         return
 
-    console.print(f"[cyan]{len(to_migrate)} month(s) to migrate to [bold]{RAW_ITEM_ID}[/bold][/cyan]")
+    console.print(
+        f"[cyan]{len(to_migrate)} month(s) to migrate to [bold]{RAW_ITEM_ID}[/bold][/cyan]"
+    )
     for m, url in to_migrate:
         console.print(f"  {m}  {url}")
 
@@ -182,7 +191,14 @@ def main() -> None:  # noqa: PLR0912
     errors: list[str] = []
 
     for month_str, source_url in to_migrate:
-        ok = stream_copy_zip(month_str, source_url, access_key or "", secret_key or "", existing_zips, dry_run=args.dry_run)
+        ok = stream_copy_zip(
+            month_str,
+            source_url,
+            access_key or "",
+            secret_key or "",
+            existing_zips,
+            dry_run=args.dry_run,
+        )
         if ok:
             migrated.append(month_str)
         else:

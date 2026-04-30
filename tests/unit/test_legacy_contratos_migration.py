@@ -63,9 +63,7 @@ def test_archive_legacy_preserves_rows_under_new_name(tmp_path: Path):
         archives = _legacy_archive_tables(engine)
         assert len(archives) == 1, f"expected one archive, got: {archives}"
 
-        count = engine.con.raw_sql(
-            f"SELECT COUNT(*) FROM main.{archives[0]}"
-        ).fetchone()[0]
+        count = engine.con.raw_sql(f"SELECT COUNT(*) FROM main.{archives[0]}").fetchone()[0]
         assert count == 1, "legacy rows must survive the archive step"
     finally:
         engine.con.disconnect()
@@ -215,9 +213,7 @@ def test_ingest_range_recovers_from_legacy_schema(tmp_path: Path, monkeypatch):
 
         archives = _legacy_archive_tables(engine)
         assert len(archives) == 1
-        legacy_count = engine.con.raw_sql(
-            f"SELECT COUNT(*) FROM main.{archives[0]}"
-        ).fetchone()[0]
+        legacy_count = engine.con.raw_sql(f"SELECT COUNT(*) FROM main.{archives[0]}").fetchone()[0]
         assert legacy_count == 1, "legacy rows must not be lost across the upgrade"
     finally:
         engine.con.disconnect()
