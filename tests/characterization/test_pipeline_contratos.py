@@ -168,7 +168,7 @@ def test_build_data_stub_shape():
 
     # Real manifest loading: BALIZA_MANIFEST_FIXTURE for CI fixture mode
     assert "BALIZA_MANIFEST_FIXTURE" in content
-    assert "read_csv_auto" in content
+    assert "csv-parse/sync" in content  # switched from DuckDB read_csv_auto
 
     # httpfs loaded conditionally (not unconditionally installed)
     assert "LOAD httpfs" in content
