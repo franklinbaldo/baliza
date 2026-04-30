@@ -140,16 +140,12 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                 uploaded = {
                     row["data_particao"]
                     for row in raw_manifest
-                    if row.get("data_particao")
-                    and row.get("parquet_url")
-                    and row.get("sha256")
+                    if row.get("data_particao") and row.get("parquet_url") and row.get("sha256")
                 }
                 # Lookup for raw_zip_url by month — used to skip PNCP fetch
                 # when we already have the ZIP on IA for a past month.
                 manifest_by_month: dict[str, dict] = {
-                    row["data_particao"]: row
-                    for row in raw_manifest
-                    if row.get("data_particao")
+                    row["data_particao"]: row for row in raw_manifest if row.get("data_particao")
                 }
             except Exception as e:
                 console.print(
@@ -336,15 +332,11 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                         today_month = date.today().replace(day=1)
                         manifest_row = manifest_by_month.get(month_str, {})
                         raw_zip_url = manifest_row.get("raw_zip_url", "")
-                        
+
                         # A full cache miss can be approximated by lacking page 1
                         is_full_miss = not _page_is_cached(1)
 
-                        if (
-                            raw_zip_url
-                            and start_of_month < today_month
-                            and is_full_miss
-                        ):
+                        if raw_zip_url and start_of_month < today_month and is_full_miss:
                             progress.update(
                                 tid,
                                 total=2,
@@ -372,7 +364,9 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                                     with open(p1) as fh:
                                         _d = json.load(fh)
                                 except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
-                                    logger.warning("page1_corrupt_unreadable", path=str(p1), error=str(e))
+                                    logger.warning(
+                                        "page1_corrupt_unreadable", path=str(p1), error=str(e)
+                                    )
                                     regression_reason = "page1_corrupt"
                                 else:
                                     if isinstance(_d, dict) and isinstance(
@@ -401,9 +395,7 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                             total_pages = res["total_pages"]
 
                         missing_pages = [
-                            p
-                            for p in range(1, total_pages + 1)
-                            if not _page_is_cached(p)
+                            p for p in range(1, total_pages + 1) if not _page_is_cached(p)
                         ]
                         cached_pages = total_pages - len(missing_pages)
 
@@ -503,11 +495,17 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                                 # in-memory DB that ingest_range just populated.
                                 thread_uploader = IAUploader(thread_engine)
                                 thread_uploader.upload_month(
-                                    start_of_month, Path("data/processed"), ia_access_key, ia_secret_key,
-                                    quarantine_stats=stats, quarantine_csv=q_csv if has_q else None
+                                    start_of_month,
+                                    Path("data/processed"),
+                                    ia_access_key,
+                                    ia_secret_key,
+                                    quarantine_stats=stats,
+                                    quarantine_csv=q_csv if has_q else None,
                                 )
                         else:
-                            progress.console.log(f"[yellow]Dry-run: {month_str} verified ({stats['valid']} records)[/yellow]")
+                            progress.console.log(
+                                f"[yellow]Dry-run: {month_str} verified ({stats['valid']} records)[/yellow]"
+                            )
 
                         # Step complete
                         progress.update(tid, advance=1)
@@ -533,7 +531,9 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                 # Time limit check
                 elapsed = (datetime.now() - start_time_exec).total_seconds() / 60
                 if limit_minutes and elapsed >= limit_minutes:
-                    progress.console.log(f"[yellow]⚠ Time limit ({limit_minutes}m) reached.[/yellow]")
+                    progress.console.log(
+                        f"[yellow]⚠ Time limit ({limit_minutes}m) reached.[/yellow]"
+                    )
                     break
 
                 # Maintain worker pool
@@ -610,7 +610,9 @@ def mirror_cmd(  # noqa: PLR0913
             RESOURCE_CONTRATOS, datetime.strptime(start_date, "%Y-%m-%d").date()
         )
         try:
-            with console.status("[bold green]Checking IA manifest for pending months...[/bold green]"):
+            with console.status(
+                "[bold green]Checking IA manifest for pending months...[/bold green]"
+            ):
                 batch = _pending_mirror_months(start, batch_size, resource=RESOURCE_CONTRATOS)
         except Exception as e:
             console.print(f"[red]✗ Cannot read IA manifest: {e}[/red]")
@@ -632,7 +634,9 @@ def mirror_cmd(  # noqa: PLR0913
             total_fetched += int(r.get("pages_fetched", 0))
             if not dry_run and not r.get("uploaded"):
                 error_count += 1
-                console.print(f"[red]✗ {m.strftime('%Y-%m')}: upload failed (manifest error?)[/red]")
+                console.print(
+                    f"[red]✗ {m.strftime('%Y-%m')}: upload failed (manifest error?)[/red]"
+                )
         except Exception as e:
             error_count += 1
             console.print(f"[red]✗ {m.strftime('%Y-%m')}: {e}[/red]")
@@ -686,7 +690,9 @@ def build_cmd(  # noqa: PLR0913, PLR0915
     limit_minutes: int = typer.Option(
         0, "--limit-minutes", help="Stop after this many minutes (0 = no limit)"
     ),
-    workers: int = typer.Option(2, "--workers", "-w", help="Parallel workers (DuckDB is CPU-heavy)"),
+    workers: int = typer.Option(
+        2, "--workers", "-w", help="Parallel workers (DuckDB is CPU-heavy)"
+    ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Ingest only, skip upload"),
     backfill: bool = typer.Option(
         False, "--backfill", help="Rebuild all months with outdated schema version"
@@ -721,7 +727,11 @@ def build_cmd(  # noqa: PLR0913, PLR0915
             RESOURCE_CONTRATOS, datetime.strptime(start_date, "%Y-%m-%d").date()
         )
         batch = _pending_build_months(
-            start, batch_size, resource=RESOURCE_CONTRATOS, backfill=backfill, manifest=build_manifest
+            start,
+            batch_size,
+            resource=RESOURCE_CONTRATOS,
+            backfill=backfill,
+            manifest=build_manifest,
         )
 
     if not batch:
@@ -743,7 +753,9 @@ def build_cmd(  # noqa: PLR0913, PLR0915
             total_quarantine += int(r.get("quarantine", 0))
             if not dry_run and not r.get("uploaded"):
                 error_count += 1
-                console.print(f"[red]✗ {m.strftime('%Y-%m')}: upload failed (manifest error?)[/red]")
+                console.print(
+                    f"[red]✗ {m.strftime('%Y-%m')}: upload failed (manifest error?)[/red]"
+                )
         except Exception as e:
             error_count += 1
             console.print(f"[red]✗ {m.strftime('%Y-%m')}: {e}[/red]")
@@ -786,9 +798,7 @@ def build_cmd(  # noqa: PLR0913, PLR0915
 
 @app.command("verify")
 def verify(
-    resource: str = typer.Option(
-        RESOURCE_CONTRATOS, "--resource", "-r", help="Resource to verify"
-    ),
+    resource: str = typer.Option(RESOURCE_CONTRATOS, "--resource", "-r", help="Resource to verify"),
     start: str = typer.Option(..., "--start", help="Start date (YYYY-MM-DD)"),
     end: str = typer.Option(..., "--end", help="End date (YYYY-MM-DD)"),
 ) -> None:
@@ -806,7 +816,9 @@ def verify(
         uploader = IAUploader(engine)
         with console.status("[bold green]Checking remote manifest...[/bold green]"):
             raw_manifest = uploader._read_manifest_from_ia()
-            uploaded_months = {row["data_particao"] for row in raw_manifest if row.get("data_particao")}
+            uploaded_months = {
+                row["data_particao"] for row in raw_manifest if row.get("data_particao")
+            }
 
         gaps = []
         curr = start_date.replace(day=1)
@@ -826,7 +838,9 @@ def verify(
                 curr = curr.replace(month=curr.month + 1)
 
         if not gaps:
-            console.print(f"[green]✓ Complete month coverage from {start} to {last_month_end.strftime('%Y-%m')} on Internet Archive.")
+            console.print(
+                f"[green]✓ Complete month coverage from {start} to {last_month_end.strftime('%Y-%m')} on Internet Archive."
+            )
         else:
             console.print(f"[yellow]⚠ Found {len(gaps)} missing month(s) on IA:")
             for m in gaps[:12]:

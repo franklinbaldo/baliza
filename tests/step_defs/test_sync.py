@@ -171,14 +171,16 @@ def manifest_lists_phantom_parquet(mock_ia_manifest):
     # Simulates the historical state where manifest-recovery wrote parquet_url
     # before the Parquet was actually uploaded (sha256 empty → file never verified).
     # The sync must treat this month as pending and re-queue it.
-    mock_ia_manifest([
-        {
-            "data_particao": "2023-01",
-            "table_name": "contratos",
-            "parquet_url": "https://archive.org/download/baliza-pncp-2023-01/contratos-2023-01.parquet",
-            "sha256": "",
-        }
-    ])
+    mock_ia_manifest(
+        [
+            {
+                "data_particao": "2023-01",
+                "table_name": "contratos",
+                "parquet_url": "https://archive.org/download/baliza-pncp-2023-01/contratos-2023-01.parquet",
+                "sha256": "",
+            }
+        ]
+    )
 
 
 # ── When ─────────────────────────────────────────────────────────────────────

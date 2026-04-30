@@ -252,8 +252,10 @@ class PNCPExtractor:
                 [
                     "curl",
                     "-s",
-                    "--max-time", "30",
-                    "--connect-timeout", "10",
+                    "--max-time",
+                    "30",
+                    "--connect-timeout",
+                    "10",
                     "-H",
                     "accept: */*",
                     "-H",
@@ -349,9 +351,7 @@ class PNCPExtractor:
             archive_table=f"main.{archive_name}",
         )
         try:
-            self.engine.con.raw_sql(
-                f"ALTER TABLE main.contratos RENAME TO {archive_name}"
-            )
+            self.engine.con.raw_sql(f"ALTER TABLE main.contratos RENAME TO {archive_name}")
         except Exception as e:
             # A parallel worker already did the rename, or `contratos` was
             # dropped/renamed out from under us. Tolerate the race as long
@@ -375,7 +375,9 @@ class PNCPExtractor:
     def ingest_range(self, start_date: datetime) -> dict[str, int]:
         """Validate and ingest all raw JSON files for a specific month/range into the shared engine."""
         if self.engine is None:
-            raise RuntimeError("ingest_range requires an engine — construct PNCPExtractor(engine=...)")
+            raise RuntimeError(
+                "ingest_range requires an engine — construct PNCPExtractor(engine=...)"
+            )
 
         month_str = start_date.strftime("%Y-%m")
         raw_dir = Path("data/raw") / month_str
@@ -441,7 +443,9 @@ class PNCPExtractor:
     def export_quarantine(self, extraction_date: datetime, output_path: Path) -> bool:
         """Export session quarantine to CSV if not empty."""
         if self.engine is None:
-            raise RuntimeError("export_quarantine requires an engine — construct PNCPExtractor(engine=...)")
+            raise RuntimeError(
+                "export_quarantine requires an engine — construct PNCPExtractor(engine=...)"
+            )
         try:
             q_table = self.engine.get_table("quarantine", schema="baliza_state")
             # Filter for current date if possible, but in stateless per-day loop,
