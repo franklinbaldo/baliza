@@ -42,7 +42,7 @@ const feature = await loadFeature('features/journeys/02_public_buyer.feature');
 const PAYLOAD = {
   numeroControlePNCP: '00000000000191-1-000001/2024',
   dataPublicacaoPncp: '2025-01-15T00:00:00',
-  objetoContratacao: 'Aquisição de merenda escolar',
+  objetoCompra: 'Aquisição de merenda escolar',
   valorTotalEstimado: 1500,
   modalidadeNome: 'Pregão Eletrônico',
   orgaoEntidade: {
@@ -51,7 +51,7 @@ const PAYLOAD = {
   },
   unidadeOrgao: {
     nomeUnidade: 'Secretaria de Compras',
-    codigoMunicipioIbge: '3550308',
+    codigoIbge: '3550308',
   },
   linkSistemaOrigem: 'https://origem.exemplo.gov.br/compras/1',
   itens: [],

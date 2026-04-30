@@ -19,6 +19,7 @@ import duckdb
 import pyarrow as pa
 from rich.console import Console
 
+from .pncp_resources import CONTRATOS
 from .utils import PARQUET_ROW_GROUP_SIZE, validate_identifier, write_optimized_parquet
 
 console = Console()
@@ -175,7 +176,7 @@ class DailyExporter:
         }
 
         with duckdb.connect(str(self.db_path), read_only=True) as con:
-            stats["tables"]["contratos"] = self._export_contratos(con, target_date, day_dir)
+            stats["tables"][CONTRATOS.name] = self._export_contratos(con, target_date, day_dir)
             stats["tables"]["orgaos"] = self._export_orgaos(con, target_date, day_dir)
             stats["tables"]["unidades"] = self._export_unidades(con, target_date, day_dir)
             stats["tables"]["fornecedores"] = self._export_fornecedores(con, target_date, day_dir)
@@ -266,7 +267,7 @@ class DailyExporter:
 
         output_path = output_dir / "contratos.parquet"
         file_size, row_count = write_optimized_parquet(
-            reader, output_path, CONTRATOS_SCHEMA, "contratos"
+            reader, output_path, CONTRATOS_SCHEMA, CONTRATOS.name
         )
         return {"row_count": row_count, "file_size_bytes": file_size}
 

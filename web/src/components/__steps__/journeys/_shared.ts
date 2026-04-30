@@ -1,4 +1,4 @@
-export { render } from '../shared';
+export { render, mockFetchError } from '../shared';
 
 export function plannedStep(description: string): never {
   throw new Error(`planned: ${description} not yet implemented`);

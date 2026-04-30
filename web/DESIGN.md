@@ -1,43 +1,47 @@
 # Baliza Design Constitution
 
-This document adapts the "Brazilian Modernism" and "Data-First" philosophy for the Baliza PNCP data pipeline project.
+## Curva & Concreto
+
+*"A curva e para o usuario; o concreto e para os dados."*
+
+Baliza is a PNCP monitoring interface, so the visual identity must be civic, legible, and fast. The product should feel Brazilian-modernist at first glance without turning procurement data into decoration.
 
 ## Principles
 
 **1. Build for analysts and oversight, not for impressions.**
-The page exists to help someone monitor, find, compare, and audit public procurement data from the PNCP. Not to look "modern" just for the sake of it.
+The page exists to help someone monitor, find, compare, and audit public procurement data from the PNCP.
 
 **2. Content is the interface.**
-Do not treat data as filler. The tables, numbers, manifest logs, and structural hierarchy *are* the design.
+Tables, numbers, manifest logs, and structural hierarchy are the design.
 
-**3. Density is good when structure is strong.**
-Do not fear information-rich dashboards. A dense page with a clear visual hierarchy is far better than a sparse page with hidden metrics.
+**3. Curves on chrome and heroes; sharp on data.**
+Niemeyer curves belong on navigation chrome, empty states, hero panels, and primary actions. Dense data cards, tables, and definition lists stay mostly sharp.
 
-**4. Legibility beats style.**
-Readable text, razor-sharp numbers (using `JetBrains Mono` for metrics), and sane contrast. If a visual choice hurts data reading, it loses.
+**4. Azulejo is ornament, never noise.**
+Bulcao-inspired patterns can appear on chrome, section dividers, empty states, and hover surfaces. Behind text, pattern opacity must stay subtle enough for WCAG AA.
 
-**5. Speed is part of aesthetics.**
-Fast pages feel intelligent. Slow pages feel sloppy. We fetch static manifests and let the client do the work instantly.
+**5. One accent cannot do every job.**
+Volpi red is reserved for brand and primary actions. Brasilia azul is information and focus. Mata verde is success. Ouro is warning. Tijolo is decorative warmth.
 
-**6. HTML first, CSS second, JavaScript last.**
-We use Astro to generate static shells. Svelte is reserved only for interactive data islands (Heatmaps, Live Tables).
+**6. Radius is a closed enum.**
+Use only `--radius-0`, `--radius-sm`, `--radius-lg`, `--radius-arch`, and `--radius-pill`. Adding another radius requires this document to change.
 
-**7. Make links do real work.**
-Use links to connect directly to the raw Internet Archive ZIP files and Parquet datasets for transparency.
+**7. Density is good when structure is strong.**
+Do not fear information-rich dashboards. A dense page with clear hierarchy is better than a sparse page with hidden metrics.
 
-**8. Prefer permanence over novelty.**
-Stable URLs and timeless layouts. A dashboard should age like a reliable terminal interface.
+**8. Speed is part of aesthetics.**
+Fast pages feel intelligent. We fetch static manifests and let the client do the work quickly.
 
-**9. Expose structure instead of hiding it.**
-Show quarantine counts, sync timestamps, and exact file paths. Users should feel the underlying order of the data pipeline.
+**9. HTML first, CSS second, JavaScript last.**
+Astro generates static shells. Svelte is reserved for interactive data islands.
 
 **10. Truthful metrics over vanity.**
-Display the exact amount of data successfully synced vs. quarantined without hiding failures behind happy-path animations.
+Show successful syncs, quarantine counts, timestamps, and source links without hiding failure modes.
 
----
+## Practical Defaults
 
-## Practical defaults
-
-- **Use typography for hierarchy:** Size, weight, spacing, and font-family (`DM Serif Display` for headers, `Inter` for body, `Mono` for data).
-- **Keep navigation stable:** Predictable layouts across the dashboard.
-- **Design durable documents:** Someone opening the dashboard two years from now should still immediately grasp the data flow.
+- Use `Fraunces` for display hierarchy, `Manrope` for UI text, and `JetBrains Mono` for metrics and identifiers.
+- Use `--font-logo` only for the Baliza wordmark or hero-scale brand moments.
+- Use `.azulejo-*` primitives for ornamental surfaces and `.section-divider` instead of plain decorative rules.
+- Primary CTAs should use `.bossa-pill` or inherit the primary button pill treatment.
+- Never nest curved containers inside curved containers. Keep repeated data cards sharp with a small left stripe when tone is needed.

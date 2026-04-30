@@ -1,0 +1,13 @@
+---
+import Layout from '../layouts/Layout.astro';
+import BuscaView from '../components/BuscaView.svelte';
+
+const q = Astro.url.searchParams.get('q') ?? '';
+---
+
+<Layout
+  title="Busca livre — Baliza"
+  description="Busca texto-livre nas contratações publicadas no PNCP. Informe um objeto (papel A4, merenda escolar…) ou um número de controle PNCP."
+>
+  <BuscaView client:only="svelte" q={q} />
+</Layout>

@@ -8,13 +8,15 @@
     queryArchivedTable,
     queryParquetFallback,
   } from '../lib/parquetFallback';
-  import type { PNCPContract } from '../lib/pncp';
-  import { formatBRL, formatDate, formatParticao, truncate } from '../lib/format';
+  import { archivedContratoToInternalContract, type PNCPContract } from '../lib/pncp';
+  import { formatBRL, formatParticao } from '../lib/format';
   import { resolve } from '../lib/baseUrl';
   import type { ArchivedContrato } from '../lib/archive/schema';
-  import EntityNotFound from './EntityNotFound.svelte';
-  import AlertBanner from './AlertBanner.svelte';
+  import EntityDetailLayout from './EntityDetailLayout.svelte';
   import EmptyState from './EmptyState.svelte';
+  import ContractCard from './ContractCard.svelte';
+  import PaginatedList from './PaginatedList.svelte';
+  import { addWatch, isWatched, hydrateWatches } from '../lib/watchStore.svelte';
 
   setQueryClientContext(getQueryClient());
 
@@ -31,6 +33,7 @@
 
   $effect(() => {
     if (cnpj) prefetchArchive('contratos');
+    hydrateWatches();
   });
 
   interface CompetitorTally {
@@ -46,22 +49,6 @@
     avgTicket: number;
     topBuyerCnpj: string;
     archived: { dataParticao: string | null };
-  }
-
-  function archivedRowToContract(row: ArchivedContrato): PNCPContract {
-    return {
-      numeroControlePNCP: row.numero_controle_pncp ?? '',
-      dataPublicacaoPncp: row.data_publicacao_pncp ?? '',
-      objetoContratacao: row.objeto_contrato ?? '',
-      valorTotalEstimado: row.valor_global ?? row.valor_inicial ?? null,
-      orgaoEntidade: {
-        razaoSocial: row.razao_social_orgao ?? 'Órgão Arquivado',
-        cnpj: row.cnpj_orgao ?? '',
-      },
-      unidadeOrgao: {
-        nomeUnidade: row.nome_unidade ?? '',
-      },
-    };
   }
 
   function computeAvgTicket(rows: ArchivedContrato[]): number {
@@ -137,7 +124,7 @@
         return {
           name: archived.rows[0]?.nome_razao_social_fornecedor ?? cnpj,
           cnpj,
-          contracts: archived.rows.map(archivedRowToContract),
+          contracts: archived.rows.map((row) => archivedContratoToInternalContract(row)),
           avgTicket: computeAvgTicket(archived.rows),
           topBuyerCnpj: topBuyer(archived.rows),
           archived: { dataParticao: archived.dataParticao },
@@ -183,50 +170,28 @@
   const competitors = $derived(peerQuery.data ?? []);
 </script>
 
-<div class="supplier-detail container">
-  {#if !cnpj}
-    <EntityNotFound id="ausente" type="fornecedor" />
-  {:else if !cnpjValid}
-    <EntityNotFound
-      id={cnpj}
-      type="fornecedor"
-      error="CNPJ fora do formato esperado: 14 dígitos numéricos, sem pontos, traços ou barras."
-    />
-  {:else if loading}
-    <div class="skeleton-wrap" aria-busy="true" aria-label="Carregando dados do fornecedor">
-      <div class="skeleton skeleton-title"></div>
-      <div class="skeleton skeleton-meta"></div>
-      {#each [1, 2, 3] as _, i (i)}
-        <div class="skeleton skeleton-bid"></div>
-      {/each}
-    </div>
-  {:else if error}
-    <div class="error-wrap">
-      <AlertBanner title="Fornecedor não encontrado" message={error.message} level="error" />
-      <div class="back-row">
-        <a href={resolve('')} class="btn btn-outline">Voltar à busca</a>
-      </div>
-    </div>
-  {:else if data}
-    {#if data.archived.dataParticao}
-      <AlertBanner
-        title="Dados arquivados"
-        message={`PNCP não expõe histórico por fornecedor — exibindo snapshot Parquet (última consolidação: ${formatParticao(data.archived.dataParticao)}).`}
-        level="info"
-      />
+<EntityDetailLayout
+  id={cnpj}
+  idValid={cnpjValid}
+  entityType="fornecedor"
+  idFormatError="CNPJ fora do formato esperado: 14 dígitos numéricos, sem pontos, traços ou barras."
+  {loading}
+  {error}
+  dataReady={!!data}
+  archivedParticao={data?.archived?.dataParticao}
+  archiveMessage={`PNCP não expõe histórico por fornecedor — exibindo snapshot Parquet (última consolidação: ${data?.archived?.dataParticao ? formatParticao(data.archived.dataParticao) : ''}).`}
+  kicker="🏢 FORNECEDOR"
+  iconId="t2"
+  title={data?.name || ""}
+>
+  {#snippet metaRow()}
+    {#if data}
+      <span>CNPJ: {data.cnpj}</span>
+      <span>Fonte: Arquivo Parquet (IA)</span>
     {/if}
-    <header class="hub-header">
-      <span class="kicker">🏢 FORNECEDOR</span>
-      <div style="display:flex; align-items:center;">
-        <svg width="32" height="32" aria-hidden="true" style="margin-right: 12px; flex-shrink: 0; fill: currentColor;"><use href="#t2"/></svg>
-        <h1>{data.name}</h1>
-      </div>
-      <div class="meta-row">
-        <span>CNPJ: {data.cnpj}</span>
-        <span>Fonte: Arquivo Parquet (IA)</span>
-      </div>
-    </header>
+  {/snippet}
 
+  {#if data}
     {#if data.contracts.length === 0}
       <EmptyState
         title="Nenhum contrato arquivado"
@@ -235,6 +200,16 @@
         actionLabel="Voltar à busca"
       />
     {:else}
+      <div class="actions-bar">
+        <button
+          class="btn btn-outline"
+          onclick={() => addWatch('supplier', data.cnpj, data.name)}
+          disabled={isWatched('supplier', data.cnpj)}
+        >
+          {isWatched('supplier', data.cnpj) ? '✓ Acompanhando' : 'Acompanhar fornecedor'}
+        </button>
+      </div>
+
       <section class="rollup-grid">
         <article class="rollup-card" data-testid="avg-ticket">
           <h3>Ticket médio</h3>
@@ -253,7 +228,7 @@
               {#each competitors as c, i (`${c.cnpj}-${i}`)}
                 <li>
                   <span class="competitor-rank">#{i + 1}</span>
-                  <span class="competitor-name">{c.name}</span>
+                  <a href={resolve(`fornecedor?cnpj=${c.cnpj}`)} class="competitor-name inline-link" title={c.name}>{c.name}</a>
                   <span class="competitor-cnpj">{c.cnpj}</span>
                   <span class="competitor-count">{c.count}</span>
                 </li>
@@ -267,38 +242,31 @@
         <div class="recent-header">
           <h3>Histórico de contratações (últimos 50 do arquivo)</h3>
         </div>
-        {#each data.contracts as item (item.numeroControlePNCP)}
-          <a href={resolve(`contratacao?id=${item.numeroControlePNCP}`)} class="bid-link-card">
-            <div class="bid-header">
-              <span class="bid-id">{item.numeroControlePNCP}</span>
-              <span class="bid-date">{formatDate(item.dataPublicacaoPncp)}</span>
-            </div>
-            <p class="bid-obj">{truncate(item.objetoContratacao, 150)}</p>
-            <div class="bid-footer">
-              <span class="buyer">{item.orgaoEntidade.razaoSocial}</span>
-              <span class="valor">{formatBRL(item.valorTotalEstimado)}</span>
-            </div>
-          </a>
-        {/each}
+        <PaginatedList items={data.contracts} pageSize={10}>
+          {#snippet children(pageItems)}
+            {#each pageItems as item (item.numeroControlePNCP)}
+              <ContractCard
+                id={item.numeroControlePNCP}
+                date={item.dataPublicacaoPncp}
+                obj={item.objetoContratacao}
+                valor={item.valorTotalEstimado}
+                buyer={item.orgaoEntidade.razaoSocial}
+              />
+            {/each}
+          {/snippet}
+        </PaginatedList>
       </section>
     {/if}
   {/if}
-</div>
+</EntityDetailLayout>
 
 <style>
-  .supplier-detail { padding: var(--space-2xl) 0; }
 
-  .skeleton-wrap { display: grid; gap: var(--space-md); }
-  .skeleton-title { height: 2rem; width: 60%; border-radius: var(--radius-sm); }
-  .skeleton-meta  { height: 1rem; width: 40%; border-radius: var(--radius-sm); }
-  .skeleton-bid   { height: 5rem; border-radius: var(--radius-sm); }
-
-  .error-wrap { display: grid; gap: var(--space-md); }
-  .back-row { display: flex; }
-
-  .hub-header { margin-bottom: var(--space-2xl); border-bottom: 2px solid var(--color-base-300); padding-bottom: var(--space-md); }
-  h1 { font-size: var(--font-size-2xl); margin-top: var(--space-sm); }
-  .meta-row { display: flex; gap: var(--space-md); color: var(--color-secondary); font-size: var(--font-size-sm); margin-top: 4px; }
+  .actions-bar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: var(--space-md);
+  }
 
   .rollup-grid {
     display: grid;
@@ -336,21 +304,12 @@
   }
   .competitor-list li:last-child { border-bottom: none; }
   .competitor-rank { font-family: var(--font-mono); font-weight: 700; color: var(--color-secondary); }
-  .competitor-name { overflow-wrap: anywhere; }
+  .competitor-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .competitor-cnpj { font-family: var(--font-mono); font-size: var(--font-size-xs); color: var(--color-secondary); }
   .competitor-count { font-family: var(--font-mono); color: var(--color-primary); font-weight: 700; }
+  .inline-link { color: var(--color-primary); text-decoration: underline; }
+  .inline-link:hover { text-decoration: none; }
 
   .recent-list { display: grid; gap: var(--space-md); }
   .recent-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-sm); }
-  .bid-link-card {
-    display: block; text-decoration: none; color: inherit; background: var(--color-base-100);
-    padding: var(--space-md); border-radius: 0; border: 1px solid var(--color-base-300);
-    transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
-  }
-  .bid-link-card:hover, .bid-link-card:focus-visible { transform: translate(-2px, -2px); border-color: var(--color-primary); box-shadow: 4px 4px 0 var(--color-primary); }
-  .bid-header { display: flex; justify-content: space-between; margin-bottom: var(--space-sm); font-size: 0.75rem; font-family: var(--font-mono); color: var(--color-secondary); }
-  .bid-obj { font-size: var(--font-size-sm); line-height: 1.5; margin-bottom: var(--space-sm); }
-  .bid-footer { display: flex; justify-content: space-between; align-items: baseline; font-size: var(--font-size-sm); }
-  .bid-footer .buyer { color: var(--color-secondary); overflow-wrap: anywhere; margin-right: var(--space-sm); }
-  .bid-footer .valor { font-weight: 800; color: var(--color-primary); }
 </style>

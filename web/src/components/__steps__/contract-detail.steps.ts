@@ -17,7 +17,7 @@ const RICH_PAYLOAD = {
   dataPublicacaoPncp: '2025-01-15T00:00:00',
   dataAberturaProposta: '2025-01-20T09:00:00',
   dataEncerramentoProposta: '2025-02-05T17:00:00',
-  objetoContratacao: 'Aquisição de materiais de expediente',
+  objetoCompra: 'Aquisição de materiais de expediente',
   valorTotalEstimado: 1500,
   valorTotalHomologado: 1450,
   modalidadeNome: 'Pregão Eletrônico',
@@ -31,7 +31,7 @@ const RICH_PAYLOAD = {
     nomeUnidade: 'Departamento de Compras',
     municipioNome: 'São Paulo',
     ufSigla: 'SP',
-    codigoMunicipioIbge: '3550308',
+    codigoIbge: '3550308',
   },
   linkSistemaOrigem: 'https://origem.exemplo.gov.br/compras/1',
   usuarioNome: 'Sistema PNCP',
@@ -195,14 +195,14 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
 
     And('I should see a link to the agency page with cnpj "00000000000191"', () => {
       const link = document.querySelector(
-        'a[href="/orgao?cnpj=00000000000191"]',
+        'a[href="/baliza/orgao?cnpj=00000000000191"]',
       );
       expect(link).toBeTruthy();
     });
 
     And('I should see a link to the municipality page with ibge "3550308"', () => {
       const link = document.querySelector(
-        'a[href="/municipio?ibge=3550308"]',
+        'a[href="/baliza/municipio?ibge=3550308"]',
       );
       expect(link).toBeTruthy();
     });

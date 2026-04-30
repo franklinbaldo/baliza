@@ -1,6 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import Dashboard from '../components/Dashboard.svelte';
+import RawArchiveStatus from '../components/RawArchiveStatus.svelte';
+import CoverageReport from '../components/CoverageReport.svelte';
 ---
 
 <Layout
@@ -9,30 +10,54 @@ import Dashboard from '../components/Dashboard.svelte';
 >
   <section class="status-section container">
     <div class="status-header">
-      <h1 class="section-title">Status do Pipeline</h1>
+      <div class="header-with-badge">
+        <h1 class="section-title">Status do Pipeline</h1>
+        <span class="badge operational">🟢 Operacional</span>
+      </div>
       <p class="section-desc">
-        Acompanhe o processo de sincronização da extração de dados do PNCP.
-        O Baliza sincroniza diariamente os dados públicos de contratação.
+        Acompanhe o estado do item bruto no Internet Archive. Esta tela lê
+        diretamente os metadados públicos de <code>baliza-pncp-raw</code>,
+        incluindo arquivos ZIP, tamanho, cobertura e atualização do item.
       </p>
     </div>
 
     <div class="status-content">
-      <Dashboard client:load />
+      <RawArchiveStatus client:load />
+    </div>
+
+    <div class="status-content status-content--coverage">
+      <CoverageReport client:visible />
     </div>
   </section>
 </Layout>
 
 <style>
   .status-section {
-    padding: var(--space-2xl) 0;
+    padding-block: var(--space-2xl);
   }
   .status-header {
     margin-bottom: var(--space-xl);
   }
   .section-title {
     font-size: var(--font-size-3xl);
-    margin-bottom: var(--space-xs);
     color: var(--color-primary);
+    margin: 0;
+  }
+  .header-with-badge {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    margin-bottom: var(--space-xs);
+  }
+  .badge.operational {
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+    color: var(--color-success);
+    border: 1px solid color-mix(in srgb, var(--color-success) 30%, transparent);
+    padding: 4px 12px;
+    border-radius: var(--radius-pill);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    font-family: var(--font-mono);
   }
   .section-desc {
     color: var(--color-secondary);
@@ -40,10 +65,20 @@ import Dashboard from '../components/Dashboard.svelte';
     line-height: 1.6;
     max-width: 72ch;
   }
+  .section-desc code {
+    font-family: var(--font-mono);
+    color: var(--color-azul);
+  }
   .status-content {
-    background: var(--color-base-200);
+    background:
+      linear-gradient(color-mix(in srgb, var(--color-surface) 94%, transparent), color-mix(in srgb, var(--color-surface) 94%, transparent)),
+      var(--color-surface);
     padding: var(--space-xl);
-    border-radius: var(--radius-box);
-    border: 1px solid var(--color-base-300);
+    border-radius: var(--radius-lg) var(--radius-arch) var(--radius-lg) 0;
+    border: 1px solid var(--color-border);
+    box-shadow: var(--shadow-pool-sm);
+  }
+  .status-content--coverage {
+    margin-top: var(--space-xl);
   }
 </style>

@@ -17,6 +17,7 @@ from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponen
 
 from .engine import BalizaEngine
 from .models import RecuperarContratoDTO as Contrato
+from .pncp_resources import CONTRATOS
 from .utils import validate_url
 
 logger = structlog.get_logger()
@@ -134,7 +135,7 @@ def _validate_resource(resource: str):
         raise ValueError(f"Invalid resource path: {resource}")
 
 
-class RetryablePayloadError(ValueError):
+class RetryablePayloadError(Exception):
     """Raised when PNCP returns a syntactically invalid payload.
 
     We observe occasional empty/HTML upstream bodies with HTTP 200 while the
@@ -165,8 +166,8 @@ class PNCPExtractor:
 
     @retry(
         retry=retry_if_exception(_is_retryable_error),
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
+        stop=stop_after_attempt(6),
+        wait=wait_exponential(multiplier=2, min=4, max=60),
     )
     def fetch_page(
         self, resource: str, start_date: datetime, end_date: datetime, page: int = 1
@@ -246,20 +247,26 @@ class PNCPExtractor:
     def _fetch_with_curl(
         self, resource: str, page: int, url: str, start_str: str, end_str: str
     ) -> dict[str, Any]:
-        result = subprocess.run(
-            [
-                "curl",
-                "-s",
-                "-H",
-                "accept: */*",
-                "-H",
-                f"User-Agent: {self.headers['User-Agent']}",
-                f"{url}?dataInicial={start_str}&dataFinal={end_str}&pagina={page}&tamanhoPagina={PAGE_SIZE}",
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
+        try:
+            result = subprocess.run(
+                [
+                    "curl",
+                    "-s",
+                    "--max-time", "30",
+                    "--connect-timeout", "10",
+                    "-H",
+                    "accept: */*",
+                    "-H",
+                    f"User-Agent: {self.headers['User-Agent']}",
+                    f"{url}?dataInicial={start_str}&dataFinal={end_str}&pagina={page}&tamanhoPagina={PAGE_SIZE}",
+                ],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=45,
+            )
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+            raise RetryablePayloadError(f"curl failed for {resource} page {page}: {e}") from e
         return self._parse_json_payload(
             payload=result.stdout.strip(),
             resource=resource,
@@ -358,9 +365,9 @@ class PNCPExtractor:
         without the snake_case PK. Any lookup error is treated as 'no'."""
         try:
             tables = self.engine.con.list_tables(database="main")
-            if "contratos" not in tables:
+            if CONTRATOS.name not in tables:
                 return False
-            columns = set(self.engine.con.table("contratos", database="main").schema().names)
+            columns = set(self.engine.con.table(CONTRATOS.name, database="main").schema().names)
         except Exception:
             return False
         return "numeroControlePNCP" in columns and "numero_controle_pncp" not in columns
@@ -407,13 +414,26 @@ class PNCPExtractor:
                 except ValidationError as e:
                     stats["quarantine"] += 1
                     logger.warning("validation_failed", error=str(e), entry_id=entry.get("id"))
-                    self.engine.quarantine_record("contratos", start_date, str(e), entry)
+                    self.engine.quarantine_record(CONTRATOS.name, start_date, str(e), entry)
 
             # Ingest valid rows into Ibis (shared engine) via UPSERT
             if valid_rows:
                 # Direct memory ingestion (Idempotent)
-                self.engine.upsert_rows(
-                    valid_rows, "contratos", schema="main", pk="numero_controle_pncp"
+                for ct in CONTRATOS.canonical_tables:
+                    self.engine.upsert_rows(
+                        valid_rows, ct.name, schema="main", pk=ct.pk
+                    )
+
+        # Apply derived table transformations if any
+        for dt in CONTRATOS.derived_tables:
+            transform_fn = getattr(self.engine, dt.transform, None)
+            if callable(transform_fn):
+                transform_fn()
+            else:
+                logger.warning(
+                    "missing_derived_transform",
+                    transform=dt.transform,
+                    table=dt.name
                 )
 
         return stats

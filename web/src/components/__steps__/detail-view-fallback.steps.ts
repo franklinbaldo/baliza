@@ -8,6 +8,16 @@ import AgencyDetailViewRaw from '../AgencyDetailView.svelte';
 import CityDetailViewRaw from '../CityDetailView.svelte';
 import ContractDetailViewRaw from '../ContractDetailView.svelte';
 
+// See city-detail.steps.ts — stub the centroid lookup so the global.fetch
+// mock isn't asked to satisfy a request that returns a non-CentroidRow payload.
+vi.mock('../../lib/geo', async () => {
+  const actual = await vi.importActual<typeof import('../../lib/geo')>('../../lib/geo');
+  return {
+    ...actual,
+    findMunicipalityByIbge: vi.fn().mockResolvedValue(null),
+  };
+});
+
 const AgencyDetailView = AgencyDetailViewRaw as unknown as Parameters<typeof render>[0];
 const CityDetailView = CityDetailViewRaw as unknown as Parameters<typeof render>[0];
 const ContractDetailView = ContractDetailViewRaw as unknown as Parameters<typeof render>[0];
@@ -127,7 +137,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
               {
                 numeroControlePNCP: '00000000000191-1-000001/2024',
                 dataPublicacaoPncp: '2024-06-01T00:00:00',
-                objetoContratacao: 'Contrato PNCP ao vivo',
+                objetoCompra: 'Contrato PNCP ao vivo',
                 valorTotalEstimado: 10000,
                 orgaoEntidade: { razaoSocial: 'Órgão Vivo', cnpj: '00000000000191' },
                 unidadeOrgao: { nomeUnidade: 'Unidade' },

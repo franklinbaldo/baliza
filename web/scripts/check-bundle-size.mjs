@@ -17,15 +17,27 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DIST_DIR = join(__dirname, '..', 'dist', '_astro');
 
-// Current baseline: 310_000 bytes — measured size (~296 KB) plus headroom,
+// Current baseline: 342_000 bytes — measured size (~333 KB) plus headroom,
 // with room absorbed by the SupplierDetailView shipped for Journey 1 @green
-// (/fornecedor?cnpj= supplier prospecting page) and the citizen-first
+// (/fornecedor?cnpj= supplier prospecting page), the citizen-first
 // homepage islands (CityHero + CityPulse + CityNavLink + shared
 // cityContext.svelte rune) that shift the landing fold from project
-// manifesto to "what is my city buying?". When an intentional feature
-// increases the baseline, raise this constant in the same commit and note
-// what landed.
-const BUDGET_BYTES = 310_000;
+// manifesto to "what is my city buying?", the BuscaView UF + modality
+// filters with aggregate strip (Journey 1 "Filter contracts by UF and
+// modality recomputes aggregates") plus the lazy-loaded accent lexicon
+// behind the zero-result suggestion path ("Empty search suggests accent-
+// tolerant alternatives"), the Curva & Concreto refresh + IA-derived
+// /status page from PR #471 (RawArchiveStatus island + dual PNCP/Consulta
+// boundary schemas in pncp.ts), and the homepage UX redesign (PR #496:
+// hero omni-search, Navigation dropdown) plus its offline geocoding follow-
+// up (findNearestMunicipality in geo.ts; the 270 KB centroids dataset is a
+// static asset and does NOT count against this entry-payload budget), and
+// the /status public-CNPJ coverage audit (CoverageReport island that
+// pulls a static reference list and runs a DuckDB-WASM SELECT DISTINCT
+// SUBSTR(cnpj_orgao, 1, 8) on the contratos parquet — adds ~6 KB). When
+// an intentional feature increases the baseline, raise this constant in
+// the same commit and note what landed.
+const BUDGET_BYTES = 342_000;
 
 function isClientEntryFile(name) {
   if (!name.endsWith('.js')) return false;

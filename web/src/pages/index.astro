@@ -1,7 +1,8 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import HomeSection from '../components/HomeSection.astro';
 import CityHero from '../components/CityHero.svelte';
-import CityPulse from '../components/CityPulse.svelte';
+import CityWowStrip from '../components/CityWowStrip.svelte';
 import MonitorGrid from '../components/MonitorGrid.astro';
 import TrustStrip from '../components/TrustStrip.astro';
 import OrnamentBand from '../components/OrnamentBand.astro';
@@ -59,8 +60,11 @@ const TOOLS: Array<{
   <!-- 1. Hero: city-first. Defaults to Porto Velho, RO until the visitor picks. -->
   <CityHero client:load />
 
-  <!-- 2. Immediate utility: real recent activity for the active city. -->
-  <CityPulse client:load />
+  <!-- 2. Wow strip: big-number magnitude tiles for the active city,
+       computed in-browser from the archived parquet (DuckDB-WASM). Each
+       tile links to /busca?ibge=X — the canonical search view that
+       owns the detailed live list. -->
+  <CityWowStrip client:load />
 
   <OrnamentBand variant="wave" height={36} />
 
@@ -71,15 +75,15 @@ const TOOLS: Array<{
   <TrustStrip />
 
   <!-- 5. Sinal do arquivo: preservation signal backed by sync_stats.json. -->
-  <section class="signal-strip" aria-labelledby="signal-title">
-    <div class="container">
-      <header class="signal-head">
-        <span class="kicker">Sinal do arquivo</span>
-        <h2 id="signal-title">O que Baliza já preservou</h2>
-      </header>
-      <Dashboard client:visible />
-    </div>
-  </section>
+  <HomeSection
+    id="signal-title"
+    kicker="Sinal do arquivo"
+    title="O que Baliza já preservou"
+    tone="surface"
+    divider="bottom"
+  >
+    <Dashboard client:visible />
+  </HomeSection>
 
   <!-- 6. Watchlist: the "Acompanhar" buttons on detail views save to
        localStorage; this island surfaces them so the feature isn't invisible
@@ -87,7 +91,7 @@ const TOOLS: Array<{
   <WatchList client:only="svelte" />
 
   <!-- 7. Utilidades avançadas: compact secondary entry points. Demoted link
-       grid — no second hero, no second search box. -->
+       grid — no second hero. The single search input lives in section 2b. -->
   <section class="tools-strip" aria-labelledby="tools-title">
     <div class="container">
       <header class="tools-head">
@@ -119,28 +123,10 @@ const TOOLS: Array<{
 </Layout>
 
 <style>
-  .signal-strip {
-    padding: var(--space-7) 0;
-    background: var(--neutral-0);
-    border-bottom: 1px solid var(--neutral-100);
-  }
-  .signal-head {
-    max-width: 640px;
-    margin-bottom: var(--space-4);
-    display: grid;
-    gap: var(--space-2);
-  }
-  .signal-head h2 {
-    font-family: var(--font-display);
-    font-weight: 300;
-    font-size: clamp(24px, 2.4vw, 32px);
-    letter-spacing: -0.02em;
-  }
-
   .tools-strip {
     padding: var(--space-8) 0;
-    background: var(--neutral-50);
-    border-top: 1px solid var(--neutral-100);
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-border);
   }
   .tools-head {
     max-width: 640px;
@@ -152,12 +138,13 @@ const TOOLS: Array<{
     font-family: var(--font-display);
     font-weight: 300;
     font-size: clamp(24px, 2.4vw, 32px);
-    letter-spacing: -0.02em;
+    letter-spacing: 0;
   }
   .tools-sub {
-    color: var(--neutral-500);
+    color: var(--color-text-dim);
     font-size: var(--text-md);
     line-height: 1.6;
+    margin: 0;
   }
 
   .tools-grid {
@@ -169,9 +156,12 @@ const TOOLS: Array<{
     gap: var(--space-3);
   }
   .tool-card {
-    background: var(--neutral-0);
-    border: 1px solid var(--neutral-100);
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-left: 5px solid var(--color-azul);
   }
+  .tool-card:nth-child(2n) { border-left-color: var(--color-verde); }
+  .tool-card:nth-child(3n) { border-left-color: var(--color-ouro); }
   .tool-card a {
     display: grid;
     gap: var(--space-1);
@@ -180,24 +170,29 @@ const TOOLS: Array<{
     text-decoration: none;
     height: 100%;
     border-left: 3px solid transparent;
-    transition: border-color var(--duration-fast) var(--ease);
+    transition: background var(--duration-fast) var(--ease), transform var(--duration-fast) var(--ease), box-shadow var(--duration-fast) var(--ease);
   }
   .tool-card a:hover {
-    border-left-color: var(--bulcao-accent);
+    background:
+      linear-gradient(color-mix(in srgb, var(--color-bg) 94%, transparent), color-mix(in srgb, var(--color-bg) 94%, transparent)),
+      linear-gradient(color-mix(in srgb, var(--color-text) 7%, transparent) 1px, transparent 1px),
+      linear-gradient(90deg, color-mix(in srgb, var(--color-text) 7%, transparent) 1px, transparent 1px);
+    background-size: auto, 16px 16px, 16px 16px;
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-pool-sm);
   }
   .tool-card a:focus-visible {
-    border-left-color: var(--bulcao-accent);
-    background: var(--neutral-50);
+    background: color-mix(in srgb, var(--color-azul) 9%, transparent);
   }
   .tool-label {
     font-family: var(--font-display);
     font-weight: 500;
     font-size: var(--text-md);
-    color: var(--bulcao-fg);
+    color: var(--color-text);
   }
   .tool-blurb {
     font-size: var(--text-sm);
     line-height: 1.5;
-    color: var(--neutral-500);
+    color: var(--color-text-dim);
   }
 </style>

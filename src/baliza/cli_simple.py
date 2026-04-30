@@ -39,7 +39,7 @@ from .constants import (
 )
 from .engine import BalizaEngine
 from .extractor import FETCHED_SENTINEL, PNCPExtractor, _validate_resource
-from .ia_uploader import IAUploader, read_manifest_from_ia
+from .ia_uploader import IAUploader, read_manifest_from_ia, restore_from_raw_zip
 from .logging import configure_logging
 from .mirror import _pending_mirror_months, mirror_month
 
@@ -124,6 +124,7 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
     # 2. Fetch manifest once — reused by the pending-months planner and
     # (if enabled) the up-front consolidation catch-up below.
     raw_manifest: list[dict] = []
+    manifest_by_month: dict[str, dict] = {}
     if force_month:
         batch = _forced_month_or_empty(RESOURCE_CONTRATOS, force_month)
         uploaded: set[str] = set()
@@ -132,19 +133,30 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
             try:
                 # manifest dates in monthly strategy are strings "YYYY-MM"
                 raw_manifest = uploader._read_manifest_from_ia()
-                # A month is "done" only when its Parquet is on IA (parquet_url non-empty).
-                # Months that went through `mirror` only have raw_zip_url set — they still
-                # need `build` (or `sync`) to produce the Parquet.
+                # A month is "done" only when its Parquet is on IA AND we have a sha256
+                # to prove the upload was confirmed. parquet_url alone is not sufficient:
+                # old manifest-recovery runs wrote the expected URL before the file existed,
+                # leaving entries that 404 and cause the consolidator to skip the whole year.
                 uploaded = {
                     row["data_particao"]
                     for row in raw_manifest
-                    if row.get("data_particao") and row.get("parquet_url")
+                    if row.get("data_particao")
+                    and row.get("parquet_url")
+                    and row.get("sha256")
+                }
+                # Lookup for raw_zip_url by month — used to skip PNCP fetch
+                # when we already have the ZIP on IA for a past month.
+                manifest_by_month: dict[str, dict] = {
+                    row["data_particao"]: row
+                    for row in raw_manifest
+                    if row.get("data_particao")
                 }
             except Exception as e:
                 console.print(
                     f"[yellow]⚠ Could not read IA manifest (starting fresh): {e}[/yellow]"
                 )
                 uploaded = set()
+                manifest_by_month = {}
 
             start = clamp_to_known_data_start_month(
                 RESOURCE_CONTRATOS, datetime.strptime(start_date, "%Y-%m-%d").date()
@@ -317,6 +329,30 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                                 pass
                             return False
 
+                        # For past months: if the raw ZIP is already on IA,
+                        # restore from it instead of re-fetching from PNCP.
+                        # This must happen BEFORE the sentinel/probe checks below,
+                        # so that an outage in PNCP doesn't block the restore path.
+                        today_month = date.today().replace(day=1)
+                        manifest_row = manifest_by_month.get(month_str, {})
+                        raw_zip_url = manifest_row.get("raw_zip_url", "")
+                        
+                        # A full cache miss can be approximated by lacking page 1
+                        is_full_miss = not _page_is_cached(1)
+
+                        if (
+                            raw_zip_url
+                            and start_of_month < today_month
+                            and is_full_miss
+                        ):
+                            progress.update(
+                                tid,
+                                total=2,
+                                advance=1,
+                                description=f"Month {month_str} [Restoring from IA]",
+                            )
+                            restore_from_raw_zip(raw_zip_url, raw_month_dir)
+
                         # Sentinel optimisation: a prior run wrote .fetched
                         # after fetching all expected pages, so we can read
                         # totalPaginas from the cached page 1 and skip the
@@ -407,21 +443,23 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                                 pages_total=total_pages,
                                 pages_to_fetch=len(missing_pages),
                             )
-                            progress.update(
-                                tid,
-                                total=len(missing_pages) + 2,
-                                advance=1,
-                                description=f"Month {month_str} [Pages 0/{len(missing_pages)}]",
-                            )
-                            for i, p in enumerate(missing_pages, start=1):
+
+                            if missing_pages:
                                 progress.update(
                                     tid,
-                                    description=f"Month {month_str} [Pages {i}/{len(missing_pages)}]",
+                                    total=len(missing_pages) + 2,
+                                    advance=1,
+                                    description=f"Month {month_str} [Pages 0/{len(missing_pages)}]",
                                 )
-                                extractor.fetch_page(
-                                    RESOURCE_CONTRATOS, month_start_dt, month_end_dt, p
-                                )
-                                progress.update(tid, advance=1)
+                                for i, p in enumerate(missing_pages, start=1):
+                                    progress.update(
+                                        tid,
+                                        description=f"Month {month_str} [Pages {i}/{len(missing_pages)}]",
+                                    )
+                                    extractor.fetch_page(
+                                        RESOURCE_CONTRATOS, month_start_dt, month_end_dt, p
+                                    )
+                                    progress.update(tid, advance=1)
 
                         # All expected pages are now on disk — write the
                         # sentinel so the next run can skip probe_range.
@@ -429,6 +467,23 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                         # directory on success, taking this with it.
                         raw_month_dir.mkdir(parents=True, exist_ok=True)
                         sentinel.touch()
+
+                        # 3b. Upload raw ZIP to baliza-pncp-raw before ingest.
+                        # keep_raw_dir=True so pages stay on disk for ingest_range.
+                        if not dry_run and ia_access_key and ia_secret_key:
+                            progress.update(tid, description=f"Month {month_str} [Raw ZIP]")
+                            try:
+                                uploader.upload_raw_zip(
+                                    start_of_month,
+                                    raw_month_dir,
+                                    ia_access_key,
+                                    ia_secret_key,
+                                    keep_raw_dir=True,
+                                )
+                            except Exception as e:
+                                progress.console.log(
+                                    f"[yellow]⚠ Raw ZIP upload failed for {month_str}: {e}[/yellow]"
+                                )
 
                         # 4. Ingest
                         progress.update(tid, description=f"Month {month_str} [Ingesting]")
@@ -444,7 +499,10 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                         if not dry_run:
                             progress.update(tid, description=f"Month {month_str} [Uploading]")
                             if ia_access_key and ia_secret_key:
-                                uploader.upload_month(
+                                # Use thread_engine so export reads from the same
+                                # in-memory DB that ingest_range just populated.
+                                thread_uploader = IAUploader(thread_engine)
+                                thread_uploader.upload_month(
                                     start_of_month, Path("data/processed"), ia_access_key, ia_secret_key,
                                     quarantine_stats=stats, quarantine_csv=q_csv if has_q else None
                                 )
