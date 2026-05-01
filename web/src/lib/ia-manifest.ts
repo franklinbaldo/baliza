@@ -1,6 +1,7 @@
 import Papa from 'papaparse';
 import { z } from 'zod';
 import type { ArchivedTable } from './archive/schema';
+import { FRONTEND_EXPOSURES } from './generated/frontend_exposures';
 
 export const IA_MANIFEST_URL =
   'https://archive.org/cors/baliza-pncp-manifest/manifest.csv';
@@ -86,8 +87,14 @@ export async function fetchManifestRows(): Promise<ManifestRow[]> {
 
 // Treat rows without an explicit file_type as canonical (backward compat with
 // v1 manifests that lacked the column).
+// It now also respects FrontendExposureSpec.is_canonical if defined.
 function isCanonicalRow(r: ManifestRow): boolean {
-  return !r.file_type || r.file_type === 'monthly_canonical';
+  const isV1Canonical = !r.file_type || r.file_type === 'monthly_canonical';
+  const spec = FRONTEND_EXPOSURES.find((e) => e.table_alias === r.table_name);
+  if (spec) {
+    return isV1Canonical && spec.is_canonical;
+  }
+  return isV1Canonical;
 }
 
 export async function getLatestParquetInfo(

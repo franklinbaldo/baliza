@@ -123,7 +123,7 @@ def test_manifest_fields_are_fixed(mock_write, mock_read):
     assert row["data_particao"] == "2024-01"
 
 
-# 4. Frontend schema.ts exactly matches hardcoded string array
+# 4. Frontend schema.ts exactly matches hardcoded string array + dynamic exposures
 def test_frontend_archived_tables_includes_contratos():
     schema_path = Path("web/src/lib/archive/schema.ts")
     content = schema_path.read_text()
@@ -133,10 +133,12 @@ def test_frontend_archived_tables_includes_contratos():
     assert match is not None, "Could not find ARCHIVED_TABLES array in schema.ts"
 
     array_content = match.group(1)
-    tables = [t.strip().strip("'") for t in array_content.split(",") if t.strip()]
 
-    # Verify exact set of tables
-    assert set(tables) == {"contratos", "orgaos", "unidades", "fornecedores"}
+    # We now expect dynamic mapping + static fallback tables
+    assert "...FRONTEND_EXPOSURES.map((e) => e.table_alias)" in array_content
+    assert "'orgaos'" in array_content
+    assert "'unidades'" in array_content
+    assert "'fornecedores'" in array_content
 
 
 # 5. build-data.mjs uses real manifest loading (no hardcoded stub)

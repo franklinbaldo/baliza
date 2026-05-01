@@ -108,11 +108,13 @@ export interface ArchivedFornecedor {
   valor_total_no_dia: number | null;
 }
 
+import { FRONTEND_EXPOSURES } from '../generated/frontend_exposures';
+
 // Closed set of tables served by the archive layer. New tables require a
 // schema interface above AND an entry here — we never accept caller-supplied
 // table names through a regex match.
 export const ARCHIVED_TABLES = [
-  'contratos',
+  ...FRONTEND_EXPOSURES.map((e) => e.table_alias),
   'orgaos',
   'unidades',
   'fornecedores',
