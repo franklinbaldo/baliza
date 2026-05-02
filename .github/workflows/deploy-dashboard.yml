@@ -27,7 +27,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Download dashboard artifact
-        uses: dawidd6/action-download-artifact@v6
+        uses: dawidd6/action-download-artifact@v21
         continue-on-error: true
         with:
           name: dashboard
