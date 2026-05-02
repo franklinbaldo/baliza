@@ -1,5 +1,10 @@
 import fs from 'fs';
 import path from 'path';
+<<<<<<< HEAD
+=======
+import os from 'os';
+import { execSync } from 'child_process';
+>>>>>>> origin/main
 import duckdb from 'duckdb';
 import { parse } from 'csv-parse/sync';
 
@@ -96,6 +101,9 @@ async function ensureHttpfs() {
 }
 
 async function build() {
+  console.log("Generating frontend config...");
+  execSync('python3 scripts/build_frontend_config.py', { stdio: 'inherit', cwd: '..' });
+
   if (!fs.existsSync(QUERIES_DIR)) fs.mkdirSync(QUERIES_DIR, { recursive: true });
   await loadManifest();
   await ensureHttpfs();

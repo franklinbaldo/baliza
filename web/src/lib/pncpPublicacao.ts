@@ -172,7 +172,6 @@ export const MAX_DISPENSA_PAGES = 5;
 const DISPENSA_SINCE_DAYS = 365;
 
 
-
 // Free-text search across the DEFAULT_MODALIDADES (covers ~95% of municipal
 // procurement). PNCP has no server-side `objeto` filter, so we paginate each
 // modality up to MAX_BUSCA_PAGES and narrow client-side. Six modalities × 3
@@ -192,9 +191,9 @@ export async function fetchPublicacaoPagesForObjeto(
   } = {},
 ): Promise<PNCPContract[]> {
   const term = objeto.trim().toLowerCase();
-  // Allow empty term if we have any filter, otherwise return empty.
+  const termWords = term.split(/\s+/).filter((w) => w.length > 0);
   const hasFilter = !!opts.filters && Object.values(opts.filters).some((v) => !!v);
-  if (!term && !hasFilter) return [];
+  if (!termWords.length && !hasFilter) return [];
   const {
     maxPages = MAX_BUSCA_PAGES,
     sinceDays = BUSCA_SINCE_DAYS,
@@ -225,8 +224,6 @@ export async function fetchPublicacaoPagesForObjeto(
     }
   }
 
-  // allSettled so one modality/page failure doesn't nuke the whole search;
-  // only rethrow if every request failed so the caller sees a clean error.
   const settled = await Promise.allSettled(fetches);
   const ok = settled.filter(
     (r): r is PromiseFulfilledResult<PNCPContract[]> => r.status === 'fulfilled',
@@ -238,9 +235,9 @@ export async function fetchPublicacaoPagesForObjeto(
   const collected = new Map<string, PNCPContract>();
   for (const r of ok) {
     for (const c of r.value) {
-      if (term) {
+      if (termWords.length > 0) {
         const objetoLower = (c.objetoContratacao ?? '').toLowerCase();
-        if (!objetoLower.includes(term)) continue;
+        if (!termWords.every((w) => objetoLower.includes(w))) continue;
       }
       if (c.numeroControlePNCP && !collected.has(c.numeroControlePNCP)) {
         collected.set(c.numeroControlePNCP, c);
@@ -259,7 +256,8 @@ export async function fetchDispensaPagesForObjeto(
   opts: { maxPages?: number; sinceDays?: number; now?: Date; filters?: PublicacaoFilters } = {},
 ): Promise<PNCPContract[]> {
   const term = objeto.trim().toLowerCase();
-  if (!term && !opts.filters?.cnpj && !opts.filters?.codigoMunicipioIbge) return [];
+  const termWords = term.split(/\s+/).filter((w) => w.length > 0);
+  if (!termWords.length && !opts.filters?.cnpj && !opts.filters?.codigoMunicipioIbge) return [];
   const { maxPages = MAX_DISPENSA_PAGES, sinceDays = DISPENSA_SINCE_DAYS, now = new Date() } = opts;
 
   const end = new Date(now);
@@ -280,9 +278,9 @@ export async function fetchDispensaPagesForObjeto(
     const page = parsePncpPublicacaoList(await res.json());
     if (!page.length) break;
     for (const c of page) {
-      if (term) {
+      if (termWords.length > 0) {
         const objetoLower = (c.objetoContratacao ?? '').toLowerCase();
-        if (!objetoLower.includes(term)) continue;
+        if (!termWords.every((w) => objetoLower.includes(w))) continue;
       }
       if (c.numeroControlePNCP && !collected.has(c.numeroControlePNCP)) {
         collected.set(c.numeroControlePNCP, c);
