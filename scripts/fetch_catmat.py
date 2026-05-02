@@ -29,11 +29,12 @@ Refresh workflow:
 Detect upstream changes via the page RSS:
   https://www.gov.br/compras/pt-br/acesso-a-informacao/consulta-detalhada/planilha-catmat-catser/RSS
 """
+
 from __future__ import annotations
 
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 
@@ -150,7 +151,7 @@ def main() -> int:
     OUT_META.write_text(
         json.dumps(
             {
-                "fetched_at": datetime.now(timezone.utc).isoformat(),
+                "fetched_at": datetime.now(UTC).isoformat(),
                 "sources": {
                     "catmat": {"url": CATMAT_URL, "etag": catmat_etag},
                     "catser": {"url": CATSER_URL, "etag": catser_etag},

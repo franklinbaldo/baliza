@@ -19,7 +19,7 @@ import internetarchive as ia
 from rich.console import Console
 
 from .ia_uploader import read_manifest_from_ia, register_monthly_uf_shards
-from .pncp_resources import CONTRATOS
+from .resources import CONTRATOS
 from .utils import DUCKDB_PARQUET_COPY_OPTIONS
 
 CONSOLIDATED_IA_ITEM = "baliza-pncp-consolidated"
@@ -108,9 +108,7 @@ class IAConsolidator:
         """
         return read_manifest_from_ia()
 
-    def _get_daily_urls_for_year(
-        self, year: int, manifest: list[dict] | None = None
-    ) -> list[str]:
+    def _get_daily_urls_for_year(self, year: int, manifest: list[dict] | None = None) -> list[str]:
         """Read the manifest.csv on IA and get all daily contratos file URLs for the year.
 
         Propagates ``ManifestReadError`` on transient failures so we never
@@ -179,9 +177,7 @@ class IAConsolidator:
             if shared_manifest is None:
                 shared_manifest = self._read_manifest()
             if _current_year_is_fresh(shared_manifest, year):
-                console.print(
-                    f"[dim]Skipping {year}: consolidated shards are up to date.[/dim]"
-                )
+                console.print(f"[dim]Skipping {year}: consolidated shards are up to date.[/dim]")
                 return False
 
         console.print(f"[cyan]Consolidating {year}...[/cyan]")
@@ -225,18 +221,14 @@ class IAConsolidator:
                     raise
 
                 size_mb = output_path.stat().st_size / 1_048_576
-                console.print(
-                    f"  Written {filename} ({size_mb:.1f} MB). Uploading to IA..."
-                )
+                console.print(f"  Written {filename} ({size_mb:.1f} MB). Uploading to IA...")
 
                 files_to_upload = {filename: str(output_path)}
 
                 # 2a. Per-UF shards (current year only; past years stay single-file).
                 shards: list[dict] = []
                 if is_current_year:
-                    shards = self._build_per_uf_shards(
-                        con, output_path, year, Path(tmpdir)
-                    )
+                    shards = self._build_per_uf_shards(con, output_path, year, Path(tmpdir))
                     for s in shards:
                         files_to_upload[s["filename"]] = str(s["path"])
                     console.print(f"  Built {len(shards)} per-UF shards.")
@@ -340,9 +332,7 @@ class IAConsolidator:
                 """,
                 [uf],
             )
-            count_row = con.execute(
-                f"SELECT COUNT(*) FROM read_parquet('{shard_path}')"
-            ).fetchone()
+            count_row = con.execute(f"SELECT COUNT(*) FROM read_parquet('{shard_path}')").fetchone()
             row_count = count_row[0] if count_row else 0
             sha256 = hashlib.sha256(shard_path.read_bytes()).hexdigest()
             shards.append(
@@ -433,9 +423,7 @@ class IAConsolidator:
         files_to_upload: dict[str, str] = {}
         for filename, sql in specs:
             dim_path = dim_dir / filename
-            con.execute(
-                f"COPY ({sql}) TO '{dim_path}' ({DUCKDB_PARQUET_COPY_OPTIONS})"
-            )
+            con.execute(f"COPY ({sql}) TO '{dim_path}' ({DUCKDB_PARQUET_COPY_OPTIONS})")
             files_to_upload[filename] = str(dim_path)
 
         ia.upload(
@@ -450,9 +438,7 @@ class IAConsolidator:
             },
             retries=3,
         )
-        console.print(
-            f"  Rebuilt {len(files_to_upload)} cumulative dimension files."
-        )
+        console.print(f"  Rebuilt {len(files_to_upload)} cumulative dimension files.")
 
     def consolidate_all(
         self,

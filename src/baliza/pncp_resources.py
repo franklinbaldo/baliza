@@ -39,6 +39,7 @@ class PNCPResource:
     frontend_exposures: list[FrontendExposureSpec] = field(default_factory=list)
 
 
+
 CONTRATOS = PNCPResource(
     name="contratos",
     fetch=FetchSpec(

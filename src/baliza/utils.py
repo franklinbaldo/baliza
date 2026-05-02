@@ -363,7 +363,6 @@ def validate_resource_path(path: str, max_length: int = 255) -> str:
     return path
 
 
-
 def scrub_url_params(text: str) -> str:
     """Mask credentials and query parameters in URLs found in text to prevent logging secrets.
 

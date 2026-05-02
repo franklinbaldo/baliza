@@ -1,8 +1,12 @@
 import fs from 'fs';
 import path from 'path';
+<<<<<<< HEAD
+=======
 import os from 'os';
 import { execSync } from 'child_process';
+>>>>>>> origin/main
 import duckdb from 'duckdb';
+import { parse } from 'csv-parse/sync';
 
 const QUERIES_DIR = path.resolve('./src/queries');
 const DATA_DIR = path.resolve('./public/data');
@@ -42,21 +46,48 @@ function processQmd(filePath) {
 const IA_MANIFEST_CSV_URL = process.env.IA_MANIFEST_CSV_URL ?? 'https://archive.org/download/baliza-pncp-manifest/manifest.csv';
 
 async function loadManifest() {
-  const csvPath = process.env.BALIZA_MANIFEST_FIXTURE ?? IA_MANIFEST_CSV_URL;
-  let filePath = csvPath;
+  const csvPath = process.env.BALIZA_MANIFEST_FIXTURE || IA_MANIFEST_CSV_URL;
+  let csvText;
+
   if (csvPath.startsWith('http')) {
     const resp = await fetch(csvPath);
     if (!resp.ok) throw new Error(`manifest fetch failed: ${resp.status} ${resp.url}`);
-    const csv = await resp.text();
-    filePath = path.join(os.tmpdir(), 'baliza-manifest.csv');
-    fs.writeFileSync(filePath, csv, 'utf-8');
+    csvText = await resp.text();
+  } else {
+    csvText = fs.readFileSync(csvPath, 'utf-8');
   }
-  await new Promise((resolve, reject) =>
-    db.run(
-      `CREATE TABLE manifest AS SELECT * FROM read_csv_auto('${filePath}', header=true)`,
-      (err) => (err ? reject(err) : resolve()),
-    ),
-  );
+
+  const rawRows = parse(csvText, { columns: false, skip_empty_lines: true });
+  const columns = rawRows.length > 0 ? rawRows[0] : [];
+  const dataRows = rawRows.slice(1);
+
+  const tableDef = columns.length > 0
+    ? columns.map(c => `"${c}" VARCHAR`).join(', ')
+    : 'data_particao VARCHAR, table_name VARCHAR, parquet_url VARCHAR';
+
+  await new Promise((resolve, reject) => {
+    db.run(`CREATE TABLE manifest (${tableDef})`, (err) => {
+      if (err) { reject(err); } else { resolve(); }
+    });
+  });
+
+  if (dataRows.length === 0) return;
+
+  const stmt = db.prepare(`INSERT INTO manifest VALUES (${columns.map(() => '?').join(', ')})`);
+
+  for (const row of dataRows) {
+    await new Promise((resolve, reject) => {
+      stmt.run(...row, (err) => {
+        if (err) { reject(err); } else { resolve(); }
+      });
+    });
+  }
+
+  await new Promise((resolve, reject) => {
+    stmt.finalize((err) => {
+      if (err) { reject(err); } else { resolve(); }
+    });
+  });
 }
 
 async function ensureHttpfs() {
@@ -64,7 +95,7 @@ async function ensureHttpfs() {
   await new Promise((resolve, reject) =>
     db.run('LOAD httpfs;', (err) => {
       if (!err) return resolve();
-      db.run('INSTALL httpfs; LOAD httpfs;', (e2) => (e2 ? reject(e2) : resolve()));
+      db.run('INSTALL httpfs; LOAD httpfs;', (e2) => { if (e2) { reject(e2); } else { resolve(); } });
     }),
   );
 }

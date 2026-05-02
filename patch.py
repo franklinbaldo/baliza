@@ -1,13 +1,13 @@
 import re
 
-with open('web/src/components/ContractDetailView.svelte', 'r') as f:
+with open("web/src/components/ContractDetailView.svelte") as f:
     content = f.read()
 
 # Add EntityDetailLayout import and remove EntityNotFound/AlertBanner
 content = re.sub(
     r"import EntityNotFound from './EntityNotFound.svelte';\n  import AlertBanner from './AlertBanner.svelte';",
     "import EntityDetailLayout from './EntityDetailLayout.svelte';",
-    content
+    content,
 )
 
 search_block = """<div class="contract-view container">
@@ -234,5 +234,5 @@ css_media_replace = """  @media (max-width: 720px) {
     }"""
 content = content.replace(css_media_search, css_media_replace)
 
-with open('web/src/components/ContractDetailView.svelte', 'w') as f:
+with open("web/src/components/ContractDetailView.svelte", "w") as f:
     f.write(content)

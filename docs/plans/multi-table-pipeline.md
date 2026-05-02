@@ -1,8 +1,8 @@
 # Plano: Ontologia de pipeline multi-recurso PNCP
 
-**Status:** v3 — redesign conceitual: PNCPResource como abstração raiz
-**Escopo:** refatoração do pipeline Python + uploader + frontend para suportar múltiplos recursos PNCP sem misturar camadas
-**Estimativa:** 3–4 semanas (8 PRs incrementais)
+**Status:** v3 — redesign conceitual: PNCPResource como abstração raiz  
+**Escopo:** refatoração do pipeline Python + uploader + frontend para suportar múltiplos recursos PNCP sem misturar camadas  
+**Estimativa:** 3–4 semanas (8 PRs incrementais)  
 **Dependentes:** `docs/plans/pca-catmat-pipeline.md` e qualquer endpoint PNCP futuro (`/atas`, `/empenhos`, `/instrumentoscobranca`)
 
 ---

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from .pncp_resources import CONTRATOS
+from .resources import CONTRATOS
 
 RESOURCE_CONTRATOS = CONTRATOS.name
 

@@ -91,7 +91,7 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
         Dict with keys: ``month``, ``pages_fetched``, ``pages_cached``, ``uploaded``.
     """
     if is_current_month is None:
-        is_current_month = (start_of_month == date.today().replace(day=1))
+        is_current_month = start_of_month == date.today().replace(day=1)
     _validate_resource(RESOURCE_CONTRATOS)
 
     month_str = start_of_month.strftime("%Y-%m")
@@ -176,9 +176,7 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
         # further before a new page opens. Always invalidate it so it gets
         # re-fetched with the latest data.
         if is_current_month:
-            cached_page_nums = [
-                p for p in range(1, total_pages + 1) if _page_is_cached(p)
-            ]
+            cached_page_nums = [p for p in range(1, total_pages + 1) if _page_is_cached(p)]
             if cached_page_nums:
                 last_cached = max(cached_page_nums)
                 last_cached_path = raw_month_dir / f"contratos_p{last_cached}.json"

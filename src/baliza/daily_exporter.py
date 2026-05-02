@@ -19,7 +19,7 @@ import duckdb
 import pyarrow as pa
 from rich.console import Console
 
-from .pncp_resources import CONTRATOS
+from .resources import CONTRATOS
 from .utils import PARQUET_ROW_GROUP_SIZE, validate_identifier, write_optimized_parquet
 
 console = Console()
@@ -297,9 +297,7 @@ class DailyExporter:
         ).to_arrow_reader(batch_size=PARQUET_ROW_GROUP_SIZE)
 
         output_path = output_dir / "orgaos.parquet"
-        file_size, row_count = write_optimized_parquet(
-            reader, output_path, ORGAOS_SCHEMA, "orgaos"
-        )
+        file_size, row_count = write_optimized_parquet(reader, output_path, ORGAOS_SCHEMA, "orgaos")
         return {"row_count": row_count, "file_size_bytes": file_size}
 
     def _export_unidades(
@@ -366,4 +364,3 @@ class DailyExporter:
             reader, output_path, FORNECEDORES_SCHEMA, "fornecedores"
         )
         return {"row_count": row_count, "file_size_bytes": file_size}
-

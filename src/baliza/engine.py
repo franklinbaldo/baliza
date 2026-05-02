@@ -34,7 +34,7 @@ class BalizaEngine:
         self._ensure_schema("main")
         self._ensure_schema("baliza_state")
 
-    def connect_thread_safe(self) -> 'BalizaEngine':
+    def connect_thread_safe(self) -> "BalizaEngine":
         """Return a new engine instance sharing the same database path but with a fresh connection."""
         return BalizaEngine(db_path=self.path)
 
@@ -95,8 +95,8 @@ class BalizaEngine:
             # PURE IBIS UPSERT:
             # 1. Get existing table
             t_existing = self.con.table(table_name, database=schema)
-            
-            # 2. ALIGN SCHEMAS: Force new data to match existing DB schema exactly 
+
+            # 2. ALIGN SCHEMAS: Force new data to match existing DB schema exactly
             # (resolves DuckDB timestamp vs timestamp(6) conflicts)
             try:
                 t_new = t_new.cast(t_existing.schema())
@@ -119,10 +119,10 @@ class BalizaEngine:
         """DEPRECATED: Use upsert_rows instead. Ingest a JSONL file."""
         if not Path(json_path).exists():
             return 0
-        
+
         # Load as Ibis table
         t = self.con.read_json(str(json_path))
-        
+
         # Call upsert_rows to ensure idempotency even for JSONL ingestion
         # (This is more consistent than just calling self.con.insert)
         data = t.execute().to_dict("records")
