@@ -1,6 +1,5 @@
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
 import { execSync } from 'child_process';
 import duckdb from 'duckdb';
 import { parse } from 'csv-parse/sync';
