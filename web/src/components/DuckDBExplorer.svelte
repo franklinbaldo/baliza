@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { getDuckDB } from '../lib/duckdb';
-  import { FEATURED_QUERIES } from '../lib/homepage-content';
+  import { HOMEPAGE_SQL_EXAMPLES } from '../lib/homepage-content';
   import { getLatestParquetUrl } from '../lib/ia-manifest';
   import { SCHEMA_MAP } from '../lib/explorerSchema';
   import { ARCHIVED_TABLES, type ArchivedTable } from '../lib/archive/schema';
@@ -23,7 +23,7 @@
   let expanded = $state<Record<string, boolean>>({ contratos: true });
 
   const featuredQueries = $derived(
-    FEATURED_QUERIES.map((fq) => ({
+    HOMEPAGE_SQL_EXAMPLES.map((fq) => ({
       ...fq,
       sql: resolvedParquetUrl
         ? fq.sql.replaceAll(

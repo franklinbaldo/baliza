@@ -15,6 +15,7 @@ import httpx
 import internetarchive as ia
 from rich.console import Console
 
+from . import rss_feed
 from .engine import BalizaEngine
 from .resources import CONTRATOS
 from .utils import DUCKDB_PARQUET_COPY_OPTIONS, PARQUET_ROW_GROUP_SIZE
@@ -72,6 +73,21 @@ _CONTRATOS_BLOOM_FILTER_COLUMNS = (
 
 MANIFEST_ITEM_ID = "baliza-pncp-manifest"
 RAW_ITEM_ID = "baliza-pncp-raw"
+FEEDS_ITEM_ID = "baliza-pncp-feeds"
+FEEDS_ITEM_METADATA = {
+    "title": "Baliza PNCP — Curated RSS feeds",
+    "description": (
+        "RSS 2.0 feeds for curated public-watch slugs (see "
+        "src/baliza/rss_feed.py:CURATED_WATCHES). Rebuilt by the daily "
+        "sync workflow alongside the monthly Parquet."
+    ),
+    "mediatype": "data",
+    "collection": "opensource_media",
+    "subject": ["PNCP", "RSS", "alertas", "Brasil", "open data"],
+    "creator": "Baliza",
+    "language": "pt",
+}
+FEEDS_PER_FEED_LIMIT = 50
 RAW_ITEM_METADATA = {
     "title": "Baliza PNCP — Raw JSON Mirror (all months)",
     "description": (
@@ -553,6 +569,70 @@ class IAUploader:
 
         return success
 
+    def upload_feeds(self, ia_access_key: str, ia_secret_key: str) -> list[str]:
+        """Build and upload feed-{slug}.xml for each curated watch.
+
+        Returns the list of slugs that were successfully published. Per-feed
+        failures are logged but do not abort the rest — RSS publication is
+        best-effort and must not block the parquet sync that already succeeded
+        by the time this runs.
+        """
+        if self.engine is None:
+            raise RuntimeError("upload_feeds requires an engine — construct IAUploader(engine=...)")
+
+        published: list[str] = []
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp = Path(tmp_dir)
+            files_to_upload: dict[str, str] = {}
+            for watch in rss_feed.CURATED_WATCHES:
+                slug = watch["slug"]
+                title = watch["title"]
+                where = watch.get("where", "1=1")
+                # Alias to the snake_case names rss_feed.generate accepts
+                # — the canonical contratos schema exposes the contract
+                # object as `objeto_contrato` (no -cao), so we project it
+                # under the expected key here rather than teaching the RSS
+                # generator about every column-name dialect.
+                sql = (
+                    "SELECT "
+                    "numero_controle_pncp, "
+                    "data_publicacao_pncp, "
+                    "objeto_contrato AS objeto_contratacao "
+                    f"FROM main.{CONTRATOS.name} "
+                    f"WHERE {where} "
+                    "ORDER BY data_publicacao_pncp DESC "
+                    f"LIMIT {FEEDS_PER_FEED_LIMIT}"
+                )
+                try:
+                    cursor = self.engine.con.raw_sql(sql)
+                    raw_rows = cursor.fetchall()
+                    columns = [d[0] for d in cursor.description]
+                    rows = [dict(zip(columns, r, strict=True)) for r in raw_rows]
+                    xml = rss_feed.generate(rows, slug, title)
+                    out = tmp / f"feed-{slug}.xml"
+                    out.write_text(xml, encoding="utf-8")
+                    files_to_upload[out.name] = str(out)
+                    published.append(slug)
+                except Exception as e:
+                    console.print(f"[yellow]⚠ feed {slug}: {e}[/yellow]")
+
+            if not files_to_upload:
+                console.print("[yellow]⚠ No curated feeds produced[/yellow]")
+                return published
+
+            console.print(
+                f"  Uploading {len(files_to_upload)} feed(s) to {FEEDS_ITEM_ID}..."
+            )
+            ia.upload(
+                FEEDS_ITEM_ID,
+                files=files_to_upload,
+                access_key=ia_access_key,
+                secret_key=ia_secret_key,
+                metadata=FEEDS_ITEM_METADATA,
+                retries=3,
+            )
+        return published
+
     def upload_month(  # noqa: PLR0913
         self,
         start_date: date,
@@ -631,6 +711,15 @@ class IAUploader:
                 # We do NOT cleanup if manifest update failed, to allow retry
 
             # 6. AUTOMATED CLEANUP (Only on success)
+            #
+            # Note on RSS feeds: feed publication is intentionally NOT triggered
+            # here. The sync flow (cli_simple.process_month_full) processes
+            # months in parallel, each thread holding its own in-memory engine
+            # populated only with that month's rows. Calling upload_feeds inside
+            # upload_month would race per-feed XML uploads and let whichever
+            # month finishes last overwrite the others with partial data. Feed
+            # publication must be a separate, post-sync step that runs once
+            # against an engine guaranteed to hold the full snapshot.
             if success:
                 if raw_dir.exists():
                     shutil.rmtree(raw_dir)

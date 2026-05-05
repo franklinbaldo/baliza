@@ -6,7 +6,7 @@ import { render } from './shared';
 import * as duckdbModule from '../../lib/duckdb';
 import * as iaManifestModule from '../../lib/ia-manifest';
 import DuckDBExplorerRaw from '../DuckDBExplorer.svelte';
-import { FEATURED_QUERIES } from '../../lib/homepage-content';
+import { HOMEPAGE_SQL_EXAMPLES } from '../../lib/homepage-content';
 
 const DuckDBExplorer = DuckDBExplorerRaw as unknown as Parameters<typeof render>[0];
 const feature = await loadFeature('features/duckdb-explorer.feature');
@@ -16,7 +16,7 @@ function getTextarea(): HTMLTextAreaElement {
 }
 
 function chipThatNeedsIaUrl() {
-  const fq = FEATURED_QUERIES.find((q) => q.sql.includes("'IA_URL'"));
+  const fq = HOMEPAGE_SQL_EXAMPLES.find((q) => q.sql.includes("'IA_URL'"));
   if (!fq) throw new Error('No featured query with IA_URL placeholder');
   return fq;
 }
@@ -51,7 +51,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     let picked: { label: string; sql: string } | null = null;
 
     When('the user clicks a featured query chip', async () => {
-      picked = FEATURED_QUERIES[0];
+      picked = HOMEPAGE_SQL_EXAMPLES[0];
       await fireEvent.click(screen.getByText(picked.label));
       await tick();
     });
@@ -142,7 +142,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       });
 
       When('the user clicks a featured query chip', async () => {
-        const fq = FEATURED_QUERIES.find((q) => q.sql.includes("'IA_URL'"));
+        const fq = HOMEPAGE_SQL_EXAMPLES.find((q) => q.sql.includes("'IA_URL'"));
         if (!fq) throw new Error('No featured query contains IA_URL');
         await waitFor(() => screen.getByText(fq.label));
         await fireEvent.click(screen.getByText(fq.label));
@@ -181,7 +181,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       });
 
       When('the user clicks a featured query chip', async () => {
-        const fq = FEATURED_QUERIES.find((q) => q.sql.includes("'IA_URL'"));
+        const fq = HOMEPAGE_SQL_EXAMPLES.find((q) => q.sql.includes("'IA_URL'"));
         if (!fq) throw new Error('No featured query contains IA_URL');
         await waitFor(() => screen.getByText(fq.label));
         await fireEvent.click(screen.getByText(fq.label));
@@ -229,7 +229,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       And(
         'the user clicked a featured query chip before the manifest resolved',
         async () => {
-          const fq = FEATURED_QUERIES.find((q) => q.sql.includes("'IA_URL'"));
+          const fq = HOMEPAGE_SQL_EXAMPLES.find((q) => q.sql.includes("'IA_URL'"));
           if (!fq) throw new Error('No featured query contains IA_URL');
           await fireEvent.click(screen.getByText(fq.label));
           await tick();

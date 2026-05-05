@@ -1,0 +1,13 @@
+---
+import Layout from '../layouts/Layout.astro';
+import WatchDetailView from '../components/WatchDetailView.svelte';
+
+const id = Astro.url.searchParams.get('id') ?? '';
+---
+
+<Layout
+  title="Vigilância"
+  description="Acompanhe as novidades de uma vigilância salva neste navegador."
+>
+  <WatchDetailView client:only="svelte" id={id} />
+</Layout>

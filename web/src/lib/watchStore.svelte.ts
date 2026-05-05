@@ -7,6 +7,7 @@ export interface WatchEntry {
   filter: string;
   label: string;
   createdAt: string;
+  lastVisited?: string;
 }
 
 const STORAGE_KEY = 'baliza-watches';
@@ -72,4 +73,20 @@ export function removeWatch(id: string) {
 
 export function isWatched(type: WatchType, filter: string): boolean {
   return watchState.entries.some(w => w.type === type && w.filter === filter);
+}
+
+// Stamps `lastVisited = now` on the matching entry and returns the
+// PREVIOUS value (or undefined on first visit). Callers that need to
+// compute a diff should capture the return value before rendering, since
+// the new write is what we just stored — using the post-write timestamp as
+// the cutoff would always yield zero new matches.
+export function markVisited(id: string): string | undefined {
+  hydrateWatches();
+  const entry = watchState.entries.find(w => w.id === id);
+  if (!entry) return undefined;
+  const previous = entry.lastVisited;
+  const next: WatchEntry = { ...entry, lastVisited: new SvelteDate().toISOString() };
+  watchState.entries = watchState.entries.map(w => (w.id === id ? next : w));
+  writeStorage(watchState.entries);
+  return previous;
 }

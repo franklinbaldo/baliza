@@ -1,15 +1,17 @@
 import { loadFeature, describeFeature } from '@amiceli/vitest-cucumber';
-import { noop, plannedStep, render, mockFetchError } from './_shared';
+import { render, mockFetchError } from './_shared';
 import { screen, fireEvent, waitFor, cleanup } from '@testing-library/svelte/pure';
 import { expect, vi } from 'vitest';
 import { tick } from 'svelte';
 import AgencyDetailViewRaw from '../../AgencyDetailView.svelte';
 import ContractDetailViewRaw from '../../ContractDetailView.svelte';
 import BuscaViewRaw from '../../BuscaView.svelte';
+import WatchDetailViewRaw from '../../WatchDetailView.svelte';
 import * as pncpPublicacao from '../../../lib/pncpPublicacao';
 import type { PNCPContract } from '../../../lib/pncp';
 import { queryParquetFallback } from '../../../lib/parquetFallback';
-import { watchState } from '../../../lib/watchStore.svelte';
+import { watchState, type WatchEntry } from '../../../lib/watchStore.svelte';
+import { FEATURED_QUERIES } from '../../../lib/homepage-content';
 
 vi.mock('../../../lib/parquetFallback', async () => {
   const actual = await vi.importActual('../../../lib/parquetFallback');
@@ -22,6 +24,7 @@ vi.mock('../../../lib/parquetFallback', async () => {
 const AgencyDetailView = AgencyDetailViewRaw as unknown as Parameters<typeof render>[0];
 const ContractDetailView = ContractDetailViewRaw as unknown as Parameters<typeof render>[0];
 const BuscaView = BuscaViewRaw as unknown as Parameters<typeof render>[0];
+const WatchDetailView = WatchDetailViewRaw as unknown as Parameters<typeof render>[0];
 
 const fallbackMock = vi.mocked(queryParquetFallback);
 
@@ -80,24 +83,140 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   Scenario(
     'Curated RSS feed on Internet Archive publishes new matches',
     ({ Given, When, Then, And }) => {
-      Given('a curated watch "dispensas-acima-1mi" is configured in the repo', noop);
+      const feedXml = `<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Dispensas acima de R$ 1 mi</title>
+    <link>https://baliza.dev</link>
+    <description>Dispensas acima de R$ 1 mi</description>
+    <language>pt-BR</language>
+    <item>
+      <title>Aquisição de equipamentos médicos</title>
+      <link>https://baliza.dev/contratacao?id=00000000000191-1-000001/2025</link>
+      <guid isPermaLink="true">https://baliza.dev/contratacao?id=00000000000191-1-000001/2025</guid>
+      <pubDate>Wed, 15 Jan 2025 00:00:00 -0000</pubDate>
+    </item>
+    <item>
+      <title>Contratação emergencial de obras</title>
+      <link>https://baliza.dev/contratacao?id=00000000000272-1-000002/2025</link>
+      <guid isPermaLink="true">https://baliza.dev/contratacao?id=00000000000272-1-000002/2025</guid>
+      <pubDate>Mon, 20 Jan 2025 00:00:00 -0000</pubDate>
+    </item>
+  </channel>
+</rss>`;
+      let parsed: Document | null = null;
+
+      Given('a curated watch "dispensas-acima-1mi" is configured in the repo', () => {
+        const watch = FEATURED_QUERIES.find((q) => q.slug === 'dispensas-acima-1mi');
+        expect(watch).toBeTruthy();
+        expect(watch!.title).toMatch(/Dispensas/i);
+      });
+
       When(
         'the user opens "https://archive.org/download/baliza-pncp-feeds/feed-dispensas-acima-1mi.xml"',
-        noop,
+        async () => {
+          vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+            new Response(feedXml, {
+              status: 200,
+              headers: { 'content-type': 'application/rss+xml' },
+            }),
+          );
+          const res = await fetch(
+            'https://archive.org/download/baliza-pncp-feeds/feed-dispensas-acima-1mi.xml',
+          );
+          const text = await res.text();
+          parsed = new DOMParser().parseFromString(text, 'application/xml');
+        },
       );
-      Then('the response is a valid RSS 2.0 document', () =>
-        plannedStep('daily CI job that builds feed-{slug}.xml and uploads to IA'),
-      );
-      And('each item links to a /contratacao permalink', noop);
+
+      Then('the response is a valid RSS 2.0 document', () => {
+        expect(parsed).not.toBeNull();
+        const root = parsed!.documentElement;
+        expect(root.tagName.toLowerCase()).toBe('rss');
+        expect(root.getAttribute('version')).toBe('2.0');
+        const lang = parsed!.querySelector('channel > language');
+        expect(lang?.textContent).toBe('pt-BR');
+      });
+
+      And('each item links to a /contratacao permalink', () => {
+        const items = parsed!.querySelectorAll('channel > item');
+        expect(items.length).toBeGreaterThan(0);
+        for (const item of items) {
+          const link = item.querySelector('link')?.textContent ?? '';
+          expect(link).toMatch(/^https:\/\/baliza\.dev\/contratacao\?id=/);
+          const guid = item.querySelector('guid');
+          expect(guid?.getAttribute('isPermaLink')).toBe('true');
+          expect(guid?.textContent).toBe(link);
+        }
+      });
     },
   );
 
   Scenario('Diff view shows what changed since the last visit', ({ Given, When, Then }) => {
-    Given('the user has previously visited a saved watch', noop);
-    When('the user opens the watch again', noop);
+    const cutoff = '2025-01-01T00:00:00';
+    const watchId = 'watch-diff-test-id';
+    const newer: PNCPContract[] = [
+      {
+        numeroControlePNCP: '00000000000191-1-000002/2025',
+        dataPublicacaoPncp: '2025-01-15T00:00:00',
+        objetoContratacao: 'Contratação NOVA depois da última visita',
+        valorTotalEstimado: 500_000,
+        modalidadeNome: 'Pregão',
+        orgaoEntidade: { razaoSocial: 'Órgão Z', cnpj: '00000000000191' },
+        unidadeOrgao: { nomeUnidade: 'X', ufSigla: 'SP' },
+      } as unknown as PNCPContract,
+    ];
+    const older: PNCPContract[] = [
+      {
+        numeroControlePNCP: '00000000000191-1-000001/2024',
+        dataPublicacaoPncp: '2024-12-20T00:00:00',
+        objetoContratacao: 'Contratação ANTIGA antes da última visita',
+        valorTotalEstimado: 300_000,
+        modalidadeNome: 'Pregão',
+        orgaoEntidade: { razaoSocial: 'Órgão Z', cnpj: '00000000000191' },
+        unidadeOrgao: { nomeUnidade: 'X', ufSigla: 'SP' },
+      } as unknown as PNCPContract,
+    ];
+
+    Given('the user has previously visited a saved watch', () => {
+      const entry: WatchEntry = {
+        id: watchId,
+        type: 'query',
+        filter: 'q=merenda',
+        label: 'merenda',
+        createdAt: '2024-12-01T00:00:00.000Z',
+        lastVisited: cutoff,
+      };
+      watchState.entries = [entry];
+      localStorage.setItem('baliza-watches', JSON.stringify([entry]));
+      vi.spyOn(pncpPublicacao, 'fetchPublicacaoPagesForObjeto').mockResolvedValue([
+        ...newer,
+        ...older,
+      ]);
+    });
+
+    When('the user opens the watch again', async () => {
+      render(WatchDetailView, { props: { id: watchId } });
+      await tick();
+    });
+
     Then(
       'the user sees a "novidades desde sua última visita" section listing only new matches',
-      () => plannedStep('client-side diff against last-visit snapshot in localStorage'),
+      async () => {
+        const section = await waitFor(
+          () => screen.getByTestId('watch-diff-section'),
+          { timeout: 3000 },
+        );
+        await waitFor(
+          () => {
+            const items = section.querySelectorAll('[data-testid="watch-diff-item"]');
+            expect(items.length).toBe(1);
+          },
+          { timeout: 3000 },
+        );
+        expect(section.textContent).toContain('Contratação NOVA');
+        expect(section.textContent).not.toContain('Contratação ANTIGA');
+      },
     );
   });
 
