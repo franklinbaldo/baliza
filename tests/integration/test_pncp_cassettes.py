@@ -16,6 +16,7 @@ from pathlib import Path
 
 import pytest
 import requests
+import vcr as _vcr_module
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -168,8 +169,6 @@ class TestPublicacaoInexigibilidadeSchema:
 # VCR-replay tests: replay cassettes via the VCR context manager, verifying
 # the full request/response round-trip without hitting the network.
 # ---------------------------------------------------------------------------
-
-import vcr as _vcr_module
 
 _PNCP_VCR = _vcr_module.VCR(
     record_mode="none",
