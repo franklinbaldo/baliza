@@ -6,10 +6,12 @@ import { tick } from 'svelte';
 import AgencyDetailViewRaw from '../../AgencyDetailView.svelte';
 import ContractDetailViewRaw from '../../ContractDetailView.svelte';
 import BuscaViewRaw from '../../BuscaView.svelte';
+import WatchDetailViewRaw from '../../WatchDetailView.svelte';
 import * as pncpPublicacao from '../../../lib/pncpPublicacao';
 import type { PNCPContract } from '../../../lib/pncp';
 import { queryParquetFallback } from '../../../lib/parquetFallback';
-import { watchState } from '../../../lib/watchStore.svelte';
+import { watchState, type WatchEntry } from '../../../lib/watchStore.svelte';
+import { FEATURED_QUERIES } from '../../../lib/homepage-content';
 
 vi.mock('../../../lib/parquetFallback', async () => {
   const actual = await vi.importActual('../../../lib/parquetFallback');
@@ -22,6 +24,7 @@ vi.mock('../../../lib/parquetFallback', async () => {
 const AgencyDetailView = AgencyDetailViewRaw as unknown as Parameters<typeof render>[0];
 const ContractDetailView = ContractDetailViewRaw as unknown as Parameters<typeof render>[0];
 const BuscaView = BuscaViewRaw as unknown as Parameters<typeof render>[0];
+const WatchDetailView = WatchDetailViewRaw as unknown as Parameters<typeof render>[0];
 
 const fallbackMock = vi.mocked(queryParquetFallback);
 
@@ -93,11 +96,70 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   );
 
   Scenario('Diff view shows what changed since the last visit', ({ Given, When, Then }) => {
-    Given('the user has previously visited a saved watch', noop);
-    When('the user opens the watch again', noop);
+    const cutoff = '2025-01-01T00:00:00';
+    const watchId = 'watch-diff-test-id';
+    const newer: PNCPContract[] = [
+      {
+        numeroControlePNCP: '00000000000191-1-000002/2025',
+        dataPublicacaoPncp: '2025-01-15T00:00:00',
+        objetoContratacao: 'Contratação NOVA depois da última visita',
+        valorTotalEstimado: 500_000,
+        modalidadeNome: 'Pregão',
+        orgaoEntidade: { razaoSocial: 'Órgão Z', cnpj: '00000000000191' },
+        unidadeOrgao: { nomeUnidade: 'X', ufSigla: 'SP' },
+      } as unknown as PNCPContract,
+    ];
+    const older: PNCPContract[] = [
+      {
+        numeroControlePNCP: '00000000000191-1-000001/2024',
+        dataPublicacaoPncp: '2024-12-20T00:00:00',
+        objetoContratacao: 'Contratação ANTIGA antes da última visita',
+        valorTotalEstimado: 300_000,
+        modalidadeNome: 'Pregão',
+        orgaoEntidade: { razaoSocial: 'Órgão Z', cnpj: '00000000000191' },
+        unidadeOrgao: { nomeUnidade: 'X', ufSigla: 'SP' },
+      } as unknown as PNCPContract,
+    ];
+
+    Given('the user has previously visited a saved watch', () => {
+      const entry: WatchEntry = {
+        id: watchId,
+        type: 'query',
+        filter: 'q=merenda',
+        label: 'merenda',
+        createdAt: '2024-12-01T00:00:00.000Z',
+        lastVisited: cutoff,
+      };
+      watchState.entries = [entry];
+      localStorage.setItem('baliza-watches', JSON.stringify([entry]));
+      vi.spyOn(pncpPublicacao, 'fetchPublicacaoPagesForObjeto').mockResolvedValue([
+        ...newer,
+        ...older,
+      ]);
+    });
+
+    When('the user opens the watch again', async () => {
+      render(WatchDetailView, { props: { id: watchId } });
+      await tick();
+    });
+
     Then(
       'the user sees a "novidades desde sua última visita" section listing only new matches',
-      () => plannedStep('client-side diff against last-visit snapshot in localStorage'),
+      async () => {
+        const section = await waitFor(
+          () => screen.getByTestId('watch-diff-section'),
+          { timeout: 3000 },
+        );
+        await waitFor(
+          () => {
+            const items = section.querySelectorAll('[data-testid="watch-diff-item"]');
+            expect(items.length).toBe(1);
+          },
+          { timeout: 3000 },
+        );
+        expect(section.textContent).toContain('Contratação NOVA');
+        expect(section.textContent).not.toContain('Contratação ANTIGA');
+      },
     );
   });
 

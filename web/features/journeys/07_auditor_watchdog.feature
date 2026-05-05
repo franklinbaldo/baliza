@@ -33,12 +33,12 @@ Feature: Journey 7 — Auditor and watchdog
     Then the response is a valid RSS 2.0 document
     And each item links to a /contratacao permalink
 
-  @planned @diff
+  @green @diff
   Scenario: Diff view shows what changed since the last visit
-    # Planned: WatchList.svelte renders a "novidades desde sua última
-    # visita" section when a watch row carries a `lastVisited` value, but
-    # there is no dedicated diff-view route yet that surfaces it as a
-    # sectioned page. Stays @planned until that view ships.
+    # Implemented: /vigilancia?id={watch-id} renders WatchDetailView, which
+    # captures the previous lastVisited timestamp before stamping a new one
+    # via markVisited() and surfaces a data-testid="watch-diff-section"
+    # block listing only matches with dataPublicacaoPncp > cutoff.
     Given the user has previously visited a saved watch
     When the user opens the watch again
     Then the user sees a "novidades desde sua última visita" section listing only new matches

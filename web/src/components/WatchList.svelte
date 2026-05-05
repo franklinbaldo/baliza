@@ -25,10 +25,8 @@
     return 'Consulta';
   }
 
-  function linkFor(entry: WatchEntry): string | null {
-    if (entry.type === 'agency') return resolve(`orgao?cnpj=${entry.filter}`);
-    if (entry.type === 'supplier') return resolve(`fornecedor?cnpj=${entry.filter}`);
-    return null;
+  function linkFor(entry: WatchEntry): string {
+    return resolve(`vigilancia?id=${entry.id}`);
   }
 </script>
 
@@ -55,9 +53,7 @@
             </div>
             <p class="watch-label">{entry.label}</p>
             <div class="watch-actions">
-              {#if linkFor(entry)}
-                <a class="watch-open" href={linkFor(entry)!}>Abrir painel →</a>
-              {/if}
+              <a class="watch-open" href={linkFor(entry)}>Abrir painel →</a>
               <button
                 type="button"
                 class="watch-remove"
