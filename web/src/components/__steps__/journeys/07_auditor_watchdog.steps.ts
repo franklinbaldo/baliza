@@ -5,7 +5,11 @@ import { expect, vi } from 'vitest';
 import { tick } from 'svelte';
 import AgencyDetailViewRaw from '../../AgencyDetailView.svelte';
 import ContractDetailViewRaw from '../../ContractDetailView.svelte';
+import BuscaViewRaw from '../../BuscaView.svelte';
+import * as pncpPublicacao from '../../../lib/pncpPublicacao';
+import type { PNCPContract } from '../../../lib/pncp';
 import { queryParquetFallback } from '../../../lib/parquetFallback';
+import { watchState } from '../../../lib/watchStore.svelte';
 
 vi.mock('../../../lib/parquetFallback', async () => {
   const actual = await vi.importActual('../../../lib/parquetFallback');
@@ -17,6 +21,7 @@ vi.mock('../../../lib/parquetFallback', async () => {
 
 const AgencyDetailView = AgencyDetailViewRaw as unknown as Parameters<typeof render>[0];
 const ContractDetailView = ContractDetailViewRaw as unknown as Parameters<typeof render>[0];
+const BuscaView = BuscaViewRaw as unknown as Parameters<typeof render>[0];
 
 const fallbackMock = vi.mocked(queryParquetFallback);
 
@@ -27,16 +32,49 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     cleanup();
     vi.clearAllMocks();
     localStorage.clear();
+    watchState.entries = [];
     fallbackMock.mockResolvedValue({ ok: false, reason: 'empty' });
   });
 
   Scenario('Save the current query as a watch in localStorage', ({ Given, When, Then, And }) => {
-    Given('a search result list is visible for "dispensa acima de 1 milhão"', noop);
-    When('the user clicks "Salvar vigilância"', noop);
-    Then('a watch entry is persisted in localStorage', () =>
-      plannedStep('localStorage-backed watch persistence'),
-    );
-    And('the watch appears in the user\'s "Minhas vigilâncias" list', noop);
+    Given('a search result list is visible for "dispensa acima de 1 milhão"', async () => {
+      cleanup();
+      vi.restoreAllMocks();
+      localStorage.clear();
+      window.history.replaceState({}, '', '/busca?q=dispensa%20acima%20de%201%20milh%C3%A3o');
+      vi.spyOn(pncpPublicacao, 'fetchPublicacaoPagesForObjeto').mockResolvedValue([
+        {
+          numeroControlePNCP: '00000000000191-8-000001/2024',
+          dataPublicacaoPncp: '2025-01-10T00:00:00',
+          objetoContratacao: 'Dispensa acima de 1 milhão para TI',
+          valorTotalEstimado: 1_200_000,
+          modalidadeNome: 'Dispensa de Licitação',
+          orgaoEntidade: { razaoSocial: 'Prefeitura A', cnpj: '00000000000191' },
+          unidadeOrgao: { nomeUnidade: 'TI', ufSigla: 'SP' },
+        },
+      ] as unknown as PNCPContract[]);
+      render(BuscaView);
+      await tick();
+      await waitFor(
+        () => expect(screen.getByTestId('busca-results')).toBeTruthy(),
+        { timeout: 3000 },
+      );
+    });
+    When('the user clicks "Salvar vigilância"', async () => {
+      const btn = screen.getByTestId('busca-save-watch');
+      await fireEvent.click(btn);
+      await tick();
+    });
+    Then('a watch entry is persisted in localStorage', () => {
+      const stored: unknown[] = JSON.parse(localStorage.getItem('baliza-watches') ?? '[]');
+      expect(stored.length).toBe(1);
+      expect((stored[0] as Record<string, string>).type).toBe('query');
+    });
+    And('the watch appears in the user\'s "Minhas vigilâncias" list', () => {
+      const stored: unknown[] = JSON.parse(localStorage.getItem('baliza-watches') ?? '[]');
+      const entry = stored[0] as Record<string, string>;
+      expect(entry.filter).toContain('dispensa');
+    });
   });
 
   Scenario(

@@ -21,6 +21,7 @@
   import AlertBanner from './AlertBanner.svelte';
   import EmptyState from './EmptyState.svelte';
   import PaginatedList from './PaginatedList.svelte';
+  import { addWatch, isWatched, hydrateWatches } from '../lib/watchStore.svelte';
 
   setQueryClientContext(getQueryClient());
 
@@ -101,6 +102,14 @@
   const results = $derived(query.data ?? []);
   const loading = $derived(query.isFetching);
   const error = $derived(query.error as Error | null);
+
+  $effect(() => { hydrateWatches(); });
+  const queryWatched = $derived(isWatched('query', submitted.q));
+
+  function saveWatch() {
+    if (!submitted.q) return;
+    addWatch('query', submitted.q, submitted.q);
+  }
 
   function uniqSorted(values: Array<string | null | undefined>): string[] {
     const seen: Record<string, true> = {};
@@ -376,6 +385,14 @@
         </select>
       </label>
       <div class="export-actions" role="group" aria-label="Exportar resultados visíveis">
+        <button
+          type="button"
+          class="btn btn-secondary"
+          data-testid="busca-save-watch"
+          onclick={saveWatch}
+          aria-pressed={queryWatched}
+          disabled={!submitted.q || results.length === 0}
+        >{queryWatched ? '✓ Vigilância salva' : 'Salvar vigilância'}</button>
         <button
           type="button"
           class="btn btn-secondary"
