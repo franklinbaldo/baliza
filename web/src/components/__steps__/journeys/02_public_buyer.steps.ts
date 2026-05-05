@@ -241,9 +241,9 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       );
       const items = screen.getAllByTestId('catmat-result-item');
       expect(items.length).toBeGreaterThan(0);
-      // Exact code match must appear and code "37" must be surfaced.
+      // The exact code "37" must be present — not merely a prefix like "3700".
       const texts = items.map((el) => el.textContent ?? '');
-      expect(texts.some((t) => t.includes('37'))).toBe(true);
+      expect(texts.some((t) => /\b37\b/.test(t))).toBe(true);
     });
   });
 

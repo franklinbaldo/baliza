@@ -58,11 +58,11 @@ jobs:
       - name: Refresh cassettes (scheduled / manual)
         # Runs on the weekly cron or when refresh_cassettes=true is set.
         # Overwrites cassette files with fresh PNCP API responses.
-        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.refresh_cassettes == 'true')
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && fromJSON(inputs.refresh_cassettes))
         run: uv run python scripts/record_pncp_cassettes.py
 
       - name: Open PR if cassettes changed after refresh
-        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.refresh_cassettes == 'true')
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && fromJSON(inputs.refresh_cassettes))
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
