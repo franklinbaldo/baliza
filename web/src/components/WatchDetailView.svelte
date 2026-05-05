@@ -3,7 +3,9 @@
   import { createQuery, setQueryClientContext } from '@tanstack/svelte-query';
   import { getQueryClient } from '../lib/queryClient';
   import { fetchPublicacaoPagesForObjeto, fetchPublicacaoList } from '../lib/pncpPublicacao';
-  import type { PNCPContract } from '../lib/pncp';
+  import { archivedContratoToInternalContract, type PNCPContract } from '../lib/pncp';
+  import { queryParquetFallback } from '../lib/parquetFallback';
+  import type { ArchivedContrato } from '../lib/archive/schema';
   import { resolve } from '../lib/baseUrl';
   import { formatBRL, formatDate } from '../lib/format';
   import EmptyState from './EmptyState.svelte';
@@ -44,8 +46,22 @@
     enabled: mounted && !!entry,
     queryFn: async (): Promise<PNCPContract[]> => {
       const e = entry!;
-      if (e.type === 'agency') return fetchPublicacaoList({ orgaoCnpj: e.filter });
-      if (e.type === 'supplier') return fetchPublicacaoList({ niFornecedor: e.filter });
+      // PNCP swagger uses bare `cnpj` (NOT `cnpjOrgao`) for the org filter
+      // on /contratacoes/publicacao — see PublicacaoFilters in pncpPublicacao.ts.
+      if (e.type === 'agency') return fetchPublicacaoList({ cnpj: e.filter });
+      if (e.type === 'supplier') {
+        // PNCP has no supplier-by-CNPJ filter on /publicacao, so we mirror
+        // SupplierDetailView and read the parquet snapshot, mapping rows
+        // back into PNCPContract for a uniform render path.
+        const archived = await queryParquetFallback<ArchivedContrato>(
+          'ni_fornecedor',
+          e.filter,
+          50,
+          'data_publicacao_pncp',
+        );
+        if (archived.ok) return archived.rows.map((row) => archivedContratoToInternalContract(row));
+        return [];
+      }
       // 'query' watches store a canonical URLSearchParams string with `q`
       // plus any advanced filters that were active when the watch was
       // created (cnpj, ibge, uf, …). Replay both so the re-fetch matches
