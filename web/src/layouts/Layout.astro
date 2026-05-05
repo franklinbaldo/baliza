@@ -1,5 +1,4 @@
 ---
-import '../styles/global.css';
 import { ClientRouter } from 'astro:transitions';
 import Navigation from '../components/Navigation.astro';
 import Metadata from '../components/Metadata.astro';
@@ -57,7 +56,7 @@ const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
   </head>
   <body>
     <!-- SVG Definitions from Design System -->
-    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <svg width="0" height="0" aria-hidden="true">
       <defs>
         <!-- Masks -->
         <mask id="cobogo-mask">
@@ -91,17 +90,17 @@ const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
       </defs>
     </svg>
 
-    <a href="#main-content" class="sr-only">Pular para o conteúdo principal</a>
+    <a href="#main-content">Pular para o conteúdo principal</a>
     <Navigation />
 
-    <main id="main-content" class="page-content">
+    <main id="main-content">
       <slot />
     </main>
 
-    <footer class="portal-footer">
-      <div class="container footer-content">
+    <footer>
+      <div>
         <p>Baliza: Arquivo público das contratações nacionais.</p>
-        <div class="footer-links">
+        <div>
           <a href="https://github.com/franklinbaldo" target="_blank" rel="noopener">Codificado por Franklin Baldo</a>
           <span>·</span>
           <span>Fonte: PNCP & Internet Archive</span>
@@ -115,59 +114,3 @@ const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
   </body>
 </html>
 
-<style is:global>
-  .page-content {
-    min-height: calc(100vh - 4.5rem - 12rem);
-  }
-
-  .portal-footer {
-    margin-top: var(--space-10);
-    padding: var(--space-8) 0;
-    border-top: 1px solid var(--color-border);
-    background:
-      linear-gradient(color-mix(in srgb, var(--color-bg) 90%, transparent), color-mix(in srgb, var(--color-bg) 90%, transparent)),
-      var(--color-surface);
-    color: var(--color-text-dim);
-    font-size: var(--text-sm);
-    position: relative;
-  }
-
-  .portal-footer::before {
-    content: "";
-    position: absolute;
-    inset: 0 0 auto;
-    height: 8px;
-    background: repeating-linear-gradient(90deg, var(--color-accent) 0 28px, var(--color-ouro) 28px 40px, var(--color-azul) 40px 68px, var(--color-tijolo) 68px 80px);
-  }
-
-  .footer-content {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--space-4);
-    text-align: center;
-  }
-
-  .footer-links {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: var(--space-2);
-    align-items: center;
-  }
-
-  .footer-links a {
-    color: var(--color-accent);
-    text-decoration: none;
-  }
-
-  html[data-embed="true"] nav.nav,
-  html[data-embed="true"] footer.portal-footer,
-  html[data-embed="true"] .page-header,
-  html[data-embed="true"] a[href="#main-content"] {
-    display: none !important;
-  }
-  html[data-embed="true"] .page-content {
-    min-height: 100vh;
-  }
-</style>

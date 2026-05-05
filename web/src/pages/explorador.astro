@@ -7,8 +7,8 @@ import DuckDBExplorer from '../components/DuckDBExplorer.svelte';
   title="Explorador SQL" 
   description="Execute consultas DuckDB WASM diretamente no navegador sobre os dados do PNCP."
 >
-  <div class="container">
-    <header class="page-header">
+  <div>
+    <header>
       <h1>Explorador de Dados</h1>
       <p>Consultas SQL de alta performance rodando 100% no seu navegador.</p>
     </header>
@@ -17,17 +17,3 @@ import DuckDBExplorer from '../components/DuckDBExplorer.svelte';
   </div>
 </Layout>
 
-<style>
-  .page-header {
-    padding: var(--space-xl) 0 0;
-  }
-  h1 {
-    color: var(--color-primary);
-    margin-bottom: var(--space-xs);
-  }
-  p {
-    color: var(--color-secondary);
-    font-size: var(--font-size-md);
-    line-height: 1.6;
-  }
-</style>

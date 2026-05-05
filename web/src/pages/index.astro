@@ -92,28 +92,28 @@ const TOOLS: Array<{
 
   <!-- 7. Utilidades avançadas: compact secondary entry points. Demoted link
        grid — no second hero. The single search input lives in section 2b. -->
-  <section class="tools-strip" aria-labelledby="tools-title">
-    <div class="container">
-      <header class="tools-head">
-        <span class="kicker">Utilidades avançadas</span>
+  <section aria-labelledby="tools-title">
+    <div>
+      <header>
+        <span>Utilidades avançadas</span>
         <h2 id="tools-title">Outras entradas no arquivo</h2>
-        <p class="tools-sub">
+        <p>
           Para quem já sabe o que procurar: análise, dados brutos e metodologia.
         </p>
       </header>
-      <ul class="tools-grid">
+      <ul>
         {TOOLS.map((tool) => (
-          <li class="tool-card">
+          <li>
             <a
               href={tool.href}
               rel={tool.external ? 'noopener' : undefined}
               target={tool.external ? '_blank' : undefined}
             >
-              <span class="tool-label">
+              <span>
                 {tool.label}
                 {tool.external && <span aria-hidden="true"> ↗</span>}
               </span>
-              <span class="tool-blurb">{tool.blurb}</span>
+              <span>{tool.blurb}</span>
             </a>
           </li>
         ))}
@@ -122,77 +122,3 @@ const TOOLS: Array<{
   </section>
 </Layout>
 
-<style>
-  .tools-strip {
-    padding: var(--space-8) 0;
-    background: var(--color-surface);
-    border-top: 1px solid var(--color-border);
-  }
-  .tools-head {
-    max-width: 640px;
-    margin-bottom: var(--space-5);
-    display: grid;
-    gap: var(--space-2);
-  }
-  .tools-head h2 {
-    font-family: var(--font-display);
-    font-weight: 300;
-    font-size: clamp(24px, 2.4vw, 32px);
-    letter-spacing: 0;
-  }
-  .tools-sub {
-    color: var(--color-text-dim);
-    font-size: var(--text-md);
-    line-height: 1.6;
-    margin: 0;
-  }
-
-  .tools-grid {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: var(--space-3);
-  }
-  .tool-card {
-    background: var(--color-bg);
-    border: 1px solid var(--color-border);
-    border-left: 5px solid var(--color-azul);
-  }
-  .tool-card:nth-child(2n) { border-left-color: var(--color-verde); }
-  .tool-card:nth-child(3n) { border-left-color: var(--color-ouro); }
-  .tool-card a {
-    display: grid;
-    gap: var(--space-1);
-    padding: var(--space-4);
-    color: inherit;
-    text-decoration: none;
-    height: 100%;
-    border-left: 3px solid transparent;
-    transition: background var(--duration-fast) var(--ease), transform var(--duration-fast) var(--ease), box-shadow var(--duration-fast) var(--ease);
-  }
-  .tool-card a:hover {
-    background:
-      linear-gradient(color-mix(in srgb, var(--color-bg) 94%, transparent), color-mix(in srgb, var(--color-bg) 94%, transparent)),
-      linear-gradient(color-mix(in srgb, var(--color-text) 7%, transparent) 1px, transparent 1px),
-      linear-gradient(90deg, color-mix(in srgb, var(--color-text) 7%, transparent) 1px, transparent 1px);
-    background-size: auto, 16px 16px, 16px 16px;
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-pool-sm);
-  }
-  .tool-card a:focus-visible {
-    background: color-mix(in srgb, var(--color-azul) 9%, transparent);
-  }
-  .tool-label {
-    font-family: var(--font-display);
-    font-weight: 500;
-    font-size: var(--text-md);
-    color: var(--color-text);
-  }
-  .tool-blurb {
-    font-size: var(--text-sm);
-    line-height: 1.5;
-    color: var(--color-text-dim);
-  }
-</style>

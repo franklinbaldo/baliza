@@ -4,49 +4,14 @@ import { resolve } from '../lib/baseUrl';
 ---
 
 <Layout title="404: Não Encontrado" description="Ops! Esta página não existe no radar do Baliza.">
-  <div class="not-found-container container">
-    <div class="modernist-glitch">404</div>
+  <div>
+    <div>404</div>
     <h1>Coordenada Inexistente</h1>
     <p>A página que você procura não foi localizada ou foi movida para uma nova órbita de transparência.</p>
     
-    <div class="actions">
-      <a href={resolve('')} class="btn btn-primary">Voltar ao Radar</a>
+    <div>
+      <a href={resolve('')}>Voltar ao Radar</a>
     </div>
   </div>
 </Layout>
 
-<style>
-  .not-found-container {
-    text-align: center;
-    padding: var(--space-3xl) 0;
-  }
-  .modernist-glitch {
-    font-size: 8rem;
-    font-weight: 900;
-    font-family: var(--font-serif);
-    color: var(--color-primary);
-    line-height: 1;
-    margin-bottom: var(--space-md);
-    opacity: 0.15;
-  }
-  h1 {
-    font-size: var(--font-size-3xl);
-    margin-bottom: var(--space-md);
-  }
-  p {
-    margin-bottom: var(--space-2xl);
-    opacity: 0.7;
-    max-width: 500px;
-    margin-left: auto;
-    margin-right: auto;
-  }
-  .btn {
-    display: inline-block;
-    background: var(--color-primary);
-    color: white;
-    padding: var(--space-sm) var(--space-xl);
-    border-radius: var(--radius-sm);
-    text-decoration: none;
-    font-weight: 700;
-  }
-</style>

@@ -30,20 +30,20 @@
 
 {#if error}
   <AlertBanner title="Erro de Leitura" message={error} level="error" />
-  <div class="retry-row">
-    <button class="btn btn-outline" onclick={loadStats}>Tentar novamente</button>
+  <div>
+    <button onclick={loadStats}>Tentar novamente</button>
   </div>
 {:else if loading}
-  <div class="dashboard-grid" aria-busy="true" aria-label="Carregando estatísticas">
+  <div aria-busy="true" aria-label="Carregando estatísticas">
     {#each [1, 2, 3] as _, i (i)}
-      <div class="card skeleton-card">
-        <div class="skeleton skeleton-label"></div>
-        <div class="skeleton skeleton-value"></div>
+      <div>
+        <div></div>
+        <div></div>
       </div>
     {/each}
   </div>
 {:else if stats}
-  <div class="dashboard-grid">
+  <div>
     <StatCard
       title="Contratos citáveis"
       value={formatInteger(stats.total_contracts)}
@@ -64,36 +64,3 @@
   </div>
 {/if}
 
-<style>
-  .dashboard-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-4);
-    margin-top: var(--space-4);
-  }
-
-  .skeleton-card {
-    flex: 1;
-    min-width: 160px;
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    padding: var(--space-4);
-  }
-
-  .skeleton-label {
-    height: 0.75rem;
-    width: 60%;
-  }
-
-  .skeleton-value {
-    height: 2.5rem;
-    width: 80%;
-  }
-
-  .retry-row {
-    margin-top: var(--space-2);
-    display: flex;
-    justify-content: center;
-  }
-</style>

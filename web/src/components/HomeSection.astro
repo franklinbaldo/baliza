@@ -32,76 +32,29 @@ const borderMap = {
 ---
 
 <section
-  class="home-section"
   aria-labelledby={id}
-  style={`background: ${bgMap[tone]}; ${borderMap[divider]}`}
   data-tone={tone}
 >
-  <div class="container">
+  <div>
     {titleHidden ? (
-      <h2 id={id} class="sr-only">{title}</h2>
+      <h2 id={id}>{title}</h2>
     ) : (
-      <header class="home-section-head">
-        <div class="title-col">
-          {kicker && <span class="kicker">{kicker}</span>}
+      <header>
+        <div>
+          {kicker && <span>{kicker}</span>}
           <h2 id={id}>{title}</h2>
           <slot name="subtitle" />
         </div>
         {Astro.slots.has('aside') && (
-          <div class="aside-col">
+          <div>
             <slot name="aside" />
           </div>
         )}
       </header>
     )}
-    <div class="home-section-body">
+    <div>
       <slot />
     </div>
   </div>
 </section>
 
-<style>
-  .home-section {
-    padding: var(--space-5) 0;
-  }
-  .home-section[data-tone="surface"] {
-    padding: var(--space-7) 0;
-  }
-  .home-section[data-tone="bg"] {
-    padding: var(--space-8) 0;
-  }
-  .home-section[data-tone="sunk"] {
-    padding: var(--space-8) 0;
-  }
-
-  .home-section-head {
-    max-width: 640px;
-    margin-bottom: var(--space-4);
-  }
-  .home-section[data-tone="bg"] .home-section-head {
-    margin-bottom: var(--space-5);
-  }
-
-  .home-section-head:has(.aside-col) {
-    max-width: none;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-    flex-wrap: wrap;
-    gap: var(--space-4);
-  }
-
-  .title-col {
-    display: grid;
-    gap: var(--space-2);
-    max-width: 640px;
-  }
-
-  .home-section-head h2 {
-    font-family: var(--font-display);
-    font-weight: 300;
-    font-size: clamp(24px, 2.4vw, 32px);
-    letter-spacing: -0.02em;
-    margin: 0;
-  }
-</style>

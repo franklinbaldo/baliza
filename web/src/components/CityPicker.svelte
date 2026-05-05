@@ -120,23 +120,22 @@
   });
 </script>
 
-<div class="city-picker" class:compact role="search" aria-label="Trocar cidade">
-  <div class="active-line">
-    <span class="kicker">
+<div role="search" aria-label="Trocar cidade">
+  <div>
+    <span>
       {cityState.source === 'default' ? 'Cidade inicial' : 'Cidade escolhida'}
     </span>
     <strong>{cityState.nome}{cityState.uf ? ` / ${cityState.uf}` : ''}</strong>
     {#if cityState.source !== 'default'}
-      <button type="button" class="link" onclick={resetToDefault}>
+      <button type="button" onclick={resetToDefault}>
         usar {DEFAULT_CITY.nome}
       </button>
     {/if}
   </div>
 
-  <label class="field">
-    <span class="sr-only">Buscar município</span>
+  <label>
+    <span>Buscar município</span>
     <input
-      class="input-modernist"
       type="search"
       role="combobox"
       placeholder="Digite o nome da cidade (ex.: Porto Velho, Manaus, Recife)"
@@ -153,7 +152,6 @@
     />
     <button
       type="button"
-      class="geo-btn"
       onclick={useMyLocation}
       disabled={geoStatus === 'locating'}
       aria-label="Usar minha localização atual"
@@ -163,30 +161,29 @@
   </label>
 
   {#if loading}
-    <p class="status" aria-live="polite">Buscando municípios…</p>
+    <p aria-live="polite">Buscando municípios…</p>
   {:else if query.trim().length === 1}
-    <p class="status" aria-live="polite">Digite ao menos 2 letras para buscar.</p>
+    <p aria-live="polite">Digite ao menos 2 letras para buscar.</p>
   {/if}
 
   {#if geoStatus === 'denied'}
-    <p class="status warn">Acesso à localização negado. Digite o nome da cidade.</p>
+    <p>Acesso à localização negado. Digite o nome da cidade.</p>
   {:else if geoStatus === 'error'}
-    <p class="status warn">Não foi possível obter sua localização.</p>
+    <p>Não foi possível obter sua localização.</p>
   {/if}
 
   {#if results.length > 0}
-    <ul id="city-picker-listbox" class="listbox" role="listbox">
+    <ul id="city-picker-listbox" role="listbox">
       {#each results as r, i (r.ibge)}
         <li
           id={`city-opt-${i}`}
           role="option"
           aria-selected={i === activeIndex}
-          class:active={i === activeIndex}
         >
           <button type="button" onclick={() => pick(r)} onmouseenter={() => (activeIndex = i)}>
-            <span class="opt-nome">{r.nome}</span>
-            <span class="opt-uf">{r.uf || '—'}</span>
-            <span class="opt-ibge">IBGE {r.ibge}</span>
+            <span>{r.nome}</span>
+            <span>{r.uf || '—'}</span>
+            <span>IBGE {r.ibge}</span>
           </button>
         </li>
       {/each}
@@ -194,118 +191,3 @@
   {/if}
 </div>
 
-<style>
-  .city-picker {
-    display: grid;
-    gap: var(--space-3);
-    position: relative;
-  }
-  .compact {
-    gap: var(--space-2);
-  }
-  .active-line {
-    display: flex;
-    gap: var(--space-2);
-    align-items: baseline;
-    flex-wrap: wrap;
-    font-size: var(--text-sm);
-    color: var(--neutral-500);
-  }
-  .active-line strong {
-    font-family: var(--font-display);
-    font-weight: 500;
-    font-size: var(--text-md);
-    color: var(--bulcao-fg);
-  }
-  .field {
-    display: flex;
-    gap: var(--space-3);
-    align-items: flex-end;
-    flex-wrap: wrap;
-  }
-  .field .input-modernist {
-    flex: 1;
-    min-width: 220px;
-  }
-  .geo-btn {
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--bulcao-support);
-    border-bottom: 2px solid transparent;
-    padding: 6px 2px;
-  }
-  .geo-btn:hover:not(:disabled) {
-    border-bottom-color: var(--bulcao-support);
-  }
-  .geo-btn:disabled {
-    opacity: 0.6;
-    cursor: progress;
-  }
-  .link {
-    color: var(--bulcao-support);
-    text-decoration: underline;
-    text-underline-offset: 2px;
-    font-size: var(--text-xs);
-  }
-  .link:hover {
-    color: var(--bulcao-accent);
-  }
-  .status {
-    margin: 0;
-    font-size: var(--text-xs);
-    color: var(--neutral-500);
-    font-family: var(--font-mono);
-    letter-spacing: 0.04em;
-  }
-  .status.warn {
-    color: var(--bulcao-accent);
-  }
-  .listbox {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    border: 1px solid var(--neutral-200);
-    background: var(--neutral-0);
-    max-height: 260px;
-    overflow-y: auto;
-    box-shadow: var(--shadow-sm);
-  }
-  .listbox li button {
-    width: 100%;
-    display: grid;
-    grid-template-columns: 1fr auto auto;
-    gap: var(--space-3);
-    align-items: baseline;
-    padding: 10px var(--space-3);
-    text-align: left;
-    font-size: var(--text-sm);
-    border-bottom: 1px solid var(--neutral-100);
-    color: var(--bulcao-fg);
-  }
-  .listbox li:last-child button {
-    border-bottom: none;
-  }
-  .listbox li.active button,
-  .listbox li button:focus-visible {
-    background: var(--neutral-100);
-    color: var(--bulcao-accent);
-    outline: none;
-  }
-  .opt-nome {
-    font-family: var(--font-display);
-    font-weight: 400;
-  }
-  .opt-uf {
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    color: var(--bulcao-support);
-    letter-spacing: 0.06em;
-  }
-  .opt-ibge {
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    color: var(--neutral-500);
-  }
-</style>

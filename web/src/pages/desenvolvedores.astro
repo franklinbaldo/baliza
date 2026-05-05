@@ -9,21 +9,21 @@ import DevExamplesView from '../components/DevExamplesView.svelte';
   title="Para desenvolvedores"
   description="Como consumir os dados abertos do Baliza (Parquet no Internet Archive) a partir de Python, R ou JavaScript."
 >
-  <div class="container container--narrow">
-    <header class="page-header">
+  <div>
+    <header>
       <h1>Para desenvolvedores</h1>
-      <p class="lead">
+      <p>
         Os dados do Baliza vivem como Parquet público no Internet Archive. Não há backend a chamar, nem chave de API — a URL do arquivo é contrato estável.
       </p>
     </header>
 
-    <section class="method-box">
+    <section>
       <h2>Manifesto</h2>
       <p>
         Um CSV único lista cada partição diária, a tabela e a URL do Parquet. Releia-o sempre que for rodar um job — é a fonte da verdade.
       </p>
-      <p class="code-row">
-        <a class="manifest-link" href={IA_MANIFEST_URL} target="_blank" rel="noopener">{IA_MANIFEST_URL}</a>
+      <p>
+        <a href={IA_MANIFEST_URL} target="_blank" rel="noopener">{IA_MANIFEST_URL}</a>
       </p>
       <p>
         Colunas: <code>data_particao</code>, <code>table_name</code>, <code>parquet_url</code>, <code>sha256</code>, <code>row_group_size</code>. Cada linha do manifesto é arquivada no endereço que anuncia — se o conteúdo mudar, a URL muda.
@@ -33,7 +33,7 @@ import DevExamplesView from '../components/DevExamplesView.svelte';
 
     <DevExamplesView client:only="svelte" />
 
-    <section class="method-box">
+    <section>
       <h2>Princípios de contrato</h2>
       <ul>
         <li><strong>URLs estáveis.</strong> Cada partição tem um endereço estável no Internet Archive.</li>
@@ -56,30 +56,3 @@ import DevExamplesView from '../components/DevExamplesView.svelte';
   </div>
 </Layout>
 
-<style>
-  .container--narrow { max-width: 860px; }
-  .page-header { padding: var(--space-xl) 0; margin-bottom: var(--space-xl); }
-  .lead { font-size: var(--font-size-md); color: var(--color-secondary); line-height: 1.6; }
-  h2 { font-size: var(--font-size-xl); margin-bottom: var(--space-sm); color: var(--color-base-content); }
-  section { margin-bottom: var(--space-xl); }
-  p { margin-bottom: var(--space-sm); line-height: 1.7; }
-  .method-box { background: var(--color-base-200); padding: var(--space-md); border-radius: var(--radius-box); border-left: 4px solid var(--color-primary); }
-  ul { padding-left: var(--space-md); margin-top: var(--space-sm); }
-  li { margin-bottom: var(--space-xs); color: var(--color-secondary); line-height: 1.6; }
-  pre {
-    background: var(--color-base-200);
-    border: 1px solid var(--color-base-300);
-    border-radius: var(--radius-box);
-    padding: var(--space-md);
-    overflow-x: auto;
-    font-size: var(--font-size-sm);
-    line-height: 1.5;
-  }
-  code { font-family: var(--font-mono, ui-monospace, monospace); }
-  .code-row { word-break: break-all; }
-  .manifest-link {
-    font-family: var(--font-mono, ui-monospace, monospace);
-    font-size: var(--font-size-sm);
-    color: var(--color-primary);
-  }
-</style>

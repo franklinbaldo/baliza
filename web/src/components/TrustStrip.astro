@@ -24,95 +24,23 @@ const PILLARS = [
 ];
 ---
 
-<section class="trust-strip" aria-labelledby="trust-title">
-  <div class="container">
-    <header class="trust-head">
-      <span class="kicker">Por que Baliza é diferente</span>
+<section aria-labelledby="trust-title">
+  <div>
+    <header>
+      <span>Por que Baliza é diferente</span>
       <h2 id="trust-title">Arquivo permanente, citação estável, análise sem servidor</h2>
     </header>
 
-    <ul class="trust-grid">
+    <ul>
       {PILLARS.map((p) => (
-        <li class="trust-card">
-          <span class="trust-kicker">{p.kicker}</span>
+        <li>
+          <span>{p.kicker}</span>
           <h3>{p.title}</h3>
           <p>{p.body}</p>
-          <a href={resolve(p.cta.href)} class="trust-link">{p.cta.label} →</a>
+          <a href={resolve(p.cta.href)}>{p.cta.label} →</a>
         </li>
       ))}
     </ul>
   </div>
 </section>
 
-<style>
-  .trust-strip {
-    padding: var(--space-8) 0;
-    border-top: 1px solid var(--color-border);
-    border-bottom: 1px solid var(--color-border);
-    background:
-      linear-gradient(color-mix(in srgb, var(--color-surface) 92%, transparent), color-mix(in srgb, var(--color-surface) 92%, transparent)),
-      conic-gradient(from 45deg, color-mix(in srgb, var(--color-azul) 9%, transparent) 0 25%, color-mix(in srgb, var(--color-verde) 8%, transparent) 0 50%, transparent 0 75%, color-mix(in srgb, var(--color-tijolo) 9%, transparent) 0);
-    background-size: auto, 40px 40px;
-  }
-  .trust-head {
-    max-width: 640px;
-    margin-bottom: var(--space-6);
-    display: grid;
-    gap: var(--space-2);
-  }
-  .trust-head h2 {
-    font-family: var(--font-display);
-    font-weight: 300;
-    font-size: clamp(26px, 2.6vw, 36px);
-    line-height: 1.2;
-    letter-spacing: -0.02em;
-  }
-  .trust-grid {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: var(--space-4);
-  }
-  .trust-card {
-    background: var(--color-bg);
-    border: 1px solid var(--color-border);
-    border-top: 5px solid var(--color-azul);
-    padding: var(--space-5);
-    display: grid;
-    gap: var(--space-2);
-    border-radius: var(--radius-0);
-  }
-  .trust-card:nth-child(2) { border-top-color: var(--color-verde); }
-  .trust-card:nth-child(3) { border-top-color: var(--color-ouro); }
-  .trust-kicker {
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--color-azul);
-  }
-  .trust-card h3 {
-    font-family: var(--font-display);
-    font-weight: 400;
-    font-size: var(--text-lg);
-    line-height: 1.25;
-  }
-  .trust-card p {
-    color: var(--color-text-dim);
-    font-size: var(--text-sm);
-    line-height: 1.6;
-  }
-  .trust-link {
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--color-accent);
-    margin-top: auto;
-    padding-top: var(--space-2);
-    border-top: 1px dotted var(--color-border);
-  }
-  .trust-link:hover { border-top-color: var(--color-accent); }
-</style>

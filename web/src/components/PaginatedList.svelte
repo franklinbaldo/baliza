@@ -46,23 +46,10 @@
 {@render children(paginatedItems)}
 
 {#if totalPages > 1}
-  <div class="pagination-controls">
-    <button class="btn btn-outline" disabled={currentPage === 1} onclick={prev}>Anterior</button>
-    <span class="page-info">Página {currentPage} de {totalPages}</span>
-    <button class="btn btn-outline" disabled={currentPage === totalPages} onclick={next}>Próxima</button>
+  <div>
+    <button disabled={currentPage === 1} onclick={prev}>Anterior</button>
+    <span>Página {currentPage} de {totalPages}</span>
+    <button disabled={currentPage === totalPages} onclick={next}>Próxima</button>
   </div>
 {/if}
 
-<style>
-  .pagination-controls {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: var(--space-md);
-    margin-top: var(--space-xl);
-  }
-  .page-info {
-    font-size: var(--font-size-sm);
-    color: var(--color-secondary);
-  }
-</style>

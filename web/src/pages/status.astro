@@ -8,77 +8,26 @@ import CoverageReport from '../components/CoverageReport.svelte';
   title="Status do Pipeline"
   description="Monitoramento da integridade do pipeline de dados Baliza."
 >
-  <section class="status-section container">
-    <div class="status-header">
-      <div class="header-with-badge">
-        <h1 class="section-title">Status do Pipeline</h1>
-        <span class="badge operational">🟢 Operacional</span>
+  <section>
+    <div>
+      <div>
+        <h1>Status do Pipeline</h1>
+        <span>🟢 Operacional</span>
       </div>
-      <p class="section-desc">
+      <p>
         Acompanhe o estado do item bruto no Internet Archive. Esta tela lê
         diretamente os metadados públicos de <code>baliza-pncp-raw</code>,
         incluindo arquivos ZIP, tamanho, cobertura e atualização do item.
       </p>
     </div>
 
-    <div class="status-content">
+    <div>
       <RawArchiveStatus client:load />
     </div>
 
-    <div class="status-content status-content--coverage">
+    <div>
       <CoverageReport client:visible />
     </div>
   </section>
 </Layout>
 
-<style>
-  .status-section {
-    padding-block: var(--space-2xl);
-  }
-  .status-header {
-    margin-bottom: var(--space-xl);
-  }
-  .section-title {
-    font-size: var(--font-size-3xl);
-    color: var(--color-primary);
-    margin: 0;
-  }
-  .header-with-badge {
-    display: flex;
-    align-items: center;
-    gap: var(--space-md);
-    margin-bottom: var(--space-xs);
-  }
-  .badge.operational {
-    background: color-mix(in srgb, var(--color-success) 15%, transparent);
-    color: var(--color-success);
-    border: 1px solid color-mix(in srgb, var(--color-success) 30%, transparent);
-    padding: 4px 12px;
-    border-radius: var(--radius-pill);
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-    font-family: var(--font-mono);
-  }
-  .section-desc {
-    color: var(--color-secondary);
-    font-size: var(--font-size-md);
-    line-height: 1.6;
-    max-width: 72ch;
-  }
-  .section-desc code {
-    font-family: var(--font-mono);
-    color: var(--color-azul);
-  }
-  .status-content {
-    background:
-      linear-gradient(color-mix(in srgb, var(--color-surface) 94%, transparent), color-mix(in srgb, var(--color-surface) 94%, transparent)),
-      var(--color-surface);
-    padding: var(--space-xl);
-    border-radius: var(--radius-lg) var(--radius-arch) var(--radius-lg) 0;
-    border: 1px solid var(--color-border);
-    box-shadow: var(--shadow-pool-sm);
-  }
-  .status-content--coverage {
-    margin-top: var(--space-xl);
-  }
-</style>

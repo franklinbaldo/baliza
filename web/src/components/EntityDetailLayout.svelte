@@ -61,7 +61,7 @@
   const defaultErrorTitle = $derived(`${entityType.charAt(0).toUpperCase() + entityType.slice(1)} não encontrado`);
 </script>
 
-<div class="entity-detail container">
+<div>
   {#if !id}
     <EntityNotFound id="ausente" type={entityType} />
   {:else if !idValid}
@@ -71,21 +71,21 @@
       error={idFormatError}
     />
   {:else if loading}
-    <div class="skeleton-wrap" aria-busy="true" aria-label={`Carregando dados do ${entityType}`}>
-      <div class="skeleton skeleton-title"></div>
-      <div class="skeleton skeleton-meta"></div>
+    <div aria-busy="true" aria-label={`Carregando dados do ${entityType}`}>
+      <div></div>
+      <div></div>
       {#if hasStatSkeleton}
-        <div class="skeleton skeleton-stat"></div>
+        <div></div>
       {/if}
       {#each [1, 2, 3] as _, i (i)}
-        <div class="skeleton skeleton-bid"></div>
+        <div></div>
       {/each}
     </div>
   {:else if error}
-    <div class="error-wrap">
+    <div>
       <AlertBanner title={errorTitle || defaultErrorTitle} message={error.message} level="error" />
-      <div class="back-row">
-        <a href={resolve('')} class="btn btn-outline">Voltar à busca</a>
+      <div>
+        <a href={resolve('')}>Voltar à busca</a>
       </div>
     </div>
   {:else if dataReady}
@@ -96,16 +96,16 @@
         level="info"
       />
     {/if}
-    <header class="hub-header" style={headerStyle}>
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; width: 100%;">
+    <header>
+      <div>
         <div>
-          <span class="kicker">{kicker}</span>
-          <div style="display:flex; align-items:center;">
-            <svg width="32" height="32" aria-hidden="true" style="margin-right: 12px; flex-shrink: 0; fill: currentColor;"><use href={`#${iconId}`}/></svg>
+          <span>{kicker}</span>
+          <div>
+            <svg width="32" height="32" aria-hidden="true"><use href={`#${iconId}`}/></svg>
             <h1>{title}</h1>
           </div>
           {#if metaRow}
-            <div class="meta-row" data-testid={metaTestId}>
+            <div data-testid={metaTestId}>
               {@render metaRow()}
             </div>
           {/if}
@@ -122,19 +122,3 @@
   {/if}
 </div>
 
-<style>
-  .entity-detail { padding: var(--space-2xl) 0; }
-
-  .skeleton-wrap { display: grid; gap: var(--space-md); }
-  .skeleton-title { height: 2rem; width: 60%; border-radius: var(--radius-sm); }
-  .skeleton-meta  { height: 1rem; width: 40%; border-radius: var(--radius-sm); }
-  .skeleton-stat  { height: 5rem; width: 200px; border-radius: var(--radius-sm); }
-  .skeleton-bid   { height: 5rem; border-radius: var(--radius-sm); }
-
-  .error-wrap { display: grid; gap: var(--space-md); }
-  .back-row { display: flex; }
-
-  .hub-header { margin-bottom: var(--space-2xl); border-bottom: 2px solid var(--color-base-300); padding-bottom: var(--space-md); }
-  h1 { font-size: var(--font-size-2xl); margin-top: var(--space-sm); }
-  .meta-row { display: flex; gap: var(--space-md); color: var(--color-secondary); font-size: var(--font-size-sm); margin-top: 4px; }
-</style>

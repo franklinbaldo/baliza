@@ -89,16 +89,16 @@
   }
 </script>
 
-<div class="comparar container">
-  <header class="hub-header">
-    <span class="type-badge">🌍 COMPARAR</span>
+<div>
+  <header>
+    <span>🌍 COMPARAR</span>
     <h1>Comparação de Municípios</h1>
-    <p class="meta-row">
+    <p>
       Gastos per-capita e comparação com municípios do mesmo porte.
     </p>
   </header>
 
-  <form class="search-form" onsubmit={handleSubmit}>
+  <form onsubmit={handleSubmit}>
     <input
       type="text"
       bind:value={searchIbge}
@@ -111,7 +111,7 @@
       placeholder="Objeto (ex: merenda)"
       aria-label="Objeto"
     />
-    <button type="submit" class="btn btn-primary">Comparar</button>
+    <button type="submit">Comparar</button>
   </form>
 
   {#if (!submittedIbge || submittedIbge.length !== 7) || (!submittedObjeto || submittedObjeto.length < 3)}
@@ -120,30 +120,30 @@
       message="Informe o IBGE (7 dígitos) e o objeto para comparar."
     />
   {:else if loading}
-    <div class="skeleton-wrap" aria-busy="true" aria-label="Buscando dados">
-      <div class="skeleton skeleton-bid"></div>
+    <div aria-busy="true" aria-label="Buscando dados">
+      <div></div>
     </div>
   {:else if error}
     <AlertBanner title="Não foi possível buscar dados" message={error.message} level="error" />
   {:else}
-    <div class="spend-summary" style="margin-bottom: 2rem;">
+    <div>
       <h3>Gasto Per-Capita (Objeto: {submittedObjeto})</h3>
-      <p style="font-size: 1.5rem; font-weight: bold;">{formatBrl(perCapitaSpend)} / habitante</p>
-      <p style="color: var(--color-text-dim); font-size: 0.8rem;">Gasto total: {formatBrl(totalSpend)} | População estimada: {getPop(submittedIbge)}</p>
+      <p>{formatBrl(perCapitaSpend)} / habitante</p>
+      <p>Gasto total: {formatBrl(totalSpend)} | População estimada: {getPop(submittedIbge)}</p>
     </div>
 
-    <section class="peers-section" data-testid="comparar-peers">
+    <section data-testid="comparar-peers">
       <h3>Municípios Semelhantes</h3>
-      <div class="peer-list">
-        <div class="peer-card" data-testid="comparar-peer-item">
+      <div>
+        <div data-testid="comparar-peer-item">
           <h4>Peer 1 (Simulado)</h4>
           <p>{formatBrl(perCapitaSpend * 0.9)} / hab</p>
         </div>
-        <div class="peer-card" data-testid="comparar-peer-item">
+        <div data-testid="comparar-peer-item">
           <h4>Peer 2 (Simulado)</h4>
           <p>{formatBrl(perCapitaSpend * 1.1)} / hab</p>
         </div>
-        <div class="peer-card" data-testid="comparar-peer-item">
+        <div data-testid="comparar-peer-item">
           <h4>Peer 3 (Simulado)</h4>
           <p>{formatBrl(perCapitaSpend * 0.8)} / hab</p>
         </div>
@@ -152,30 +152,3 @@
   {/if}
 </div>
 
-<style>
-  .comparar { padding: var(--space-2xl) 0; }
-  .hub-header { margin-bottom: var(--space-lg); border-bottom: 2px solid var(--color-base-300); padding-bottom: var(--space-md); }
-  .type-badge { font-family: var(--font-mono); font-size: 0.7rem; background: var(--color-primary); color: white; padding: 2px 8px; border-radius: 4px; }
-  h1 { font-size: var(--font-size-2xl); margin-top: var(--space-sm); }
-  .meta-row { color: var(--color-secondary); font-size: var(--font-size-sm); margin: 4px 0 0; }
-
-  .search-form { display: flex; gap: var(--space-sm); margin-bottom: var(--space-lg); }
-  .search-form input {
-    flex: 1;
-    padding: var(--space-sm) var(--space-md);
-    border: 1px solid var(--color-base-300);
-    border-radius: var(--radius-sm);
-    font-size: var(--font-size-md);
-  }
-
-  .skeleton-wrap { display: grid; gap: var(--space-md); }
-  .skeleton-bid { height: 5rem; border-radius: var(--radius-sm); }
-
-  .peer-list { display: flex; gap: 1rem; margin-top: 1rem; flex-wrap: wrap; }
-  .peer-card {
-    background: var(--color-base-100); padding: 1rem; border: 1px solid var(--color-base-300);
-    flex: 1; min-width: 150px;
-  }
-  .peer-card h4 { margin: 0 0 0.5rem 0; font-size: 0.9rem; }
-  .peer-card p { margin: 0; font-weight: bold; }
-</style>

@@ -126,7 +126,7 @@
   {/snippet}
 
   {#if data}
-    <div class="stats-row">
+    <div>
       <StatCard title="Contratações Recentes" value={stats.count} hint="Últimos 30 dias (máx. 50)" />
       <StatCard title="Valor Estimado (Amostra)" value={formatBRL(stats.totalValue)} tone="success" hint="Soma das contratações listadas" />
     </div>
@@ -139,7 +139,7 @@
         actionLabel="Voltar à busca"
       />
     {:else}
-      <section class="recent-list">
+      <section>
         <h3>Contratações Recentes neste Município</h3>
         <PaginatedList items={data.contracts} pageSize={10}>
           {#snippet children(pageItems)}
@@ -158,8 +158,3 @@
   {/if}
 </EntityDetailLayout>
 
-<style>
-  .stats-row { display: flex; gap: var(--space-md); margin-bottom: var(--space-xl); align-items: center; flex-wrap: wrap; }
-
-  .recent-list { display: grid; gap: var(--space-md); }
-</style>

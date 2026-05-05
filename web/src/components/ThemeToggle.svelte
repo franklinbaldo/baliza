@@ -23,7 +23,6 @@
 
 <button
   type="button"
-  class="theme-btn"
   onclick={toggle}
   aria-label={isDark ? 'Alternar para tema claro' : 'Alternar para tema escuro'}
   aria-pressed={isDark}
@@ -36,29 +35,3 @@
   {/if}
 </button>
 
-<style>
-  .theme-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 2.75rem;
-    height: 2.75rem;
-    border: 1px solid var(--color-border);
-    background: color-mix(in srgb, var(--color-surface) 72%, transparent);
-    color: var(--color-text-dim);
-    cursor: pointer;
-    border-radius: var(--radius-pill);
-    transition: all var(--duration-fast) var(--ease);
-    flex-shrink: 0;
-  }
-
-  .theme-btn:hover,
-  .theme-btn:focus-visible {
-    color: var(--color-accent);
-    border-color: var(--color-accent);
-    box-shadow: var(--shadow-pool-sm);
-    transform: translateY(-1px);
-    outline: 2px solid transparent;
-    outline-offset: 2px;
-  }
-</style>

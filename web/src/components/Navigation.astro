@@ -15,47 +15,47 @@ const cityPrefix = (BASE + 'municipio').replace(/\/$/, '');
 const isCityActive = cleanPath === cityPrefix;
 ---
 
-<nav class="nav">
-  <div class="container nav-content">
-    <a href={BASE} class="logo">
-      <span class="brand-mark">B</span>
-      <span><span class="logo-accent">Baliza</span> Monitor</span>
+<nav>
+  <div>
+    <a href={BASE}>
+      <span>B</span>
+      <span><span>Baliza</span> Monitor</span>
     </a>
 
-    <input type="checkbox" id="nav-toggle" class="nav-toggle-checkbox sr-only" aria-label="Alternar menu" />
-    <label for="nav-toggle" class="nav-toggle-label">
+    <input type="checkbox" id="nav-toggle" aria-label="Alternar menu" />
+    <label for="nav-toggle">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-        <line x1="3" y1="12" x2="21" y2="12" class="line-mid"></line>
-        <line x1="3" y1="6" x2="21" y2="6" class="line-top"></line>
-        <line x1="3" y1="18" x2="21" y2="18" class="line-bot"></line>
+        <line x1="3" y1="12" x2="21" y2="12"></line>
+        <line x1="3" y1="6" x2="21" y2="6"></line>
+        <line x1="3" y1="18" x2="21" y2="18"></line>
       </svg>
-      <span class="sr-only">Alternar menu</span>
+      <span>Alternar menu</span>
     </label>
 
-    <div class="nav-menu">
-      <ul class="nav-links">
-        <li class={isCityActive ? 'active-wrap' : ''}><CityNavLink client:load isActive={isCityActive} /></li>
-        <li><a href={BASE + 'atas'} class={isActive(BASE + 'atas') ? 'active' : ''}>Atas</a></li>
+    <div>
+      <ul>
+        <li><CityNavLink client:load isActive={isCityActive} /></li>
+        <li><a href={BASE + 'atas'}>Atas</a></li>
         
-        <li class="dropdown-container">
-          <button type="button" class="dropdown-trigger" aria-haspopup="true">
+        <li>
+          <button type="button" aria-haspopup="true">
             Dados Abertos
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chevron"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
           </button>
-          <ul class="dropdown-menu">
+          <ul>
             <li><a href={BASE + 'explorador'}>Explorador SQL</a></li>
             <li><a href={BASE + 'desenvolvedores'}>Devs & API</a></li>
             <li><a href={BASE + 'status'}>Status do Arquivo</a></li>
           </ul>
         </li>
 
-        <li><a href={BASE + 'sobre'} class={isActive(BASE + 'sobre') ? 'active' : ''}>Sobre</a></li>
+        <li><a href={BASE + 'sobre'}>Sobre</a></li>
       </ul>
 
-      <div class="nav-actions">
-        <a href={BASE + 'busca'} class="icon-btn search-btn" aria-label="Buscar" title="Buscar">
+      <div>
+        <a href={BASE + 'busca'} aria-label="Buscar" title="Buscar">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-          <span class="search-label sr-only-desktop">Buscar</span>
+          <span>Buscar</span>
         </a>
         <ThemeToggle client:only="svelte" />
       </div>
@@ -63,302 +63,3 @@ const isCityActive = cleanPath === cityPrefix;
   </div>
 </nav>
 
-<style>
-  .nav {
-    background:
-      linear-gradient(90deg, color-mix(in srgb, var(--color-bg) 92%, transparent), color-mix(in srgb, var(--color-surface) 94%, transparent)),
-      var(--color-bg);
-    border-bottom: 1px solid var(--color-border);
-    min-height: 5rem;
-    display: flex;
-    align-items: center;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    box-shadow: var(--shadow-pool-sm);
-    border-radius: 0 0 var(--radius-arch) 0;
-    /* No overflow: hidden — would clip the "Dados Abertos" submenu on
-       desktop and the expanded panel on mobile, both anchored at
-       top: 100% of this navbar. The decorative ::after stripe and the
-       bottom-right rounded corner still render correctly without it. */
-  }
-  .nav::after {
-    content: "";
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 5px;
-    background: repeating-linear-gradient(90deg, var(--color-accent) 0 26px, var(--color-ouro) 26px 38px, var(--color-azul) 38px 64px, var(--color-tijolo) 64px 76px);
-    pointer-events: none;
-  }
-  .nav-content {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    width: 100%;
-    gap: var(--space-4);
-    position: relative;
-    z-index: 1;
-  }
-  .logo {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    text-decoration: none;
-    color: var(--color-text);
-    font-family: var(--font-logo);
-    font-size: var(--text-lg);
-    flex-shrink: 0;
-    line-height: 1;
-  }
-  .brand-mark {
-    display: grid;
-    place-items: center;
-    width: 2.75rem;
-    height: 2.75rem;
-    background: var(--color-text);
-    color: var(--color-bg);
-    border-radius: 0 var(--radius-arch) 0 0;
-    font-family: var(--font-logo);
-    font-size: 1.5rem;
-  }
-  .logo-accent {
-    color: var(--color-accent);
-    font-weight: 500;
-  }
-  .nav-menu {
-    display: flex;
-    flex-grow: 1;
-    justify-content: space-between;
-    align-items: center;
-    gap: var(--space-4);
-  }
-  .nav-toggle-label {
-    display: none;
-  }
-
-  .nav-links {
-    list-style: none;
-    display: flex;
-    align-items: center;
-    gap: var(--space-1);
-    margin: 0;
-    padding: 0;
-  }
-  .nav-links a,
-  .dropdown-trigger {
-    text-decoration: none;
-    color: var(--color-text-dim);
-    font-family: var(--font-body);
-    font-weight: 500;
-    font-size: var(--text-sm);
-    transition: var(--transition-base);
-    white-space: nowrap;
-    border: 1px solid transparent;
-    border-radius: var(--radius-pill);
-    padding: 0.45rem 0.8rem;
-    display: inline-flex;
-    align-items: center;
-    cursor: pointer;
-    background: transparent;
-  }
-  .nav-links a:hover, .nav-links a.active,
-  .dropdown-trigger:hover {
-    color: var(--color-text);
-    background: color-mix(in srgb, var(--color-azul) 12%, transparent);
-    border-color: color-mix(in srgb, var(--color-azul) 28%, transparent);
-  }
-  .nav-links a.active {
-    box-shadow: inset 3px 0 0 var(--color-accent);
-  }
-  .nav-links li.active-wrap :global(.city-nav-link) {
-    color: var(--color-text);
-    background: color-mix(in srgb, var(--color-azul) 12%, transparent);
-    border-color: color-mix(in srgb, var(--color-azul) 28%, transparent);
-    box-shadow: inset 3px 0 0 var(--color-accent);
-  }
-
-  /* Dropdown Styles */
-  .dropdown-container {
-    position: relative;
-  }
-  .dropdown-trigger .chevron {
-    margin-left: 4px;
-    transition: transform var(--duration-fast) var(--ease);
-  }
-  .dropdown-menu {
-    position: absolute;
-    top: 100%;
-    left: 50%;
-    transform: translateX(-50%) translateY(10px);
-    background: var(--color-bg);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    box-shadow: var(--shadow-pool);
-    list-style: none;
-    padding: var(--space-2);
-    margin: 0;
-    min-width: 200px;
-    opacity: 0;
-    visibility: hidden;
-    transition: all var(--duration-fast) var(--ease);
-    z-index: 200;
-  }
-  .dropdown-container:hover .dropdown-menu,
-  .dropdown-container:focus-within .dropdown-menu {
-    opacity: 1;
-    visibility: visible;
-    transform: translateX(-50%) translateY(4px);
-  }
-  .dropdown-container:hover .chevron,
-  .dropdown-container:focus-within .chevron {
-    transform: rotate(180deg);
-  }
-  .dropdown-menu li {
-    display: block;
-    width: 100%;
-  }
-  .dropdown-menu a {
-    display: flex;
-    width: 100%;
-    padding: var(--space-2) var(--space-3);
-    border-radius: var(--radius-sm);
-    border: none;
-  }
-  .dropdown-menu a:hover {
-    background: color-mix(in srgb, var(--color-azul) 9%, transparent);
-    box-shadow: none;
-  }
-
-  .nav-actions {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-  }
-  .icon-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 2.25rem;
-    height: 2.25rem;
-    border-radius: var(--radius-full);
-    color: var(--color-text-dim);
-    transition: var(--transition-base);
-    text-decoration: none;
-  }
-  .icon-btn:hover {
-    color: var(--color-text);
-    background: color-mix(in srgb, var(--color-azul) 12%, transparent);
-  }
-  .sr-only-desktop {
-    display: none;
-  }
-
-  /* Mobile Adjustments */
-  @media (max-width: 900px) {
-    .nav {
-      min-height: 4rem;
-      border-radius: 0;
-      padding: 0;
-    }
-    .nav-content {
-      flex-wrap: wrap;
-      gap: 0;
-      padding: var(--space-3) var(--space-4);
-    }
-    
-    .nav-toggle-label {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      color: var(--color-text);
-      z-index: 101;
-      width: 2.5rem;
-      height: 2.5rem;
-      border-radius: var(--radius-sm);
-    }
-    
-    .nav-menu {
-      display: none;
-      flex-direction: column;
-      width: 100%;
-      position: absolute;
-      top: 100%;
-      left: 0;
-      background: var(--color-bg);
-      border-bottom: 1px solid var(--color-border);
-      padding: var(--space-4);
-      box-shadow: var(--shadow-pool-sm);
-      align-items: flex-start;
-      gap: var(--space-4);
-    }
-    
-    .nav-toggle-checkbox:checked ~ .nav-menu {
-      display: flex;
-    }
-    
-    .nav-links {
-      flex-direction: column;
-      align-items: stretch;
-      width: 100%;
-      gap: var(--space-2);
-    }
-    
-    .nav-links a,
-    .nav-links li :global(.city-nav-link),
-    .dropdown-trigger {
-      width: 100%;
-      justify-content: flex-start;
-      font-size: var(--text-md);
-      padding: var(--space-3);
-      border-radius: var(--radius-sm);
-    }
-    
-    .dropdown-menu {
-      position: static;
-      transform: none;
-      opacity: 1;
-      visibility: visible;
-      box-shadow: none;
-      border: none;
-      border-left: 2px solid var(--color-border);
-      padding: 0 0 0 var(--space-3);
-      margin-left: var(--space-3);
-      margin-top: var(--space-2);
-      min-width: 0;
-      background: transparent;
-      display: none;
-    }
-    
-    /* Toggle dropdown open on mobile */
-    .dropdown-container:focus-within .dropdown-menu {
-      display: block;
-    }
-    
-    .nav-actions {
-      width: 100%;
-      justify-content: space-between;
-      padding-top: var(--space-4);
-      border-top: 1px solid var(--color-border);
-    }
-    
-    .icon-btn.search-btn {
-      width: auto;
-      height: auto;
-      border-radius: var(--radius-sm);
-      padding: var(--space-2) var(--space-4);
-      background: var(--color-accent);
-      color: var(--color-bg);
-      gap: var(--space-2);
-    }
-    .icon-btn.search-btn:hover {
-      background: var(--color-accent-hover);
-    }
-    .sr-only-desktop {
-      display: inline;
-      font-weight: 500;
-    }
-  }
-</style>

@@ -6,1254 +6,14 @@
 <title>Modernismo Brasileiro · Design System</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..900,0..100;1,9..144,300..900,0..100&family=Manrope:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<style>
-/* ============================================================
-   DESIGN TOKENS
-   ============================================================ */
-:root {
-  /* Neutros quentes (off-white Lina → grafite com calor) */
-  --neutral-0:   #FBF8F1;
-  --neutral-50:  #F5F2EC;
-  --neutral-100: #ECE7DA;
-  --neutral-200: #DCD5C2;
-  --neutral-300: #C4BCA3;
-  --neutral-400: #8A8270;
-  --neutral-500: #666053;
-  --neutral-700: #3D3A33;
-  --neutral-900: #1A1815;
 
-  /* Paleta ativa (default: Concretista) */
-  --bulcao-fg:     #1A1815;
-  --bulcao-bg:     #F5F2EC;
-  --bulcao-accent: #C8312A;
-  --bulcao-support:#2B4B7C;
-
-  /* Tipografia */
-  --font-display: 'Fraunces', Georgia, serif;
-  --font-body: 'Manrope', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
-
-  /* Type scale */
-  --text-xs:   12px;
-  --text-sm:   14px;
-  --text-base: 16px;
-  --text-md:   18px;
-  --text-lg:   22px;
-  --text-xl:   28px;
-  --text-2xl:  36px;
-  --text-3xl:  48px;
-  --text-4xl:  64px;
-  --text-5xl:  88px;
-  --text-6xl:  120px;
-
-  /* Espaçamento (base 8px, vazio brasiliense) */
-  --space-1:  4px;
-  --space-2:  8px;
-  --space-3:  12px;
-  --space-4:  16px;
-  --space-5:  24px;
-  --space-6:  32px;
-  --space-7:  48px;
-  --space-8:  64px;
-  --space-9:  96px;
-  --space-10: 128px;
-  --space-11: 160px;
-
-  /* Radii (quase zero — geometria limpa) */
-  --radius-0: 0px;
-  --radius-1: 2px;
-  --radius-2: 4px;
-  --radius-pill: 999px;
-
-  /* Motion */
-  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --duration-fast: 0.18s;
-  --duration: 0.36s;
-  --duration-slow: 0.6s;
-
-  /* Layout */
-  --nav-width: 280px;
-  --content-max: 1040px;
-  --gutter: 40px;
-}
-
-[data-palette="tarsila"] {
-  --bulcao-fg: #B83A2C; --bulcao-bg: #F2E2C8;
-  --bulcao-accent: #2E6F8E; --bulcao-support: #6B4E9A;
-}
-[data-palette="burle"] {
-  --bulcao-fg: #2D5F3F; --bulcao-bg: #ECE7D2;
-  --bulcao-accent: #E0A12A; --bulcao-support: #B891C5;
-}
-[data-palette="concretista"] {
-  --bulcao-fg: #1A1815; --bulcao-bg: #F5F2EC;
-  --bulcao-accent: #C8312A; --bulcao-support: #2B4B7C;
-}
-[data-palette="tropicalista"] {
-  --bulcao-fg: #DC1E63; --bulcao-bg: #FFF1B3;
-  --bulcao-accent: #FF6B1F; --bulcao-support: #2D7A4F;
-}
-
-/* ============================================================
-   RESET + BASE
-   ============================================================ */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { scroll-behavior: smooth; }
-body {
-  font-family: var(--font-body);
-  background: var(--neutral-0);
-  color: var(--neutral-900);
-  font-size: var(--text-base);
-  line-height: 1.6;
-  font-weight: 400;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-img, svg { display: block; max-width: 100%; }
-button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
-a { color: inherit; text-decoration: none; }
-
-/* ============================================================
-   LAYOUT PRINCIPAL
-   ============================================================ */
-.layout {
-  display: grid;
-  grid-template-columns: var(--nav-width) 1fr;
-  min-height: 100vh;
-}
-@media (max-width: 900px) {
-  .layout { grid-template-columns: 1fr; }
-}
-
-/* ============================================================
-   NAV LATERAL
-   ============================================================ */
-aside.nav {
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  border-right: 1px solid var(--neutral-100);
-  padding: var(--space-6) var(--space-5);
-  background: var(--neutral-0);
-  overflow-y: auto;
-  display: flex; flex-direction: column; gap: var(--space-6);
-}
-@media (max-width: 900px) {
-  aside.nav {
-    position: static; height: auto;
-    border-right: none;
-    border-bottom: 1px solid var(--neutral-100);
-  }
-}
-.nav-brand {
-  font-family: var(--font-display);
-  font-weight: 500;
-  font-size: var(--text-md);
-  line-height: 1.1;
-  letter-spacing: -0.01em;
-  font-variation-settings: "SOFT" 50, "opsz" 144;
-}
-.nav-brand .sub {
-  display: block;
-  color: var(--neutral-400);
-  font-weight: 300;
-  font-size: var(--text-sm);
-  margin-top: 2px;
-}
-
-.palette-picker {
-  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
-}
-.palette-picker .label {
-  font-size: 10px; color: var(--neutral-400);
-  text-transform: uppercase; letter-spacing: 0.14em;
-  width: 100%; margin-bottom: 4px;
-}
-.swatch {
-  width: 28px; height: 28px; border-radius: 50%;
-  position: relative; overflow: hidden; padding: 0;
-  transition: transform var(--duration-fast) var(--ease);
-}
-.swatch:hover { transform: scale(1.15); }
-.swatch::before, .swatch::after { content: ""; position: absolute; inset: 0; }
-.swatch::before { background: var(--s-bg); }
-.swatch::after {
-  background: var(--s-fg);
-  clip-path: polygon(0 0, 100% 0, 100% 100%);
-}
-.swatch[data-active="true"] {
-  box-shadow: 0 0 0 2px var(--neutral-0), 0 0 0 3px var(--neutral-900);
-}
-
-.nav-list {
-  list-style: none;
-  display: flex; flex-direction: column;
-  font-size: var(--text-sm);
-}
-.nav-list li { counter-increment: nav; }
-.nav-list a {
-  display: grid;
-  grid-template-columns: 32px 1fr;
-  padding: 8px 0;
-  color: var(--neutral-500);
-  transition: color var(--duration-fast) var(--ease);
-  border-bottom: 1px solid transparent;
-}
-.nav-list a::before {
-  content: counter(nav, decimal-leading-zero);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--neutral-300);
-}
-.nav-list a:hover { color: var(--neutral-900); }
-.nav-list a.active {
-  color: var(--bulcao-accent);
-  font-weight: 500;
-}
-.nav-list a.active::before { color: var(--bulcao-accent); }
-
-/* ============================================================
-   MAIN + SECTIONS
-   ============================================================ */
-main {
-  padding: 0 var(--gutter);
-  max-width: calc(var(--content-max) + 2 * var(--gutter));
-}
-@media (max-width: 900px) {
-  main { padding: 0 var(--space-5); }
-}
-
-section.ds {
-  padding: var(--space-10) 0 var(--space-9);
-  border-bottom: 1px solid var(--neutral-100);
-  scroll-margin-top: var(--space-5);
-}
-section.ds:last-of-type { border-bottom: none; }
-
-.section-head {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--space-4);
-  margin-bottom: var(--space-8);
-  max-width: 720px;
-}
-.section-num {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  letter-spacing: 0.18em;
-  color: var(--neutral-400);
-  text-transform: uppercase;
-}
-.section-title {
-  font-family: var(--font-display);
-  font-weight: 300;
-  font-size: clamp(40px, 5vw, 72px);
-  line-height: 1;
-  letter-spacing: -0.03em;
-  font-variation-settings: "SOFT" 30, "opsz" 144;
-}
-.section-title em {
-  font-style: italic;
-  font-weight: 400;
-  color: var(--bulcao-accent);
-  transition: color var(--duration) var(--ease);
-}
-.section-lead {
-  font-size: var(--text-md);
-  line-height: 1.5;
-  color: var(--neutral-700);
-  max-width: 620px;
-  margin-top: var(--space-3);
-}
-
-.sub-head {
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: var(--text-2xl);
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-  margin-bottom: var(--space-4);
-  margin-top: var(--space-8);
-  font-variation-settings: "SOFT" 40, "opsz" 144;
-}
-.sub-head:first-child { margin-top: 0; }
-
-.eyebrow {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.15em;
-  color: var(--neutral-400);
-  margin-bottom: var(--space-3);
-}
-
-/* ============================================================
-   COVER
-   ============================================================ */
-#cover {
-  min-height: 88vh;
-  display: flex; flex-direction: column; justify-content: space-between;
-  padding-top: var(--space-9); padding-bottom: var(--space-8);
-  border-bottom: 1px solid var(--neutral-100);
-  position: relative;
-  overflow: hidden;
-}
-#cover h1 {
-  font-family: var(--font-display);
-  font-weight: 300;
-  font-size: clamp(64px, 11vw, 176px);
-  line-height: 0.92;
-  letter-spacing: -0.04em;
-  font-variation-settings: "SOFT" 20, "opsz" 144;
-}
-#cover h1 em {
-  font-style: italic;
-  font-weight: 400;
-  color: var(--bulcao-accent);
-  transition: color var(--duration) var(--ease);
-}
-#cover .manifesto {
-  font-family: var(--font-display);
-  font-style: italic;
-  font-weight: 300;
-  font-size: var(--text-lg);
-  line-height: 1.4;
-  max-width: 520px;
-  color: var(--neutral-700);
-  font-variation-settings: "SOFT" 60;
-  margin-top: var(--space-6);
-}
-#cover .credits {
-  display: flex; gap: var(--space-7); flex-wrap: wrap;
-  margin-top: var(--space-8);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--neutral-400);
-}
-#cover .credits strong {
-  display: block;
-  font-family: var(--font-display);
-  font-style: normal;
-  font-weight: 400;
-  font-size: var(--text-base);
-  text-transform: none;
-  letter-spacing: 0;
-  color: var(--neutral-900);
-  margin-top: 4px;
-  font-variation-settings: "SOFT" 50;
-}
-#cover .parabola {
-  position: absolute;
-  right: -10%; top: 20%;
-  width: 60%;
-  height: 60%;
-  color: var(--bulcao-accent);
-  opacity: 0.08;
-  transition: color var(--duration) var(--ease);
-  pointer-events: none;
-}
-#cover .parabola svg { width: 100%; height: 100%; }
-
-/* ============================================================
-   MANIFESTO
-   ============================================================ */
-.principles {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: var(--space-4) var(--space-6);
-}
-.principle {
-  padding: var(--space-5) 0;
-  border-top: 1px solid var(--neutral-100);
-}
-.principle .num {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  letter-spacing: 0.15em;
-  color: var(--bulcao-accent);
-  text-transform: uppercase;
-  margin-bottom: var(--space-2);
-  transition: color var(--duration) var(--ease);
-}
-.principle h3 {
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: var(--text-lg);
-  line-height: 1.2;
-  letter-spacing: -0.01em;
-  margin-bottom: var(--space-2);
-  font-variation-settings: "SOFT" 40;
-}
-.principle p {
-  color: var(--neutral-500);
-  font-size: var(--text-sm);
-}
-
-.lineages {
-  display: grid;
-  grid-template-columns: 200px 1fr;
-  gap: var(--space-4) var(--space-6);
-  margin-top: var(--space-6);
-}
-@media (max-width: 700px) {
-  .lineages { grid-template-columns: 1fr; gap: var(--space-2); }
-}
-.lineages dt {
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-style: italic;
-  font-size: var(--text-md);
-  color: var(--bulcao-accent);
-  transition: color var(--duration) var(--ease);
-  font-variation-settings: "SOFT" 60;
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--neutral-100);
-}
-.lineages dd {
-  font-size: var(--text-sm);
-  color: var(--neutral-500);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--neutral-100);
-  padding-bottom: var(--space-3);
-}
-
-.antimodels {
-  background: var(--neutral-50);
-  padding: var(--space-6);
-  margin-top: var(--space-7);
-}
-.antimodels h3 {
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: var(--text-xl);
-  margin-bottom: var(--space-4);
-  font-variation-settings: "SOFT" 40;
-}
-.antimodels ul { list-style: none; }
-.antimodels li {
-  padding: var(--space-2) 0;
-  border-top: 1px dashed var(--neutral-200);
-  font-size: var(--text-sm);
-  color: var(--neutral-700);
-  position: relative; padding-left: var(--space-5);
-}
-.antimodels li:first-child { border-top: none; }
-.antimodels li::before {
-  content: "×";
-  position: absolute; left: 0;
-  font-family: var(--font-display);
-  color: var(--bulcao-accent);
-  font-weight: 400;
-  transition: color var(--duration) var(--ease);
-}
-
-/* ============================================================
-   CORES — SWATCHES
-   ============================================================ */
-.palette-block {
-  margin-bottom: var(--space-7);
-}
-.palette-block h3 {
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: var(--text-xl);
-  margin-bottom: var(--space-2);
-  font-variation-settings: "SOFT" 40;
-}
-.palette-block .desc {
-  font-size: var(--text-sm);
-  color: var(--neutral-500);
-  max-width: 620px;
-  margin-bottom: var(--space-5);
-}
-.swatch-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: var(--space-3);
-}
-.swatch-card {
-  display: flex; flex-direction: column;
-  background: var(--neutral-0);
-  border: 1px solid var(--neutral-100);
-}
-.swatch-card .chip {
-  height: 100px;
-}
-.swatch-card .info {
-  padding: var(--space-3);
-  font-size: var(--text-xs);
-  display: flex; flex-direction: column; gap: 2px;
-}
-.swatch-card .role {
-  font-family: var(--font-display);
-  font-size: var(--text-sm);
-  font-variation-settings: "SOFT" 40;
-}
-.swatch-card .hex {
-  font-family: var(--font-mono);
-  color: var(--neutral-500);
-}
-.swatch-card .token {
-  font-family: var(--font-mono);
-  color: var(--neutral-400);
-}
-
-/* ============================================================
-   TIPOGRAFIA
-   ============================================================ */
-.type-specimen {
-  margin-bottom: var(--space-7);
-  padding-top: var(--space-5);
-  border-top: 1px solid var(--neutral-100);
-}
-.type-specimen .meta {
-  display: flex; gap: var(--space-5); flex-wrap: wrap;
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--neutral-400);
-  text-transform: uppercase; letter-spacing: 0.12em;
-  margin-bottom: var(--space-5);
-}
-.type-specimen .meta span strong {
-  display: block;
-  color: var(--neutral-900);
-  font-family: var(--font-body);
-  text-transform: none; letter-spacing: 0;
-  font-size: var(--text-sm);
-  font-weight: 500;
-  margin-top: 2px;
-}
-.display-show {
-  font-family: var(--font-display);
-  font-weight: 300;
-  font-size: clamp(56px, 8vw, 120px);
-  line-height: 1;
-  letter-spacing: -0.03em;
-  font-variation-settings: "SOFT" 30, "opsz" 144;
-}
-.display-show em {
-  font-style: italic;
-  font-weight: 400;
-  color: var(--bulcao-accent);
-  transition: color var(--duration) var(--ease);
-}
-.body-show {
-  font-family: var(--font-body);
-  font-size: var(--text-md);
-  line-height: 1.55;
-  max-width: 640px;
-  color: var(--neutral-700);
-}
-
-.type-scale {
-  display: grid; gap: var(--space-2);
-  font-family: var(--font-display);
-  font-variation-settings: "SOFT" 40, "opsz" 144;
-}
-.type-scale .row {
-  display: grid;
-  grid-template-columns: 60px 80px 1fr;
-  align-items: baseline;
-  gap: var(--space-4);
-  padding: var(--space-3) 0;
-  border-top: 1px solid var(--neutral-100);
-}
-.type-scale .row .token {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--neutral-400);
-}
-.type-scale .row .size {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--neutral-500);
-}
-.type-scale .row .sample {
-  font-weight: 400;
-  line-height: 1;
-}
-
-.variable-axes {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: var(--space-4);
-  margin-top: var(--space-5);
-}
-.axis-card {
-  padding: var(--space-5);
-  border: 1px solid var(--neutral-100);
-  background: var(--neutral-0);
-}
-.axis-card .axis-sample {
-  font-family: var(--font-display);
-  font-size: var(--text-3xl);
-  line-height: 1;
-  margin-bottom: var(--space-3);
-}
-.axis-card .axis-name {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--bulcao-accent);
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  margin-bottom: 4px;
-  transition: color var(--duration) var(--ease);
-}
-.axis-card .axis-desc {
-  font-size: var(--text-sm);
-  color: var(--neutral-500);
-}
-
-/* ============================================================
-   GRID & VAZIO
-   ============================================================ */
-.space-scale {
-  display: flex; flex-direction: column; gap: var(--space-1);
-}
-.space-row {
-  display: grid;
-  grid-template-columns: 80px 80px 1fr;
-  align-items: center;
-  gap: var(--space-4);
-  font-size: var(--text-xs);
-  font-family: var(--font-mono);
-}
-.space-row .token { color: var(--neutral-900); }
-.space-row .val { color: var(--neutral-500); }
-.space-row .bar {
-  height: 12px;
-  background: var(--bulcao-accent);
-  transition: background var(--duration) var(--ease);
-}
-.grid-demo {
-  display: grid;
-  grid-template-columns: repeat(12, 1fr);
-  gap: var(--space-2);
-  background: var(--neutral-50);
-  padding: var(--space-3);
-  margin-top: var(--space-5);
-}
-.grid-demo > div {
-  height: 80px;
-  background: var(--bulcao-bg);
-  border: 1px solid color-mix(in srgb, var(--bulcao-fg) 10%, transparent);
-  transition: background var(--duration) var(--ease);
-}
-
-/* ============================================================
-   TILES BULCÃO
-   ============================================================ */
-.tiles-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--space-6);
-}
-@media (max-width: 900px) {
-  .tiles-grid { grid-template-columns: 1fr; }
-}
-.tile-card { border-top: 1px solid var(--neutral-100); padding-top: var(--space-5); }
-.tile-card .tile-num {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--bulcao-accent);
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  margin-bottom: var(--space-2);
-  transition: color var(--duration) var(--ease);
-}
-.tile-card h3 {
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: var(--text-xl);
-  margin-bottom: var(--space-2);
-  font-variation-settings: "SOFT" 40;
-}
-.tile-card p {
-  font-size: var(--text-sm);
-  color: var(--neutral-500);
-  margin-bottom: var(--space-4);
-}
-.tile-preview {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-3);
-  margin-bottom: var(--space-4);
-}
-.tile-cell {
-  aspect-ratio: 1;
-  background: var(--bulcao-bg);
-  overflow: hidden;
-  transition: background var(--duration) var(--ease);
-}
-.tile-cell svg { width: 100%; height: 100%; }
-.tile-cell .tile-grid {
-  display: grid; grid-template-columns: repeat(4, 1fr);
-  width: 100%; height: 100%;
-}
-.tile-cell .tile-grid > div {
-  transition: transform var(--duration-slow) var(--ease);
-}
-.tile-ref {
-  font-family: var(--font-display);
-  font-style: italic;
-  font-weight: 400;
-  font-size: var(--text-sm);
-  color: var(--neutral-400);
-  padding-left: var(--space-3);
-  border-left: 2px solid var(--bulcao-accent);
-  transition: border-color var(--duration) var(--ease);
-  margin-bottom: var(--space-4);
-  font-variation-settings: "SOFT" 60;
-}
-
-/* ============================================================
-   ÍCONES UI
-   ============================================================ */
-.icons-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 1px;
-  background: var(--neutral-100);
-  border: 1px solid var(--neutral-100);
-}
-.icon-cell {
-  background: var(--neutral-0);
-  padding: var(--space-5) var(--space-3);
-  display: flex; flex-direction: column; gap: var(--space-3);
-  align-items: center; text-align: center;
-  transition: background var(--duration-fast) var(--ease);
-}
-.icon-cell:hover {
-  background: var(--bulcao-bg);
-}
-.icon-cell svg {
-  width: 28px; height: 28px;
-  color: var(--neutral-900);
-  stroke-width: 1.75;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.icon-cell:hover svg { color: var(--bulcao-fg); }
-.icon-cell .icon-name {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--neutral-500);
-}
-
-/* ============================================================
-   GLIFOS & FORMAS
-   ============================================================ */
-.glyphs-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: var(--space-3);
-}
-.glyph-cell {
-  aspect-ratio: 1;
-  display: flex; align-items: center; justify-content: center;
-  padding: var(--space-5);
-  background: var(--neutral-0);
-  border: 1px solid var(--neutral-100);
-  transition: background var(--duration-fast) var(--ease);
-}
-.glyph-cell:hover { background: var(--bulcao-bg); }
-.glyph-cell svg {
-  width: 100%; height: 100%;
-  color: var(--bulcao-fg);
-  transition: color var(--duration) var(--ease);
-}
-
-.shapes-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--space-4);
-  margin-top: var(--space-5);
-}
-@media (max-width: 700px) { .shapes-grid { grid-template-columns: 1fr; } }
-.shape-cell {
-  aspect-ratio: 16 / 9;
-  background: var(--neutral-50);
-  overflow: hidden;
-  position: relative;
-  padding: var(--space-4);
-  display: flex; flex-direction: column; justify-content: flex-end;
-}
-.shape-cell svg {
-  position: absolute;
-  color: var(--bulcao-fg);
-  transition: color var(--duration) var(--ease);
-}
-.shape-cell .shape-label {
-  font-family: var(--font-display);
-  font-size: var(--text-md);
-  z-index: 1;
-  font-variation-settings: "SOFT" 40;
-}
-.shape-cell .shape-desc {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--neutral-500);
-  text-transform: uppercase; letter-spacing: 0.1em;
-  z-index: 1;
-}
-
-/* ============================================================
-   EMOJIS
-   ============================================================ */
-.emoji-section {
-  margin-bottom: var(--space-6);
-}
-.emoji-section h4 {
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: var(--text-md);
-  margin-bottom: var(--space-3);
-  font-variation-settings: "SOFT" 40;
-}
-.emoji-list {
-  font-size: 32px;
-  line-height: 1.4;
-  font-family: 'Twemoji Mozilla', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
-  display: flex; flex-wrap: wrap; gap: var(--space-3);
-  padding: var(--space-4);
-  background: var(--neutral-50);
-}
-.unicode-geo {
-  font-family: var(--font-display);
-  font-size: 32px;
-  color: var(--bulcao-fg);
-  transition: color var(--duration) var(--ease);
-  letter-spacing: 0.3em;
-}
-.font-options {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: var(--space-3);
-  margin-top: var(--space-5);
-}
-.font-opt {
-  padding: var(--space-4);
-  border: 1px solid var(--neutral-100);
-  background: var(--neutral-0);
-}
-.font-opt .opt-name {
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: var(--text-md);
-  font-variation-settings: "SOFT" 40;
-}
-.font-opt .opt-pick {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--bulcao-accent);
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  margin-bottom: var(--space-2);
-  transition: color var(--duration) var(--ease);
-}
-.font-opt .opt-desc {
-  font-size: var(--text-sm);
-  color: var(--neutral-500);
-}
-
-/* ============================================================
-   COMPONENTES
-   ============================================================ */
-.component-block {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-5);
-  margin-bottom: var(--space-7);
-  padding-top: var(--space-5);
-  border-top: 1px solid var(--neutral-100);
-}
-@media (max-width: 900px) {
-  .component-block { grid-template-columns: 1fr; }
-}
-.comp-info h3 {
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: var(--text-xl);
-  margin-bottom: var(--space-2);
-  font-variation-settings: "SOFT" 40;
-}
-.comp-info .comp-meta {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--bulcao-accent);
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  margin-bottom: var(--space-3);
-  transition: color var(--duration) var(--ease);
-}
-.comp-info p { font-size: var(--text-sm); color: var(--neutral-500); margin-bottom: var(--space-3); }
-
-.comp-preview {
-  padding: var(--space-6);
-  background: var(--neutral-50);
-  display: flex; flex-direction: column;
-  justify-content: center; align-items: flex-start;
-  gap: var(--space-3);
-  min-height: 200px;
-  overflow: hidden;
-}
-
-/* Componentes efetivos */
-.btn {
-  font-family: var(--font-body);
-  font-weight: 500;
-  font-size: var(--text-sm);
-  padding: 14px 24px;
-  border: none; cursor: pointer;
-  transition: all var(--duration-fast) var(--ease);
-  letter-spacing: 0.02em;
-}
-.btn-primary {
-  background: var(--bulcao-fg);
-  color: var(--bulcao-bg);
-}
-.btn-primary:hover { background: var(--bulcao-accent); }
-.btn-secondary {
-  background: transparent;
-  color: var(--bulcao-fg);
-  border: 1px solid var(--bulcao-fg);
-}
-.btn-secondary:hover {
-  background: var(--bulcao-fg);
-  color: var(--bulcao-bg);
-}
-.btn-tertiary {
-  background: transparent;
-  color: var(--bulcao-fg);
-  padding: 8px 0;
-  border-bottom: 2px solid var(--bulcao-accent);
-}
-
-.card-modernist {
-  background: var(--neutral-0);
-  padding: 0;
-  border: 1px solid var(--neutral-100);
-  width: 100%;
-  max-width: 300px;
-  display: grid; grid-template-rows: 120px 1fr;
-  overflow: hidden;
-}
-.card-modernist .card-bulcao {
-  background: var(--bulcao-bg);
-  position: relative;
-  overflow: hidden;
-}
-.card-modernist .card-bulcao svg { width: 100%; height: 100%; }
-.card-modernist .card-body {
-  padding: var(--space-4);
-  display: flex; flex-direction: column; gap: var(--space-2);
-}
-.card-modernist .card-title {
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: var(--text-lg);
-  line-height: 1.2;
-  font-variation-settings: "SOFT" 40;
-}
-.card-modernist .card-desc { font-size: var(--text-sm); color: var(--neutral-500); }
-
-.input-modernist {
-  font-family: var(--font-body);
-  font-size: var(--text-base);
-  padding: 10px 0;
-  border: none;
-  border-bottom: 2px solid var(--neutral-200);
-  background: transparent;
-  width: 100%; max-width: 320px;
-  color: var(--neutral-900);
-  outline: none;
-  transition: border-color var(--duration-fast) var(--ease);
-}
-.input-modernist:focus { border-bottom-color: var(--bulcao-accent); }
-.input-label {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--neutral-400);
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  margin-bottom: var(--space-2);
-  display: block;
-}
-
-.badge {
-  display: inline-flex; align-items: center;
-  font-family: var(--font-body);
-  font-weight: 500;
-  font-size: var(--text-xs);
-  padding: 6px 12px;
-  background: var(--bulcao-accent);
-  color: var(--bulcao-bg);
-  letter-spacing: 0.04em;
-}
-.badge-volpi {
-  clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
-  padding: 6px 18px;
-}
-.badge-outline {
-  background: transparent; color: var(--bulcao-fg);
-  border: 1px solid var(--bulcao-fg);
-}
-
-.divisor-burle {
-  width: 100%; height: 40px;
-  color: var(--bulcao-fg);
-  transition: color var(--duration) var(--ease);
-}
-.divisor-burle svg { width: 100%; height: 100%; }
-
-.modal-demo {
-  position: relative;
-  width: 100%; min-height: 200px;
-  background: linear-gradient(135deg, var(--bulcao-accent), var(--bulcao-fg));
-  display: flex; align-items: center; justify-content: center;
-  padding: var(--space-6);
-  overflow: hidden;
-}
-.modal-demo .modal-overlay {
-  position: absolute; inset: 0;
-  background: var(--bulcao-fg);
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 100 100'%3E%3Cmask id='m'%3E%3Crect width='100' height='100' fill='white'/%3E%3Crect x='40' y='0' width='20' height='100' fill='black'/%3E%3Crect x='0' y='40' width='100' height='20' fill='black'/%3E%3Ccircle cx='50' cy='50' r='22' fill='black'/%3E%3C/mask%3E%3Crect width='100' height='100' fill='white' mask='url(%23m)'/%3E%3C/svg%3E");
-  mask-size: 40px;
-  mask-repeat: repeat;
-  opacity: 0.6;
-}
-.modal-content {
-  background: var(--neutral-0);
-  padding: var(--space-6);
-  max-width: 320px;
-  position: relative; z-index: 2;
-}
-.modal-content h4 {
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: var(--text-lg);
-  margin-bottom: var(--space-2);
-  font-variation-settings: "SOFT" 40;
-}
-.modal-content p { font-size: var(--text-sm); color: var(--neutral-500); }
-
-.header-pilotis {
-  width: 100%;
-  background: var(--bulcao-bg);
-  position: relative;
-  padding: var(--space-4) var(--space-5);
-  display: flex; justify-content: space-between; align-items: center;
-}
-.header-pilotis::after {
-  content: "";
-  position: absolute; left: 0; right: 0; bottom: -16px;
-  height: 16px;
-  background: linear-gradient(to bottom,
-    var(--bulcao-bg) 0%,
-    var(--bulcao-bg) 30%,
-    transparent 30%, transparent 70%,
-    var(--bulcao-bg) 70%, var(--bulcao-bg) 100%);
-  background-size: 20% 100%;
-  background-repeat: repeat-x;
-  background-position: 10% 0;
-}
-.header-pilotis .brand {
-  font-family: var(--font-display);
-  font-weight: 500;
-  font-size: var(--text-md);
-  font-variation-settings: "SOFT" 40;
-}
-.header-pilotis nav {
-  display: flex; gap: var(--space-4);
-  font-size: var(--text-sm);
-}
-
-/* ============================================================
-   CÓDIGO
-   ============================================================ */
-.code {
-  background: var(--neutral-900);
-  color: var(--neutral-50);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  line-height: 1.6;
-  padding: var(--space-4) var(--space-5);
-  overflow-x: auto;
-  position: relative;
-  height: 100%;
-  min-height: 200px;
-}
-.code pre { margin: 0; white-space: pre; }
-.code .com { color: #8A8270; font-style: italic; }
-.code .prop { color: #E0A12A; }
-.code .val { color: #F2E2C8; }
-.code .sel { color: #DC9A90; }
-.code .kw { color: #C8312A; }
-.code .str { color: #8FC5E8; }
-.code .tag { color: #DC9A90; }
-.code .attr { color: #E0A12A; }
-.copy-btn {
-  position: absolute; top: var(--space-3); right: var(--space-3);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--neutral-300);
-  background: rgba(255,255,255,0.05);
-  padding: 4px 8px;
-  cursor: pointer;
-  border: 1px solid var(--neutral-500);
-  transition: all var(--duration-fast) var(--ease);
-}
-.copy-btn:hover {
-  background: var(--bulcao-accent);
-  color: var(--bulcao-bg);
-  border-color: var(--bulcao-accent);
-}
-.copy-btn.copied { background: var(--bulcao-accent); border-color: var(--bulcao-accent); color: var(--bulcao-bg); }
-
-/* ============================================================
-   APLICAÇÃO (PÁGINA EXEMPLO)
-   ============================================================ */
-.application {
-  background: var(--bulcao-bg);
-  padding: var(--space-7);
-  position: relative;
-  transition: background var(--duration) var(--ease);
-  overflow: hidden;
-}
-.app-hero {
-  padding: var(--space-6) 0;
-  position: relative;
-  z-index: 2;
-}
-.app-hero .app-eyebrow {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.15em;
-  color: var(--bulcao-fg);
-  margin-bottom: var(--space-3);
-  transition: color var(--duration) var(--ease);
-}
-.app-hero h2 {
-  font-family: var(--font-display);
-  font-weight: 300;
-  font-size: clamp(40px, 5vw, 72px);
-  line-height: 1;
-  letter-spacing: -0.03em;
-  font-variation-settings: "SOFT" 30, "opsz" 144;
-  color: var(--bulcao-fg);
-  max-width: 640px;
-  transition: color var(--duration) var(--ease);
-}
-.app-hero h2 em {
-  font-style: italic;
-  color: var(--bulcao-accent);
-  transition: color var(--duration) var(--ease);
-}
-.app-hero .app-lead {
-  font-size: var(--text-md);
-  max-width: 520px;
-  color: var(--bulcao-fg);
-  opacity: 0.75;
-  margin-top: var(--space-4);
-  margin-bottom: var(--space-5);
-}
-.app-shapes {
-  position: absolute; right: -5%; top: -5%;
-  width: 50%; height: 50%;
-  color: var(--bulcao-accent);
-  opacity: 0.15;
-  transition: color var(--duration) var(--ease);
-  pointer-events: none;
-}
-.app-shapes svg { width: 100%; height: 100%; }
-.app-columns {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-5);
-  margin-top: var(--space-7);
-  position: relative; z-index: 2;
-}
-@media (max-width: 700px) { .app-columns { grid-template-columns: 1fr; } }
-.app-column h3 {
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: var(--text-md);
-  color: var(--bulcao-fg);
-  margin-bottom: var(--space-2);
-  font-variation-settings: "SOFT" 40;
-  transition: color var(--duration) var(--ease);
-  padding-top: var(--space-3);
-  border-top: 2px solid var(--bulcao-fg);
-}
-.app-column p {
-  font-size: var(--text-sm);
-  color: var(--bulcao-fg);
-  opacity: 0.75;
-}
-.app-footer {
-  padding: var(--space-6) 0 0;
-  margin-top: var(--space-7);
-  border-top: 1px solid var(--bulcao-fg);
-  display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--bulcao-fg);
-  opacity: 0.6;
-  position: relative; z-index: 2;
-  transition: color var(--duration) var(--ease);
-}
-
-/* ============================================================
-   TOKENS CONSOLIDADOS (seção 11)
-   ============================================================ */
-.tokens-code {
-  max-height: 520px;
-  overflow-y: auto;
-}
-
-/* ============================================================
-   REVEAL
-   ============================================================ */
-.reveal {
-  opacity: 0; transform: translateY(24px);
-  animation: reveal 1s var(--ease) forwards;
-}
-@keyframes reveal {
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* ============================================================
-   FOOTER
-   ============================================================ */
-footer.end {
-  padding: var(--space-8) 0;
-  text-align: center;
-}
-footer.end p {
-  font-family: var(--font-display);
-  font-style: italic;
-  font-size: var(--text-md);
-  color: var(--neutral-400);
-  font-variation-settings: "SOFT" 60;
-}
-</style>
 </head>
 <body data-palette="concretista">
 
 <!-- =================================================================
      SVG DEFS GLOBAIS (tiles, icons, glyphs, shapes, masks)
      ================================================================= -->
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<svg width="0" height="0" aria-hidden="true">
 <defs>
 
 <!-- Masks ------------------------------------------------------------ -->
@@ -1426,27 +186,23 @@ footer.end p {
 <!-- =================================================================
      LAYOUT
      ================================================================= -->
-<div class="layout">
+<div>
 
-<aside class="nav">
-  <div class="nav-brand">
+<aside>
+  <div>
     Modernismo Brasileiro
-    <span class="sub">Design System · v0.1</span>
+    <span>Design System · v0.1</span>
   </div>
 
-  <div class="palette-picker" id="picker">
-    <span class="label">Paleta ativa</span>
-    <button class="swatch" data-palette-button="tarsila"
-      style="--s-fg: #B83A2C; --s-bg: #F2E2C8;" title="Tarsila"></button>
-    <button class="swatch" data-palette-button="burle"
-      style="--s-fg: #2D5F3F; --s-bg: #ECE7D2;" title="Burle Marx"></button>
-    <button class="swatch" data-palette-button="concretista"
-      style="--s-fg: #1A1815; --s-bg: #F5F2EC;" title="Concretista"></button>
-    <button class="swatch" data-palette-button="tropicalista"
-      style="--s-fg: #DC1E63; --s-bg: #FFF1B3;" title="Tropicalista"></button>
+  <div id="picker">
+    <span>Paleta ativa</span>
+    <button data-palette-button="tarsila" title="Tarsila"></button>
+    <button data-palette-button="burle" title="Burle Marx"></button>
+    <button data-palette-button="concretista" title="Concretista"></button>
+    <button data-palette-button="tropicalista" title="Tropicalista"></button>
   </div>
 
-  <ol class="nav-list">
+  <ol>
     <li><a href="#cover">Abertura</a></li>
     <li><a href="#manifesto">Manifesto</a></li>
     <li><a href="#cores">Cores</a></li>
@@ -1466,20 +222,20 @@ footer.end p {
 
 <!-- ================ 00 COVER ================ -->
 <section id="cover">
-  <div class="parabola"><svg><use href="#sh-parabola"/></svg></div>
+  <div><svg><use href="#sh-parabola"/></svg></div>
   <div>
-    <div class="eyebrow reveal">Design System · v0.1</div>
-    <h1 class="reveal" style="animation-delay: 0.1s">
+    <div>Design System · v0.1</div>
+    <h1>
       Modernismo<br>Brasileiro,<br><em>sem saudade.</em>
     </h1>
   </div>
   <div>
-    <p class="manifesto reveal" style="animation-delay: 0.25s">
+    <p>
       Um sistema que deglute Athos, Tarsila, Niemeyer, Burle Marx, Volpi, Lygia Pape e Oiticica
       como gramática — não como citação — e traduz a tensão curva/reta da tradição modernista
       brasileira para componentes, tokens e regras de interface.
     </p>
-    <div class="credits reveal" style="animation-delay: 0.4s">
+    <div>
       <div>Versão<strong>0.1 · abril 2026</strong></div>
       <div>Linhagens<strong>5 tradições, 7 princípios</strong></div>
       <div>Paletas<strong>Tarsila · Burle Marx · Concretista · Tropicalista</strong></div>
@@ -1489,56 +245,56 @@ footer.end p {
 </section>
 
 <!-- ================ 01 MANIFESTO ================ -->
-<section class="ds" id="manifesto">
-  <header class="section-head">
-    <div class="section-num">01 · Manifesto</div>
-    <h2 class="section-title">Sete princípios, <em>cinco linhagens</em>.</h2>
-    <p class="section-lead">
+<section id="manifesto">
+  <header>
+    <div>01 · Manifesto</div>
+    <h2>Sete princípios, <em>cinco linhagens</em>.</h2>
+    <p>
       Os axiomas que governam cada decisão do sistema — do espaçamento ao peso da letra,
       do gesto no botão ao vazio na seção. Abaixo deles, as tradições que o sistema deglute.
     </p>
   </header>
 
-  <div class="principles">
-    <div class="principle">
-      <div class="num">P1</div>
+  <div>
+    <div>
+      <div>P1</div>
       <h3>Antropofagia</h3>
       <p>Deglutir, não citar. Referência que vira gramática, não ilustração de origem.</p>
     </div>
-    <div class="principle">
-      <div class="num">P2</div>
+    <div>
+      <div>P2</div>
       <h3>Tensão curva / reta</h3>
       <p>O motor compositivo: parábola niemeyeriana ao lado do ortogonal concretista.</p>
     </div>
-    <div class="principle">
-      <div class="num">P3</div>
+    <div>
+      <div>P3</div>
       <h3>Vazio como matéria</h3>
       <p>Espaçamento generoso é construção, não economia visual. Brasília ensina.</p>
     </div>
-    <div class="principle">
-      <div class="num">P4</div>
+    <div>
+      <div>P4</div>
       <h3>Cor como volume</h3>
       <p>Burle Marx e os concretistas: cor chapada que constrói o plano, não decora o fundo.</p>
     </div>
-    <div class="principle">
-      <div class="num">P5</div>
+    <div>
+      <div>P5</div>
       <h3>Módulo combinatório</h3>
       <p>Athos Bulcão como paradigma: uma peça, infinitas composições.</p>
     </div>
-    <div class="principle">
-      <div class="num">P6</div>
+    <div>
+      <div>P6</div>
       <h3>Participação</h3>
       <p>Parangolé digital: a interface se completa no uso. Estados não são enfeites.</p>
     </div>
-    <div class="principle">
-      <div class="num">P7</div>
+    <div>
+      <div>P7</div>
       <h3>Calor racional</h3>
       <p>Geometria sem frieza europeia. Neutros quentes. Curva que responde.</p>
     </div>
   </div>
 
-  <h3 class="sub-head">Linhagens herdadas</h3>
-  <dl class="lineages">
+  <h3>Linhagens herdadas</h3>
+  <dl>
     <dt>Arquitetura modernista</dt>
     <dd>Niemeyer, Lucio Costa, Lina Bo Bardi — vazio, curva, monumentalidade leve, pilotis.</dd>
     <dt>Concretismo / Neoconcreto</dt>
@@ -1551,7 +307,7 @@ footer.end p {
     <dd>Aloísio Magalhães, Cauduro &amp; Martino — racionalismo afetivo, marca geométrica.</dd>
   </dl>
 
-  <div class="antimodels">
+  <div>
     <h3>Antimodelos — o que o sistema recusa</h3>
     <ul>
       <li>Brutalismo de web design (Helvetica preta, borda dura, zero refinamento).</li>
@@ -1565,242 +321,242 @@ footer.end p {
 </section>
 
 <!-- ================ 02 CORES ================ -->
-<section class="ds" id="cores">
-  <header class="section-head">
-    <div class="section-num">02 · Cores</div>
-    <h2 class="section-title">Cor como <em>volume</em>.</h2>
-    <p class="section-lead">
+<section id="cores">
+  <header>
+    <div>02 · Cores</div>
+    <h2>Cor como <em>volume</em>.</h2>
+    <p>
       Quatro paletas-mãe coexistem como modos do sistema, selecionáveis via atributo <code>data-palette</code>.
       Cada projeto escolhe uma e se compromete com ela — misturar paletas é quebrar o sistema.
       Os neutros quentes são compartilhados.
     </p>
   </header>
 
-  <div class="palette-block">
+  <div>
     <h3>Tarsila</h3>
-    <p class="desc">Paleta da redescoberta caipira: terracota, ocre queimado, azul-céu-do-interior. Quente, telúrica. Para editoriais, projetos culturais, identidades com alma.</p>
-    <div class="swatch-grid">
-      <div class="swatch-card"><div class="chip" style="background:#B83A2C"></div><div class="info"><span class="role">Terracota</span><span class="hex">#B83A2C</span><span class="token">--bulcao-fg</span></div></div>
-      <div class="swatch-card"><div class="chip" style="background:#F2E2C8"></div><div class="info"><span class="role">Areia</span><span class="hex">#F2E2C8</span><span class="token">--bulcao-bg</span></div></div>
-      <div class="swatch-card"><div class="chip" style="background:#2E6F8E"></div><div class="info"><span class="role">Azul-interior</span><span class="hex">#2E6F8E</span><span class="token">--bulcao-accent</span></div></div>
-      <div class="swatch-card"><div class="chip" style="background:#6B4E9A"></div><div class="info"><span class="role">Violeta</span><span class="hex">#6B4E9A</span><span class="token">--bulcao-support</span></div></div>
+    <p>Paleta da redescoberta caipira: terracota, ocre queimado, azul-céu-do-interior. Quente, telúrica. Para editoriais, projetos culturais, identidades com alma.</p>
+    <div>
+      <div><div></div><div><span>Terracota</span><span>#B83A2C</span><span>--bulcao-fg</span></div></div>
+      <div><div></div><div><span>Areia</span><span>#F2E2C8</span><span>--bulcao-bg</span></div></div>
+      <div><div></div><div><span>Azul-interior</span><span>#2E6F8E</span><span>--bulcao-accent</span></div></div>
+      <div><div></div><div><span>Violeta</span><span>#6B4E9A</span><span>--bulcao-support</span></div></div>
     </div>
   </div>
 
-  <div class="palette-block">
+  <div>
     <h3>Burle Marx</h3>
-    <p class="desc">Verdes em camadas pontuados por ipês. Paisagística, generosa. Para projetos com fotografia, espaço respirável, natureza como tema.</p>
-    <div class="swatch-grid">
-      <div class="swatch-card"><div class="chip" style="background:#2D5F3F"></div><div class="info"><span class="role">Verde-mata</span><span class="hex">#2D5F3F</span><span class="token">--bulcao-fg</span></div></div>
-      <div class="swatch-card"><div class="chip" style="background:#ECE7D2"></div><div class="info"><span class="role">Creme-botânico</span><span class="hex">#ECE7D2</span><span class="token">--bulcao-bg</span></div></div>
-      <div class="swatch-card"><div class="chip" style="background:#E0A12A"></div><div class="info"><span class="role">Amarelo-ipê</span><span class="hex">#E0A12A</span><span class="token">--bulcao-accent</span></div></div>
-      <div class="swatch-card"><div class="chip" style="background:#B891C5"></div><div class="info"><span class="role">Lilás-ipê</span><span class="hex">#B891C5</span><span class="token">--bulcao-support</span></div></div>
+    <p>Verdes em camadas pontuados por ipês. Paisagística, generosa. Para projetos com fotografia, espaço respirável, natureza como tema.</p>
+    <div>
+      <div><div></div><div><span>Verde-mata</span><span>#2D5F3F</span><span>--bulcao-fg</span></div></div>
+      <div><div></div><div><span>Creme-botânico</span><span>#ECE7D2</span><span>--bulcao-bg</span></div></div>
+      <div><div></div><div><span>Amarelo-ipê</span><span>#E0A12A</span><span>--bulcao-accent</span></div></div>
+      <div><div></div><div><span>Lilás-ipê</span><span>#B891C5</span><span>--bulcao-support</span></div></div>
     </div>
   </div>
 
-  <div class="palette-block">
+  <div>
     <h3>Concretista</h3>
-    <p class="desc">Branco, preto e três primárias saturadas. Disciplinada, gráfica. Para produtos digitais, dashboards, clareza funcional sem perder afeto.</p>
-    <div class="swatch-grid">
-      <div class="swatch-card"><div class="chip" style="background:#1A1815"></div><div class="info"><span class="role">Preto-quente</span><span class="hex">#1A1815</span><span class="token">--bulcao-fg</span></div></div>
-      <div class="swatch-card"><div class="chip" style="background:#F5F2EC"></div><div class="info"><span class="role">Off-white</span><span class="hex">#F5F2EC</span><span class="token">--bulcao-bg</span></div></div>
-      <div class="swatch-card"><div class="chip" style="background:#C8312A"></div><div class="info"><span class="role">Vermelho-Volpi</span><span class="hex">#C8312A</span><span class="token">--bulcao-accent</span></div></div>
-      <div class="swatch-card"><div class="chip" style="background:#2B4B7C"></div><div class="info"><span class="role">Azul-cobalto</span><span class="hex">#2B4B7C</span><span class="token">--bulcao-support</span></div></div>
+    <p>Branco, preto e três primárias saturadas. Disciplinada, gráfica. Para produtos digitais, dashboards, clareza funcional sem perder afeto.</p>
+    <div>
+      <div><div></div><div><span>Preto-quente</span><span>#1A1815</span><span>--bulcao-fg</span></div></div>
+      <div><div></div><div><span>Off-white</span><span>#F5F2EC</span><span>--bulcao-bg</span></div></div>
+      <div><div></div><div><span>Vermelho-Volpi</span><span>#C8312A</span><span>--bulcao-accent</span></div></div>
+      <div><div></div><div><span>Azul-cobalto</span><span>#2B4B7C</span><span>--bulcao-support</span></div></div>
     </div>
   </div>
 
-  <div class="palette-block">
+  <div>
     <h3>Tropicalista</h3>
-    <p class="desc">Saturação assumida: rosa-choque, laranja-Oiticica, amarelo elétrico. Para portfólios, projetos culturais que assumem a deglutição como bandeira. Pede sobriedade tipográfica em volta.</p>
-    <div class="swatch-grid">
-      <div class="swatch-card"><div class="chip" style="background:#DC1E63"></div><div class="info"><span class="role">Rosa-choque</span><span class="hex">#DC1E63</span><span class="token">--bulcao-fg</span></div></div>
-      <div class="swatch-card"><div class="chip" style="background:#FFF1B3"></div><div class="info"><span class="role">Amarelo-creme</span><span class="hex">#FFF1B3</span><span class="token">--bulcao-bg</span></div></div>
-      <div class="swatch-card"><div class="chip" style="background:#FF6B1F"></div><div class="info"><span class="role">Laranja-Oiticica</span><span class="hex">#FF6B1F</span><span class="token">--bulcao-accent</span></div></div>
-      <div class="swatch-card"><div class="chip" style="background:#2D7A4F"></div><div class="info"><span class="role">Verde-deglut.</span><span class="hex">#2D7A4F</span><span class="token">--bulcao-support</span></div></div>
+    <p>Saturação assumida: rosa-choque, laranja-Oiticica, amarelo elétrico. Para portfólios, projetos culturais que assumem a deglutição como bandeira. Pede sobriedade tipográfica em volta.</p>
+    <div>
+      <div><div></div><div><span>Rosa-choque</span><span>#DC1E63</span><span>--bulcao-fg</span></div></div>
+      <div><div></div><div><span>Amarelo-creme</span><span>#FFF1B3</span><span>--bulcao-bg</span></div></div>
+      <div><div></div><div><span>Laranja-Oiticica</span><span>#FF6B1F</span><span>--bulcao-accent</span></div></div>
+      <div><div></div><div><span>Verde-deglut.</span><span>#2D7A4F</span><span>--bulcao-support</span></div></div>
     </div>
   </div>
 
-  <h3 class="sub-head">Neutros quentes</h3>
-  <p class="section-lead" style="margin-bottom: var(--space-5)">
+  <h3>Neutros quentes</h3>
+  <p>
     Compartilhados entre paletas. Fogem do cinza-Material (Bauhaus alemã fria) e do puro branco:
     toda a escala carrega calor subjacente.
   </p>
-  <div class="swatch-grid">
-    <div class="swatch-card"><div class="chip" style="background:#FBF8F1"></div><div class="info"><span class="role">neutral-0</span><span class="hex">#FBF8F1</span></div></div>
-    <div class="swatch-card"><div class="chip" style="background:#F5F2EC"></div><div class="info"><span class="role">neutral-50</span><span class="hex">#F5F2EC</span></div></div>
-    <div class="swatch-card"><div class="chip" style="background:#ECE7DA"></div><div class="info"><span class="role">neutral-100</span><span class="hex">#ECE7DA</span></div></div>
-    <div class="swatch-card"><div class="chip" style="background:#DCD5C2"></div><div class="info"><span class="role">neutral-200</span><span class="hex">#DCD5C2</span></div></div>
-    <div class="swatch-card"><div class="chip" style="background:#8A8270"></div><div class="info"><span class="role" style="color:#fff">neutral-400</span><span class="hex" style="color:#fff">#8A8270</span></div></div>
-    <div class="swatch-card"><div class="chip" style="background:#3D3A33"></div><div class="info"><span class="role" style="color:#fff">neutral-700</span><span class="hex" style="color:#fff">#3D3A33</span></div></div>
-    <div class="swatch-card"><div class="chip" style="background:#1A1815"></div><div class="info"><span class="role" style="color:#fff">neutral-900</span><span class="hex" style="color:#fff">#1A1815</span></div></div>
+  <div>
+    <div><div></div><div><span>neutral-0</span><span>#FBF8F1</span></div></div>
+    <div><div></div><div><span>neutral-50</span><span>#F5F2EC</span></div></div>
+    <div><div></div><div><span>neutral-100</span><span>#ECE7DA</span></div></div>
+    <div><div></div><div><span>neutral-200</span><span>#DCD5C2</span></div></div>
+    <div><div></div><div><span>neutral-400</span><span>#8A8270</span></div></div>
+    <div><div></div><div><span>neutral-700</span><span>#3D3A33</span></div></div>
+    <div><div></div><div><span>neutral-900</span><span>#1A1815</span></div></div>
   </div>
 </section>
 
 <!-- ================ 03 TIPOGRAFIA ================ -->
-<section class="ds" id="tipografia">
-  <header class="section-head">
-    <div class="section-num">03 · Tipografia</div>
-    <h2 class="section-title">Par tipográfico: <em>Fraunces &amp; Manrope</em>.</h2>
-    <p class="section-lead">
+<section id="tipografia">
+  <header>
+    <div>03 · Tipografia</div>
+    <h2>Par tipográfico: <em>Fraunces &amp; Manrope</em>.</h2>
+    <p>
       Serif variável com personalidade orgânica para display; sans geométrica humanista para corpo.
       Combinação que entrega autoridade sem rigidez e permanece legível em escalas pequenas.
     </p>
   </header>
 
-  <div class="type-specimen">
-    <div class="meta">
+  <div>
+    <div>
       <span>Display<strong>Fraunces Variable</strong></span>
       <span>Eixos<strong>opsz · wght · SOFT · ital</strong></span>
       <span>Licença<strong>Open Font License</strong></span>
     </div>
-    <div class="display-show">
+    <div>
       Curva &amp; <em>reta</em>.<br>Vazio <em>construído</em>.
     </div>
   </div>
 
-  <div class="type-specimen">
-    <div class="meta">
+  <div>
+    <div>
       <span>Body<strong>Manrope</strong></span>
       <span>Pesos<strong>300–700</strong></span>
       <span>Caráter<strong>Geométrica humanista</strong></span>
     </div>
-    <p class="body-show">
+    <p>
       A cidade não para. A cidade só cresce. O de cima sobe, o de baixo desce. Manrope foi escolhida
       sobre Inter porque tem letterforms com mais personalidade — o <em>g</em> de dois andares, o <em>a</em>
       de barriga alta — sem cair em maneirismo. Ela segura densidade longa sem cansar.
     </p>
   </div>
 
-  <h3 class="sub-head">Type scale</h3>
-  <div class="type-scale">
-    <div class="row"><span class="token">--text-6xl</span><span class="size">120px</span><span class="sample" style="font-size:120px">Aa</span></div>
-    <div class="row"><span class="token">--text-5xl</span><span class="size">88px</span><span class="sample" style="font-size:88px">Aa</span></div>
-    <div class="row"><span class="token">--text-4xl</span><span class="size">64px</span><span class="sample" style="font-size:64px">Aa</span></div>
-    <div class="row"><span class="token">--text-3xl</span><span class="size">48px</span><span class="sample" style="font-size:48px">Aa</span></div>
-    <div class="row"><span class="token">--text-2xl</span><span class="size">36px</span><span class="sample" style="font-size:36px">Aa</span></div>
-    <div class="row"><span class="token">--text-xl</span><span class="size">28px</span><span class="sample" style="font-size:28px">Aa</span></div>
-    <div class="row"><span class="token">--text-lg</span><span class="size">22px</span><span class="sample" style="font-size:22px">Aa</span></div>
-    <div class="row"><span class="token">--text-md</span><span class="size">18px</span><span class="sample" style="font-size:18px">Aa — texto de introdução</span></div>
-    <div class="row"><span class="token">--text-base</span><span class="size">16px</span><span class="sample" style="font-size:16px; font-family: var(--font-body); font-weight:400">Aa — texto corrido</span></div>
-    <div class="row"><span class="token">--text-sm</span><span class="size">14px</span><span class="sample" style="font-size:14px; font-family: var(--font-body); font-weight:400">Aa — legendas, UI secundária</span></div>
-    <div class="row"><span class="token">--text-xs</span><span class="size">12px</span><span class="sample" style="font-size:12px; font-family: var(--font-mono); text-transform:uppercase; letter-spacing:0.14em">Aa — eyebrow, tokens, meta</span></div>
+  <h3>Type scale</h3>
+  <div>
+    <div><span>--text-6xl</span><span>120px</span><span>Aa</span></div>
+    <div><span>--text-5xl</span><span>88px</span><span>Aa</span></div>
+    <div><span>--text-4xl</span><span>64px</span><span>Aa</span></div>
+    <div><span>--text-3xl</span><span>48px</span><span>Aa</span></div>
+    <div><span>--text-2xl</span><span>36px</span><span>Aa</span></div>
+    <div><span>--text-xl</span><span>28px</span><span>Aa</span></div>
+    <div><span>--text-lg</span><span>22px</span><span>Aa</span></div>
+    <div><span>--text-md</span><span>18px</span><span>Aa — texto de introdução</span></div>
+    <div><span>--text-base</span><span>16px</span><span>Aa — texto corrido</span></div>
+    <div><span>--text-sm</span><span>14px</span><span>Aa — legendas, UI secundária</span></div>
+    <div><span>--text-xs</span><span>12px</span><span>Aa — eyebrow, tokens, meta</span></div>
   </div>
 
-  <h3 class="sub-head">Eixos variáveis da Fraunces</h3>
-  <p class="section-lead" style="margin-bottom:var(--space-5)">
+  <h3>Eixos variáveis da Fraunces</h3>
+  <p>
     A Fraunces é variável — o sistema usa três eixos principais para modular presença sem trocar de fonte.
   </p>
-  <div class="variable-axes">
-    <div class="axis-card">
-      <div class="axis-name">Peso · wght</div>
-      <div class="axis-sample" style="font-variation-settings: 'wght' 300">Aa</div>
-      <div class="axis-sample" style="font-variation-settings: 'wght' 500">Aa</div>
-      <div class="axis-sample" style="font-variation-settings: 'wght' 700">Aa</div>
-      <div class="axis-desc">300 para display grande, 400 padrão, 700 raro (só quando precisa de peso editorial).</div>
+  <div>
+    <div>
+      <div>Peso · wght</div>
+      <div>Aa</div>
+      <div>Aa</div>
+      <div>Aa</div>
+      <div>300 para display grande, 400 padrão, 700 raro (só quando precisa de peso editorial).</div>
     </div>
-    <div class="axis-card">
-      <div class="axis-name">Softness · SOFT</div>
-      <div class="axis-sample" style="font-variation-settings: 'SOFT' 0">Aa</div>
-      <div class="axis-sample" style="font-variation-settings: 'SOFT' 50">Aa</div>
-      <div class="axis-sample" style="font-variation-settings: 'SOFT' 100">Aa</div>
-      <div class="axis-desc">Soft 0 para rigor; 40–60 padrão (temperatura brasileira); 100 só em títulos pequenos e em itálico.</div>
+    <div>
+      <div>Softness · SOFT</div>
+      <div>Aa</div>
+      <div>Aa</div>
+      <div>Aa</div>
+      <div>Soft 0 para rigor; 40–60 padrão (temperatura brasileira); 100 só em títulos pequenos e em itálico.</div>
     </div>
-    <div class="axis-card">
-      <div class="axis-name">Optical · opsz</div>
-      <div class="axis-sample" style="font-variation-settings: 'opsz' 9">Aa</div>
-      <div class="axis-sample" style="font-variation-settings: 'opsz' 72">Aa</div>
-      <div class="axis-sample" style="font-variation-settings: 'opsz' 144">Aa</div>
-      <div class="axis-desc">Ajusta detalhes conforme escala — sempre alinhe com o tamanho real em uso.</div>
+    <div>
+      <div>Optical · opsz</div>
+      <div>Aa</div>
+      <div>Aa</div>
+      <div>Aa</div>
+      <div>Ajusta detalhes conforme escala — sempre alinhe com o tamanho real em uso.</div>
     </div>
   </div>
 </section>
 
 <!-- ================ 04 GRID & VAZIO ================ -->
-<section class="ds" id="grid">
-  <header class="section-head">
-    <div class="section-num">04 · Grid &amp; vazio</div>
-    <h2 class="section-title">Escala <em>baseada em 8</em>.</h2>
-    <p class="section-lead">
+<section id="grid">
+  <header>
+    <div>04 · Grid &amp; vazio</div>
+    <h2>Escala <em>baseada em 8</em>.</h2>
+    <p>
       Espaçamento é token, não improviso. A escala cresce em múltiplos de 4/8 até atingir escalas
       Brasília (96, 128, 160px) — o vazio generoso do sistema. Grid de 12 colunas, gutter de 40px em desktop.
     </p>
   </header>
 
-  <h3 class="sub-head">Escala de espaçamento</h3>
-  <div class="space-scale">
-    <div class="space-row"><span class="token">--space-1</span><span class="val">4px</span><div class="bar" style="width:4px"></div></div>
-    <div class="space-row"><span class="token">--space-2</span><span class="val">8px</span><div class="bar" style="width:8px"></div></div>
-    <div class="space-row"><span class="token">--space-3</span><span class="val">12px</span><div class="bar" style="width:12px"></div></div>
-    <div class="space-row"><span class="token">--space-4</span><span class="val">16px</span><div class="bar" style="width:16px"></div></div>
-    <div class="space-row"><span class="token">--space-5</span><span class="val">24px</span><div class="bar" style="width:24px"></div></div>
-    <div class="space-row"><span class="token">--space-6</span><span class="val">32px</span><div class="bar" style="width:32px"></div></div>
-    <div class="space-row"><span class="token">--space-7</span><span class="val">48px</span><div class="bar" style="width:48px"></div></div>
-    <div class="space-row"><span class="token">--space-8</span><span class="val">64px</span><div class="bar" style="width:64px"></div></div>
-    <div class="space-row"><span class="token">--space-9</span><span class="val">96px</span><div class="bar" style="width:96px"></div></div>
-    <div class="space-row"><span class="token">--space-10</span><span class="val">128px</span><div class="bar" style="width:128px"></div></div>
-    <div class="space-row"><span class="token">--space-11</span><span class="val">160px</span><div class="bar" style="width:160px"></div></div>
+  <h3>Escala de espaçamento</h3>
+  <div>
+    <div><span>--space-1</span><span>4px</span><div></div></div>
+    <div><span>--space-2</span><span>8px</span><div></div></div>
+    <div><span>--space-3</span><span>12px</span><div></div></div>
+    <div><span>--space-4</span><span>16px</span><div></div></div>
+    <div><span>--space-5</span><span>24px</span><div></div></div>
+    <div><span>--space-6</span><span>32px</span><div></div></div>
+    <div><span>--space-7</span><span>48px</span><div></div></div>
+    <div><span>--space-8</span><span>64px</span><div></div></div>
+    <div><span>--space-9</span><span>96px</span><div></div></div>
+    <div><span>--space-10</span><span>128px</span><div></div></div>
+    <div><span>--space-11</span><span>160px</span><div></div></div>
   </div>
 
-  <h3 class="sub-head">Grid de 12 colunas</h3>
-  <div class="grid-demo">
+  <h3>Grid de 12 colunas</h3>
+  <div>
     <div></div><div></div><div></div><div></div><div></div><div></div>
     <div></div><div></div><div></div><div></div><div></div><div></div>
   </div>
 </section>
 
 <!-- ================ 05 TILES BULCÃO ================ -->
-<section class="ds" id="tiles">
-  <header class="section-head">
-    <div class="section-num">05 · Tiles Bulcão</div>
-    <h2 class="section-title">Seis módulos <em>combinatórios</em>.</h2>
-    <p class="section-lead">
+<section id="tiles">
+  <header>
+    <div>05 · Tiles Bulcão</div>
+    <h2>Seis módulos <em>combinatórios</em>.</h2>
+    <p>
       Peças atômicas pensadas para se recombinar em múltiplas rotações sem repetição visível.
       Troque a paleta no canto superior esquerdo para ver o sistema inteiro recolorir.
     </p>
   </header>
 
-  <div class="tiles-grid">
-    <div class="tile-card">
-      <div class="tile-num">T1 · Bulcão clássico</div>
+  <div>
+    <div>
+      <div>T1 · Bulcão clássico</div>
       <h3>Quartos de círculo opostos</h3>
       <p>Dois discos cortados pelo viewBox, em cantos opostos. Rotacionado, gera ondas, malhas, pétalas — quase nunca repete a mesma combinação visível.</p>
-      <div class="tile-preview">
-        <div class="tile-cell"><svg><use href="#t1"/></svg></div>
-        <div class="tile-cell"><div class="tile-grid" data-tile="t1" data-mode="random"></div></div>
+      <div>
+        <div><svg><use href="#t1"/></svg></div>
+        <div><div data-tile="t1" data-mode="random"></div></div>
       </div>
-      <div class="tile-ref">Igreja N. Sra. de Fátima, Brasília · 1958</div>
+      <div>Igreja N. Sra. de Fátima, Brasília · 1958</div>
     </div>
 
-    <div class="tile-card">
-      <div class="tile-num">T2 · Meia-lua</div>
+    <div>
+      <div>T2 · Meia-lua</div>
       <h3>Semicírculo encostado</h3>
       <p>Disco centralizado na borda inferior, metade fora do viewBox. Mais peso visual que o T1 — bom para headers, faixas que pedem ancoragem.</p>
-      <div class="tile-preview">
-        <div class="tile-cell"><svg><use href="#t2"/></svg></div>
-        <div class="tile-cell"><div class="tile-grid" data-tile="t2" data-mode="random"></div></div>
+      <div>
+        <div><svg><use href="#t2"/></svg></div>
+        <div><div data-tile="t2" data-mode="random"></div></div>
       </div>
-      <div class="tile-ref">Variação sobre painéis Brasília Palace</div>
+      <div>Variação sobre painéis Brasília Palace</div>
     </div>
 
-    <div class="tile-card">
-      <div class="tile-num">T3 · Diagonal</div>
+    <div>
+      <div>T3 · Diagonal</div>
       <h3>Concretismo puro</h3>
       <p>Quadrado partido pela diagonal. Em grid, gera ziguezagues, losangos, ampulhetas — toda a sintaxe gráfica do neoconcretismo carioca.</p>
-      <div class="tile-preview">
-        <div class="tile-cell"><svg><use href="#t3"/></svg></div>
-        <div class="tile-cell"><div class="tile-grid" data-tile="t3" data-mode="random"></div></div>
+      <div>
+        <div><svg><use href="#t3"/></svg></div>
+        <div><div data-tile="t3" data-mode="random"></div></div>
       </div>
-      <div class="tile-ref">Lygia Pape · Tecelares · 1955–1959</div>
+      <div>Lygia Pape · Tecelares · 1955–1959</div>
     </div>
 
-    <div class="tile-card">
-      <div class="tile-num">T4 · Onda</div>
+    <div>
+      <div>T4 · Onda</div>
       <h3>Sinusoide preenchida</h3>
       <p>Único tile direcional — não rotaciona livremente. Funciona como faixa horizontal: divisor de seção, rodapé de hero, base de banner.</p>
-      <div class="tile-preview">
-        <div class="tile-cell"><svg><use href="#t4"/></svg></div>
-        <div class="tile-cell" style="aspect-ratio: 4/1; grid-column: 1 / -1;">
-          <div style="display:grid;grid-template-columns:repeat(8,1fr);width:100%;height:100%">
+      <div>
+        <div><svg><use href="#t4"/></svg></div>
+        <div>
+          <div>
             <div><svg><use href="#t4"/></svg></div>
             <div><svg><use href="#t4"/></svg></div>
             <div><svg><use href="#t4"/></svg></div>
@@ -1812,190 +568,190 @@ footer.end p {
           </div>
         </div>
       </div>
-      <div class="tile-ref">Calçadão de Copacabana · 1970</div>
+      <div>Calçadão de Copacabana · 1970</div>
     </div>
 
-    <div class="tile-card">
-      <div class="tile-num">T5 · Cobogó</div>
+    <div>
+      <div>T5 · Cobogó</div>
       <h3>Cruz e círculo em negativo</h3>
       <p>O furo é desenho. Aplica como overlay: o que aparece é o que <em>não</em> está pintado. Bom sobre fotos (filtra a luz) ou blocos de cor.</p>
-      <div class="tile-preview">
-        <div class="tile-cell" style="background: var(--bulcao-bg)"><svg><use href="#t5"/></svg></div>
-        <div class="tile-cell" style="background: linear-gradient(135deg, var(--bulcao-bg), var(--bulcao-accent))">
-          <div class="tile-grid" data-tile="t5" data-mode="static"></div>
+      <div>
+        <div><svg><use href="#t5"/></svg></div>
+        <div>
+          <div data-tile="t5" data-mode="static"></div>
         </div>
       </div>
-      <div class="tile-ref">Cobogós · Parque Guinle, Lúcio Costa · 1948</div>
+      <div>Cobogós · Parque Guinle, Lúcio Costa · 1948</div>
     </div>
 
-    <div class="tile-card">
-      <div class="tile-num">T6 · Faixas</div>
+    <div>
+      <div>T6 · Faixas</div>
       <h3>Três campos de cor</h3>
       <p>Único tile que mobiliza as três cores da paleta em proporções 20/50/30. Não rotaciona. Funciona como background de hero, rodapé, faixa contínua.</p>
-      <div class="tile-preview">
-        <div class="tile-cell">
-          <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:100%">
+      <div>
+        <div>
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none">
             <rect x="0" y="0" width="100" height="20" fill="var(--bulcao-fg)"/>
             <rect x="0" y="20" width="100" height="50" fill="var(--bulcao-bg)"/>
             <rect x="0" y="70" width="100" height="30" fill="var(--bulcao-accent)"/>
           </svg>
         </div>
-        <div class="tile-cell" style="aspect-ratio: 4/1; grid-column: 1 / -1;">
-          <svg viewBox="0 0 400 100" preserveAspectRatio="none" style="width:100%;height:100%">
+        <div>
+          <svg viewBox="0 0 400 100" preserveAspectRatio="none">
             <rect x="0" y="0" width="400" height="20" fill="var(--bulcao-fg)"/>
             <rect x="0" y="20" width="400" height="50" fill="var(--bulcao-bg)"/>
             <rect x="0" y="70" width="400" height="30" fill="var(--bulcao-accent)"/>
           </svg>
         </div>
       </div>
-      <div class="tile-ref">Alfredo Volpi · Bandeirinhas · 1950–60</div>
+      <div>Alfredo Volpi · Bandeirinhas · 1950–60</div>
     </div>
   </div>
 </section>
 
 <!-- ================ 06 ICONOGRAFIA ================ -->
-<section class="ds" id="icones">
-  <header class="section-head">
-    <div class="section-num">06 · Iconografia</div>
-    <h2 class="section-title">Dezesseis ícones <em>essenciais</em>.</h2>
-    <p class="section-lead">
+<section id="icones">
+  <header>
+    <div>06 · Iconografia</div>
+    <h2>Dezesseis ícones <em>essenciais</em>.</h2>
+    <p>
       Grid 24×24, stroke 1.75, linecap redondo, geometria primária. Os ícones quebram o princípio
       "preferência por preenchimento" porque em escala pequena o stroke lê melhor — exceção documentada.
       Referência: pictogramas Olímpicos México 68 (Lance Wyman) reinterpretados com mais curva.
     </p>
   </header>
 
-  <div class="icons-grid">
-    <div class="icon-cell"><svg><use href="#ic-menu"/></svg><span class="icon-name">menu</span></div>
-    <div class="icon-cell"><svg><use href="#ic-close"/></svg><span class="icon-name">close</span></div>
-    <div class="icon-cell"><svg><use href="#ic-search"/></svg><span class="icon-name">search</span></div>
-    <div class="icon-cell"><svg><use href="#ic-arrow-right"/></svg><span class="icon-name">arrow</span></div>
-    <div class="icon-cell"><svg><use href="#ic-chevron-down"/></svg><span class="icon-name">chevron</span></div>
-    <div class="icon-cell"><svg><use href="#ic-share"/></svg><span class="icon-name">share</span></div>
-    <div class="icon-cell"><svg><use href="#ic-download"/></svg><span class="icon-name">download</span></div>
-    <div class="icon-cell"><svg><use href="#ic-plus"/></svg><span class="icon-name">plus</span></div>
-    <div class="icon-cell"><svg><use href="#ic-minus"/></svg><span class="icon-name">minus</span></div>
-    <div class="icon-cell"><svg><use href="#ic-check"/></svg><span class="icon-name">check</span></div>
-    <div class="icon-cell"><svg><use href="#ic-x"/></svg><span class="icon-name">x</span></div>
-    <div class="icon-cell"><svg><use href="#ic-external"/></svg><span class="icon-name">external</span></div>
-    <div class="icon-cell"><svg><use href="#ic-bookmark"/></svg><span class="icon-name">bookmark</span></div>
-    <div class="icon-cell"><svg><use href="#ic-filter"/></svg><span class="icon-name">filter</span></div>
-    <div class="icon-cell"><svg><use href="#ic-more"/></svg><span class="icon-name">more</span></div>
-    <div class="icon-cell"><svg><use href="#ic-info"/></svg><span class="icon-name">info</span></div>
+  <div>
+    <div><svg><use href="#ic-menu"/></svg><span>menu</span></div>
+    <div><svg><use href="#ic-close"/></svg><span>close</span></div>
+    <div><svg><use href="#ic-search"/></svg><span>search</span></div>
+    <div><svg><use href="#ic-arrow-right"/></svg><span>arrow</span></div>
+    <div><svg><use href="#ic-chevron-down"/></svg><span>chevron</span></div>
+    <div><svg><use href="#ic-share"/></svg><span>share</span></div>
+    <div><svg><use href="#ic-download"/></svg><span>download</span></div>
+    <div><svg><use href="#ic-plus"/></svg><span>plus</span></div>
+    <div><svg><use href="#ic-minus"/></svg><span>minus</span></div>
+    <div><svg><use href="#ic-check"/></svg><span>check</span></div>
+    <div><svg><use href="#ic-x"/></svg><span>x</span></div>
+    <div><svg><use href="#ic-external"/></svg><span>external</span></div>
+    <div><svg><use href="#ic-bookmark"/></svg><span>bookmark</span></div>
+    <div><svg><use href="#ic-filter"/></svg><span>filter</span></div>
+    <div><svg><use href="#ic-more"/></svg><span>more</span></div>
+    <div><svg><use href="#ic-info"/></svg><span>info</span></div>
   </div>
 </section>
 
 <!-- ================ 07 GLIFOS & FORMAS ================ -->
-<section class="ds" id="glifos">
-  <header class="section-head">
-    <div class="section-num">07 · Glifos &amp; formas</div>
-    <h2 class="section-title">Pontuação <em>visual</em>.</h2>
-    <p class="section-lead">
+<section id="glifos">
+  <header>
+    <div>07 · Glifos &amp; formas</div>
+    <h2>Pontuação <em>visual</em>.</h2>
+    <p>
       Glifos são vinhetas — marginália, fim de seção, acentos em títulos. Formas grandes são cenário —
       fundo de hero, textura de seção. Referência explícita: as vinhetas de Bea Feitler na <em>Senhor</em>
       e na <em>Harper's Bazaar</em>, reinterpretadas em registro concretista.
     </p>
   </header>
 
-  <h3 class="sub-head">Glifos / marginália</h3>
-  <div class="glyphs-grid">
-    <div class="glyph-cell"><svg><use href="#gl-volpi"/></svg></div>
-    <div class="glyph-cell"><svg><use href="#gl-tarsila"/></svg></div>
-    <div class="glyph-cell"><svg><use href="#gl-losango"/></svg></div>
-    <div class="glyph-cell"><svg><use href="#gl-sol"/></svg></div>
-    <div class="glyph-cell"><svg><use href="#gl-end"/></svg></div>
-    <div class="glyph-cell"><svg><use href="#gl-arrow-orn"/></svg></div>
-    <div class="glyph-cell"><svg><use href="#gl-cruz"/></svg></div>
-    <div class="glyph-cell"><svg><use href="#gl-wave"/></svg></div>
+  <h3>Glifos / marginália</h3>
+  <div>
+    <div><svg><use href="#gl-volpi"/></svg></div>
+    <div><svg><use href="#gl-tarsila"/></svg></div>
+    <div><svg><use href="#gl-losango"/></svg></div>
+    <div><svg><use href="#gl-sol"/></svg></div>
+    <div><svg><use href="#gl-end"/></svg></div>
+    <div><svg><use href="#gl-arrow-orn"/></svg></div>
+    <div><svg><use href="#gl-cruz"/></svg></div>
+    <div><svg><use href="#gl-wave"/></svg></div>
   </div>
 
-  <h3 class="sub-head">Formas de fundo</h3>
-  <p class="section-lead" style="margin-bottom:var(--space-5)">
+  <h3>Formas de fundo</h3>
+  <p>
     Massas grandes de cor que ancoram seções — não são ilustração, são cama para conteúdo.
     Sempre aplicadas com opacidade reduzida para permitir texto por cima.
   </p>
-  <div class="shapes-grid">
-    <div class="shape-cell">
-      <svg style="width:100%;height:100%;top:0;left:0;opacity:0.18"><use href="#sh-parabola"/></svg>
-      <span class="shape-desc">sh-parabola</span>
-      <span class="shape-label">Parábola Niemeyer</span>
+  <div>
+    <div>
+      <svg><use href="#sh-parabola"/></svg>
+      <span>sh-parabola</span>
+      <span>Parábola Niemeyer</span>
     </div>
-    <div class="shape-cell">
-      <svg style="width:100%;height:100%;top:0;left:0;opacity:0.18"><use href="#sh-blob"/></svg>
-      <span class="shape-desc">sh-blob</span>
-      <span class="shape-label">Jardim Burle Marx</span>
+    <div>
+      <svg><use href="#sh-blob"/></svg>
+      <span>sh-blob</span>
+      <span>Jardim Burle Marx</span>
     </div>
-    <div class="shape-cell">
-      <svg style="width:100%;height:100%;top:0;left:0;opacity:0.18"><use href="#sh-onda"/></svg>
-      <span class="shape-desc">sh-onda</span>
-      <span class="shape-label">Onda Copacabana</span>
+    <div>
+      <svg><use href="#sh-onda"/></svg>
+      <span>sh-onda</span>
+      <span>Onda Copacabana</span>
     </div>
-    <div class="shape-cell">
-      <svg style="width:100%;height:100%;top:0;left:0;opacity:0.18"><use href="#sh-arco"/></svg>
-      <span class="shape-desc">sh-arco</span>
-      <span class="shape-label">Arco Pampulha</span>
+    <div>
+      <svg><use href="#sh-arco"/></svg>
+      <span>sh-arco</span>
+      <span>Arco Pampulha</span>
     </div>
   </div>
 </section>
 
 <!-- ================ 08 EMOJIS ================ -->
-<section class="ds" id="emojis">
-  <header class="section-head">
-    <div class="section-num">08 · Emojis &amp; símbolos</div>
-    <h2 class="section-title">Antropofagia <em>seletiva</em>.</h2>
-    <p class="section-lead">
+<section id="emojis">
+  <header>
+    <div>08 · Emojis &amp; símbolos</div>
+    <h2>Antropofagia <em>seletiva</em>.</h2>
+    <p>
       O sistema não cria emojis — cura um subconjunto do Unicode que conversa com o vocabulário,
       e proíbe o resto via guideline. A fonte-padrão é Twemoji via CDN: flat, vetorial, sem
       skeumorfismo. Caracteres geométricos Unicode entram como "emojis concretistas" oficiais.
     </p>
   </header>
 
-  <div class="emoji-section">
+  <div>
     <h4>Naturais brasileiros</h4>
-    <div class="emoji-list">🌴 🌺 🌳 ☀️ 🌙 ⭐ 🍃 🌾 🥭 🍍 🥥 🦜 🐆 🐟 🦋</div>
+    <div>🌴 🌺 🌳 ☀️ 🌙 ⭐ 🍃 🌾 🥭 🍍 🥥 🦜 🐆 🐟 🦋</div>
   </div>
 
-  <div class="emoji-section">
+  <div>
     <h4>Geometria Unicode — emojis concretistas</h4>
-    <div class="emoji-list">
-      <span class="unicode-geo">● ○ ■ □ ▲ △ ◆ ◇ ★ ☆</span>
+    <div>
+      <span>● ○ ■ □ ▲ △ ◆ ◇ ★ ☆</span>
     </div>
   </div>
 
-  <div class="emoji-section">
+  <div>
     <h4>Setas geométricas</h4>
-    <div class="emoji-list">
-      <span class="unicode-geo">← → ↑ ↓ ↔ ↕ ⇄ ⇅ ⟶ ⟵</span>
+    <div>
+      <span>← → ↑ ↓ ↔ ↕ ⇄ ⇅ ⟶ ⟵</span>
     </div>
   </div>
 
-  <div class="emoji-section">
+  <div>
     <h4>Funcionais sóbrios</h4>
-    <div class="emoji-list">
-      <span class="unicode-geo">✓ ✗ ※ § ¶ † ‡ ° ·</span>
+    <div>
+      <span>✓ ✗ ※ § ¶ † ‡ ° ·</span>
     </div>
   </div>
 
-  <h3 class="sub-head">Fonte de emoji</h3>
-  <div class="font-options">
-    <div class="font-opt">
-      <div class="opt-pick">Padrão</div>
-      <div class="opt-name">Twemoji</div>
-      <div class="opt-desc">Vetorial puro, flat, bordas limpas. Dialoga com Volpi e Athos — geometria sem brilho. Via CDN jdelivr. Licença CC-BY 4.0.</div>
+  <h3>Fonte de emoji</h3>
+  <div>
+    <div>
+      <div>Padrão</div>
+      <div>Twemoji</div>
+      <div>Vetorial puro, flat, bordas limpas. Dialoga com Volpi e Athos — geometria sem brilho. Via CDN jdelivr. Licença CC-BY 4.0.</div>
     </div>
-    <div class="font-opt">
-      <div class="opt-pick">Editorial</div>
-      <div class="opt-name">Fluent Emoji Flat</div>
-      <div class="opt-desc">Mais detalhe ilustrativo, ainda flat. Alternativa para projetos editoriais que pedem textura maior. Licença MIT.</div>
+    <div>
+      <div>Editorial</div>
+      <div>Fluent Emoji Flat</div>
+      <div>Mais detalhe ilustrativo, ainda flat. Alternativa para projetos editoriais que pedem textura maior. Licença MIT.</div>
     </div>
-    <div class="font-opt">
-      <div class="opt-pick">Proibido</div>
-      <div class="opt-name">Apple Color Emoji</div>
-      <div class="opt-desc">Skeumórfico, gradientes, brilhos 3D. Antítese do concretismo. Também evita Segoe Emoji legado e Noto (feeling Google).</div>
+    <div>
+      <div>Proibido</div>
+      <div>Apple Color Emoji</div>
+      <div>Skeumórfico, gradientes, brilhos 3D. Antítese do concretismo. Também evita Segoe Emoji legado e Noto (feeling Google).</div>
     </div>
   </div>
 
-  <div class="antimodels" style="margin-top:var(--space-6)">
+  <div>
     <h3>Categorias proibidas</h3>
     <ul>
       <li>Faces com emoção exagerada (😂 🥺 🤩) — quebram a sobriedade calorosa.</li>
@@ -2008,11 +764,11 @@ footer.end p {
 </section>
 
 <!-- ================ 09 COMPONENTES ================ -->
-<section class="ds" id="componentes">
-  <header class="section-head">
-    <div class="section-num">09 · Componentes</div>
-    <h2 class="section-title">Arquitetura <em>traduzida</em>.</h2>
-    <p class="section-lead">
+<section id="componentes">
+  <header>
+    <div>09 · Componentes</div>
+    <h2>Arquitetura <em>traduzida</em>.</h2>
+    <p>
       Cada componente é uma peça do edifício modernista traduzida para web — pilotis viram nav,
       cobogó vira modal-backdrop, Volpi vira badge. A esquerda, demo ao vivo; à direita, código
       copiável.
@@ -2020,236 +776,236 @@ footer.end p {
   </header>
 
   <!-- Botão -->
-  <div class="component-block">
-    <div class="comp-preview">
-      <button class="btn btn-primary">Ler artigo</button>
-      <button class="btn btn-secondary">Saiba mais</button>
-      <button class="btn btn-tertiary">Ver todos →</button>
+  <div>
+    <div>
+      <button>Ler artigo</button>
+      <button>Saiba mais</button>
+      <button>Ver todos →</button>
     </div>
-    <div class="code">
-      <button class="copy-btn" data-copy="btn-code">copiar</button>
-<pre id="btn-code"><span class="com">/* Botão — cor como volume, não brilho */</span>
-<span class="sel">.btn-primary</span> {
-  <span class="prop">background</span>: <span class="val">var(--bulcao-fg)</span>;
-  <span class="prop">color</span>: <span class="val">var(--bulcao-bg)</span>;
-  <span class="prop">padding</span>: <span class="val">14px 24px</span>;
-  <span class="prop">border</span>: <span class="val">none</span>;
-  <span class="prop">font-weight</span>: <span class="val">500</span>;
+    <div>
+      <button data-copy="btn-code">copiar</button>
+<pre id="btn-code"><span>/* Botão — cor como volume, não brilho */</span>
+<span>.btn-primary</span> {
+  <span>background</span>: <span>var(--bulcao-fg)</span>;
+  <span>color</span>: <span>var(--bulcao-bg)</span>;
+  <span>padding</span>: <span>14px 24px</span>;
+  <span>border</span>: <span>none</span>;
+  <span>font-weight</span>: <span>500</span>;
 }
-<span class="sel">.btn-primary:hover</span> {
-  <span class="prop">background</span>: <span class="val">var(--bulcao-accent)</span>;
+<span>.btn-primary:hover</span> {
+  <span>background</span>: <span>var(--bulcao-accent)</span>;
 }
-<span class="com">/* Secundário: inverte no hover */</span>
-<span class="sel">.btn-secondary</span> {
-  <span class="prop">background</span>: <span class="val">transparent</span>;
-  <span class="prop">color</span>: <span class="val">var(--bulcao-fg)</span>;
-  <span class="prop">border</span>: <span class="val">1px solid var(--bulcao-fg)</span>;
+<span>/* Secundário: inverte no hover */</span>
+<span>.btn-secondary</span> {
+  <span>background</span>: <span>transparent</span>;
+  <span>color</span>: <span>var(--bulcao-fg)</span>;
+  <span>border</span>: <span>1px solid var(--bulcao-fg)</span>;
 }</pre>
     </div>
-    <div class="comp-info" style="grid-column: 1 / -1">
-      <div class="comp-meta">Componente · Botão</div>
+    <div>
+      <div>Componente · Botão</div>
       <h3>Três níveis de peso, zero sombra.</h3>
       <p>Primário = bloco de cor (fg sobre bg). Secundário = outline. Terciário = link com underline concretista em cor de acento. Hover troca massa, não brilha.</p>
     </div>
   </div>
 
   <!-- Card -->
-  <div class="component-block">
-    <div class="comp-preview">
-      <div class="card-modernist">
-        <div class="card-bulcao"><svg><use href="#t1"/></svg></div>
-        <div class="card-body">
-          <span class="card-title">Congresso Nacional</span>
-          <span class="card-desc">Niemeyer, 1960. Cúpula virada, cúpula invertida — o pleno e o vazio lado a lado.</span>
+  <div>
+    <div>
+      <div>
+        <div><svg><use href="#t1"/></svg></div>
+        <div>
+          <span>Congresso Nacional</span>
+          <span>Niemeyer, 1960. Cúpula virada, cúpula invertida — o pleno e o vazio lado a lado.</span>
         </div>
       </div>
     </div>
-    <div class="code">
-      <button class="copy-btn" data-copy="card-code">copiar</button>
-<pre id="card-code"><span class="tag">&lt;article</span> <span class="attr">class</span>=<span class="str">"card-modernist"</span><span class="tag">&gt;</span>
-  <span class="tag">&lt;div</span> <span class="attr">class</span>=<span class="str">"card-bulcao"</span><span class="tag">&gt;</span>
-    <span class="tag">&lt;svg&gt;&lt;use</span> <span class="attr">href</span>=<span class="str">"#t1"</span><span class="tag">/&gt;&lt;/svg&gt;</span>
-  <span class="tag">&lt;/div&gt;</span>
-  <span class="tag">&lt;div</span> <span class="attr">class</span>=<span class="str">"card-body"</span><span class="tag">&gt;</span>
-    <span class="tag">&lt;h3&gt;</span>Congresso Nacional<span class="tag">&lt;/h3&gt;</span>
-    <span class="tag">&lt;p&gt;</span>Niemeyer, 1960…<span class="tag">&lt;/p&gt;</span>
-  <span class="tag">&lt;/div&gt;</span>
-<span class="tag">&lt;/article&gt;</span>
+    <div>
+      <button data-copy="card-code">copiar</button>
+<pre id="card-code"><span>&lt;article</span> <span>class</span>=<span>"card-modernist"</span><span>&gt;</span>
+  <span>&lt;div</span> <span>class</span>=<span>"card-bulcao"</span><span>&gt;</span>
+    <span>&lt;svg&gt;&lt;use</span> <span>href</span>=<span>"#t1"</span><span>/&gt;&lt;/svg&gt;</span>
+  <span>&lt;/div&gt;</span>
+  <span>&lt;div</span> <span>class</span>=<span>"card-body"</span><span>&gt;</span>
+    <span>&lt;h3&gt;</span>Congresso Nacional<span>&lt;/h3&gt;</span>
+    <span>&lt;p&gt;</span>Niemeyer, 1960…<span>&lt;/p&gt;</span>
+  <span>&lt;/div&gt;</span>
+<span>&lt;/article&gt;</span>
 
-<span class="com">/* Tile Bulcão como acento visual */</span>
-<span class="sel">.card-modernist</span> {
-  <span class="prop">grid-template-rows</span>: <span class="val">120px 1fr</span>;
-  <span class="prop">border</span>: <span class="val">1px solid var(--neutral-100)</span>;
+<span>/* Tile Bulcão como acento visual */</span>
+<span>.card-modernist</span> {
+  <span>grid-template-rows</span>: <span>120px 1fr</span>;
+  <span>border</span>: <span>1px solid var(--neutral-100)</span>;
 }</pre>
     </div>
-    <div class="comp-info" style="grid-column: 1 / -1">
-      <div class="comp-meta">Componente · Card</div>
+    <div>
+      <div>Componente · Card</div>
       <h3>Módulo Bulcão como assinatura.</h3>
       <p>Cada card carrega um tile no topo — identificador visual que muda com a paleta e rotaciona com CSS. Substitui a foto genérica de stock. O módulo pode ser qualquer dos 6 tiles, permitindo diferenciação de categorias.</p>
     </div>
   </div>
 
   <!-- Input -->
-  <div class="component-block">
-    <div class="comp-preview">
-      <div style="width:100%; max-width: 320px">
-        <label class="input-label" for="demo-input">E-mail</label>
-        <input class="input-modernist" id="demo-input" type="email" placeholder="seu@email.com"/>
+  <div>
+    <div>
+      <div>
+        <label for="demo-input">E-mail</label>
+        <input id="demo-input" type="email" placeholder="seu@email.com"/>
       </div>
     </div>
-    <div class="code">
-      <button class="copy-btn" data-copy="input-code">copiar</button>
-<pre id="input-code"><span class="com">/* Input — linha, não caixa */</span>
-<span class="sel">.input-modernist</span> {
-  <span class="prop">border</span>: <span class="val">none</span>;
-  <span class="prop">border-bottom</span>: <span class="val">2px solid var(--neutral-200)</span>;
-  <span class="prop">background</span>: <span class="val">transparent</span>;
-  <span class="prop">padding</span>: <span class="val">10px 0</span>;
-  <span class="prop">font-size</span>: <span class="val">var(--text-base)</span>;
+    <div>
+      <button data-copy="input-code">copiar</button>
+<pre id="input-code"><span>/* Input — linha, não caixa */</span>
+<span>.input-modernist</span> {
+  <span>border</span>: <span>none</span>;
+  <span>border-bottom</span>: <span>2px solid var(--neutral-200)</span>;
+  <span>background</span>: <span>transparent</span>;
+  <span>padding</span>: <span>10px 0</span>;
+  <span>font-size</span>: <span>var(--text-base)</span>;
 }
-<span class="sel">.input-modernist:focus</span> {
-  <span class="prop">border-bottom-color</span>: <span class="val">var(--bulcao-accent)</span>;
-  <span class="prop">outline</span>: <span class="val">none</span>;
+<span>.input-modernist:focus</span> {
+  <span>border-bottom-color</span>: <span>var(--bulcao-accent)</span>;
+  <span>outline</span>: <span>none</span>;
 }
-<span class="sel">.input-label</span> {
-  <span class="prop">font-family</span>: <span class="val">var(--font-mono)</span>;
-  <span class="prop">text-transform</span>: <span class="val">uppercase</span>;
-  <span class="prop">letter-spacing</span>: <span class="val">0.12em</span>;
+<span>.input-label</span> {
+  <span>font-family</span>: <span>var(--font-mono)</span>;
+  <span>text-transform</span>: <span>uppercase</span>;
+  <span>letter-spacing</span>: <span>0.12em</span>;
 }</pre>
     </div>
-    <div class="comp-info" style="grid-column: 1 / -1">
-      <div class="comp-meta">Componente · Input</div>
+    <div>
+      <div>Componente · Input</div>
       <h3>Linha concretista, não caixa.</h3>
       <p>Caixas 3D com sombra interna pertencem ao skeumorfismo. No sistema, input é uma linha — tipografia flutua sobre a base. Foco muda a cor da linha para o acento da paleta ativa.</p>
     </div>
   </div>
 
   <!-- Badge -->
-  <div class="component-block">
-    <div class="comp-preview">
-      <div style="display: flex; gap: var(--space-3); flex-wrap: wrap">
-        <span class="badge">Novo</span>
-        <span class="badge badge-volpi">Editorial</span>
-        <span class="badge badge-outline">Arquivo</span>
+  <div>
+    <div>
+      <div>
+        <span>Novo</span>
+        <span>Editorial</span>
+        <span>Arquivo</span>
       </div>
     </div>
-    <div class="code">
-      <button class="copy-btn" data-copy="badge-code">copiar</button>
-<pre id="badge-code"><span class="com">/* Badge — bandeirinha Volpi reduzida */</span>
-<span class="sel">.badge</span> {
-  <span class="prop">background</span>: <span class="val">var(--bulcao-accent)</span>;
-  <span class="prop">color</span>: <span class="val">var(--bulcao-bg)</span>;
-  <span class="prop">padding</span>: <span class="val">6px 12px</span>;
-  <span class="prop">font-size</span>: <span class="val">var(--text-xs)</span>;
-  <span class="prop">font-weight</span>: <span class="val">500</span>;
+    <div>
+      <button data-copy="badge-code">copiar</button>
+<pre id="badge-code"><span>/* Badge — bandeirinha Volpi reduzida */</span>
+<span>.badge</span> {
+  <span>background</span>: <span>var(--bulcao-accent)</span>;
+  <span>color</span>: <span>var(--bulcao-bg)</span>;
+  <span>padding</span>: <span>6px 12px</span>;
+  <span>font-size</span>: <span>var(--text-xs)</span>;
+  <span>font-weight</span>: <span>500</span>;
 }
-<span class="com">/* Variante Volpi — corte diagonal */</span>
-<span class="sel">.badge-volpi</span> {
-  <span class="prop">clip-path</span>: <span class="val">polygon(
+<span>/* Variante Volpi — corte diagonal */</span>
+<span>.badge-volpi</span> {
+  <span>clip-path</span>: <span>polygon(
     6px 0, 100% 0,
     calc(100% - 6px) 100%, 0 100%)</span>;
 }</pre>
     </div>
-    <div class="comp-info" style="grid-column: 1 / -1">
-      <div class="comp-meta">Componente · Badge</div>
+    <div>
+      <div>Componente · Badge</div>
       <h3>Bandeirinha Volpi digital.</h3>
       <p>Três variações: padrão (retângulo), Volpi (clip-path cortando cantos), outline. O corte diagonal da variante Volpi é o gesto que remove o badge do território neutro e o traz para o sistema.</p>
     </div>
   </div>
 
   <!-- Header Pilotis -->
-  <div class="component-block">
-    <div class="comp-preview" style="padding: 0; align-items: stretch">
-      <div style="width: 100%">
-        <div class="header-pilotis">
-          <div class="brand">Casa Editora</div>
+  <div>
+    <div>
+      <div>
+        <div>
+          <div>Casa Editora</div>
           <nav><a href="#">Artigos</a><a href="#">Autores</a><a href="#">Arquivo</a></nav>
         </div>
       </div>
     </div>
-    <div class="code">
-      <button class="copy-btn" data-copy="header-code">copiar</button>
-<pre id="header-code"><span class="com">/* Header com pilotis — dentes embaixo */</span>
-<span class="sel">.header-pilotis</span> {
-  <span class="prop">position</span>: <span class="val">relative</span>;
-  <span class="prop">background</span>: <span class="val">var(--bulcao-bg)</span>;
-  <span class="prop">padding</span>: <span class="val">16px 24px</span>;
+    <div>
+      <button data-copy="header-code">copiar</button>
+<pre id="header-code"><span>/* Header com pilotis — dentes embaixo */</span>
+<span>.header-pilotis</span> {
+  <span>position</span>: <span>relative</span>;
+  <span>background</span>: <span>var(--bulcao-bg)</span>;
+  <span>padding</span>: <span>16px 24px</span>;
 }
-<span class="sel">.header-pilotis::after</span> {
-  <span class="prop">content</span>: <span class="val">""</span>;
-  <span class="prop">position</span>: <span class="val">absolute</span>;
-  <span class="prop">left</span>: <span class="val">0</span>; <span class="prop">right</span>: <span class="val">0</span>;
-  <span class="prop">bottom</span>: <span class="val">-16px</span>;
-  <span class="prop">height</span>: <span class="val">16px</span>;
-  <span class="prop">background</span>: <span class="val">linear-gradient(to bottom,
+<span>.header-pilotis::after</span> {
+  <span>content</span>: <span>""</span>;
+  <span>position</span>: <span>absolute</span>;
+  <span>left</span>: <span>0</span>; <span>right</span>: <span>0</span>;
+  <span>bottom</span>: <span>-16px</span>;
+  <span>height</span>: <span>16px</span>;
+  <span>background</span>: <span>linear-gradient(to bottom,
     var(--bulcao-bg) 30%,
     transparent 30%, transparent 70%,
     var(--bulcao-bg) 70%)</span>;
-  <span class="prop">background-size</span>: <span class="val">20% 100%</span>;
+  <span>background-size</span>: <span>20% 100%</span>;
 }</pre>
     </div>
-    <div class="comp-info" style="grid-column: 1 / -1">
-      <div class="comp-meta">Componente · Header</div>
+    <div>
+      <div>Componente · Header</div>
       <h3>Pilotis suspensos.</h3>
       <p>A referência é o MES (Capanema, 1936) e o Ibirapuera: o edifício flutua sobre colunas. O header transfere esse gesto para a web via <code>::after</code> com dentes regulares — a barra "pousa" em cinco apoios.</p>
     </div>
   </div>
 
   <!-- Divisor -->
-  <div class="component-block">
-    <div class="comp-preview" style="padding: var(--space-4); align-items: stretch">
-      <div class="divisor-burle">
+  <div>
+    <div>
+      <div>
         <svg viewBox="0 0 400 40" preserveAspectRatio="none">
           <path d="M 0 20 Q 50 0 100 20 T 200 20 T 300 20 T 400 20 L 400 40 L 0 40 Z" fill="currentColor"/>
         </svg>
       </div>
     </div>
-    <div class="code">
-      <button class="copy-btn" data-copy="div-code">copiar</button>
-<pre id="div-code"><span class="com">/* Divisor — onda Burle Marx */</span>
-<span class="tag">&lt;div</span> <span class="attr">class</span>=<span class="str">"divisor-burle"</span><span class="tag">&gt;</span>
-  <span class="tag">&lt;svg</span> <span class="attr">viewBox</span>=<span class="str">"0 0 400 40"</span>
-       <span class="attr">preserveAspectRatio</span>=<span class="str">"none"</span><span class="tag">&gt;</span>
-    <span class="tag">&lt;path</span> <span class="attr">d</span>=<span class="str">"M 0 20 Q 50 0 100 20 T 200 20
+    <div>
+      <button data-copy="div-code">copiar</button>
+<pre id="div-code"><span>/* Divisor — onda Burle Marx */</span>
+<span>&lt;div</span> <span>class</span>=<span>"divisor-burle"</span><span>&gt;</span>
+  <span>&lt;svg</span> <span>viewBox</span>=<span>"0 0 400 40"</span>
+       <span>preserveAspectRatio</span>=<span>"none"</span><span>&gt;</span>
+    <span>&lt;path</span> <span>d</span>=<span>"M 0 20 Q 50 0 100 20 T 200 20
              T 300 20 T 400 20
              L 400 40 L 0 40 Z"</span>
-          <span class="attr">fill</span>=<span class="str">"currentColor"</span><span class="tag">/&gt;</span>
-  <span class="tag">&lt;/svg&gt;</span>
-<span class="tag">&lt;/div&gt;</span></pre>
+          <span>fill</span>=<span>"currentColor"</span><span>/&gt;</span>
+  <span>&lt;/svg&gt;</span>
+<span>&lt;/div&gt;</span></pre>
     </div>
-    <div class="comp-info" style="grid-column: 1 / -1">
-      <div class="comp-meta">Componente · Divisor</div>
+    <div>
+      <div>Componente · Divisor</div>
       <h3>Onda, não linha reta.</h3>
       <p>A linha reta é brutalismo de web design. O divisor do sistema é a onda Burle Marx — ritmo contínuo que separa sem cortar.</p>
     </div>
   </div>
 
   <!-- Modal / Cobogó overlay -->
-  <div class="component-block">
-    <div class="comp-preview" style="padding: 0; min-height: 280px">
-      <div class="modal-demo">
-        <div class="modal-overlay"></div>
-        <div class="modal-content">
+  <div>
+    <div>
+      <div>
+        <div></div>
+        <div>
           <h4>Cobogó filtra a luz.</h4>
           <p>O backdrop é um cobogó vazado — deixa ver o que está atrás, em padrão, em vez de escurecer uniformemente.</p>
         </div>
       </div>
     </div>
-    <div class="code">
-      <button class="copy-btn" data-copy="modal-code">copiar</button>
-<pre id="modal-code"><span class="com">/* Modal backdrop — cobogó como filtro */</span>
-<span class="sel">.modal-overlay</span> {
-  <span class="prop">position</span>: <span class="val">absolute</span>;
-  <span class="prop">inset</span>: <span class="val">0</span>;
-  <span class="prop">background</span>: <span class="val">var(--bulcao-fg)</span>;
-  <span class="prop">mask-image</span>: <span class="val">url(…cobogo.svg)</span>;
-  <span class="prop">mask-size</span>: <span class="val">40px</span>;
-  <span class="prop">mask-repeat</span>: <span class="val">repeat</span>;
-  <span class="prop">opacity</span>: <span class="val">0.6</span>;
+    <div>
+      <button data-copy="modal-code">copiar</button>
+<pre id="modal-code"><span>/* Modal backdrop — cobogó como filtro */</span>
+<span>.modal-overlay</span> {
+  <span>position</span>: <span>absolute</span>;
+  <span>inset</span>: <span>0</span>;
+  <span>background</span>: <span>var(--bulcao-fg)</span>;
+  <span>mask-image</span>: <span>url(…cobogo.svg)</span>;
+  <span>mask-size</span>: <span>40px</span>;
+  <span>mask-repeat</span>: <span>repeat</span>;
+  <span>opacity</span>: <span>0.6</span>;
 }</pre>
     </div>
-    <div class="comp-info" style="grid-column: 1 / -1">
-      <div class="comp-meta">Componente · Modal</div>
+    <div>
+      <div>Componente · Modal</div>
       <h3>Backdrop em cobogó.</h3>
       <p>Modal escurecendo a tela inteira uniformemente é gesto Bootstrap. O sistema usa um cobogó vazado como overlay — a tela atrás continua visível filtrada, como se a luz atravessasse a parede.</p>
     </div>
@@ -2257,47 +1013,47 @@ footer.end p {
 </section>
 
 <!-- ================ 10 APLICAÇÃO ================ -->
-<section class="ds" id="aplicacao">
-  <header class="section-head">
-    <div class="section-num">10 · Aplicação</div>
-    <h2 class="section-title">O sistema <em>em página</em>.</h2>
-    <p class="section-lead">
+<section id="aplicacao">
+  <header>
+    <div>10 · Aplicação</div>
+    <h2>O sistema <em>em página</em>.</h2>
+    <p>
       Uma página-exemplo montada só com peças do sistema — para ver tudo junto em escala de uso real.
       Troque a paleta e veja a página inteira responder.
     </p>
   </header>
 
-  <div class="application">
-    <div class="app-shapes"><svg><use href="#sh-blob"/></svg></div>
-    <div class="app-hero">
-      <div class="app-eyebrow">Ensaio · abril 2026</div>
+  <div>
+    <div><svg><use href="#sh-blob"/></svg></div>
+    <div>
+      <div>Ensaio · abril 2026</div>
       <h2>Brasília é vazio, <em>não falta.</em></h2>
-      <p class="app-lead">
+      <p>
         Lucio Costa projetou uma cidade onde o espaço entre edifícios é tão construído quanto
         os edifícios. Pensar o vazio como matéria é o primeiro gesto modernista brasileiro.
       </p>
-      <div style="display:flex; gap: var(--space-3); flex-wrap: wrap">
-        <button class="btn btn-primary">Ler ensaio completo</button>
-        <button class="btn btn-secondary">Ouvir áudio</button>
+      <div>
+        <button>Ler ensaio completo</button>
+        <button>Ouvir áudio</button>
       </div>
     </div>
 
-    <div class="app-columns">
-      <div class="app-column">
+    <div>
+      <div>
         <h3>Plano piloto</h3>
         <p>O desenho como avião, como cruz, como pássaro — a metáfora fundacional de Brasília em três leituras.</p>
       </div>
-      <div class="app-column">
+      <div>
         <h3>Escala Bulcão</h3>
         <p>Como os azulejos de Athos operam em três escalas simultâneas: parede, rua, cidade.</p>
       </div>
-      <div class="app-column">
+      <div>
         <h3>Curva Niemeyer</h3>
         <p>Da catedral ao Palácio da Alvorada: a parábola como assinatura e como estrutura.</p>
       </div>
     </div>
 
-    <div class="app-footer">
+    <div>
       <span>Casa Editora · 2026</span>
       <span>Próximo ensaio em 12.05</span>
     </div>
@@ -2305,97 +1061,97 @@ footer.end p {
 </section>
 
 <!-- ================ 11 TOKENS ================ -->
-<section class="ds" id="tokens">
-  <header class="section-head">
-    <div class="section-num">11 · Tokens</div>
-    <h2 class="section-title">Todas as <em>variáveis</em>.</h2>
-    <p class="section-lead">
+<section id="tokens">
+  <header>
+    <div>11 · Tokens</div>
+    <h2>Todas as <em>variáveis</em>.</h2>
+    <p>
       Bloco copiável com o sistema inteiro de tokens CSS. Ponto de partida para um arquivo
       <code>tokens.css</code> ou para consumo em ferramentas como Style Dictionary.
     </p>
   </header>
 
-  <div class="code tokens-code" style="min-height: 400px">
-    <button class="copy-btn" data-copy="all-tokens">copiar tudo</button>
-<pre id="all-tokens"><span class="sel">:root</span> {
-  <span class="com">/* Neutros quentes */</span>
-  <span class="prop">--neutral-0</span>:   <span class="val">#FBF8F1</span>;
-  <span class="prop">--neutral-50</span>:  <span class="val">#F5F2EC</span>;
-  <span class="prop">--neutral-100</span>: <span class="val">#ECE7DA</span>;
-  <span class="prop">--neutral-200</span>: <span class="val">#DCD5C2</span>;
-  <span class="prop">--neutral-300</span>: <span class="val">#C4BCA3</span>;
-  <span class="prop">--neutral-400</span>: <span class="val">#8A8270</span>;
-  <span class="prop">--neutral-500</span>: <span class="val">#666053</span>;
-  <span class="prop">--neutral-700</span>: <span class="val">#3D3A33</span>;
-  <span class="prop">--neutral-900</span>: <span class="val">#1A1815</span>;
+  <div>
+    <button data-copy="all-tokens">copiar tudo</button>
+<pre id="all-tokens"><span>:root</span> {
+  <span>/* Neutros quentes */</span>
+  <span>--neutral-0</span>:   <span>#FBF8F1</span>;
+  <span>--neutral-50</span>:  <span>#F5F2EC</span>;
+  <span>--neutral-100</span>: <span>#ECE7DA</span>;
+  <span>--neutral-200</span>: <span>#DCD5C2</span>;
+  <span>--neutral-300</span>: <span>#C4BCA3</span>;
+  <span>--neutral-400</span>: <span>#8A8270</span>;
+  <span>--neutral-500</span>: <span>#666053</span>;
+  <span>--neutral-700</span>: <span>#3D3A33</span>;
+  <span>--neutral-900</span>: <span>#1A1815</span>;
 
-  <span class="com">/* Tipografia */</span>
-  <span class="prop">--font-display</span>: <span class="val">'Fraunces', Georgia, serif</span>;
-  <span class="prop">--font-body</span>: <span class="val">'Manrope', system-ui, sans-serif</span>;
-  <span class="prop">--font-mono</span>: <span class="val">'JetBrains Mono', ui-monospace, Menlo, monospace</span>;
+  <span>/* Tipografia */</span>
+  <span>--font-display</span>: <span>'Fraunces', Georgia, serif</span>;
+  <span>--font-body</span>: <span>'Manrope', system-ui, sans-serif</span>;
+  <span>--font-mono</span>: <span>'JetBrains Mono', ui-monospace, Menlo, monospace</span>;
 
-  <span class="com">/* Type scale */</span>
-  <span class="prop">--text-xs</span>:   <span class="val">12px</span>;
-  <span class="prop">--text-sm</span>:   <span class="val">14px</span>;
-  <span class="prop">--text-base</span>: <span class="val">16px</span>;
-  <span class="prop">--text-md</span>:   <span class="val">18px</span>;
-  <span class="prop">--text-lg</span>:   <span class="val">22px</span>;
-  <span class="prop">--text-xl</span>:   <span class="val">28px</span>;
-  <span class="prop">--text-2xl</span>:  <span class="val">36px</span>;
-  <span class="prop">--text-3xl</span>:  <span class="val">48px</span>;
-  <span class="prop">--text-4xl</span>:  <span class="val">64px</span>;
-  <span class="prop">--text-5xl</span>:  <span class="val">88px</span>;
-  <span class="prop">--text-6xl</span>:  <span class="val">120px</span>;
+  <span>/* Type scale */</span>
+  <span>--text-xs</span>:   <span>12px</span>;
+  <span>--text-sm</span>:   <span>14px</span>;
+  <span>--text-base</span>: <span>16px</span>;
+  <span>--text-md</span>:   <span>18px</span>;
+  <span>--text-lg</span>:   <span>22px</span>;
+  <span>--text-xl</span>:   <span>28px</span>;
+  <span>--text-2xl</span>:  <span>36px</span>;
+  <span>--text-3xl</span>:  <span>48px</span>;
+  <span>--text-4xl</span>:  <span>64px</span>;
+  <span>--text-5xl</span>:  <span>88px</span>;
+  <span>--text-6xl</span>:  <span>120px</span>;
 
-  <span class="com">/* Espaçamento (base 8) */</span>
-  <span class="prop">--space-1</span>:  <span class="val">4px</span>;
-  <span class="prop">--space-2</span>:  <span class="val">8px</span>;
-  <span class="prop">--space-3</span>:  <span class="val">12px</span>;
-  <span class="prop">--space-4</span>:  <span class="val">16px</span>;
-  <span class="prop">--space-5</span>:  <span class="val">24px</span>;
-  <span class="prop">--space-6</span>:  <span class="val">32px</span>;
-  <span class="prop">--space-7</span>:  <span class="val">48px</span>;
-  <span class="prop">--space-8</span>:  <span class="val">64px</span>;
-  <span class="prop">--space-9</span>:  <span class="val">96px</span>;
-  <span class="prop">--space-10</span>: <span class="val">128px</span>;
-  <span class="prop">--space-11</span>: <span class="val">160px</span>;
+  <span>/* Espaçamento (base 8) */</span>
+  <span>--space-1</span>:  <span>4px</span>;
+  <span>--space-2</span>:  <span>8px</span>;
+  <span>--space-3</span>:  <span>12px</span>;
+  <span>--space-4</span>:  <span>16px</span>;
+  <span>--space-5</span>:  <span>24px</span>;
+  <span>--space-6</span>:  <span>32px</span>;
+  <span>--space-7</span>:  <span>48px</span>;
+  <span>--space-8</span>:  <span>64px</span>;
+  <span>--space-9</span>:  <span>96px</span>;
+  <span>--space-10</span>: <span>128px</span>;
+  <span>--space-11</span>: <span>160px</span>;
 
-  <span class="com">/* Motion */</span>
-  <span class="prop">--ease</span>: <span class="val">cubic-bezier(0.2, 0.8, 0.2, 1)</span>;
-  <span class="prop">--duration-fast</span>: <span class="val">0.18s</span>;
-  <span class="prop">--duration</span>: <span class="val">0.36s</span>;
-  <span class="prop">--duration-slow</span>: <span class="val">0.6s</span>;
+  <span>/* Motion */</span>
+  <span>--ease</span>: <span>cubic-bezier(0.2, 0.8, 0.2, 1)</span>;
+  <span>--duration-fast</span>: <span>0.18s</span>;
+  <span>--duration</span>: <span>0.36s</span>;
+  <span>--duration-slow</span>: <span>0.6s</span>;
 }
 
-<span class="com">/* Paletas Bulcão — trocáveis via data-attribute */</span>
-<span class="sel">[data-palette="tarsila"]</span> {
-  <span class="prop">--bulcao-fg</span>:      <span class="val">#B83A2C</span>;
-  <span class="prop">--bulcao-bg</span>:      <span class="val">#F2E2C8</span>;
-  <span class="prop">--bulcao-accent</span>:  <span class="val">#2E6F8E</span>;
-  <span class="prop">--bulcao-support</span>: <span class="val">#6B4E9A</span>;
+<span>/* Paletas Bulcão — trocáveis via data-attribute */</span>
+<span>[data-palette="tarsila"]</span> {
+  <span>--bulcao-fg</span>:      <span>#B83A2C</span>;
+  <span>--bulcao-bg</span>:      <span>#F2E2C8</span>;
+  <span>--bulcao-accent</span>:  <span>#2E6F8E</span>;
+  <span>--bulcao-support</span>: <span>#6B4E9A</span>;
 }
-<span class="sel">[data-palette="burle"]</span> {
-  <span class="prop">--bulcao-fg</span>:      <span class="val">#2D5F3F</span>;
-  <span class="prop">--bulcao-bg</span>:      <span class="val">#ECE7D2</span>;
-  <span class="prop">--bulcao-accent</span>:  <span class="val">#E0A12A</span>;
-  <span class="prop">--bulcao-support</span>: <span class="val">#B891C5</span>;
+<span>[data-palette="burle"]</span> {
+  <span>--bulcao-fg</span>:      <span>#2D5F3F</span>;
+  <span>--bulcao-bg</span>:      <span>#ECE7D2</span>;
+  <span>--bulcao-accent</span>:  <span>#E0A12A</span>;
+  <span>--bulcao-support</span>: <span>#B891C5</span>;
 }
-<span class="sel">[data-palette="concretista"]</span> {
-  <span class="prop">--bulcao-fg</span>:      <span class="val">#1A1815</span>;
-  <span class="prop">--bulcao-bg</span>:      <span class="val">#F5F2EC</span>;
-  <span class="prop">--bulcao-accent</span>:  <span class="val">#C8312A</span>;
-  <span class="prop">--bulcao-support</span>: <span class="val">#2B4B7C</span>;
+<span>[data-palette="concretista"]</span> {
+  <span>--bulcao-fg</span>:      <span>#1A1815</span>;
+  <span>--bulcao-bg</span>:      <span>#F5F2EC</span>;
+  <span>--bulcao-accent</span>:  <span>#C8312A</span>;
+  <span>--bulcao-support</span>: <span>#2B4B7C</span>;
 }
-<span class="sel">[data-palette="tropicalista"]</span> {
-  <span class="prop">--bulcao-fg</span>:      <span class="val">#DC1E63</span>;
-  <span class="prop">--bulcao-bg</span>:      <span class="val">#FFF1B3</span>;
-  <span class="prop">--bulcao-accent</span>:  <span class="val">#FF6B1F</span>;
-  <span class="prop">--bulcao-support</span>: <span class="val">#2D7A4F</span>;
+<span>[data-palette="tropicalista"]</span> {
+  <span>--bulcao-fg</span>:      <span>#DC1E63</span>;
+  <span>--bulcao-bg</span>:      <span>#FFF1B3</span>;
+  <span>--bulcao-accent</span>:  <span>#FF6B1F</span>;
+  <span>--bulcao-support</span>: <span>#2D7A4F</span>;
 }</pre>
   </div>
 </section>
 
-<footer class="end">
+<footer>
   <p>Deglutir, não citar.</p>
 </footer>
 

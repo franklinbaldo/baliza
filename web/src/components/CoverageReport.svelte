@@ -125,7 +125,7 @@
   }
 </script>
 
-<section class="coverage" aria-label="Cobertura de órgãos públicos no PNCP">
+<section aria-label="Cobertura de órgãos públicos no PNCP">
   <header>
     <h2>Cobertura de órgãos públicos</h2>
     <p>
@@ -137,7 +137,7 @@
   </header>
 
   {#if referenceError && referenceError.message.includes('404')}
-    <div class="banner banner--info" role="status">
+    <div role="status">
       <p>
         <strong>Cadastro de referência ainda não publicado.</strong>
         O dataset <code>cnpj-orgaos-publicos.json</code> é gerado pela
@@ -147,34 +147,34 @@
       </p>
     </div>
   {:else if referenceError}
-    <div class="banner banner--warn" role="alert">
+    <div role="alert">
       <p>Falha ao carregar o cadastro de referência: {referenceError.message}.</p>
     </div>
   {:else if publishingError}
-    <div class="banner banner--warn" role="alert">
+    <div role="alert">
       <p>
         Falha ao consultar o parquet de contratos: {publishingError.message}.
         O numerador (CNPJs publicadores) não pôde ser computado agora.
       </p>
     </div>
   {:else if loading && !stats}
-    <div class="skeleton-row" aria-busy="true">
-      <div class="skeleton skel-num"></div>
-      <div class="skeleton skel-line"></div>
-      <div class="skeleton skel-line"></div>
+    <div aria-busy="true">
+      <div></div>
+      <div></div>
+      <div></div>
     </div>
   {:else if stats}
-    <div class="headline">
-      <span class="big">{formatInteger(stats.totalPublished)}</span>
-      <span class="of">de</span>
-      <span class="big big--ref">{formatInteger(stats.totalReference)}</span>
-      <span class="label">órgãos públicos publicaram no PNCP</span>
-      <span class="pct" class:pct--low={stats.coveragePct < 50}>
+    <div>
+      <span>{formatInteger(stats.totalPublished)}</span>
+      <span>de</span>
+      <span>{formatInteger(stats.totalReference)}</span>
+      <span>órgãos públicos publicaram no PNCP</span>
+      <span>
         {stats.coveragePct.toFixed(1)}%
       </span>
     </div>
 
-    <table class="esferas">
+    <table>
       <thead>
         <tr><th>Esfera</th><th>Cobertos</th><th>Cadastrados</th><th>%</th></tr>
       </thead>
@@ -186,23 +186,23 @@
             <th scope="row">{label}</th>
             <td>{formatInteger(g.published)}</td>
             <td>{formatInteger(g.total)}</td>
-            <td class:low={p < 50}>{p.toFixed(1)}%</td>
+            <td>{p.toFixed(1)}%</td>
           </tr>
         {/each}
       </tbody>
     </table>
 
     {#if absences.length > 0}
-      <details class="absences">
+      <details>
         <summary>
           Ausências notáveis · primeiras {absences.length} de {formatInteger(stats.totalReference - stats.totalPublished)}
         </summary>
         <ul>
           {#each absences as a (a.raiz)}
             <li>
-              <span class="cnpj">{fmtCnpjRaiz(a.raiz)}</span>
-              <span class="nome">{a.nome}</span>
-              <span class="natureza">nat. {a.natureza}</span>
+              <span>{fmtCnpjRaiz(a.raiz)}</span>
+              <span>{a.nome}</span>
+              <span>nat. {a.natureza}</span>
             </li>
           {/each}
         </ul>
@@ -210,151 +210,10 @@
     {/if}
 
     {#if dataParticao}
-      <p class="footnote">
+      <p>
         Dados a partir do snapshot Parquet de {formatParticao(dataParticao)} no Internet Archive.
       </p>
     {/if}
   {/if}
 </section>
 
-<style>
-  .coverage {
-    display: grid;
-    gap: var(--space-4);
-  }
-  header h2 {
-    font-family: var(--font-display);
-    font-weight: 400;
-    font-size: clamp(20px, 2vw, 28px);
-    margin: 0;
-  }
-  header p {
-    color: var(--color-text-dim);
-    line-height: 1.6;
-    max-width: 72ch;
-    margin: var(--space-2) 0 0;
-  }
-  .banner {
-    padding: var(--space-3) var(--space-4);
-    border: 1px solid var(--color-border);
-    border-left: 4px solid var(--color-azul);
-    background: color-mix(in srgb, var(--color-bg) 92%, transparent);
-  }
-  .banner--warn { border-left-color: var(--color-tijolo); }
-  .banner code {
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    background: color-mix(in srgb, var(--color-azul) 10%, transparent);
-    padding: 1px 5px;
-    border-radius: var(--radius-sm);
-  }
-  .headline {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: var(--space-2);
-    padding: var(--space-4);
-    background: var(--color-bg);
-    border: 1px solid var(--color-border);
-    border-left: 5px solid var(--color-accent);
-  }
-  .big {
-    font-family: var(--font-display);
-    font-weight: 300;
-    font-size: clamp(32px, 4vw, 56px);
-    line-height: 1;
-  }
-  .big--ref { color: var(--color-text-dim); }
-  .of { color: var(--color-text-dim); font-size: var(--text-md); }
-  .label {
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--color-text-dim);
-    flex: 1;
-  }
-  .pct {
-    font-family: var(--font-display);
-    font-weight: 500;
-    font-size: clamp(20px, 2vw, 28px);
-    color: var(--color-verde);
-  }
-  .pct--low { color: var(--color-tijolo); }
-  .esferas {
-    width: 100%;
-    border-collapse: collapse;
-  }
-  .esferas th,
-  .esferas td {
-    padding: var(--space-2) var(--space-3);
-    text-align: right;
-    border-bottom: 1px solid var(--color-border);
-  }
-  .esferas th[scope='row'] {
-    text-align: left;
-    font-family: var(--font-mono);
-    font-weight: 500;
-    font-size: var(--text-sm);
-  }
-  .esferas thead th {
-    text-align: right;
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--color-text-dim);
-  }
-  .esferas thead th:first-child { text-align: left; }
-  .esferas .low { color: var(--color-tijolo); }
-  .absences summary {
-    cursor: pointer;
-    font-family: var(--font-mono);
-    font-size: var(--text-sm);
-    color: var(--color-azul);
-    padding: var(--space-2) 0;
-  }
-  .absences ul {
-    list-style: none;
-    margin: 0;
-    padding: var(--space-2) 0;
-    display: grid;
-    gap: 4px;
-    max-height: 360px;
-    overflow-y: auto;
-  }
-  .absences li {
-    display: grid;
-    grid-template-columns: max-content 1fr max-content;
-    gap: var(--space-3);
-    align-items: baseline;
-    padding: 4px 0;
-    border-bottom: 1px dotted var(--color-border);
-    font-size: var(--text-sm);
-  }
-  .cnpj {
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    color: var(--color-azul);
-  }
-  .natureza {
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    color: var(--color-text-dim);
-  }
-  .footnote {
-    font-size: var(--text-xs);
-    color: var(--color-text-dim);
-    margin: 0;
-    font-family: var(--font-mono);
-  }
-  .skeleton-row {
-    display: grid;
-    gap: var(--space-2);
-    padding: var(--space-4);
-    background: var(--color-bg);
-    border: 1px solid var(--color-border);
-  }
-  .skel-num { height: 3rem; width: 40%; }
-  .skel-line { height: 1rem; width: 100%; }
-</style>

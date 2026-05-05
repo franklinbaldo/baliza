@@ -75,24 +75,24 @@
   }
 </script>
 
-<section class="local-bids container">
-  <div class="card modernist-card">
-    <div class="card-header">
-      <div class="icon-bulb">📍</div>
-      <div class="title-group">
+<section>
+  <div>
+    <div>
+      <div>📍</div>
+      <div>
         <h3>Radar Local</h3>
         <p>Encontre oportunidades perto de você usando geolocalização.</p>
       </div>
     </div>
 
     {#if geoStatus === 'idle'}
-      <button class="btn btn-primary" onclick={handleFindLocal}>
+      <button onclick={handleFindLocal}>
         Ativar Localizador
       </button>
 
     {:else if geoStatus === 'locating'}
-      <div class="status-msg" aria-busy="true">
-        <div class="spinner" aria-hidden="true"></div>
+      <div aria-busy="true">
+        <div aria-hidden="true"></div>
         <p>Buscando sua posição no mapa...</p>
       </div>
 
@@ -113,13 +113,12 @@
     {:else if geoStatus === 'ready'}
       {#if loadingData}
         <div
-          class="skeleton-wrap"
           aria-busy="true"
           aria-label={`Consultando PNCP para ${cityInfo?.name ?? 'seu município'}`}
         >
-          <div class="skeleton skeleton-heading"></div>
+          <div></div>
           {#each [1, 2, 3] as _, i (i)}
-            <div class="skeleton skeleton-bid"></div>
+            <div></div>
           {/each}
         </div>
       {:else if data}
@@ -131,8 +130,8 @@
           />
         {/if}
 
-        <div class="results">
-          <div class="results-header">
+        <div>
+          <div>
             <h4>Visto recentemente em <strong>{cityInfo?.name}</strong></h4>
           </div>
 
@@ -142,14 +141,14 @@
               message="O PNCP não retornou contratações recentes para este município."
             />
           {:else}
-            <div class="bids-list">
+            <div>
               {#each data.contracts as bid (bid.numeroControlePNCP)}
-                <a href={resolve(`contratacao?id=${bid.numeroControlePNCP}`)} class="bid-card">
-                  <div class="bid-meta">
-                    <span class="bid-id">#{bid.numeroControlePNCP}</span>
-                    <span class="bid-date">{formatDate(bid.dataPublicacaoPncp)}</span>
+                <a href={resolve(`contratacao?id=${bid.numeroControlePNCP}`)}>
+                  <div>
+                    <span>#{bid.numeroControlePNCP}</span>
+                    <span>{formatDate(bid.dataPublicacaoPncp)}</span>
                   </div>
-                  <p class="bid-obj">{truncate(bid.objetoContratacao, 100)}</p>
+                  <p>{truncate(bid.objetoContratacao, 100)}</p>
                 </a>
               {/each}
             </div>
@@ -165,88 +164,3 @@
   </div>
 </section>
 
-<style>
-  .local-bids { padding: var(--space-8) 0; }
-
-  .modernist-card {
-    background: var(--neutral-0);
-    border: 1px solid var(--neutral-200);
-    padding: var(--space-6);
-    border-radius: var(--radius-0);
-  }
-
-  .card-header {
-    display: flex;
-    gap: var(--space-4);
-    margin-bottom: var(--space-6);
-  }
-
-  .icon-bulb { font-size: 2rem; }
-
-  .title-group h3 { font-size: var(--text-2xl); margin: 0; color: var(--bulcao-accent); }
-  .title-group p  { color: var(--neutral-500); margin: 0; font-size: var(--text-md); }
-
-  .status-msg {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    color: var(--neutral-500);
-  }
-
-  .spinner {
-    width: 24px;
-    height: 24px;
-    border: 3px solid var(--neutral-200);
-    border-top-color: var(--bulcao-accent);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    flex-shrink: 0;
-  }
-
-  @keyframes spin { to { transform: rotate(360deg); } }
-  @media (prefers-reduced-motion: reduce) {
-    .spinner {
-      animation: none;
-    }
-  }
-
-  .skeleton-wrap { display: grid; gap: var(--space-2); }
-  .skeleton-heading { height: 1.25rem; width: 55%; border-radius: var(--radius-0); }
-  .skeleton-bid { height: 4.5rem; border-radius: var(--radius-0); }
-
-  .results-header {
-    margin-bottom: var(--space-4);
-    padding-bottom: 8px;
-    border-bottom: 1px solid var(--neutral-200);
-  }
-
-  .bids-list { display: grid; gap: var(--space-2); }
-
-  .bid-card {
-    display: block;
-    text-decoration: none;
-    color: inherit;
-    padding: var(--space-4);
-    background: var(--neutral-50);
-    border-radius: 0;
-    transition: all var(--duration-fast) var(--ease);
-    border: 1px solid transparent;
-  }
-
-  .bid-card:hover, .bid-card:focus-visible {
-    background: var(--neutral-50);
-    border-color: var(--bulcao-accent);
-    transform: translate(-2px, -2px);
-    box-shadow: 4px 4px 0 var(--bulcao-accent);
-  }
-
-  .bid-meta {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 4px;
-  }
-
-  .bid-id   { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--bulcao-accent); }
-  .bid-date { font-size: var(--text-xs); color: var(--neutral-500); }
-  .bid-obj  { font-size: var(--text-sm); line-height: 1.4; margin: 0; }
-</style>

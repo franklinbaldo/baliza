@@ -87,70 +87,22 @@
   };
 </script>
 
-<div class="changelog">
-  <header class="changelog-header">
+<div>
+  <header>
     <h1>Schema changelog</h1>
-    <p class="lead">Adições, remoções e renomeações de colunas nas tabelas do Baliza, em ordem cronológica inversa.</p>
+    <p>Adições, remoções e renomeações de colunas nas tabelas do Baliza, em ordem cronológica inversa.</p>
   </header>
 
-  <ol class="changelog-list" data-testid="schema-changelog-list">
+  <ol data-testid="schema-changelog-list">
     {#each ENTRIES as entry (entry.date + entry.column)}
-      <li class="changelog-entry" data-testid="schema-changelog-entry" data-kind={entry.kind}>
-        <time class="entry-date">{entry.date}</time>
-        <span class="entry-badge entry-badge--{entry.kind}">{kindLabel[entry.kind]}</span>
-        <span class="entry-table">{entry.table}</span>
-        <code class="entry-column">{entry.column}</code>
-        <p class="entry-note">{entry.note}</p>
+      <li data-testid="schema-changelog-entry" data-kind={entry.kind}>
+        <time>{entry.date}</time>
+        <span>{kindLabel[entry.kind]}</span>
+        <span>{entry.table}</span>
+        <code>{entry.column}</code>
+        <p>{entry.note}</p>
       </li>
     {/each}
   </ol>
 </div>
 
-<style>
-  .changelog { padding: var(--space-2xl) 0; }
-  .changelog-header { margin-bottom: var(--space-xl); }
-  h1 { font-size: var(--font-size-2xl); margin-bottom: var(--space-sm); }
-  .lead { color: var(--color-secondary); font-size: var(--font-size-md); line-height: 1.6; }
-
-  .changelog-list {
-    list-style: none;
-    padding: 0;
-    display: grid;
-    gap: var(--space-md);
-  }
-
-  .changelog-entry {
-    display: grid;
-    grid-template-columns: 5rem 6rem 6rem 1fr;
-    gap: var(--space-sm);
-    align-items: start;
-    padding: var(--space-md);
-    background: var(--color-base-100);
-    border: 1px solid var(--color-base-300);
-    border-radius: var(--radius-sm);
-  }
-
-  .entry-note {
-    grid-column: 1 / -1;
-    margin: 0;
-    color: var(--color-secondary);
-    font-size: var(--font-size-sm);
-  }
-
-  .entry-date { font-family: var(--font-mono); font-size: var(--font-size-sm); color: var(--color-secondary); }
-  .entry-table { font-family: var(--font-mono); font-size: var(--font-size-sm); color: var(--color-secondary); }
-  .entry-column { font-family: var(--font-mono); font-size: var(--font-size-sm); font-weight: 600; }
-
-  .entry-badge {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 0.7rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    font-family: var(--font-mono);
-  }
-  .entry-badge--addition  { background: #d1fae5; color: #065f46; }
-  .entry-badge--removal   { background: #fee2e2; color: #991b1b; }
-  .entry-badge--rename    { background: #dbeafe; color: #1e40af; }
-</style>
