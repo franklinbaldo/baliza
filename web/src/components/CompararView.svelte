@@ -11,12 +11,6 @@
 
   const { ibge: ibgeProp = '', objeto: objetoProp = '' }: { ibge?: string, objeto?: string } = $props();
 
-  function initialParam(key: string, propValue: string): string {
-    if (propValue) return propValue;
-    if (typeof window === 'undefined') return '';
-    return new URLSearchParams(window.location.search).get(key) ?? '';
-  }
-
   function initialIbge(): string {
     if (ibgeProp) return ibgeProp;
     if (typeof window === 'undefined') return '';

@@ -35,12 +35,11 @@
 </script>
 
 <div class="catmat-search">
-  <label for="catmat-input">Descrição do item</label>
+  <label for="catmat-input">Descrição do item para busca CATMAT</label>
   <input
     id="catmat-input"
     type="search"
     bind:value={searchInput}
-    aria-label="Descrição do item para busca CATMAT"
     placeholder="Ex.: papel sulfite A4 75g, caneta esferográfica..."
   />
   {#if error}
