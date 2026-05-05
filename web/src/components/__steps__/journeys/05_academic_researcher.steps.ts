@@ -2,15 +2,17 @@ import { loadFeature, describeFeature } from '@amiceli/vitest-cucumber';
 import { screen, cleanup, fireEvent, waitFor } from '@testing-library/svelte/pure';
 import { vi, expect } from 'vitest';
 import { tick } from 'svelte';
-import { render, noop, plannedStep } from './_shared';
+import { render, noop } from './_shared';
 import DuckDBExplorerRaw from '../../DuckDBExplorer.svelte';
 import CitationBlockRaw from '../../CitationBlock.svelte';
 import ManifestTableRaw from '../../ManifestTable.svelte';
+import SchemaChangelogViewRaw from '../../SchemaChangelogView.svelte';
 import * as iaManifestModule from '../../../lib/ia-manifest';
 
 const DuckDBExplorer = DuckDBExplorerRaw as unknown as Parameters<typeof render>[0];
 const CitationBlock = CitationBlockRaw as unknown as Parameters<typeof render>[0];
 const ManifestTable = ManifestTableRaw as unknown as Parameters<typeof render>[0];
+const SchemaChangelogView = SchemaChangelogViewRaw as unknown as Parameters<typeof render>[0];
 
 const SHARED_SHA256 =
   'cafebabe1234567890abcdef1234567890abcdef1234567890abcdef12345678';
@@ -70,10 +72,22 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   });
 
   Scenario('Schema changelog page lists historical changes', ({ Given, Then }) => {
-    Given('the user opens "/schema/changelog"', noop);
-    Then('the user sees a reverse-chronological list of column additions, removals and renames', () =>
-      plannedStep('/schema/changelog route'),
-    );
+    Given('the user opens "/schema/changelog"', async () => {
+      cleanup();
+      vi.restoreAllMocks();
+      render(SchemaChangelogView);
+      await tick();
+    });
+    Then('the user sees a reverse-chronological list of column additions, removals and renames', async () => {
+      await waitFor(
+        () => expect(screen.getByTestId('schema-changelog-list')).toBeTruthy(),
+        { timeout: 2000 },
+      );
+      const entries = screen.getAllByTestId('schema-changelog-entry');
+      expect(entries.length).toBeGreaterThan(0);
+      const kinds = entries.map((el) => el.getAttribute('data-kind'));
+      expect(kinds).toContain('addition');
+    });
   });
 
   Scenario('Generate a citable reference block for the current snapshot', ({ Given, When, Then }) => {

@@ -39,7 +39,7 @@ const DIST_DIR = join(__dirname, '..', 'dist', '_astro');
 // slightly altered the AST chunk boundaries. When an intentional feature
 // increases the baseline, raise this constant in the same commit and note
 // what landed.
-const BUDGET_BYTES = 360_000; // Raised to accommodate new MercadoView and CompararView components
+const BUDGET_BYTES = 365_000; // Raised to accommodate DevExamplesView (J6) and SchemaChangelogView (J5)
 
 function isClientEntryFile(name) {
   if (!name.endsWith('.js')) return false;

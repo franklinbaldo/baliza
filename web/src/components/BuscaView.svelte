@@ -21,6 +21,7 @@
   import AlertBanner from './AlertBanner.svelte';
   import EmptyState from './EmptyState.svelte';
   import PaginatedList from './PaginatedList.svelte';
+  import { addWatch, isWatched, hydrateWatches } from '../lib/watchStore.svelte';
 
   setQueryClientContext(getQueryClient());
 
@@ -101,6 +102,26 @@
   const results = $derived(query.data ?? []);
   const loading = $derived(query.isFetching);
   const error = $derived(query.error as Error | null);
+
+  $effect(() => { hydrateWatches(); });
+
+  // Canonical key includes q + all active filters so two watches with the
+  // same free-text term but different filters are not collapsed as duplicates.
+  // Keys are sorted so cnpj+ibge and ibge+cnpj produce the same string.
+  const watchKey = $derived.by(() => {
+    const raw: Record<string, string> = {};
+    if (submitted.q) raw['q'] = submitted.q;
+    for (const [k, v] of Object.entries(toUrlEntries(submitted.filters))) {
+      raw[k] = v;
+    }
+    return new URLSearchParams(Object.keys(raw).sort().map((k) => [k, raw[k]])).toString();
+  });
+  const queryWatched = $derived(isWatched('query', watchKey));
+
+  function saveWatch() {
+    if (!watchKey) return;
+    addWatch('query', watchKey, submitted.q || watchKey);
+  }
 
   function uniqSorted(values: Array<string | null | undefined>): string[] {
     const seen: Record<string, true> = {};
@@ -376,6 +397,14 @@
         </select>
       </label>
       <div class="export-actions" role="group" aria-label="Exportar resultados visíveis">
+        <button
+          type="button"
+          class="btn btn-secondary"
+          data-testid="busca-save-watch"
+          onclick={saveWatch}
+          aria-pressed={queryWatched}
+          disabled={!watchKey || results.length === 0}
+        >{queryWatched ? '✓ Vigilância salva' : 'Salvar vigilância'}</button>
         <button
           type="button"
           class="btn btn-secondary"

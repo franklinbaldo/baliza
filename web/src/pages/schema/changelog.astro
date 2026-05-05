@@ -1,44 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-
-/**
- * Schema changelog — reverse-chronological list of column additions,
- * removals and renames. Hand-maintained: entries are appended here whenever
- * `daily_exporter.py` changes a Parquet column. The BDD suite asserts the
- * presence of this page (journey 5, @schema); the contract is that each
- * release has a dated heading and at least one bulleted change.
- */
-interface ChangelogEntry {
-  version: string;
-  date: string; // YYYY-MM-DD
-  changes: {
-    type: 'added' | 'removed' | 'renamed';
-    table: string;
-    column: string;
-    note?: string;
-  }[];
-}
-
-const ENTRIES: ChangelogEntry[] = [
-  {
-    version: 'v1.0.0',
-    date: '2025-02-01',
-    changes: [
-      {
-        type: 'added',
-        table: 'contratos',
-        column: 'baseline',
-        note: 'Linha de base do esquema — todas as colunas atuais publicadas simultaneamente.',
-      },
-    ],
-  },
-];
-
-const TYPE_LABEL: Record<ChangelogEntry['changes'][number]['type'], string> = {
-  added: 'Adicionada',
-  removed: 'Removida',
-  renamed: 'Renomeada',
-};
+import SchemaChangelogView from '../../components/SchemaChangelogView.svelte';
 ---
 
 <Layout
@@ -46,88 +8,10 @@ const TYPE_LABEL: Record<ChangelogEntry['changes'][number]['type'], string> = {
   description="Histórico de mudanças no esquema dos Parquets públicos do Baliza."
 >
   <div class="container container--narrow">
-    <header class="page-header">
-      <h1>Schema changelog</h1>
-      <p class="lead">
-        Toda mudança de coluna nos Parquets publicados fica registrada aqui, em ordem cronológica reversa. Isso permite reproduzir análises antigas sem surpresas quando o esquema avança.
-      </p>
-    </header>
-
-    <article class="prose">
-      {ENTRIES.map(entry => (
-        <section class="entry" id={entry.version}>
-          <h2>
-            <span class="version">{entry.version}</span>
-            <time datetime={entry.date} class="date">{entry.date}</time>
-          </h2>
-          <ul class="changes">
-            {entry.changes.map(c => (
-              <li class={`change change-${c.type}`}>
-                <span class="change-type">{TYPE_LABEL[c.type]}</span>
-                <code class="change-target">{c.table}.{c.column}</code>
-                {c.note && <span class="change-note">— {c.note}</span>}
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
-    </article>
-
-    <footer class="page-footer">
-      <p>
-        Contribuições: novas entradas são adicionadas via pull request tocando <code>daily_exporter.py</code> e este arquivo no mesmo commit.
-      </p>
-    </footer>
+    <SchemaChangelogView />
   </div>
 </Layout>
 
 <style>
   .container--narrow { max-width: 860px; }
-  .page-header { padding: var(--space-xl) 0; margin-bottom: var(--space-xl); }
-  .lead { font-size: var(--font-size-md); color: var(--color-secondary); line-height: 1.6; }
-  .entry { margin-bottom: var(--space-xl); }
-  .entry h2 {
-    font-size: var(--font-size-xl);
-    display: flex;
-    align-items: baseline;
-    gap: var(--space-sm);
-    margin-bottom: var(--space-sm);
-  }
-  .version { color: var(--color-primary); font-family: var(--font-mono, monospace); }
-  .date { color: var(--color-secondary); font-size: var(--font-size-sm); font-family: var(--font-mono, monospace); }
-  .changes { list-style: none; padding: 0; margin: 0; }
-  .change {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-xs);
-    align-items: baseline;
-    padding: var(--space-xs) var(--space-sm);
-    border-left: 3px solid var(--color-base-300);
-    margin-bottom: var(--space-xs);
-    background: var(--color-base-200);
-  }
-  .change-added { border-left-color: #3ba776; }
-  .change-removed { border-left-color: #c94848; }
-  .change-renamed { border-left-color: #d1a400; }
-  .change-type {
-    font-family: var(--font-mono, monospace);
-    font-size: var(--font-size-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    padding: 0.15rem 0.4rem;
-    border: 1px solid currentColor;
-    border-radius: var(--radius-sm);
-  }
-  .change-target {
-    font-family: var(--font-mono, monospace);
-    color: var(--color-primary);
-  }
-  .change-note { color: var(--color-secondary); font-size: var(--font-size-sm); }
-  .page-footer {
-    margin-top: var(--space-2xl);
-    padding-top: var(--space-md);
-    border-top: 1px solid var(--color-base-300);
-    color: var(--color-secondary);
-    font-size: var(--font-size-sm);
-  }
 </style>

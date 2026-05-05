@@ -2,14 +2,16 @@ import { loadFeature, describeFeature } from '@amiceli/vitest-cucumber';
 import { screen, cleanup, waitFor } from '@testing-library/svelte/pure';
 import { vi, expect } from 'vitest';
 import { tick } from 'svelte';
-import { render, noop, plannedStep } from './_shared';
+import { render, noop } from './_shared';
 import DuckDBExplorerRaw from '../../DuckDBExplorer.svelte';
 import ManifestTableRaw from '../../ManifestTable.svelte';
+import DevExamplesViewRaw from '../../DevExamplesView.svelte';
 import * as duckdbModule from '../../../lib/duckdb';
 import * as iaManifestModule from '../../../lib/ia-manifest';
 
 const DuckDBExplorer = DuckDBExplorerRaw as unknown as Parameters<typeof render>[0];
 const ManifestTable = ManifestTableRaw as unknown as Parameters<typeof render>[0];
+const DevExamplesView = DevExamplesViewRaw as unknown as Parameters<typeof render>[0];
 
 const SAMPLE_MANIFEST_ROWS = [
   {
@@ -69,12 +71,26 @@ describeFeature(feature, ({ Scenario }) => {
   });
 
   Scenario('Consumption examples are shown for Python, R and JavaScript', ({ Given, Then, And }) => {
-    Given('the user opens "/desenvolvedores"', noop);
-    Then('the user sees a Python (pandas) snippet that reads a Parquet file from Internet Archive', () =>
-      plannedStep('language-specific consumption snippets'),
-    );
-    And('the user sees an R (arrow) snippet that does the same', noop);
-    And('the user sees a JavaScript (DuckDB WASM) snippet that does the same', noop);
+    Given('the user opens "/desenvolvedores"', async () => {
+      cleanup();
+      vi.restoreAllMocks();
+      render(DevExamplesView);
+      await tick();
+    });
+    Then('the user sees a Python (pandas) snippet that reads a Parquet file from Internet Archive', () => {
+      const section = screen.getByTestId('dev-example-python');
+      expect(section.textContent).toMatch(/pandas/);
+      expect(section.textContent).toMatch(/read_parquet/);
+    });
+    And('the user sees an R (arrow) snippet that does the same', () => {
+      const section = screen.getByTestId('dev-example-r');
+      expect(section.textContent).toMatch(/arrow/);
+      expect(section.textContent).toMatch(/read_parquet/);
+    });
+    And('the user sees a JavaScript (DuckDB WASM) snippet that does the same', () => {
+      const section = screen.getByTestId('dev-example-js');
+      expect(section.textContent).toMatch(/duckdb/i);
+    });
   });
 
   Scenario('Internet Archive item naming convention is stable', ({ Given, Then }) => {

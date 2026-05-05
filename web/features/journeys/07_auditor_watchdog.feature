@@ -7,10 +7,12 @@ Feature: Journey 7 — Auditor and watchdog
   extraction workflow rebuilds and uploads to Internet Archive.
   See VISION.md → "Auditor / watchdog".
 
-  @planned @alerts
+  @green @alerts
   Scenario: Save the current query as a watch in localStorage
-    # Planned: the search results page does not yet expose a "Salvar
-    # vigilância" button. The underlying watchStore.svelte.ts (addWatch /
+    # Covered by BuscaView at /busca?q= — a "Salvar vigilância" button
+    # appears when results are present; clicking it calls addWatch('query')
+    # from watchStore.svelte.ts and persists the entry in localStorage.
+    # The underlying watchStore.svelte.ts (addWatch /
     # isWatched / hydrateWatches) is wired and tested via the agency- and
     # contract-page entry points below; this scenario stays @planned until
     # the search-results page surfaces the same affordance.
