@@ -71,16 +71,20 @@ jobs:
             echo "  $(wc -c < "$f") bytes  $f"
           done
 
+      - name: Block outbound connections to pncp.gov.br
+        # Hard network-level block so any unrecorded requests.get() raises a
+        # connection error rather than hitting the live API and making CI
+        # non-deterministic.  VCR record_mode=none is the primary guard
+        # (raises CannotOverwriteExistingCassetteException for unmatched
+        # requests); this iptables rule is a belt-and-suspenders backstop.
+        run: sudo iptables -A OUTPUT -d pncp.gov.br -j REJECT
+
       - name: Run PNCP cassette integration tests
         run: |
           uv run pytest tests/integration/test_pncp_cassettes.py \
             --tb=short \
             --no-header \
             -v
-        env:
-          # Ensure no live network calls sneak through — VCR record_mode=none
-          # is enforced inside the tests, but this is an extra guard.
-          no_proxy: "pncp.gov.br"
 
       - name: Cassette summary
         if: always()
