@@ -19,7 +19,7 @@ Feature: Journey 5 — Academic researcher
     When the user runs a non-default SQL query
     Then the page URL contains the query in a "sql" parameter
 
-  @planned @changelog
+  @green @changelog
   Scenario: Schema changelog page lists historical changes
     # Planned: /schema/changelog does not exist.
     Given the user opens "/schema/changelog"
