@@ -29,6 +29,7 @@ REQUIRED_CASSETTES = [
     "publicacao_pregao_page1.yaml",
     "publicacao_dispensa_page1.yaml",
     "publicacao_inexigibilidade_page1.yaml",
+    "publicacao_municipio_pregao_page1.yaml",
 ]
 
 
@@ -163,6 +164,37 @@ class TestPublicacaoInexigibilidadeSchema:
     def test_data_array(self):
         assert isinstance(self.data["data"], list)
         assert len(self.data["data"]) > 0
+
+
+class TestPublicacaoMunicipioSchema:
+    """Validates the publicacao endpoint filtered by município IBGE code.
+
+    Covers the LocalBids / CompararView use case where the web UI passes
+    codigoMunicipioIbge to narrow results to a specific city.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _data(self):
+        self.data = _cassette_body("publicacao_municipio_pregao_page1.yaml")
+
+    def test_pagination_present(self):
+        assert "totalRegistros" in self.data
+
+    def test_data_array(self):
+        assert isinstance(self.data["data"], list)
+        assert len(self.data["data"]) > 0
+
+    def test_all_records_belong_to_municipality(self):
+        """Every returned record must be from IBGE 3550308 (São Paulo)."""
+        for item in self.data["data"]:
+            ibge = item.get("unidadeOrgao", {}).get("codigoIbge")
+            assert ibge == "3550308", f"Unexpected IBGE code {ibge!r} in municipio-filtered result"
+
+    def test_publicacao_fields(self):
+        item = self.data["data"][0]
+        assert "numeroControlePNCP" in item
+        assert "orgaoEntidade" in item
+        assert "dataPublicacaoPncp" in item
 
 
 # ---------------------------------------------------------------------------
