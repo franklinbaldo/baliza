@@ -1,0 +1,66 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      User-Agent:
+      - Baliza/1.0 (cassette-recorder; data-pipeline-tests)
+    method: GET
+    uri: https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?dataInicial=20250101&dataFinal=20250103&codigoModalidadeContratacao=6&pagina=1&tamanhoPagina=10
+  response:
+    body:
+      string: '{"data": [{"dataAtualizacao": "2025-01-02T04:11:23", "orgaoEntidade": {"cnpj": "08084014000142", "razaoSocial":
+        "MUNICIPIO DE CAMPO GRANDE", "poderId": "N", "esferaId": "M"}, "anoCompra": 2024, "sequencialCompra": 57, "numeroCompra":
+        "25", "processo": "24111401", "objetoCompra": "AQUISIÇÃO DE MATERIAIS PERMANENTE DESTINADOS AO DESENVOLVIMENTO DO
+        ENSINO FUNDAMENTAL DAS ESCOLAS MUNICIPAIS DE CAMPO GRANDE/RN.", "orgaoSubRogado": null, "unidadeOrgao": {"ufNome":
+        "Rio Grande do Norte", "codigoUnidade": "08084014000142", "ufSigla": "RN", "municipioNome": "Campo Grande", "nomeUnidade":
+        "Prefeitura", "codigoIbge": "2401305"}, "unidadeSubRogada": null, "valorTotalHomologado": null, "srp": false, "dataInclusao":
+        "2025-01-01T04:46:07", "amparoLegal": {"codigo": 1, "nome": "Lei 14.133/2021, Art. 28, I", "descricao": "pregão: modalidade
+        de licitação obrigatória para aquisição de bens e serviços comuns"}, "dataAberturaProposta": "2025-01-02T09:00:00",
+        "dataEncerramentoProposta": "2025-01-14T09:00:00", "informacaoComplementar": "", "linkSistemaOrigem": "", "justificativaPresencial":
+        "", "dataPublicacaoPncp": "2025-01-01T04:46:07", "modalidadeId": 6, "dataAtualizacaoGlobal": "2025-01-02T04:11:29",
+        "linkProcessoEletronico": null, "numeroControlePNCP": "08084014000142-1-000057/2024", "modoDisputaId": 1, "valorTotalEstimado":
+        151192.18, "modalidadeNome": "Pregão - Eletrônico", "modoDisputaNome": "Aberto", "tipoInstrumentoConvocatorioCodigo":
+        1, "tipoInstrumentoConvocatorioNome": "Edital", "fontesOrcamentarias": [], "situacaoCompraId": 1, "situacaoCompraNome":
+        "Divulgada no PNCP", "usuarioNome": "TOP DOWN CONSULTORIA LTDA"}, {"dataAtualizacao": "2025-01-14T00:08:30", "orgaoEntidade":
+        {"cnpj": "06125389000188", "razaoSocial": "MUNICIPIO DE SAO BERNARDO", "poderId": "N", "esferaId": "M"}, "anoCompra":
+        2024, "sequencialCompra": 63, "numeroCompra": "PE SRP 052/2024", "processo": "2024012076/24", "objetoCompra": "REGISTRO
+        DE PREÇOS, VISANDO A FUTURA E EVENTUAL CONTRATAÇÃO DE EMPRESA PARA FORNECIMENTO DE LIVROS DIDÁTICOS PARA ATENDIMENTO
+        DO MUNICÍPIO DE SÃO BERNARDO.", "orgaoSubRogado": null, "unidadeOrgao": {"ufNome": "Maranhão", "codigoUnidade": "332",
+        "ufSigla": "MA", "municipioNome": "São Bernardo", "nomeUnidade": "Prefeitura Municipal de São Bernardo - MA", "codigoIbge":
+        "2110609"}, "unidadeSubRogada": null, "valorTotalHomologado": 13429360.0, "srp": true, "dataInclusao": "2025-01-01T21:25:01",
+        "amparoLegal": {"codigo": 1, "nome": "Lei 14.133/2021, Art. 28, I", "descricao": "pregão: modalidade de licitação
+        obrigatória para aquisição de bens e serviços comuns"}, "dataAberturaProposta": "2024-12-30T08:00:00", "dataEncerramentoProposta":
+        "2025-01-10T07:30:00", "informacaoComplementar": null, "linkSistemaOrigem": "https://comprasbr.com.br//pregao-eletronico-detalhe/?idlicitacao=33224",
+        "justificativaPresencial": null, "dataPublicacaoPncp": "2025-01-01T21:25:01", "modalidadeId": 6, "dataAtualizacaoGlobal":
+        "2025-01-14T00:08:30", "linkProcessoEletronico": null, "numeroControlePNCP": "06125389000188-1-000063/2024", "modoDisputaId":
+        1, "valorTotalEstimado": 15715638.1, "modalidadeNome": "Pregão - Eletrônico", "modoDisputaNome": "Aberto", "tipoInstrumentoConvocatorioCodigo":
+        1, "tipoInstrumentoConvocatorioNome": "Edital", "fontesOrcamentarias": [], "situacaoCompraId": 1, "situacaoCompraNome":
+        "Divulgada no PNCP", "usuarioNome": "AZ INFORMATICA LTDA"}, {"dataAtualizacao": "2025-01-24T09:50:30", "orgaoEntidade":
+        {"cnpj": "88243688000181", "razaoSocial": "RIO GRANDE DO SUL ASSEMBLEIA LEGISLATIVA", "poderId": "L", "esferaId":
+        "E"}, "anoCompra": 2025, "sequencialCompra": 1, "numeroCompra": "0001", "processo": "8227-01.00/24-0", "objetoCompra":
+        "Formalização de Registro de Preços (SRP) com vistas à contratação de pessoa\r\njurídica (somente ME e EPP) para fornecimento
+        de material de expediente,\r\nconforme especificações e condições previstas no Edital, em seus Anexos, e no\r\nTermo
+        de Referência (doc. SEI 3741713) .", "orgaoSubRogado": null, "unidadeOrgao": {"ufNome": "Rio Grande do Sul", "codigoUnidade":
+        "85625", "ufSigla": "RS", "municipioNome": "Porto Alegre", "nomeUnidade": "ASSEMBLEIA LEGISLATIVA DO ESTADO DO RIO
+        GRANDE DO SUL ASSEMBLEIA LEGISLATIVA DO ESTADO DO RIO GRANDE", "codigoIbge": "4314902"}, "unidadeSubRogada": null,
+        "valorTotalHomologado": 65529.8, "srp": true, "dataInclusao": "2025-01-02T00:01:21", "amparoLegal": {"codigo": 1,
+        "nome": "Lei 14.133/2021, Art. 28, I", "descricao": "pregão: modalidade de licitação obrigatória para aquisição de
+        bens e serviços comuns"}, "dataAberturaProposta": "2025-01-02T09:00:00", "dataEncerramentoProposta": "2025-01-20T13:00:00",
+        "informacaoComplementar": "", "linkSistemaOrigem": "https://pregaobanrisul.com.br/editais/0001_2025/329508", "justificativaPresencial":
+        null, "dataPublicacaoPncp": "2025-01-02T00:01:21", "modalidadeId": 6, "dataAtualizacaoGlobal": "2025-01-24T09:51:23",
+        "linkProcessoEletronico": null, "numeroControlePNCP": "88243688000181-1-000001/2025", "modoDisputaId": 1, "valorTotalEstimado":
+        103977.27, "modalidadeNome": "Pregão - Eletrônico", "modoDisputaNome": "Aberto", "tipoInstrumentoConvocatorioCodigo":
+        1, "tipoInstrumentoConvocatorioNome": "Edital", "fontesOrcamentarias": [], "situacaoCompraId": 1, "situacaoCompraNome":
+        "Divulgada no PNCP", "usuarioNome": "PROCERGS - CENTRO DE TECNOLOGIA DA INFORMACAO E COMUNICACAO DO ESTADO DO RIO
+        GRANDE DO SUL S.A."}], "totalRegistros": 881, "totalPaginas": 89, "numeroPagina": 1, "paginasRestantes": 88, "empty":
+        false}'
+    headers:
+      Content-Type:
+      - application/json
+    status:
+      code: 200
+      message: OK
+    url: https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?dataInicial=20250101&dataFinal=20250103&codigoModalidadeContratacao=6&pagina=1&tamanhoPagina=10
+version: 1

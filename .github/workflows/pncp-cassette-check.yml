@@ -1,0 +1,96 @@
+name: PNCP Cassette Check
+
+# Validates that:
+#   1. Cassette files are committed to the repo (presence check).
+#   2. All cassette-based integration tests pass using only the pre-recorded
+#      YAML files — no live network calls to pncp.gov.br.
+#
+# To refresh cassettes after an API schema change:
+#   uv run python scripts/record_pncp_cassettes.py
+# then commit the updated files in tests/cassettes/pncp/.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tests/cassettes/**'
+      - 'tests/integration/test_pncp_cassettes.py'
+      - 'src/**'
+      - 'scripts/record_pncp_cassettes.py'
+      - 'pyproject.toml'
+  push:
+    branches: [main]
+    paths:
+      - 'tests/cassettes/**'
+      - 'tests/integration/test_pncp_cassettes.py'
+      - 'src/**'
+  workflow_dispatch:
+
+jobs:
+  cassette-check:
+    name: PNCP Cassette Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync --all-groups --all-extras
+
+      - name: Verify cassette files are present
+        run: |
+          REQUIRED=(
+            tests/cassettes/pncp/contratos_page1.yaml
+            tests/cassettes/pncp/publicacao_pregao_page1.yaml
+            tests/cassettes/pncp/publicacao_dispensa_page1.yaml
+            tests/cassettes/pncp/publicacao_inexigibilidade_page1.yaml
+          )
+          missing=()
+          for f in "${REQUIRED[@]}"; do
+            if [[ ! -f "$f" ]]; then
+              missing+=("$f")
+            fi
+          done
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            echo "::error::Missing cassette files: ${missing[*]}"
+            echo ""
+            echo "Re-record with:"
+            echo "  uv run python scripts/record_pncp_cassettes.py"
+            echo "then commit the files in tests/cassettes/pncp/"
+            exit 1
+          fi
+          echo "All required cassette files present:"
+          for f in "${REQUIRED[@]}"; do
+            echo "  $(wc -c < "$f") bytes  $f"
+          done
+
+      - name: Run PNCP cassette integration tests
+        run: |
+          uv run pytest tests/integration/test_pncp_cassettes.py \
+            --tb=short \
+            --no-header \
+            -v
+        env:
+          # Ensure no live network calls sneak through — VCR record_mode=none
+          # is enforced inside the tests, but this is an extra guard.
+          no_proxy: "pncp.gov.br"
+
+      - name: Cassette summary
+        if: always()
+        run: |
+          echo "## PNCP Cassette Check" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Cassette | Size |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          for f in tests/cassettes/pncp/*.yaml; do
+            name=$(basename "$f")
+            size=$(wc -c < "$f")
+            echo "| \`$name\` | ${size} bytes |" >> "$GITHUB_STEP_SUMMARY"
+          done

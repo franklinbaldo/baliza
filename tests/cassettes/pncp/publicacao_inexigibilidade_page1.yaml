@@ -1,0 +1,66 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      User-Agent:
+      - Baliza/1.0 (cassette-recorder; data-pipeline-tests)
+    method: GET
+    uri: https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?dataInicial=20250101&dataFinal=20250103&codigoModalidadeContratacao=9&pagina=1&tamanhoPagina=10
+  response:
+    body:
+      string: '{"data": [{"dataAtualizacao": "2025-01-01T20:18:23", "orgaoEntidade": {"cnpj": "13650403000128", "esferaId":
+        "M", "razaoSocial": "MUNICIPIO DE TEIXEIRA DE FREITAS", "poderId": "N"}, "anoCompra": 2025, "sequencialCompra": 1,
+        "numeroCompra": "IL-046", "processo": "026/2025", "objetoCompra": "Contratação de profissional médico para a prestação
+        de serviços médicos especializados junto ao Hospital Municipal Sagrada Família (HMSF) conforme edital de credenciamento
+        médico 04/2024 FMS.", "orgaoSubRogado": null, "unidadeOrgao": {"ufNome": "Bahia", "codigoUnidade": "1895", "ufSigla":
+        "BA", "municipioNome": "Teixeira de Freitas", "nomeUnidade": "Prefeitura Municipal de Teixeira de Freitas", "codigoIbge":
+        "2931350"}, "unidadeSubRogada": null, "valorTotalHomologado": 202560.0, "srp": false, "dataInclusao": "2025-01-01T19:09:15",
+        "amparoLegal": {"codigo": 16, "nome": "Lei 14.133/2021, Art. 74, IV", "descricao": "Inexigibilidade de Licitação:
+        objetos que devam ou possam ser contratados por meio de credenciamento"}, "dataAberturaProposta": null, "dataEncerramentoProposta":
+        null, "informacaoComplementar": null, "linkSistemaOrigem": "https://bllcompras.com/DirectBuy/DirectBuyView?param1=[gkz]kyhLMUS8rlLW05DTwmCDdg07evEv93800yRaOqT51HwC1CdET0gROQAIBvHaPVW6eX5hHWdtz0Lr8zgdHdBrnpchCR5yWuBqd5PzYWrIkkA=",
+        "justificativaPresencial": null, "dataPublicacaoPncp": "2025-01-01T19:09:15", "modalidadeId": 9, "dataAtualizacaoGlobal":
+        "2025-01-01T20:18:31", "linkProcessoEletronico": null, "numeroControlePNCP": "13650403000128-1-000001/2025", "modoDisputaId":
+        5, "tipoInstrumentoConvocatorioCodigo": 3, "tipoInstrumentoConvocatorioNome": "Ato que autoriza a Contratação Direta",
+        "valorTotalEstimado": 202560.0, "modalidadeNome": "Inexigibilidade", "modoDisputaNome": "Não se aplica", "fontesOrcamentarias":
+        [], "situacaoCompraId": 1, "situacaoCompraNome": "Divulgada no PNCP", "usuarioNome": "BLL Compras"}, {"dataAtualizacao":
+        "2026-01-19T15:33:20", "orgaoEntidade": {"cnpj": "13650403000128", "esferaId": "M", "razaoSocial": "MUNICIPIO DE TEIXEIRA
+        DE FREITAS", "poderId": "N"}, "anoCompra": 2025, "sequencialCompra": 2, "numeroCompra": "IL-029", "processo": "027/2025",
+        "objetoCompra": "Contratação de profissional médico para a prestação de serviços médicos especializados junto ao Hospital
+        Municipal Sagrada Família (HMSF) conforme edital de credenciamento médico 04/2024 FMS.", "orgaoSubRogado": null, "unidadeOrgao":
+        {"ufNome": "Bahia", "codigoUnidade": "1895", "ufSigla": "BA", "municipioNome": "Teixeira de Freitas", "nomeUnidade":
+        "Prefeitura Municipal de Teixeira de Freitas", "codigoIbge": "2931350"}, "unidadeSubRogada": null, "valorTotalHomologado":
+        146700.0, "srp": false, "dataInclusao": "2025-01-01T19:12:19", "amparoLegal": {"codigo": 16, "nome": "Lei 14.133/2021,
+        Art. 74, IV", "descricao": "Inexigibilidade de Licitação: objetos que devam ou possam ser contratados por meio de
+        credenciamento"}, "dataAberturaProposta": null, "dataEncerramentoProposta": null, "informacaoComplementar": null,
+        "linkSistemaOrigem": "https://bllcompras.com/DirectBuy/DirectBuyView?param1=[gkz]5Q0dsE0sm6/KFgINT8qQzvVukB2n/lKqHucpUpFA8kahJdlJ5WjB7SQ44Y8ZdCIBb2FAHpRm8OxJV/y8eaGBY_PUVD1M0WOy_WxC9/WsorE=",
+        "justificativaPresencial": null, "dataPublicacaoPncp": "2025-01-01T19:12:19", "modalidadeId": 9, "dataAtualizacaoGlobal":
+        "2026-01-19T15:33:22", "linkProcessoEletronico": null, "numeroControlePNCP": "13650403000128-1-000002/2025", "modoDisputaId":
+        5, "tipoInstrumentoConvocatorioCodigo": 3, "tipoInstrumentoConvocatorioNome": "Ato que autoriza a Contratação Direta",
+        "valorTotalEstimado": 146700.0, "modalidadeNome": "Inexigibilidade", "modoDisputaNome": "Não se aplica", "fontesOrcamentarias":
+        [], "situacaoCompraId": 1, "situacaoCompraNome": "Divulgada no PNCP", "usuarioNome": "BLL Compras"}, {"dataAtualizacao":
+        "2026-01-19T15:33:39", "orgaoEntidade": {"cnpj": "13650403000128", "esferaId": "M", "razaoSocial": "MUNICIPIO DE TEIXEIRA
+        DE FREITAS", "poderId": "N"}, "anoCompra": 2025, "sequencialCompra": 3, "numeroCompra": "IL-051", "processo": "019/2025",
+        "objetoCompra": "Contratação de profissional médico para a prestação de serviços médicos especializados junto ao Hospital
+        Municipal Sagrada Família (HMSF) conforme edital de credenciamento médico 04/2024 FMS.", "orgaoSubRogado": null, "unidadeOrgao":
+        {"ufNome": "Bahia", "codigoUnidade": "1895", "ufSigla": "BA", "municipioNome": "Teixeira de Freitas", "nomeUnidade":
+        "Prefeitura Municipal de Teixeira de Freitas", "codigoIbge": "2931350"}, "unidadeSubRogada": null, "valorTotalHomologado":
+        412200.0, "srp": false, "dataInclusao": "2025-01-01T19:15:24", "amparoLegal": {"codigo": 16, "nome": "Lei 14.133/2021,
+        Art. 74, IV", "descricao": "Inexigibilidade de Licitação: objetos que devam ou possam ser contratados por meio de
+        credenciamento"}, "dataAberturaProposta": null, "dataEncerramentoProposta": null, "informacaoComplementar": null,
+        "linkSistemaOrigem": "https://bllcompras.com/DirectBuy/DirectBuyView?param1=[gkz]2mnBqhpb1CZoYOvIAIr2X1sHWsCPfEE7zI5EiTTEvQNta93/H1cXfSO9lB4gBPggqZjtEWa66BZjSbCLaOEcp46flJoZDRZkNUnf98ocHeE=",
+        "justificativaPresencial": null, "dataPublicacaoPncp": "2025-01-01T19:15:24", "modalidadeId": 9, "dataAtualizacaoGlobal":
+        "2026-01-19T15:33:45", "linkProcessoEletronico": null, "numeroControlePNCP": "13650403000128-1-000003/2025", "modoDisputaId":
+        5, "tipoInstrumentoConvocatorioCodigo": 3, "tipoInstrumentoConvocatorioNome": "Ato que autoriza a Contratação Direta",
+        "valorTotalEstimado": 412200.0, "modalidadeNome": "Inexigibilidade", "modoDisputaNome": "Não se aplica", "fontesOrcamentarias":
+        [], "situacaoCompraId": 1, "situacaoCompraNome": "Divulgada no PNCP", "usuarioNome": "BLL Compras"}], "totalRegistros":
+        601, "totalPaginas": 61, "numeroPagina": 1, "paginasRestantes": 60, "empty": false}'
+    headers:
+      Content-Type:
+      - application/json
+    status:
+      code: 200
+      message: OK
+    url: https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?dataInicial=20250101&dataFinal=20250103&codigoModalidadeContratacao=9&pagina=1&tamanhoPagina=10
+version: 1

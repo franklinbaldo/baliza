@@ -1,0 +1,61 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      User-Agent:
+      - Baliza/1.0 (cassette-recorder; data-pipeline-tests)
+    method: GET
+    uri: https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?dataInicial=20250101&dataFinal=20250103&codigoModalidadeContratacao=8&pagina=1&tamanhoPagina=10
+  response:
+    body:
+      string: '{"data": [{"dataAtualizacao": "2025-01-01T06:43:26", "orgaoEntidade": {"cnpj": "01870847000190", "razaoSocial":
+        "CAMARA MUNICIPAL DE ARAGARCAS", "poderId": "L", "esferaId": "M"}, "anoCompra": 2024, "sequencialCompra": 31, "numeroCompra":
+        "(365) | 21-0", "processo": "656/2024", "objetoCompra": "REQUERIMENTO - CONSERTO E MANUTENÇÃO DOS AR-CONDICIONADOS.",
+        "orgaoSubRogado": null, "unidadeOrgao": {"ufNome": "Goiás", "codigoUnidade": "1", "ufSigla": "GO", "municipioNome":
+        "Aragarças", "nomeUnidade": "CAMARA MUNICIPAL DE ARAGARCAS", "codigoIbge": "5201702"}, "unidadeSubRogada": null, "valorTotalHomologado":
+        11500.0, "srp": false, "dataInclusao": "2025-01-01T06:43:26", "amparoLegal": {"codigo": 19, "nome": "Lei 14.133/2021,
+        Art. 75, II", "descricao": "Dispensa de Licitação: para contratação que envolva valores inferiores a R$ 50.000,00
+        (cinquenta mil reais), no caso de outros serviços e compras"}, "dataAberturaProposta": null, "dataEncerramentoProposta":
+        null, "informacaoComplementar": null, "linkSistemaOrigem": null, "justificativaPresencial": null, "dataPublicacaoPncp":
+        "2025-01-01T06:43:26", "modalidadeId": 8, "dataAtualizacaoGlobal": "2025-01-01T06:44:31", "linkProcessoEletronico":
+        null, "numeroControlePNCP": "01870847000190-1-000031/2024", "modoDisputaId": 5, "valorTotalEstimado": 11500.0, "modalidadeNome":
+        "Dispensa", "modoDisputaNome": "Não se aplica", "fontesOrcamentarias": [], "situacaoCompraId": 1, "situacaoCompraNome":
+        "Divulgada no PNCP", "usuarioNome": "Megasoft Informática", "tipoInstrumentoConvocatorioNome": "Ato que autoriza a
+        Contratação Direta", "tipoInstrumentoConvocatorioCodigo": 3}, {"dataAtualizacao": "2025-01-01T06:43:28", "orgaoEntidade":
+        {"cnpj": "01870847000190", "razaoSocial": "CAMARA MUNICIPAL DE ARAGARCAS", "poderId": "L", "esferaId": "M"}, "anoCompra":
+        2024, "sequencialCompra": 32, "numeroCompra": "(366) | 22-0", "processo": "663/2024", "objetoCompra": "REQUERIMENTO
+        - ENCADERNAÇÕES ATAS (CAPA DURA)", "orgaoSubRogado": null, "unidadeOrgao": {"ufNome": "Goiás", "codigoUnidade": "1",
+        "ufSigla": "GO", "municipioNome": "Aragarças", "nomeUnidade": "CAMARA MUNICIPAL DE ARAGARCAS", "codigoIbge": "5201702"},
+        "unidadeSubRogada": null, "valorTotalHomologado": 480.0, "srp": false, "dataInclusao": "2025-01-01T06:43:28", "amparoLegal":
+        {"codigo": 19, "nome": "Lei 14.133/2021, Art. 75, II", "descricao": "Dispensa de Licitação: para contratação que envolva
+        valores inferiores a R$ 50.000,00 (cinquenta mil reais), no caso de outros serviços e compras"}, "dataAberturaProposta":
+        null, "dataEncerramentoProposta": null, "informacaoComplementar": null, "linkSistemaOrigem": null, "justificativaPresencial":
+        null, "dataPublicacaoPncp": "2025-01-01T06:43:28", "modalidadeId": 8, "dataAtualizacaoGlobal": "2025-01-01T06:44:32",
+        "linkProcessoEletronico": null, "numeroControlePNCP": "01870847000190-1-000032/2024", "modoDisputaId": 5, "valorTotalEstimado":
+        480.0, "modalidadeNome": "Dispensa", "modoDisputaNome": "Não se aplica", "fontesOrcamentarias": [], "situacaoCompraId":
+        1, "situacaoCompraNome": "Divulgada no PNCP", "usuarioNome": "Megasoft Informática", "tipoInstrumentoConvocatorioNome":
+        "Ato que autoriza a Contratação Direta", "tipoInstrumentoConvocatorioCodigo": 3}, {"dataAtualizacao": "2025-01-01T06:43:29",
+        "orgaoEntidade": {"cnpj": "01870847000190", "razaoSocial": "CAMARA MUNICIPAL DE ARAGARCAS", "poderId": "L", "esferaId":
+        "M"}, "anoCompra": 2024, "sequencialCompra": 33, "numeroCompra": "(368) | 24-0", "processo": "674/2024", "objetoCompra":
+        "Aquisição de Filtro para Bebedor", "orgaoSubRogado": null, "unidadeOrgao": {"ufNome": "Goiás", "codigoUnidade": "1",
+        "ufSigla": "GO", "municipioNome": "Aragarças", "nomeUnidade": "CAMARA MUNICIPAL DE ARAGARCAS", "codigoIbge": "5201702"},
+        "unidadeSubRogada": null, "valorTotalHomologado": 129.0, "srp": false, "dataInclusao": "2025-01-01T06:43:29", "amparoLegal":
+        {"codigo": 19, "nome": "Lei 14.133/2021, Art. 75, II", "descricao": "Dispensa de Licitação: para contratação que envolva
+        valores inferiores a R$ 50.000,00 (cinquenta mil reais), no caso de outros serviços e compras"}, "dataAberturaProposta":
+        null, "dataEncerramentoProposta": null, "informacaoComplementar": null, "linkSistemaOrigem": null, "justificativaPresencial":
+        null, "dataPublicacaoPncp": "2025-01-01T06:43:29", "modalidadeId": 8, "dataAtualizacaoGlobal": "2025-01-01T06:44:33",
+        "linkProcessoEletronico": null, "numeroControlePNCP": "01870847000190-1-000033/2024", "modoDisputaId": 5, "valorTotalEstimado":
+        129.0, "modalidadeNome": "Dispensa", "modoDisputaNome": "Não se aplica", "fontesOrcamentarias": [], "situacaoCompraId":
+        1, "situacaoCompraNome": "Divulgada no PNCP", "usuarioNome": "Megasoft Informática", "tipoInstrumentoConvocatorioNome":
+        "Ato que autoriza a Contratação Direta", "tipoInstrumentoConvocatorioCodigo": 3}], "totalRegistros": 1073, "totalPaginas":
+        108, "numeroPagina": 1, "paginasRestantes": 107, "empty": false}'
+    headers:
+      Content-Type:
+      - application/json
+    status:
+      code: 200
+      message: OK
+    url: https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?dataInicial=20250101&dataFinal=20250103&codigoModalidadeContratacao=8&pagina=1&tamanhoPagina=10
+version: 1

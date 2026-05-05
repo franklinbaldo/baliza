@@ -1,0 +1,61 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      User-Agent:
+      - Baliza/1.0 (cassette-recorder)
+    method: GET
+    uri: https://pncp.gov.br/api/consulta/v1/contratos?dataInicial=20250101&dataFinal=20250103&pagina=1&tamanhoPagina=10
+  response:
+    body:
+      string: '{"data": [{"numeroControlePncpCompra": "00394460005887-1-000067/2024", "codigoPaisFornecedor": null, "dataAtualizacao":
+        "2025-01-01T00:30:03", "orgaoEntidade": {"cnpj": "00394460005887", "razaoSocial": "MINISTERIO DA ECONOMIA", "poderId":
+        "E", "esferaId": "F"}, "dataAssinatura": "2024-12-31", "dataVigenciaInicio": "2024-12-31", "dataVigenciaFim": "2025-01-30",
+        "niFornecedor": "06121879000106", "tipoPessoa": "PJ", "processo": "10905720159202490", "orgaoSubRogado": null, "unidadeOrgao":
+        {"ufNome": "Paraná", "codigoUnidade": "900100", "ufSigla": "PR", "municipioNome": "Curitiba", "nomeUnidade": "Superintendência
+        Regional da Receita Federal do Brasil da 9ª Região Fiscal", "codigoIbge": "4106902"}, "unidadeSubRogada": null, "nomeRazaoSocialFornecedor":
+        "IMPERIO TRANSPORTES TURISTICOS LTDA", "informacaoComplementar": null, "numeroContratoEmpenho": "0900100/3166", "categoriaProcesso":
+        {"id": 11, "nome": "Alienação de bens móveis/imóveis"}, "anoContrato": 2024, "tipoContrato": {"id": 1, "nome": "Contrato
+        (termo inicial)"}, "sequencialContrato": 7096, "dataPublicacaoPncp": "2025-01-01T00:30:03", "niFornecedorSubContratado":
+        null, "nomeFornecedorSubContratado": null, "dataAtualizacaoGlobal": "2025-01-01T00:30:03", "numeroControlePNCP": "00394460005887-2-007096/2024",
+        "receita": true, "numeroParcelas": 1, "numeroRetificacao": 0, "tipoPessoaSubContratada": null, "objetoContrato": "Alienação
+        de mercadorias apreendidas pela Receita Federal", "valorInicial": 7000.0, "valorParcela": 7000.0, "valorGlobal": 7000.0,
+        "valorAcumulado": null, "identificadorCipi": null, "urlCipi": null, "usuarioNome": "Ministério da Fazenda / Receita
+        Federal"}, {"numeroControlePncpCompra": "00394460005887-1-000062/2024", "codigoPaisFornecedor": null, "dataAtualizacao":
+        "2025-01-01T00:30:04", "orgaoEntidade": {"cnpj": "00394460005887", "razaoSocial": "MINISTERIO DA ECONOMIA", "poderId":
+        "E", "esferaId": "F"}, "dataAssinatura": "2024-12-31", "dataVigenciaInicio": "2024-12-31", "dataVigenciaFim": "2025-01-30",
+        "niFornecedor": "95755756520", "tipoPessoa": "PF", "processo": "13042142802202427", "orgaoSubRogado": null, "unidadeOrgao":
+        {"ufNome": "Pará", "codigoUnidade": "200100", "ufSigla": "PA", "municipioNome": "Belém", "nomeUnidade": "Superintendência
+        Regional da Receita Federal do Brasil da 2ª Região Fiscal", "codigoIbge": "1501402"}, "unidadeSubRogada": null, "nomeRazaoSocialFornecedor":
+        "AILTON NOVAES DA CRUZ", "informacaoComplementar": null, "numeroContratoEmpenho": "0200100/0063", "categoriaProcesso":
+        {"id": 11, "nome": "Alienação de bens móveis/imóveis"}, "anoContrato": 2024, "tipoContrato": {"id": 1, "nome": "Contrato
+        (termo inicial)"}, "sequencialContrato": 7097, "dataPublicacaoPncp": "2025-01-01T00:30:04", "niFornecedorSubContratado":
+        null, "nomeFornecedorSubContratado": null, "dataAtualizacaoGlobal": "2025-01-01T00:30:04", "numeroControlePNCP": "00394460005887-2-007097/2024",
+        "receita": true, "numeroParcelas": 1, "numeroRetificacao": 0, "tipoPessoaSubContratada": null, "objetoContrato": "Alienação
+        de mercadorias apreendidas pela Receita Federal", "valorInicial": 1300.0, "valorParcela": 1300.0, "valorGlobal": 1300.0,
+        "valorAcumulado": null, "identificadorCipi": null, "urlCipi": null, "usuarioNome": "Ministério da Fazenda / Receita
+        Federal"}, {"numeroControlePncpCompra": "00394460005887-1-000067/2024", "codigoPaisFornecedor": null, "dataAtualizacao":
+        "2025-01-01T00:30:05", "orgaoEntidade": {"cnpj": "00394460005887", "razaoSocial": "MINISTERIO DA ECONOMIA", "poderId":
+        "E", "esferaId": "F"}, "dataAssinatura": "2024-12-31", "dataVigenciaInicio": "2024-12-31", "dataVigenciaFim": "2025-01-30",
+        "niFornecedor": "00928082121", "tipoPessoa": "PF", "processo": "10905720159202490", "orgaoSubRogado": null, "unidadeOrgao":
+        {"ufNome": "Paraná", "codigoUnidade": "900100", "ufSigla": "PR", "municipioNome": "Curitiba", "nomeUnidade": "Superintendência
+        Regional da Receita Federal do Brasil da 9ª Região Fiscal", "codigoIbge": "4106902"}, "unidadeSubRogada": null, "nomeRazaoSocialFornecedor":
+        "CLEBERSON DOMINGUES SANTOS", "informacaoComplementar": null, "numeroContratoEmpenho": "0900100/3260", "categoriaProcesso":
+        {"id": 11, "nome": "Alienação de bens móveis/imóveis"}, "anoContrato": 2024, "tipoContrato": {"id": 1, "nome": "Contrato
+        (termo inicial)"}, "sequencialContrato": 7098, "dataPublicacaoPncp": "2025-01-01T00:30:05", "niFornecedorSubContratado":
+        null, "nomeFornecedorSubContratado": null, "dataAtualizacaoGlobal": "2025-01-01T00:30:05", "numeroControlePNCP": "00394460005887-2-007098/2024",
+        "receita": true, "numeroParcelas": 1, "numeroRetificacao": 0, "tipoPessoaSubContratada": null, "objetoContrato": "Alienação
+        de mercadorias apreendidas pela Receita Federal", "valorInicial": 10100.0, "valorParcela": 10100.0, "valorGlobal":
+        10100.0, "valorAcumulado": null, "identificadorCipi": null, "urlCipi": null, "usuarioNome": "Ministério da Fazenda
+        / Receita Federal"}], "totalRegistros": 4979, "totalPaginas": 498, "numeroPagina": 1, "paginasRestantes": 497, "empty":
+        false}'
+    headers:
+      Content-Type:
+      - application/json
+    status:
+      code: 200
+      message: OK
+    url: https://pncp.gov.br/api/consulta/v1/contratos?dataInicial=20250101&dataFinal=20250103&pagina=1&tamanhoPagina=10
+version: 1
