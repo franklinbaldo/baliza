@@ -633,7 +633,7 @@ class IAUploader:
             )
         return published
 
-    def upload_month(  # noqa: PLR0912, PLR0913
+    def upload_month(  # noqa: PLR0913
         self,
         start_date: date,
         output_dir: Path,
@@ -710,16 +710,16 @@ class IAUploader:
                 console.print(f"[red]✗ Manifest update failed for {month_str}: {e}[/red]")
                 # We do NOT cleanup if manifest update failed, to allow retry
 
-            # 6. Best-effort: rebuild curated RSS feeds from the freshly
-            # populated engine. Failures here must not abort the cleanup —
-            # parquet + manifest are already published.
-            if success:
-                try:
-                    self.upload_feeds(ia_access_key, ia_secret_key)
-                except Exception as e:
-                    console.print(f"[yellow]⚠ Feed publish failed: {e}[/yellow]")
-
-            # 7. AUTOMATED CLEANUP (Only on success)
+            # 6. AUTOMATED CLEANUP (Only on success)
+            #
+            # Note on RSS feeds: feed publication is intentionally NOT triggered
+            # here. The sync flow (cli_simple.process_month_full) processes
+            # months in parallel, each thread holding its own in-memory engine
+            # populated only with that month's rows. Calling upload_feeds inside
+            # upload_month would race per-feed XML uploads and let whichever
+            # month finishes last overwrite the others with partial data. Feed
+            # publication must be a separate, post-sync step that runs once
+            # against an engine guaranteed to hold the full snapshot.
             if success:
                 if raw_dir.exists():
                     shutil.rmtree(raw_dir)

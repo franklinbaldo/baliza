@@ -30,10 +30,18 @@
   let previousVisited = $state<string | undefined>(undefined);
   let mounted = $state(false);
   let visitStamped = false;
+  // Snapshot of query.dataUpdatedAt at mount. TanStack Query reports
+  // isSuccess=true synchronously when cached data is available, so a
+  // naive isSuccess gate would stamp the cutoff before the refetch
+  // completes (and could advance it even if that refetch then fails).
+  // We compare against the mount-time timestamp so the stamp only fires
+  // once a fetch that started during this view's lifetime has resolved.
+  let initialDataUpdatedAt = $state(0);
   onMount(() => {
     hydrateWatches();
     const e = watchState.entries.find(w => w.id === id);
     previousVisited = e?.lastVisited;
+    initialDataUpdatedAt = query.dataUpdatedAt ?? 0;
     mounted = true;
   });
 
@@ -79,11 +87,21 @@
     },
   }));
 
-  // Stamp the new lastVisited only on a successful fetch. Until then,
-  // the previous cutoff stays put so a refresh after a failure still
-  // shows the user the same diff window.
+  // Stamp the new lastVisited only after a fresh fetch resolves.
+  // Conditions:
+  //   • dataUpdatedAt advanced past the mount-time value → the success
+  //     belongs to a fetch that started in this session, not a cache hit.
+  //   • !isFetching → the resolved data is the most recent in flight,
+  //     so a follow-up failure can still preserve the prior cutoff.
   $effect(() => {
-    if (!visitStamped && query.isSuccess && entry) {
+    if (
+      !visitStamped &&
+      mounted &&
+      entry &&
+      query.isSuccess &&
+      !query.isFetching &&
+      (query.dataUpdatedAt ?? 0) > initialDataUpdatedAt
+    ) {
       visitStamped = true;
       markVisited(id);
     }
