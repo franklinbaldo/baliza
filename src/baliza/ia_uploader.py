@@ -588,8 +588,16 @@ class IAUploader:
                 slug = watch["slug"]
                 title = watch["title"]
                 where = watch.get("where", "1=1")
+                # Alias to the snake_case names rss_feed.generate accepts
+                # — the canonical contratos schema exposes the contract
+                # object as `objeto_contrato` (no -cao), so we project it
+                # under the expected key here rather than teaching the RSS
+                # generator about every column-name dialect.
                 sql = (
-                    "SELECT numero_controle_pncp, data_publicacao_pncp, objeto_contratacao "
+                    "SELECT "
+                    "numero_controle_pncp, "
+                    "data_publicacao_pncp, "
+                    "objeto_contrato AS objeto_contratacao "
                     f"FROM main.{CONTRATOS.name} "
                     f"WHERE {where} "
                     "ORDER BY data_publicacao_pncp DESC "

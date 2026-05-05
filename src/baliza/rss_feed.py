@@ -23,15 +23,18 @@ CURATED_WATCHES: list[dict[str, Any]] = [
     {
         "slug": "dispensas-acima-1mi",
         "title": "Dispensas acima de R$ 1 mi",
+        # Canonical contratos schema exposes value as `valor_global` and
+        # contract object as `objeto_contrato` (no -cao). See
+        # tests/conftest.py for the full DDL.
         "where": (
             "modalidade_nome ILIKE '%Dispensa%' "
-            "AND COALESCE(valor_total_estimado, valor_global, 0) >= 1000000"
+            "AND COALESCE(valor_global, valor_inicial, 0) >= 1000000"
         ),
     },
     {
         "slug": "compras-emergenciais",
         "title": "Compras emergenciais",
-        "where": "objeto_contratacao ILIKE '%emergencial%'",
+        "where": "objeto_contrato ILIKE '%emergencial%'",
     },
 ]
 

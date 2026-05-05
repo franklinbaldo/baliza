@@ -51,7 +51,13 @@
       // created (cnpj, ibge, uf, …). Replay both so the re-fetch matches
       // the user's saved definition rather than a broader free-text search.
       const params = new URLSearchParams(e.filter);
-      const term = params.get('q') ?? e.label ?? '';
+      // Filter-only watches (created from advanced filters with no
+      // free-text) have no `q` in the saved key, and their label may be
+      // the serialized filter string itself — falling back to the label
+      // would feed `cnpj=…` into the object-text matcher and return zero
+      // rows. Pass empty term so fetchPublicacaoPagesForObjeto runs the
+      // filter-only path.
+      const term = params.get('q') ?? '';
       const filters = readFilters(params);
       return fetchPublicacaoPagesForObjeto(term, { filters: toApiParams(filters) });
     },
