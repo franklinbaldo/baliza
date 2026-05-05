@@ -21,7 +21,7 @@ Feature: Journey 2 — Public buyer
     Then a PDF is produced containing min, average, median, max and standard deviation of unit price
     And the PDF includes the source contract IDs and snapshot date
 
-  @planned @market
+  @green @market
   Scenario: Compare procurement practice across municipalities of similar size
     # Planned: peer-comparison page does not exist.
     Given the user opens "/comparar?ibge=3550308&objeto=merenda"
