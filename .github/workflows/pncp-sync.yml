@@ -34,7 +34,7 @@ jobs:
       # Keep a 3-minute buffer vs timeout-minutes=360 so the CLI exits gracefully first.
       SYNC_LIMIT_MINUTES: 357
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v4
       - id: month
         run: echo "key=$(date +'%Y-%m')" >> $GITHUB_OUTPUT
@@ -48,9 +48,11 @@ jobs:
           IA_SECRET_KEY: ${{ secrets.IA_SECRET_KEY }}
         run: |
           sync_args=(
-            --start-date "${{ inputs.start_date || '2023-01-01' }}"
             --limit-minutes 280
           )
+          if [[ -n "${{ inputs.start_date }}" ]]; then
+            sync_args+=(--start-date "${{ inputs.start_date }}")
+          fi
           if [[ "${{ inputs.no_consolidate }}" == "true" ]]; then
             sync_args+=(--no-consolidate)
           fi

@@ -1,5 +1,4 @@
 <script lang="ts">
-  import type { IBGEResult } from '../lib/types';
   import {
     cityState,
     hydrateCityContext,
@@ -7,10 +6,9 @@
     DEFAULT_CITY,
   } from '../lib/cityContext.svelte';
   import {
-    getUserCoordinates,
-    getCityFromCoords,
-    getIBGECode,
-    ufNomeToSigla,
+    resolveCityFromBrowserLocation,
+    searchMunicipalities,
+    type SearchMatch,
   } from '../lib/geo';
 
   interface Props {
@@ -21,7 +19,7 @@
   let { compact = false, autofocus = false, onselect }: Props = $props();
 
   let query = $state('');
-  let results = $state<IBGEResult[]>([]);
+  let results = $state<SearchMatch[]>([]);
   let loading = $state(false);
   let geoStatus = $state<'idle' | 'locating' | 'denied' | 'error'>('idle');
   let inputEl = $state<HTMLInputElement | null>(null);
@@ -29,33 +27,29 @@
 
   hydrateCityContext();
 
-  let abortCtrl: AbortController | null = null;
+  // Token to invalidate stale searches: the user can type fast enough to
+  // race two `searchMunicipalities` resolutions; only the latest wins.
+  let searchToken = 0;
   let debounce: ReturnType<typeof setTimeout> | null = null;
 
   async function runSearch(term: string) {
-    if (abortCtrl) abortCtrl.abort();
-    const ctrl = new AbortController();
-    abortCtrl = ctrl;
     const trimmed = term.trim();
     if (trimmed.length < 2) {
       results = [];
       loading = false;
       return;
     }
+    const myToken = ++searchToken;
     loading = true;
     try {
-      const url = `https://servicodados.ibge.gov.br/api/v1/localidades/municipios?nome=${encodeURIComponent(trimmed)}`;
-      const res = await fetch(url, { signal: ctrl.signal });
-      if (!res.ok) throw new Error(`IBGE returned ${res.status}`);
-      const data = (await res.json()) as IBGEResult[];
-      if (ctrl.signal.aborted) return;
-      // Cap the listbox so a generic query ("São") doesn't dump a thousand rows.
-      results = Array.isArray(data) ? data.slice(0, 12) : [];
-    } catch (err) {
-      if ((err as { name?: string }).name === 'AbortError') return;
+      const matches = await searchMunicipalities(trimmed, 12);
+      if (myToken !== searchToken) return; // stale
+      results = matches;
+    } catch {
+      if (myToken !== searchToken) return;
       results = [];
     } finally {
-      if (!ctrl.signal.aborted) loading = false;
+      if (myToken === searchToken) loading = false;
     }
   }
 
@@ -64,21 +58,15 @@
     query = value;
     activeIndex = -1;
     if (debounce) clearTimeout(debounce);
-    debounce = setTimeout(() => runSearch(value), 220);
+    debounce = setTimeout(() => runSearch(value), 120);
   }
 
-  function pick(r: IBGEResult) {
-    const uf = r.microrregiao?.mesorregiao?.UF?.nome;
-    const next = {
-      ibge: String(r.id),
-      nome: r.nome,
-      uf: ufNomeToSigla(uf),
-    };
-    setCity(next, 'storage');
+  function pick(r: SearchMatch) {
+    setCity(r, 'storage');
     results = [];
     query = '';
     activeIndex = -1;
-    onselect?.(next);
+    onselect?.(r);
   }
 
   function onKeydown(e: KeyboardEvent) {
@@ -103,15 +91,7 @@
   async function useMyLocation() {
     geoStatus = 'locating';
     try {
-      const coords = await getUserCoordinates();
-      const cityData = await getCityFromCoords(coords.latitude, coords.longitude);
-      const code = await getIBGECode(cityData.city, cityData.state);
-      if (!code) throw new Error('Município não encontrado.');
-      const next = {
-        ibge: code,
-        nome: cityData.city,
-        uf: ufNomeToSigla(cityData.state),
-      };
+      const next = await resolveCityFromBrowserLocation();
       setCity(next, 'storage');
       geoStatus = 'idle';
       onselect?.(next);
@@ -132,11 +112,11 @@
     if (autofocus && inputEl) inputEl.focus();
   });
 
-  // Cancel any in-flight IBGE request and pending debounce on unmount so a
-  // late response can't write results into a torn-down component.
+  // Clear the pending debounce on unmount so a late timeout can't fire a
+  // search into a torn-down component. The searchToken counter handles
+  // already-in-flight resolutions.
   $effect(() => () => {
     if (debounce) clearTimeout(debounce);
-    if (abortCtrl) abortCtrl.abort();
   });
 </script>
 
@@ -196,7 +176,7 @@
 
   {#if results.length > 0}
     <ul id="city-picker-listbox" class="listbox" role="listbox">
-      {#each results as r, i (r.id)}
+      {#each results as r, i (r.ibge)}
         <li
           id={`city-opt-${i}`}
           role="option"
@@ -205,10 +185,8 @@
         >
           <button type="button" onclick={() => pick(r)} onmouseenter={() => (activeIndex = i)}>
             <span class="opt-nome">{r.nome}</span>
-            <span class="opt-uf">
-              {ufNomeToSigla(r.microrregiao?.mesorregiao?.UF?.nome) || '—'}
-            </span>
-            <span class="opt-ibge">IBGE {r.id}</span>
+            <span class="opt-uf">{r.uf || '—'}</span>
+            <span class="opt-ibge">IBGE {r.ibge}</span>
           </button>
         </li>
       {/each}

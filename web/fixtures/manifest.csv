@@ -1,0 +1,1 @@
+data_particao,table_name,row_count,quarantine_count,ia_item_id,raw_zip_url,parquet_url,quarantine_url,uploaded_at,file_type,uf_sigla,sort_key,row_group_size,bloom_filter_columns,sha256,file_size_bytes

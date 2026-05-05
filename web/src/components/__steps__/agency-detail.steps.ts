@@ -132,7 +132,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
                 {
                   numeroControlePNCP: '00000000000191-1-000001/2024',
                   dataPublicacaoPncp: '2025-01-15T00:00:00',
-                  objetoContratacao: 'Aquisição de materiais de teste',
+                  objetoCompra: 'Aquisição de materiais de teste',
                   valorTotalEstimado: 1000,
                   orgaoEntidade: {
                     razaoSocial: 'Órgão Teste',

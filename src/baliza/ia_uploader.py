@@ -5,6 +5,8 @@ import hashlib
 import io
 import shutil
 import tempfile
+import threading
+import zipfile
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
@@ -14,9 +16,49 @@ import internetarchive as ia
 from rich.console import Console
 
 from .engine import BalizaEngine
+from .resources import CONTRATOS
 from .utils import DUCKDB_PARQUET_COPY_OPTIONS, PARQUET_ROW_GROUP_SIZE
 
 console = Console()
+
+# Serializes all manifest read-modify-write cycles within a process.
+# ThreadPoolExecutor workers share this lock, preventing concurrent writers
+# from overwriting each other's updates to manifest.csv on IA.
+_manifest_lock = threading.Lock()
+
+
+def restore_from_raw_zip(raw_zip_url: str, raw_month_dir: Path) -> bool:
+    """Download a raw ZIP from Internet Archive and extract it to raw_month_dir.
+
+    Returns True on success, False on any error (caller falls back to PNCP API).
+    Only used for past months where the raw ZIP was previously uploaded.
+    """
+    raw_month_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        console.print(f"  Downloading raw ZIP from IA: {raw_zip_url}")
+        with httpx.stream("GET", raw_zip_url, follow_redirects=True, timeout=120) as r:
+            r.raise_for_status()
+            with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
+                tmp_path = Path(tmp.name)
+                for chunk in r.iter_bytes(chunk_size=1024 * 1024):
+                    tmp.write(chunk)
+        with zipfile.ZipFile(tmp_path) as zf:
+            zf.extractall(raw_month_dir)
+        tmp_path.unlink(missing_ok=True)
+        console.print(
+            f"  [green]✓ Restored from IA ZIP ({len(list(raw_month_dir.iterdir()))} files)[/green]"
+        )
+        return True
+    except Exception as e:
+        console.print(
+            f"  [yellow]⚠ Could not restore from IA ZIP: {e} — will fetch from PNCP[/yellow]"
+        )
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+        return False
+
 
 # Manifest v2 metadata — record the file properties consumers (web UI,
 # researchers) need to reason about the layout without re-reading the file.
@@ -99,9 +141,7 @@ def read_manifest_from_ia() -> list[dict[str, Any]]:
     if resp.status_code == 404:
         return []
     if resp.status_code != 200:
-        raise ManifestReadError(
-            f"unexpected status {resp.status_code} reading manifest.csv"
-        )
+        raise ManifestReadError(f"unexpected status {resp.status_code} reading manifest.csv")
     try:
         f = io.StringIO(resp.text)
         return list(csv.DictReader(f))
@@ -122,14 +162,10 @@ def try_read_manifest_from_ia() -> list[dict[str, Any]]:
         return []
 
 
-def write_manifest_to_ia(
-    rows: list[dict[str, Any]], access_key: str, secret_key: str
-) -> None:
+def write_manifest_to_ia(rows: list[dict[str, Any]], access_key: str, secret_key: str) -> None:
     """Serialize manifest rows to CSV and upload to IA."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as tf:
-        writer = csv.DictWriter(
-            tf, fieldnames=MANIFEST_FIELDNAMES, extrasaction="ignore"
-        )
+        writer = csv.DictWriter(tf, fieldnames=MANIFEST_FIELDNAMES, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(rows)
         temp_csv = tf.name
@@ -165,58 +201,59 @@ def register_monthly_uf_shards(
     writing partial rows on top of a read failure would wipe the canonical
     history from the live manifest.
     """
-    year_str = str(year)
-    manifest = read_manifest_from_ia()
-    # Use the latest canonical month already published for this year as the
-    # shard's data_particao. That way the web resolver's
-    # `canonical.dataParticao > shard.dataParticao` freshness check can
-    # detect month-level lag (e.g. canonical 2025-04 vs shards rebuilt when
-    # only 2025-01 was published). Falls back to the year string when no
-    # canonical rows exist yet.
-    canonical_months = [
-        r.get("data_particao", "")
-        for r in manifest
-        if r.get("table_name") == table_name
-        and (r.get("data_particao") or "").startswith(year_str)
-        and r.get("file_type", "") in ("", "monthly_canonical")
-    ]
-    data_particao = max(canonical_months) if canonical_months else year_str
-    # Drop prior monthly_uf rows for this year+table across any partition
-    # value — we're rebuilding every shard, so stale entries from earlier
-    # rebuilds (which may carry a different data_particao) would otherwise
-    # accumulate and mislead readers.
-    manifest = [
-        r
-        for r in manifest
-        if not (
-            r.get("table_name") == table_name
-            and r.get("file_type") == "monthly_uf"
+    with _manifest_lock:
+        year_str = str(year)
+        manifest = read_manifest_from_ia()
+        # Use the latest canonical month already published for this year as the
+        # shard's data_particao. That way the web resolver's
+        # `canonical.dataParticao > shard.dataParticao` freshness check can
+        # detect month-level lag (e.g. canonical 2025-04 vs shards rebuilt when
+        # only 2025-01 was published). Falls back to the year string when no
+        # canonical rows exist yet.
+        canonical_months = [
+            r.get("data_particao", "")
+            for r in manifest
+            if r.get("table_name") == table_name
             and (r.get("data_particao") or "").startswith(year_str)
-        )
-    ]
-    now = datetime.now().isoformat()
-    for s in shards:
-        manifest.append(
-            {
-                "data_particao": data_particao,
-                "table_name": table_name,
-                "row_count": s.get("row_count", 0),
-                "quarantine_count": 0,
-                "ia_item_id": s.get("ia_item_id", ""),
-                "raw_zip_url": "",
-                "parquet_url": s["parquet_url"],
-                "quarantine_url": "",
-                "uploaded_at": now,
-                "file_type": "monthly_uf",
-                "uf_sigla": s["uf_sigla"],
-                "sort_key": _CONTRATOS_SORT_KEY,
-                "row_group_size": PARQUET_ROW_GROUP_SIZE,
-                "bloom_filter_columns": _CONTRATOS_BLOOM_FILTER_COLUMNS,
-                "sha256": s.get("sha256", ""),
-                "file_size_bytes": s.get("file_size_bytes", 0),
-            }
-        )
-    write_manifest_to_ia(manifest, access_key, secret_key)
+            and r.get("file_type", "") in ("", "monthly_canonical")
+        ]
+        data_particao = max(canonical_months) if canonical_months else year_str
+        # Drop prior monthly_uf rows for this year+table across any partition
+        # value — we're rebuilding every shard, so stale entries from earlier
+        # rebuilds (which may carry a different data_particao) would otherwise
+        # accumulate and mislead readers.
+        manifest = [
+            r
+            for r in manifest
+            if not (
+                r.get("table_name") == table_name
+                and r.get("file_type") == "monthly_uf"
+                and (r.get("data_particao") or "").startswith(year_str)
+            )
+        ]
+        now = datetime.now().isoformat()
+        for s in shards:
+            manifest.append(
+                {
+                    "data_particao": data_particao,
+                    "table_name": table_name,
+                    "row_count": s.get("row_count", 0),
+                    "quarantine_count": 0,
+                    "ia_item_id": s.get("ia_item_id", ""),
+                    "raw_zip_url": "",
+                    "parquet_url": s["parquet_url"],
+                    "quarantine_url": "",
+                    "uploaded_at": now,
+                    "file_type": "monthly_uf",
+                    "uf_sigla": s["uf_sigla"],
+                    "sort_key": _CONTRATOS_SORT_KEY,
+                    "row_group_size": PARQUET_ROW_GROUP_SIZE,
+                    "bloom_filter_columns": _CONTRATOS_BLOOM_FILTER_COLUMNS,
+                    "sha256": s.get("sha256", ""),
+                    "file_size_bytes": s.get("file_size_bytes", 0),
+                }
+            )
+        write_manifest_to_ia(manifest, access_key, secret_key)
 
 
 def _sha256(path: Path) -> str:
@@ -245,7 +282,7 @@ class MonthlyExporter:
         files: dict[str, Path] = {}
 
         month_str = start_date.strftime("%Y-%m")
-        table_name = "contratos"
+        table_name = CONTRATOS.name
         filename = f"{table_name}-{month_str}.parquet"
         out_path = output_dir / filename
 
@@ -263,9 +300,7 @@ class MonthlyExporter:
             if out_path.exists() and out_path.stat().st_size > 0:
                 files[table_name] = out_path
         except Exception as e:
-            console.print(
-                f"[yellow]⚠ No data found for {table_name} on {month_str}: {e}[/yellow]"
-            )
+            console.print(f"[yellow]⚠ No data found for {table_name} on {month_str}: {e}[/yellow]")
 
         return files
 
@@ -313,50 +348,51 @@ class IAUploader:
         Existing fields not present in ``fields`` are preserved (merge, not replace).
         Uses the strict reader — transient read failures abort rather than wipe the live manifest.
         """
-        manifest = read_manifest_from_ia()
-        parquet_item_id = f"baliza-pncp-{month_str}"
+        with _manifest_lock:
+            manifest = read_manifest_from_ia()
+            parquet_item_id = f"baliza-pncp-{month_str}"
 
-        existing_idx: int | None = None
-        for i, row in enumerate(manifest):
-            if (
-                row.get("data_particao") == month_str
-                and row.get("table_name") == "contratos"
-                and row.get("file_type", "") in ("", "monthly_canonical")
-            ):
-                existing_idx = i
-                break
+            existing_idx: int | None = None
+            for i, row in enumerate(manifest):
+                if (
+                    row.get("data_particao") == month_str
+                    and row.get("table_name") == CONTRATOS.name
+                    and row.get("file_type", "") in ("", "monthly_canonical")
+                ):
+                    existing_idx = i
+                    break
 
-        now = datetime.now().isoformat()
-        if existing_idx is not None:
-            manifest[existing_idx] = {**manifest[existing_idx], **fields}
-        else:
-            new_row: dict[str, Any] = {
-                "data_particao": month_str,
-                "table_name": "contratos",
-                "row_count": 0,
-                "quarantine_count": 0,
-                "ia_item_id": parquet_item_id,
-                "raw_zip_url": f"https://archive.org/download/{RAW_ITEM_ID}/raw-{month_str}.zip",
-                "parquet_url": "",
-                "quarantine_url": "",
-                "uploaded_at": now,
-                "file_type": "monthly_canonical",
-                "uf_sigla": "",
-                "sort_key": _CONTRATOS_SORT_KEY,
-                "row_group_size": PARQUET_ROW_GROUP_SIZE,
-                "bloom_filter_columns": _CONTRATOS_BLOOM_FILTER_COLUMNS,
-                "sha256": "",
-                "file_size_bytes": 0,
-                "mirror_uploaded_at": "",
-                "raw_zip_sha256": "",
-                "raw_zip_size_bytes": 0,
-                "parquet_uploaded_at": "",
-                "parquet_schema_version": "",
-            }
-            new_row.update(fields)
-            manifest.append(new_row)
+            now = datetime.now().isoformat()
+            if existing_idx is not None:
+                manifest[existing_idx] = {**manifest[existing_idx], **fields}
+            else:
+                new_row: dict[str, Any] = {
+                    "data_particao": month_str,
+                    "table_name": CONTRATOS.name,
+                    "row_count": 0,
+                    "quarantine_count": 0,
+                    "ia_item_id": parquet_item_id,
+                    "raw_zip_url": f"https://archive.org/download/{RAW_ITEM_ID}/raw-{month_str}.zip",
+                    "parquet_url": "",
+                    "quarantine_url": "",
+                    "uploaded_at": now,
+                    "file_type": "monthly_canonical",
+                    "uf_sigla": "",
+                    "sort_key": _CONTRATOS_SORT_KEY,
+                    "row_group_size": PARQUET_ROW_GROUP_SIZE,
+                    "bloom_filter_columns": _CONTRATOS_BLOOM_FILTER_COLUMNS,
+                    "sha256": "",
+                    "file_size_bytes": 0,
+                    "mirror_uploaded_at": "",
+                    "raw_zip_sha256": "",
+                    "raw_zip_size_bytes": 0,
+                    "parquet_uploaded_at": "",
+                    "parquet_schema_version": "",
+                }
+                new_row.update(fields)
+                manifest.append(new_row)
 
-        write_manifest_to_ia(manifest, access_key, secret_key)
+            write_manifest_to_ia(manifest, access_key, secret_key)
 
     def upload_raw_zip(
         self,
@@ -415,7 +451,9 @@ class IAUploader:
             shutil.rmtree(raw_dir)
             console.print(f"[green]✓ {month_str} mirrored and local pages cleaned.[/green]")
         elif success and keep_raw_dir:
-            console.print(f"[green]✓ {month_str} ZIP updated (pages kept for incremental next run).[/green]")
+            console.print(
+                f"[green]✓ {month_str} ZIP updated (pages kept for incremental next run).[/green]"
+            )
         else:
             console.print(
                 f"[yellow]⚠ {month_str} ZIP uploaded but NOT cleaned due to manifest error.[/yellow]"
@@ -437,7 +475,9 @@ class IAUploader:
         Returns True on success.
         """
         if self.engine is None or self.exporter is None:
-            raise RuntimeError("upload_parquet requires an engine — construct IAUploader(engine=...)")
+            raise RuntimeError(
+                "upload_parquet requires an engine — construct IAUploader(engine=...)"
+            )
 
         month_str = start_date.strftime("%Y-%m")
         item_id = f"baliza-pncp-{month_str}"
@@ -628,9 +668,8 @@ class IAUploader:
         must abort the publish rather than overwrite the live manifest with
         only the new row.
         """
-        manifest = read_manifest_from_ia()
-
-        # Build new row
+        # Build the new row before acquiring the lock — sha256/size computation
+        # is pure local I/O and doesn't need to be serialized.
         month_str = start_date.strftime("%Y-%m")
         parquet_filename = f"contratos-{month_str}.parquet"
         parquet_url = f"https://archive.org/download/{item_id}/{parquet_filename}"
@@ -645,12 +684,16 @@ class IAUploader:
 
         new_row = {
             "data_particao": month_str,
-            "table_name": "contratos",
+            "table_name": CONTRATOS.name,
             "row_count": q_stats.get("valid", 0) if q_stats else 0,
             "quarantine_count": q_stats.get("quarantine", 0) if q_stats else 0,
             "ia_item_id": item_id,
             "raw_zip_url": f"https://archive.org/download/{item_id}/raw-{month_str}.zip",
-            "parquet_url": parquet_url,
+            # Only write parquet_url when we confirmed the file was in the upload set.
+            # An empty sha256 means the Parquet was never generated; writing the URL
+            # anyway produces a manifest entry that points to a non-existent file and
+            # causes the consolidator to 404 and the sync to skip the month forever.
+            "parquet_url": parquet_url if parquet_sha256 else "",
             "quarantine_url": f"https://archive.org/download/{item_id}/quarentena-{month_str}.csv"
             if q_stats and q_stats.get("quarantine", 0) > 0
             else "",
@@ -665,20 +708,21 @@ class IAUploader:
             "file_size_bytes": parquet_size,
         }
 
-        # Deduplicate only against the canonical row for this partition.
-        # Manifest v2 allows multiple rows per partition (monthly_uf shards,
-        # supplemental dailies); blanket removal would silently drop their
-        # hash/size metadata. Empty/missing file_type is treated as canonical
-        # for v1 backward compat (matches web's isCanonicalRow).
-        manifest = [
-            r
-            for r in manifest
-            if not (
-                r["data_particao"] == month_str
-                and r["table_name"] == "contratos"
-                and r.get("file_type", "") in ("", "monthly_canonical")
-            )
-        ]
-        manifest.append(new_row)
-
-        write_manifest_to_ia(manifest, access_key, secret_key)
+        with _manifest_lock:
+            manifest = read_manifest_from_ia()
+            # Deduplicate only against the canonical row for this partition.
+            # Manifest v2 allows multiple rows per partition (monthly_uf shards,
+            # supplemental dailies); blanket removal would silently drop their
+            # hash/size metadata. Empty/missing file_type is treated as canonical
+            # for v1 backward compat (matches web's isCanonicalRow).
+            manifest = [
+                r
+                for r in manifest
+                if not (
+                    r["data_particao"] == month_str
+                    and r["table_name"] == CONTRATOS.name
+                    and r.get("file_type", "") in ("", "monthly_canonical")
+                )
+            ]
+            manifest.append(new_row)
+            write_manifest_to_ia(manifest, access_key, secret_key)

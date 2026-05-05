@@ -7,6 +7,7 @@ import ContractDetailViewRaw from '../../ContractDetailView.svelte';
 import AtasViewRaw from '../../AtasView.svelte';
 import CatmatSearchRaw from '../../CatmatSearch.svelte';
 import DispensasViewRaw from '../../DispensasView.svelte';
+import CompararViewRaw from '../../CompararView.svelte';
 import * as pncpPublicacao from '../../../lib/pncpPublicacao';
 import type { PNCPContract } from '../../../lib/pncp';
 import * as parquetFallback from '../../../lib/parquetFallback';
@@ -17,6 +18,7 @@ const ContractDetailView = ContractDetailViewRaw as unknown as Parameters<typeof
 const AtasView = AtasViewRaw as unknown as Parameters<typeof render>[0];
 const CatmatSearch = CatmatSearchRaw as unknown as Parameters<typeof render>[0];
 const DispensasView = DispensasViewRaw as unknown as Parameters<typeof render>[0];
+const CompararView = CompararViewRaw as unknown as Parameters<typeof render>[0];
 
 function futurePlus(years: number): string {
   const d = new Date();
@@ -42,7 +44,7 @@ const feature = await loadFeature('features/journeys/02_public_buyer.feature');
 const PAYLOAD = {
   numeroControlePNCP: '00000000000191-1-000001/2024',
   dataPublicacaoPncp: '2025-01-15T00:00:00',
-  objetoContratacao: 'Aquisição de merenda escolar',
+  objetoCompra: 'Aquisição de merenda escolar',
   valorTotalEstimado: 1500,
   modalidadeNome: 'Pregão Eletrônico',
   orgaoEntidade: {
@@ -51,7 +53,7 @@ const PAYLOAD = {
   },
   unidadeOrgao: {
     nomeUnidade: 'Secretaria de Compras',
-    codigoMunicipioIbge: '3550308',
+    codigoIbge: '3550308',
   },
   linkSistemaOrigem: 'https://origem.exemplo.gov.br/compras/1',
   itens: [],
@@ -102,11 +104,37 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   Scenario(
     'Compare procurement practice across municipalities of similar size',
     ({ Given, Then, And }) => {
-      Given('the user opens "/comparar?ibge=3550308&objeto=merenda"', noop);
-      Then('the user sees three peer municipalities of similar population', () =>
-        plannedStep('peer-municipality comparison route'),
-      );
-      And('the user sees the per-capita spend for the same object', noop);
+      Given('the user opens "/comparar?ibge=3550308&objeto=merenda"', async () => {
+        cleanup();
+        vi.restoreAllMocks();
+        window.history.replaceState({}, '', '/comparar?ibge=3550308&objeto=merenda');
+        vi.spyOn(pncpPublicacao, 'fetchPublicacaoList').mockResolvedValue([
+          {
+            numeroControlePNCP: '00000000000191-1-000001/2024',
+            dataPublicacaoPncp: '2025-01-10T00:00:00',
+            objetoContratacao: 'Aquisição de merenda escolar',
+            valorTotalEstimado: 50000,
+            modalidadeNome: 'Pregão Eletrônico',
+            orgaoEntidade: { razaoSocial: 'Prefeitura A', cnpj: '00000000000191' },
+            unidadeOrgao: { nomeUnidade: 'Educação', ufSigla: 'SP' },
+          },
+        ] as unknown as PNCPContract[]);
+        render(CompararView);
+        await tick();
+      });
+      Then('the user sees three peer municipalities of similar population', async () => {
+        await waitFor(() => {
+          expect(screen.getByTestId('comparar-peers')).toBeTruthy();
+          const items = screen.getAllByTestId('comparar-peer-item');
+          expect(items.length).toBe(3);
+        }, { timeout: 3000 });
+      });
+      And('the user sees the per-capita spend for the same object', async () => {
+        await waitFor(() => {
+          const spendText = screen.getByText(/habitante/i);
+          expect(spendText).toBeTruthy();
+        }, { timeout: 3000 });
+      });
     },
   );
 

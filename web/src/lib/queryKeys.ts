@@ -7,5 +7,9 @@ export const QUERY_KEYS = {
   localBids:   (ibge: string)               => ['local-bids', ibge]            as const,
   atas:        (objeto: string)             => ['atas', objeto]                as const,
   dispensas:   (objeto: string)             => ['dispensas', objeto]           as const,
-  busca:       (q: string)                  => ['busca', q]                    as const,
+  busca:       (q: string, cnpj?: string, ibge?: string, extras?: Record<string, string>) =>
+    ['busca', q, cnpj, ibge, extras] as const,
+  cityAggregates: (ibge: string) => ['city-aggregates', ibge] as const,
+  publishingCnpjRaizes: ['publishing-cnpj-raizes'] as const,
+  publicCnpjReference: ['public-cnpj-reference'] as const,
 } as const;

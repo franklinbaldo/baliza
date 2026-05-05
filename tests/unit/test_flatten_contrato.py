@@ -7,8 +7,8 @@ parquet pipeline (see the prod bug fixed in PR #364).
 
 from __future__ import annotations
 
-from baliza.extractor import _flatten_contrato
 from baliza.models import RecuperarContratoDTO
+from baliza.transforms import _flatten_contrato
 
 
 def _full_wire_payload() -> dict:

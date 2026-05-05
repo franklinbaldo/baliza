@@ -92,6 +92,14 @@ def test_sync_skips_uploaded():
 
 @scenario(
     "../features/sync.feature",
+    "Sync re-queues months whose manifest entry has no sha256",
+)
+def test_sync_requeues_phantom_parquet_url():
+    pass
+
+
+@scenario(
+    "../features/sync.feature",
     "Sync in dry-run mode extracts but does not upload",
 )
 def test_sync_dry_run():
@@ -152,9 +160,27 @@ def manifest_lists_every_month(mock_ia_manifest):
                     "data_particao": month,
                     "table_name": RESOURCE_CONTRATOS,
                     "parquet_url": f"https://example.invalid/contratos-{month}.parquet",
+                    "sha256": "a" * 64,
                 }
             )
     mock_ia_manifest(rows)
+
+
+@given("the IA manifest lists a month with parquet_url but no sha256")
+def manifest_lists_phantom_parquet(mock_ia_manifest):
+    # Simulates the historical state where manifest-recovery wrote parquet_url
+    # before the Parquet was actually uploaded (sha256 empty → file never verified).
+    # The sync must treat this month as pending and re-queue it.
+    mock_ia_manifest(
+        [
+            {
+                "data_particao": "2023-01",
+                "table_name": "contratos",
+                "parquet_url": "https://archive.org/download/baliza-pncp-2023-01/contratos-2023-01.parquet",
+                "sha256": "",
+            }
+        ]
+    )
 
 
 # ── When ─────────────────────────────────────────────────────────────────────

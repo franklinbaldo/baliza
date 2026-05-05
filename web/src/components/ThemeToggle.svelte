@@ -43,21 +43,21 @@
     justify-content: center;
     width: 2.75rem;
     height: 2.75rem;
-    border: 1px solid var(--neutral-300);
-    background: transparent;
-    color: var(--neutral-500);
+    border: 1px solid var(--color-border);
+    background: color-mix(in srgb, var(--color-surface) 72%, transparent);
+    color: var(--color-text-dim);
     cursor: pointer;
-    border-radius: 0;
+    border-radius: var(--radius-pill);
     transition: all var(--duration-fast) var(--ease);
     flex-shrink: 0;
   }
 
   .theme-btn:hover,
   .theme-btn:focus-visible {
-    color: var(--bulcao-accent);
-    border-color: var(--bulcao-accent);
-    box-shadow: 2px 2px 0 var(--bulcao-accent);
-    transform: translate(-1px, -1px);
+    color: var(--color-accent);
+    border-color: var(--color-accent);
+    box-shadow: var(--shadow-pool-sm);
+    transform: translateY(-1px);
     outline: 2px solid transparent;
     outline-offset: 2px;
   }

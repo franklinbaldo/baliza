@@ -1,28 +1,45 @@
-@import url("https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..900,0..100;1,9..144,300..900,0..100&family=Manrope:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..900,0..100;1,9..144,300..900,0..100&family=Manrope:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
 
 /* ============================================================
    DESIGN TOKENS
    ============================================================ */
 :root, [data-theme="light"] {
-  /* Neutros quentes (off-white Lina → grafite com calor) */
-  --neutral-0:   #FBF8F1;
-  --neutral-50:  #F5F2EC;
-  --neutral-100: #ECE7DA;
-  --neutral-200: #DCD5C2;
-  --neutral-300: #C4BCA3;
-  --neutral-400: #8A8270;
-  --neutral-500: #666053;
-  --neutral-700: #3D3A33;
-  --neutral-900: #1A1815;
+  /* Curva & Concreto */
+  --color-bg: #F4EFE4;
+  --color-surface: #EAE2CE;
+  --color-surface-sunk: #DDD3B8;
+  --color-border: #CFC5A8;
+  --color-text: #17140F;
+  --color-text-dim: #6B6550;
+  --color-accent: #C2281F;
+  --color-accent-hover: #9C1E16;
+  --color-azul: #1F6FA8;
+  --color-azul-deep: #14446B;
+  --color-tijolo: #C86B3C;
+  --color-verde: #3F7A4E;
+  --color-verde-pale: #D8E5D3;
+  --color-ouro: #D8A43A;
+  --color-warning-bg: #F6E8C7;
 
-  /* Paleta ativa (Concretista) */
-  --bulcao-fg:     #1A1815;
-  --bulcao-bg:     #F5F2EC;
-  --bulcao-accent: #C8312A;
-  --bulcao-support:#2B4B7C;
+  /* Legacy token bridge */
+  --neutral-0:   var(--color-bg);
+  --neutral-50:  var(--color-surface);
+  --neutral-100: var(--color-surface-sunk);
+  --neutral-200: var(--color-border);
+  --neutral-300: #B9AF90;
+  --neutral-400: #827A62;
+  --neutral-500: var(--color-text-dim);
+  --neutral-700: #3F382A;
+  --neutral-900: var(--color-text);
+
+  --bulcao-fg:      var(--color-text);
+  --bulcao-bg:      var(--color-bg);
+  --bulcao-accent:  var(--color-accent);
+  --bulcao-support: var(--color-azul);
 
   /* Tipografia */
   --font-display: 'Fraunces', Georgia, serif;
+  --font-logo: 'DM Serif Display', Georgia, serif;
   --font-body: 'Manrope', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
 
@@ -52,17 +69,23 @@
   --space-10: 128px;
   --space-11: 160px;
 
-  /* Radii (quase zero — geometria limpa) */
-  --radius-0: 0px;
-  --radius-1: 2px;
-  --radius-2: 4px;
+  /* Radius enum: curves on chrome and heroes; sharp on data */
+  --radius-0: 0;
+  --radius-sm: 0.375rem;
+  --radius-lg: 1.5rem;
+  --radius-arch: 6rem;
   --radius-pill: 999px;
+  --radius-1: var(--radius-sm);
+  --radius-2: var(--radius-sm);
 
   /* Motion */
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-curva: cubic-bezier(0.22, 0.61, 0.36, 1);
   --duration-fast: 0.18s;
   --duration: 0.36s;
   --duration-slow: 0.6s;
+  --duration-bossa: 360ms;
+  --duration-snap: 150ms;
 
   /* Layout */
   --nav-width: 280px;
@@ -75,24 +98,24 @@
   --color-base-300:     var(--neutral-200);
   --color-base-content: var(--neutral-900);
 
-  --color-primary:   var(--bulcao-accent);
+  --color-primary:   var(--color-accent);
   --color-secondary: var(--neutral-500);
-  --color-accent:    var(--bulcao-support);
-  --color-info:      #2E6F8E;
-  --color-success:   #2D5F3F;
-  --color-warning:   #E0A12A;
-  --color-error:     #C8312A;
-  --color-danger:    #C8312A;
+  --color-info:      var(--color-azul);
+  --color-success:   var(--color-verde);
+  --color-warning:   var(--color-ouro);
+  --color-error:     var(--color-accent);
+  --color-danger:    var(--color-accent);
 
-  --shadow-sm:          2px 2px 0 var(--bulcao-fg);
-  --shadow-md:          4px 4px 0 var(--bulcao-fg);
-  --shadow-glow:        2px 2px 0 var(--bulcao-support);
-  --shadow-glow-strong: 4px 4px 0 var(--bulcao-support);
-  --shadow-glow-error:  2px 2px 0 var(--bulcao-accent);
+  --shadow-pool:    0 24px 48px -16px color-mix(in srgb, var(--color-text) 18%, transparent);
+  --shadow-pool-sm: 0 6px 12px -4px color-mix(in srgb, var(--color-text) 12%, transparent);
+  --shadow-sm:          var(--shadow-pool-sm);
+  --shadow-md:          var(--shadow-pool);
+  --shadow-glow:        0 0 0 3px color-mix(in srgb, var(--color-azul) 20%, transparent);
+  --shadow-glow-strong: 0 0 0 4px color-mix(in srgb, var(--color-azul) 28%, transparent);
+  --shadow-glow-error:  0 0 0 3px color-mix(in srgb, var(--color-accent) 20%, transparent);
 
   --radius-btn: var(--radius-0);
   --radius-box: var(--radius-0);
-  --radius-sm: var(--radius-2);
   --radius-full: var(--radius-pill);
   --font-sans: var(--font-body);
   --font-serif: var(--font-display);
@@ -122,42 +145,57 @@
 }
 
 [data-theme="dark"] {
-  /* Inverted neutrals for dark mode */
-  --neutral-0:   #1A1815;
-  --neutral-50:  #24211D;
-  --neutral-100: #332F2A;
-  --neutral-200: #4A453E;
-  --neutral-300: #666053;
-  --neutral-400: #8A8270;
-  --neutral-500: #C4BCA3;
-  --neutral-700: #E6DFCD;
-  --neutral-900: #FBF8F1;
+  --color-bg: #14110D;
+  --color-surface: #2A2620;
+  --color-surface-sunk: #3A332B;
+  --color-border: #5A5142;
+  --color-text: #F5EFDF;
+  --color-text-dim: #B8AE93;
+  --color-accent: #E3453B;
+  --color-accent-hover: #F05A50;
+  --color-azul: #5FA8D6;
+  --color-azul-deep: #9CC8E5;
+  --color-tijolo: #E08B5A;
+  --color-verde: #6FA87E;
+  --color-verde-pale: #263A2C;
+  --color-ouro: #EFC261;
+  --color-warning-bg: #3F351E;
 
-  /* Inverted concretista */
-  --bulcao-fg:     #FBF8F1;
-  --bulcao-bg:     #1A1815;
-  --bulcao-accent: #E05A54; /* Brighter red */
-  --bulcao-support:#6B8EC4; /* Brighter blue */
+  --neutral-0:   var(--color-bg);
+  --neutral-50:  var(--color-surface);
+  --neutral-100: var(--color-surface-sunk);
+  --neutral-200: var(--color-border);
+  --neutral-300: #776D5B;
+  --neutral-400: #948A73;
+  --neutral-500: var(--color-text-dim);
+  --neutral-700: #D8CFB9;
+  --neutral-900: var(--color-text);
+
+  --bulcao-fg:      var(--color-text);
+  --bulcao-bg:      var(--color-bg);
+  --bulcao-accent:  var(--color-accent);
+  --bulcao-support: var(--color-azul);
 
   --color-base-100:     var(--bulcao-bg);
   --color-base-200:     var(--neutral-100);
   --color-base-300:     var(--neutral-200);
   --color-base-content: var(--neutral-900);
 
-  --color-primary:   var(--bulcao-accent);
+  --color-primary:   var(--color-accent);
   --color-secondary: var(--neutral-500);
-  --color-accent:    var(--bulcao-support);
-  --color-info:      #4EA8D3;
-  --color-success:   #4AAB6D;
-  --color-warning:   #F0CC6A;
-  --color-error:     #E05A54;
-  --color-danger:    #E05A54;
+  --color-info:      var(--color-azul);
+  --color-success:   var(--color-verde);
+  --color-warning:   var(--color-ouro);
+  --color-error:     var(--color-accent);
+  --color-danger:    var(--color-accent);
 
-  --shadow-sm:          2px 2px 0 var(--neutral-700);
-  --shadow-md:          4px 4px 0 var(--neutral-700);
-  --shadow-glow:        2px 2px 0 var(--bulcao-support);
-  --shadow-glow-strong: 4px 4px 0 var(--bulcao-support);
-  --shadow-glow-error:  2px 2px 0 var(--bulcao-accent);
+  --shadow-pool:    0 24px 48px -16px color-mix(in srgb, #000 42%, transparent);
+  --shadow-pool-sm: 0 6px 12px -4px color-mix(in srgb, #000 34%, transparent);
+  --shadow-sm:          var(--shadow-pool-sm);
+  --shadow-md:          var(--shadow-pool);
+  --shadow-glow:        0 0 0 3px color-mix(in srgb, var(--color-azul) 24%, transparent);
+  --shadow-glow-strong: 0 0 0 4px color-mix(in srgb, var(--color-azul) 34%, transparent);
+  --shadow-glow-error:  0 0 0 3px color-mix(in srgb, var(--color-accent) 24%, transparent);
 
   --shimmer-gradient: linear-gradient(90deg,
       rgba(255,255,255,0.04) 0%,
@@ -172,8 +210,10 @@
 html { scroll-behavior: smooth; }
 body {
   font-family: var(--font-body);
-  background: var(--neutral-0);
-  color: var(--neutral-900);
+  background:
+    radial-gradient(1200px 700px at 100% -10%, color-mix(in srgb, var(--color-azul) 9%, transparent), transparent 60%),
+    var(--color-bg);
+  color: var(--color-text);
   font-size: var(--text-base);
   line-height: 1.6;
   font-weight: 400;
@@ -187,9 +227,9 @@ hr { border: 0; border-top: 1px solid var(--neutral-200); margin: 0; }
 ::selection { background: var(--bulcao-accent); color: var(--bulcao-bg); }
 
 *:focus-visible {
-  outline: 2px solid transparent;
+  outline: 2px solid var(--color-azul);
   outline-offset: 2px;
-  box-shadow: 4px 4px 0 var(--color-primary);
+  box-shadow: var(--shadow-glow);
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -214,6 +254,113 @@ h3 { font-size: var(--text-xl); }
   max-width: 1280px;
   margin-inline: auto;
   padding-inline: var(--space-4);
+}
+
+.azulejo-triangulos {
+  background-color: var(--color-surface-sunk);
+  background-image:
+    linear-gradient(45deg, color-mix(in srgb, var(--color-azul) 72%, transparent) 25%, transparent 25%),
+    linear-gradient(-45deg, color-mix(in srgb, var(--color-tijolo) 70%, transparent) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, color-mix(in srgb, var(--color-ouro) 72%, transparent) 75%),
+    linear-gradient(-45deg, transparent 75%, color-mix(in srgb, var(--color-verde) 66%, transparent) 75%);
+  background-position: 0 0, 0 24px, 24px -24px, -24px 0;
+  background-size: 48px 48px;
+}
+
+.azulejo-meias-luas {
+  background-color: var(--color-surface-sunk);
+  background-image:
+    radial-gradient(circle at 0 50%, color-mix(in srgb, var(--color-azul) 42%, transparent) 0 15px, transparent 16px),
+    radial-gradient(circle at 100% 50%, color-mix(in srgb, var(--color-tijolo) 34%, transparent) 0 15px, transparent 16px);
+  background-size: 32px 32px;
+}
+
+.azulejo-faixas {
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--color-accent) 0 18px,
+    var(--color-ouro) 18px 26px,
+    var(--color-azul) 26px 44px,
+    var(--color-tijolo) 44px 52px
+  );
+}
+
+.azulejo-xadrez-bulcao {
+  background-color: var(--color-surface);
+  background-image: conic-gradient(
+    from 45deg,
+    color-mix(in srgb, var(--color-azul) 16%, transparent) 0 25%,
+    color-mix(in srgb, var(--color-verde) 13%, transparent) 0 50%,
+    transparent 0 75%,
+    color-mix(in srgb, var(--color-tijolo) 14%, transparent) 0
+  );
+  background-size: 40px 40px;
+}
+
+.azulejo-grade {
+  background-color: var(--color-surface);
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--color-text) 7%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--color-text) 7%, transparent) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+.hero-title {
+  font-family: var(--font-display);
+  font-size: clamp(4rem, 9vw, 8.5rem);
+  font-weight: 300;
+  line-height: 0.95;
+  letter-spacing: 0;
+  font-variation-settings: "SOFT" 30, "opsz" 144;
+}
+
+.hero-eyebrow,
+.section-kicker {
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.section-title {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4vw, 3.5rem);
+  font-weight: 400;
+  line-height: 1.05;
+  letter-spacing: 0;
+}
+
+.body-lede {
+  font-family: var(--font-display);
+  font-size: 1.1875rem;
+  line-height: 1.6;
+  letter-spacing: 0;
+}
+
+.bossa-pill {
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-pool-sm);
+  transition: transform var(--duration-bossa) var(--ease-curva), box-shadow var(--duration-bossa) var(--ease-curva), background var(--duration-snap) var(--ease);
+}
+
+.bossa-pill:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-pool);
+}
+
+.section-divider {
+  height: 6px;
+  border: 0;
+  margin: var(--space-7) 0;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--color-accent) 0 28px,
+    var(--color-ouro) 28px 40px,
+    var(--color-azul) 40px 68px,
+    var(--color-tijolo) 68px 80px
+  );
 }
 
 .page-deck {
@@ -267,9 +414,23 @@ h3 { font-size: var(--text-xl); }
   }
 
   .cg-pulse,
-  .skeleton {
+  .skeleton,
+  .azulejo-triangulos,
+  .azulejo-meias-luas,
+  .azulejo-xadrez-bulcao,
+  .azulejo-grade {
     animation: none !important;
     background-image: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .azulejo-triangulos,
+  .azulejo-meias-luas,
+  .azulejo-xadrez-bulcao,
+  .azulejo-grade {
+    background-image: none;
+    background-color: var(--color-surface-sunk);
   }
 }
 
@@ -315,48 +476,50 @@ h3 { font-size: var(--text-xl); }
   border: none; cursor: pointer;
   transition: all var(--duration-fast) var(--ease);
   letter-spacing: 0.02em;
-  border-radius: var(--radius-0);
+  border-radius: var(--radius-sm);
   text-decoration: none;
   white-space: nowrap;
   line-height: 1.4;
 }
-.btn:hover  { transform: translate(-1px,-1px); box-shadow: 3px 3px 0 var(--bulcao-fg); }
-.btn:active { transform: translate(1px,1px); box-shadow: none; }
+.btn:hover  { transform: translateY(-2px); box-shadow: var(--shadow-pool-sm); }
+.btn:active { transform: translateY(0); box-shadow: none; }
 
 .btn-primary {
-  background: var(--bulcao-fg);
-  color: var(--bulcao-bg);
-  box-shadow: 2px 2px 0 var(--bulcao-fg);
+  background: var(--color-accent);
+  color: var(--color-bg);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-pool-sm);
 }
 .btn-primary:hover {
-  background: var(--bulcao-accent);
-  box-shadow: 3px 3px 0 var(--bulcao-accent);
+  background: var(--color-accent-hover);
+  box-shadow: var(--shadow-pool);
 }
 
 .btn-secondary {
   background: transparent;
-  color: var(--bulcao-fg);
-  border: 1px solid var(--bulcao-fg);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
   box-shadow: none;
 }
 .btn-secondary:hover {
-  background: var(--bulcao-fg);
-  color: var(--bulcao-bg);
+  background: color-mix(in srgb, var(--color-azul) 12%, transparent);
+  color: var(--color-text);
+  border-color: var(--color-azul);
   box-shadow: none;
-  transform: none;
 }
 
 .btn-outline {
   background: transparent;
-  color: var(--bulcao-support);
-  border: 1px solid var(--bulcao-support);
+  color: var(--color-azul);
+  border: 1px solid var(--color-azul);
+  border-radius: var(--radius-pill);
   box-shadow: none;
 }
 .btn-outline:hover {
-  background: var(--bulcao-support);
-  color: var(--bulcao-bg);
+  background: var(--color-azul);
+  color: var(--color-bg);
   box-shadow: none;
-  transform: none;
 }
 
 /* Size variants */
@@ -367,17 +530,17 @@ h3 { font-size: var(--text-xl); }
    CARD (MODERNIST)
    ============================================================ */
 .card {
-  background: var(--neutral-0);
-  border: 1px solid var(--neutral-100);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
   padding: var(--space-4);
   border-radius: var(--radius-0);
   display: flex; flex-direction: column; gap: var(--space-2);
   transition: all var(--duration-fast) var(--ease);
 }
 .card:hover {
-  border-color: var(--bulcao-accent);
-  transform: translate(-2px,-2px);
-  box-shadow: 4px 4px 0 var(--bulcao-accent);
+  border-color: var(--color-azul);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-pool-sm);
 }
 
 .card-modernist {

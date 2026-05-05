@@ -6,7 +6,7 @@
 // to fan out across the common modalities and merge the results. The callers
 // used to omit every required parameter and silently 400'd — see PR #355.
 
-import { parsePncpPublicacaoList, type PNCPContract } from './pncp';
+import { parsePncpPublicacaoList, parsePncpPublicacaoPage, type PNCPContract } from './pncp';
 
 // Covers ~95% of municipal procurement by document count:
 // 4 Concorrência Eletrônica, 5 Concorrência Presencial, 6 Pregão Eletrônico,
@@ -15,15 +15,23 @@ export const DEFAULT_MODALIDADES = [4, 5, 6, 8, 9, 12] as const;
 export const DEFAULT_SINCE_DAYS = 90;
 const PUBLICACAO_URL = 'https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao';
 
+// Map from PNCP swagger field names to their values. The two convenience
+// entries below are typed for autocomplete in long-standing callers
+// (LocalBids); the open index signature lets the BuscaView registry
+// forward any other parameter PNCP accepts without requiring a structural
+// change here. See lib/searchFilters.ts for the canonical list of filters
+// the UI exposes.
 export interface PublicacaoFilters {
   /** Órgão CNPJ (14 digits). Sent as `cnpj=…` (swagger name), NOT `cnpjOrgao`. */
   cnpj?: string;
   /** 7-digit IBGE município code. */
   codigoMunicipioIbge?: string;
+  [k: string]: string | undefined;
 }
 
 export interface PublicacaoOpts {
   sinceDays?: number;
+  dateWindow?: 'rolling' | 'current-month';
   /** Shift the query window end date backwards (e.g. 1 = yesterday). */
   endDaysAgo?: number;
   /**
@@ -35,6 +43,8 @@ export interface PublicacaoOpts {
   modalidades?: readonly number[];
   /** Injectable for tests / SSR. Defaults to `new Date()`. */
   now?: Date;
+  /** Per-modality network timeout. One slow PNCP modality must not freeze the view. */
+  timeoutMs?: number;
 }
 
 function yyyymmdd(d: Date): string {
@@ -47,20 +57,32 @@ function yyyymmdd(d: Date): string {
 function buildUrl(
   filters: PublicacaoFilters,
   modalidade: number,
+  pagina: number,
   dataInicial: string,
   dataFinal: string,
   tamanhoPagina: number,
 ): string {
-  const params = new URLSearchParams({
+  const paramObj: Record<string, string> = {
     dataInicial,
     dataFinal,
     codigoModalidadeContratacao: String(modalidade),
-    pagina: '1',
+    pagina: String(pagina),
     tamanhoPagina: String(tamanhoPagina),
-  });
-  if (filters.cnpj) params.set('cnpj', filters.cnpj);
-  if (filters.codigoMunicipioIbge) params.set('codigoMunicipioIbge', filters.codigoMunicipioIbge);
-  return `${PUBLICACAO_URL}?${params.toString()}`;
+  };
+  for (const [k, v] of Object.entries(filters)) {
+    if (v) paramObj[k] = v;
+  }
+  return `${PUBLICACAO_URL}?${new URLSearchParams(paramObj).toString()}`;
+}
+
+async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // Fan out across modalities with Promise.allSettled so one 500 doesn't kill the
@@ -73,25 +95,50 @@ export async function fetchPublicacaoList(
 ): Promise<PNCPContract[]> {
   const {
     sinceDays = DEFAULT_SINCE_DAYS,
+    dateWindow = 'rolling',
     endDaysAgo = 0,
     tamanhoPagina = 10,
     modalidades = DEFAULT_MODALIDADES,
     now = new Date(),
+    timeoutMs = 10_000,
   } = opts;
   const clamped = Math.max(10, Math.min(50, tamanhoPagina));
   const end = new Date(now);
   end.setUTCDate(end.getUTCDate() - Math.max(0, endDaysAgo));
   const start = new Date(end);
-  start.setUTCDate(start.getUTCDate() - sinceDays);
+  if (dateWindow === 'current-month') {
+    start.setUTCDate(1);
+  } else {
+    start.setUTCDate(start.getUTCDate() - sinceDays);
+  }
   const dataInicial = yyyymmdd(start);
   const dataFinal = yyyymmdd(end);
 
   const settled = await Promise.allSettled(
     modalidades.map(async (modalidade) => {
-      const url = buildUrl(filters, modalidade, dataInicial, dataFinal, clamped);
-      const res = await fetch(url);
+      const url = buildUrl(filters, modalidade, 1, dataInicial, dataFinal, clamped);
+      const res = await fetchWithTimeout(url, timeoutMs);
       if (!res.ok) throw new Error(`PNCP publicacao returned ${res.status} for modalidade ${modalidade}`);
-      return parsePncpPublicacaoList(await res.json());
+      
+      const page1 = parsePncpPublicacaoPage(await res.json());
+      if (page1.totalPaginas <= 1) {
+        return page1.data;
+      }
+
+      // PNCP API returns oldest first. To get the newest, we must fetch the last page.
+      const lastUrl = buildUrl(filters, modalidade, page1.totalPaginas, dataInicial, dataFinal, clamped);
+      try {
+        const lastRes = await fetchWithTimeout(lastUrl, timeoutMs);
+        if (lastRes.ok) {
+          const lastPage = parsePncpPublicacaoPage(await lastRes.json());
+          // Combine both pages; the final sort and slice will keep the actual newest ones.
+          return [...page1.data, ...lastPage.data];
+        }
+      } catch (err) {
+        // If the second call fails, gracefully fallback to whatever we got on page 1
+        console.warn(`[pncp] Failed to fetch last page for modalidade ${modalidade}`, err);
+      }
+      return page1.data;
     }),
   );
 
@@ -124,21 +171,6 @@ export async function fetchPublicacaoList(
 export const MAX_DISPENSA_PAGES = 5;
 const DISPENSA_SINCE_DAYS = 365;
 
-function buildPageUrl(
-  modalidade: number,
-  pagina: number,
-  dataInicial: string,
-  dataFinal: string,
-): string {
-  const params = new URLSearchParams({
-    dataInicial,
-    dataFinal,
-    codigoModalidadeContratacao: String(modalidade),
-    pagina: String(pagina),
-    tamanhoPagina: '50',
-  });
-  return `${PUBLICACAO_URL}?${params.toString()}`;
-}
 
 // Free-text search across the DEFAULT_MODALIDADES (covers ~95% of municipal
 // procurement). PNCP has no server-side `objeto` filter, so we paginate each
@@ -155,10 +187,13 @@ export async function fetchPublicacaoPagesForObjeto(
     sinceDays?: number;
     modalidades?: readonly number[];
     now?: Date;
+    filters?: PublicacaoFilters;
   } = {},
 ): Promise<PNCPContract[]> {
   const term = objeto.trim().toLowerCase();
-  if (!term) return [];
+  const termWords = term.split(/\s+/).filter((w) => w.length > 0);
+  const hasFilter = !!opts.filters && Object.values(opts.filters).some((v) => !!v);
+  if (!termWords.length && !hasFilter) return [];
   const {
     maxPages = MAX_BUSCA_PAGES,
     sinceDays = BUSCA_SINCE_DAYS,
@@ -177,7 +212,7 @@ export async function fetchPublicacaoPagesForObjeto(
     for (let pagina = 1; pagina <= maxPages; pagina++) {
       fetches.push(
         (async () => {
-          const res = await fetch(buildPageUrl(modalidade, pagina, dataInicial, dataFinal));
+          const res = await fetchWithTimeout(buildUrl(opts.filters || {}, modalidade, pagina, dataInicial, dataFinal, 50), 10_000);
           if (!res.ok) {
             throw new Error(
               `PNCP publicacao returned ${res.status} for modalidade ${modalidade} page ${pagina}`,
@@ -189,8 +224,6 @@ export async function fetchPublicacaoPagesForObjeto(
     }
   }
 
-  // allSettled so one modality/page failure doesn't nuke the whole search;
-  // only rethrow if every request failed so the caller sees a clean error.
   const settled = await Promise.allSettled(fetches);
   const ok = settled.filter(
     (r): r is PromiseFulfilledResult<PNCPContract[]> => r.status === 'fulfilled',
@@ -202,8 +235,10 @@ export async function fetchPublicacaoPagesForObjeto(
   const collected = new Map<string, PNCPContract>();
   for (const r of ok) {
     for (const c of r.value) {
-      const objetoLower = (c.objetoContratacao ?? '').toLowerCase();
-      if (!objetoLower.includes(term)) continue;
+      if (termWords.length > 0) {
+        const objetoLower = (c.objetoContratacao ?? '').toLowerCase();
+        if (!termWords.every((w) => objetoLower.includes(w))) continue;
+      }
       if (c.numeroControlePNCP && !collected.has(c.numeroControlePNCP)) {
         collected.set(c.numeroControlePNCP, c);
       }
@@ -218,10 +253,11 @@ export async function fetchPublicacaoPagesForObjeto(
 
 export async function fetchDispensaPagesForObjeto(
   objeto: string,
-  opts: { maxPages?: number; sinceDays?: number; now?: Date } = {},
+  opts: { maxPages?: number; sinceDays?: number; now?: Date; filters?: PublicacaoFilters } = {},
 ): Promise<PNCPContract[]> {
   const term = objeto.trim().toLowerCase();
-  if (!term) return [];
+  const termWords = term.split(/\s+/).filter((w) => w.length > 0);
+  if (!termWords.length && !opts.filters?.cnpj && !opts.filters?.codigoMunicipioIbge) return [];
   const { maxPages = MAX_DISPENSA_PAGES, sinceDays = DISPENSA_SINCE_DAYS, now = new Date() } = opts;
 
   const end = new Date(now);
@@ -232,7 +268,7 @@ export async function fetchDispensaPagesForObjeto(
 
   const collected = new Map<string, PNCPContract>();
   for (let pagina = 1; pagina <= maxPages; pagina++) {
-    const res = await fetch(buildPageUrl(8, pagina, dataInicial, dataFinal));
+    const res = await fetchWithTimeout(buildUrl(opts.filters || {}, 8, pagina, dataInicial, dataFinal, 50), 10_000);
     if (!res.ok) {
       // Surface a real error instead of silently returning a partial result —
       // an empty list would render "Nenhuma base legal encontrada" and mask
@@ -242,8 +278,10 @@ export async function fetchDispensaPagesForObjeto(
     const page = parsePncpPublicacaoList(await res.json());
     if (!page.length) break;
     for (const c of page) {
-      const objetoLower = (c.objetoContratacao ?? '').toLowerCase();
-      if (!objetoLower.includes(term)) continue;
+      if (termWords.length > 0) {
+        const objetoLower = (c.objetoContratacao ?? '').toLowerCase();
+        if (!termWords.every((w) => objetoLower.includes(w))) continue;
+      }
       if (c.numeroControlePNCP && !collected.has(c.numeroControlePNCP)) {
         collected.set(c.numeroControlePNCP, c);
       }

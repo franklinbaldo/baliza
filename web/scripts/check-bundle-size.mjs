@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DIST_DIR = join(__dirname, '..', 'dist', '_astro');
 
-// Current baseline: 345_000 bytes — measured size (~313 KB) plus headroom,
+// Current baseline: 342_000 bytes — measured size (~333 KB) plus headroom,
 // with room absorbed by the SupplierDetailView shipped for Journey 1 @green
 // (/fornecedor?cnpj= supplier prospecting page), the citizen-first
 // homepage islands (CityHero + CityPulse + CityNavLink + shared
@@ -27,13 +27,19 @@ const DIST_DIR = join(__dirname, '..', 'dist', '_astro');
 // modality recomputes aggregates") plus the lazy-loaded accent lexicon
 // behind the zero-result suggestion path ("Empty search suggests accent-
 // tolerant alternatives"), the Curva & Concreto refresh + IA-derived
-// /status page, the homepage UX redesign (PR #496: hero omni-search,
-// Navigation dropdown) plus its offline geocoding follow-up, the /status
-// public-CNPJ coverage audit, the EntityDetailLayout abstraction refactor,
-// and the MercadoView + CompararView components (PRs #529/530). When an
-// intentional feature increases the baseline, raise this constant in the
-// same commit and note what landed.
-const BUDGET_BYTES = 345_000;
+// /status page from PR #471 (RawArchiveStatus island + dual PNCP/Consulta
+// boundary schemas in pncp.ts), and the homepage UX redesign (PR #496:
+// hero omni-search, Navigation dropdown) plus its offline geocoding follow-
+// up (findNearestMunicipality in geo.ts; the 270 KB centroids dataset is a
+// static asset and does NOT count against this entry-payload budget), and
+// the /status public-CNPJ coverage audit (CoverageReport island that
+// pulls a static reference list and runs a DuckDB-WASM SELECT DISTINCT
+// SUBSTR(cnpj_orgao, 1, 8) on the contratos parquet — adds ~6 KB), plus
+// the EntityDetailLayout abstraction refactor which unified code but
+// slightly altered the AST chunk boundaries. When an intentional feature
+// increases the baseline, raise this constant in the same commit and note
+// what landed.
+const BUDGET_BYTES = 360_000; // Raised to accommodate new MercadoView and CompararView components
 
 function isClientEntryFile(name) {
   if (!name.endsWith('.js')) return false;

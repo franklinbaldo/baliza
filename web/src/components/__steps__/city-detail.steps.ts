@@ -5,6 +5,19 @@ import { tick } from 'svelte';
 import { render } from './shared';
 import CityDetailViewRaw from '../CityDetailView.svelte';
 
+// CityDetailView calls findMunicipalityByIbge() to enrich the title with a
+// canonical {nome, uf}. In the test env we don't want the lookup to hit the
+// real centroids dataset (the global.fetch mock returns PNCP shapes for
+// every URL), so we stub it to null and let the fallback chain pick the
+// values out of the contract payload.
+vi.mock('../../lib/geo', async () => {
+  const actual = await vi.importActual<typeof import('../../lib/geo')>('../../lib/geo');
+  return {
+    ...actual,
+    findMunicipalityByIbge: vi.fn().mockResolvedValue(null),
+  };
+});
+
 const CityDetailView = CityDetailViewRaw as unknown as Parameters<typeof render>[0];
 const feature = await loadFeature('features/city-detail.feature');
 
@@ -126,7 +139,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       const makeContract = (id: string) => ({
         numeroControlePNCP: id,
         dataPublicacaoPncp: '2025-01-15T00:00:00',
-        objetoContratacao: 'Teste fan-out',
+        objetoCompra: 'Teste fan-out',
         valorTotalEstimado: 100,
         orgaoEntidade: { razaoSocial: 'Órgão', cnpj: '99999999999999' },
         unidadeOrgao: { nomeUnidade: 'Unidade' },
@@ -214,7 +227,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
               {
                 numeroControlePNCP: '99999999999999-1-000001/2024',
                 dataPublicacaoPncp: '2025-01-15T00:00:00',
-                objetoContratacao: 'Teste',
+                objetoCompra: 'Teste',
                 valorTotalEstimado: 500,
                 orgaoEntidade: { razaoSocial: 'Órgão', cnpj: '99999999999999' },
                 unidadeOrgao: { nomeUnidade: 'Unidade' },
@@ -243,7 +256,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     });
   });
 
-  Scenario('City query uses yesterday-only publication window', ({ Given, And, When, Then }) => {
+  Scenario('City query uses a 30-day publication window ending today', ({ Given, And, When, Then }) => {
     Given('the URL has ibge "1721000"', () => {
       setUrlQuery('ibge=1721000');
     });
@@ -259,7 +272,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       await tick();
     });
 
-    Then('every PNCP consulta URL should span 1 day between dataInicial and dataFinal', async () => {
+    Then('every PNCP consulta URL should span 30 days between dataInicial and dataFinal', async () => {
       await waitFor(
         () => {
           const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
@@ -269,20 +282,19 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
             const ini = /dataInicial=(\d{8})/.exec(url)?.[1];
             const fim = /dataFinal=(\d{8})/.exec(url)?.[1];
             expect(ini && fim).toBeTruthy();
-            expect(daysBetweenYyyymmdd(ini as string, fim as string)).toBe(1);
+            expect(daysBetweenYyyymmdd(ini as string, fim as string)).toBe(30);
           }
         },
         { timeout: 2000 },
       );
     });
 
-    And('every PNCP consulta URL should set dataFinal to yesterday', async () => {
+    And('every PNCP consulta URL should set dataFinal to today', async () => {
       await waitFor(
         () => {
           const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
           expect(fetchMock.mock.calls.length).toBeGreaterThan(0);
           const now = new Date();
-          now.setUTCDate(now.getUTCDate() - 1);
           const expected = [
             now.getUTCFullYear(),
             String(now.getUTCMonth() + 1).padStart(2, '0'),

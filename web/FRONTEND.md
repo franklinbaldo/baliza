@@ -91,3 +91,65 @@ When any consulta read fails, detail views fall back to the latest Internet
 Archive Parquet snapshot via `queryParquetFallback()`. Column identifiers are
 validated against `^[A-Za-z_][A-Za-z0-9_]*$` and every literal is escaped with
 the `'` → `''` pattern before it is embedded in the SQL string.
+
+---
+
+## Search filter registry
+
+The `/busca` page accepts filters declared in a single registry at
+`web/src/lib/searchFilters.ts`. Adding one is one entry; everything else
+(URL parsing, drawer rendering, API param translation, cache key) walks
+the registry reflectively, so no other file needs to change.
+
+### `FilterDef` contract
+
+```ts
+{
+  key: string;          // canonical name; URL param + state-dict key
+  apiParam: string;     // PNCP swagger field name
+  normalise: (raw: string) => string | null;
+  aliases: string[];    // omni-search inline tags (e.g. "ibge:1100205")
+  label: string;        // shown in the "Filtros Avançados" drawer
+  placeholder: string;  // shown in the same drawer input
+}
+```
+
+Conventions:
+
+- `key` MUST NOT collide with any URL param `cityContext.svelte.ts` reads
+  — notably `ibge`, `uf`, `cidade`. The PNCP `uf` filter is registered
+  under `ufFiltro` for that reason; the user still types `uf:RJ` (alias)
+  and PNCP still receives `uf=RJ` (apiParam), only the URL is namespaced.
+- `apiParam` is what the wire format expects. Often equals `key`, but
+  PNCP uses verbose names (`codigoMunicipioIbge`, `codigoModoDisputa`).
+- `normalise` validates **and** canonicalises. Return `null` to drop a
+  malformed value silently rather than send a request that PNCP would
+  400 on (or, worse, return a misleading result set).
+- `aliases` always include the canonical key plus any ergonomic synonym
+  (e.g. `estado` for `uf`).
+
+### Adding a filter
+
+1. Confirm PNCP accepts it: pull
+   `https://pncp.gov.br/api/consulta/v3/api-docs` and inspect the
+   `GET /v1/contratacoes/publicacao` parameters. Skip filters that have
+   no public discovery path — e.g. `idUsuario` is an internal PNCP user
+   ID that no payload exposes, so a citizen has nothing to type into it.
+2. Add an entry under `FILTERS` keyed by the canonical name. The outer
+   object key and the inner `key` field MUST match — the reflective
+   lookups iterate one and read the other.
+3. Run `npm run lint && npm run check:full && npm run test`. If
+   `BuscaView.svelte` or `pncpPublicacao.ts` need a touch, that's a sign
+   the abstraction is leaking and the change deserves a re-think
+   instead of a workaround.
+4. Update the table below in the same commit.
+
+### Currently registered
+
+| Canonical key | API param | Aliases | Validation |
+|---|---|---|---|
+| `ibge`     | `codigoMunicipioIbge`         | `ibge`, `municipio` | 7 digits |
+| `cnpj`     | `cnpj`                        | `cnpj`, `orgao`     | 14 digits |
+| `ufFiltro` | `uf`                          | `uf`, `estado`      | 2 uppercase letters |
+| `modo`     | `codigoModoDisputa`           | `modo`, `disputa`   | 1-2 digit integer (PNCP codes 1 Aberto, 2 Fechado, 3 Aberto-Fechado, 5 Fechado-Aberto) |
+| `unidade`  | `codigoUnidadeAdministrativa` | `unidade`           | alphanumeric ≤32 chars |

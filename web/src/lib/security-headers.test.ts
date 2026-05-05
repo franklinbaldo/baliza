@@ -101,6 +101,9 @@ describe('connect-src covers every external origin the client code contacts', ()
     'franklinbaldo.github.io',
     'astro.build',
     'github.io',
+    // Reference URL in searchFilters.ts comments — PNCP API manual,
+    // never fetched at runtime.
+    'www.gov.br',
   ]);
 
   for (const host of foundHosts) {

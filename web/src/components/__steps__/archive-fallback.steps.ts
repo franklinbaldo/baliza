@@ -45,10 +45,10 @@ vi.mock('../../lib/duckdb', () => ({
 // makes prefetchArchive measurable — the second call hits the cache).
 
 const PARQUET_URL_BY_TABLE: Record<string, string> = {
-  contratos: 'https://archive.org/download/baliza-pncp-manifest/contratos.parquet',
-  orgaos: 'https://archive.org/download/baliza-pncp-manifest/orgaos.parquet',
-  unidades: 'https://archive.org/download/baliza-pncp-manifest/unidades.parquet',
-  fornecedores: 'https://archive.org/download/baliza-pncp-manifest/fornecedores.parquet',
+  contratos: 'https://archive.org/cors/baliza-pncp-manifest/contratos.parquet',
+  orgaos: 'https://archive.org/cors/baliza-pncp-manifest/orgaos.parquet',
+  unidades: 'https://archive.org/cors/baliza-pncp-manifest/unidades.parquet',
+  fornecedores: 'https://archive.org/cors/baliza-pncp-manifest/fornecedores.parquet',
 };
 
 function manifestCsvAllTables(): string {
@@ -397,6 +397,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       expect(manifestResult).toEqual({
         url: PARQUET_URL_BY_TABLE.contratos,
         dataParticao: '2024-12-02',
+        sha256: undefined,
       });
     });
     And(

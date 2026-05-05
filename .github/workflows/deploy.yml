@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -41,9 +41,17 @@ jobs:
           npm run check:full
         working-directory: web
 
+      - name: Validate PNCP boundary contracts
+        run: npm run test:contracts
+        working-directory: web
+
       - name: Run Tests
         run: npm run test
         working-directory: web
+
+      - name: Use manifest fixture for PR builds
+        if: github.event_name == 'pull_request'
+        run: echo "BALIZA_MANIFEST_FIXTURE=${{ github.workspace }}/web/fixtures/manifest.csv" >> $GITHUB_ENV
 
       - name: Build Portal
         run: npm run build
@@ -51,7 +59,7 @@ jobs:
 
       - name: Upload artifact
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: web/dist
 

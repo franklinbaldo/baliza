@@ -1,6 +1,9 @@
 import {
   archiveErrorMessage,
+  queryArchivedTableWhere,
   queryParquetFallback,
+  type ArchiveResult,
+  type ArchiveWhereFilter,
 } from './parquetFallback';
 import type { ArchivedContrato } from './archive/schema';
 
@@ -9,6 +12,14 @@ export interface ListQueryArchiveConfig {
   value: string;
   limit?: number;
   orderByColumn?: string;
+  /**
+   * Additional WHERE clauses applied at the SQL level — useful when the live
+   * call narrows by something the simple `column = value` filter cannot
+   * express (e.g. a modalidade scope). Pushing the filter into SQL avoids
+   * the trap of post-filtering an already-LIMITed result set, which would
+   * silently drop matches sitting just past the limit boundary.
+   */
+  extraFilters?: ArchiveWhereFilter[];
 }
 
 export interface ListQueryConfig<TData, TRow = ArchivedContrato> {
@@ -19,7 +30,7 @@ export interface ListQueryConfig<TData, TRow = ArchivedContrato> {
   buildFromArchive: (result: {
     rows: TRow[];
     dataParticao: string | null;
-  }) => TData;
+  }) => TData | Promise<TData>;
 }
 
 // List-shaped counterpart to createDetailQuery. When the live call throws we
@@ -40,16 +51,33 @@ export function createListQuery<TData, TRow = ArchivedContrato>(
       try {
         return await config.fetchLive();
       } catch (pncpErr) {
-        const archived = await queryParquetFallback<TRow>(
-          config.archive.column,
-          config.archive.value,
-          config.archive.limit,
-          config.archive.orderByColumn,
-        );
+        const archived: ArchiveResult<TRow> =
+          config.archive.extraFilters && config.archive.extraFilters.length > 0
+            ? ((await queryArchivedTableWhere(
+                'contratos',
+                [
+                  {
+                    column: config.archive.column,
+                    op: 'eq',
+                    value: config.archive.value,
+                  },
+                  ...config.archive.extraFilters,
+                ],
+                {
+                  limit: config.archive.limit,
+                  orderByColumn: config.archive.orderByColumn,
+                },
+              )) as ArchiveResult<TRow>)
+            : await queryParquetFallback<TRow>(
+                config.archive.column,
+                config.archive.value,
+                config.archive.limit,
+                config.archive.orderByColumn,
+              );
         if (!archived.ok) {
           throw new Error(archiveErrorMessage(archived.reason), { cause: pncpErr });
         }
-        return config.buildFromArchive({
+        return await config.buildFromArchive({
           rows: archived.rows,
           dataParticao: archived.dataParticao,
         });
