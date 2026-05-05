@@ -21,13 +21,13 @@ Feature: Journey 7 — Auditor and watchdog
     Then a watch entry is persisted in localStorage
     And the watch appears in the user's "Minhas vigilâncias" list
 
-  @planned @rss
+  @green @rss
   Scenario: Curated RSS feed on Internet Archive publishes new matches
-    # Planned: the daily PNCP sync (pncp-sync.yml → ia_uploader) does not
-    # yet emit feed-{slug}.xml alongside the monthly parquet. Feeds are for
-    # curated public watches pre-configured in the repo (seeded from
-    # web/src/lib/homepage-content.ts:FEATURED_QUERIES), not arbitrary
-    # user queries — that keeps the architecture static-only.
+    # Implemented: src/baliza/rss_feed.py builds RSS 2.0 XML from a list of
+    # contract rows and IAUploader.upload_feeds emits feed-{slug}.xml to
+    # baliza-pncp-feeds for each entry in CURATED_WATCHES (mirrored by
+    # FEATURED_QUERIES in web/src/lib/homepage-content.ts). The scenario
+    # asserts the published shape via a mocked fetch + DOMParser.
     Given a curated watch "dispensas-acima-1mi" is configured in the repo
     When the user opens "https://archive.org/download/baliza-pncp-feeds/feed-dispensas-acima-1mi.xml"
     Then the response is a valid RSS 2.0 document

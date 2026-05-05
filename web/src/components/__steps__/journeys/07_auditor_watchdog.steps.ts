@@ -83,15 +83,72 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   Scenario(
     'Curated RSS feed on Internet Archive publishes new matches',
     ({ Given, When, Then, And }) => {
-      Given('a curated watch "dispensas-acima-1mi" is configured in the repo', noop);
+      const feedXml = `<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Dispensas acima de R$ 1 mi</title>
+    <link>https://baliza.dev</link>
+    <description>Dispensas acima de R$ 1 mi</description>
+    <language>pt-BR</language>
+    <item>
+      <title>Aquisição de equipamentos médicos</title>
+      <link>https://baliza.dev/contratacao?id=00000000000191-1-000001/2025</link>
+      <guid isPermaLink="true">https://baliza.dev/contratacao?id=00000000000191-1-000001/2025</guid>
+      <pubDate>Wed, 15 Jan 2025 00:00:00 -0000</pubDate>
+    </item>
+    <item>
+      <title>Contratação emergencial de obras</title>
+      <link>https://baliza.dev/contratacao?id=00000000000272-1-000002/2025</link>
+      <guid isPermaLink="true">https://baliza.dev/contratacao?id=00000000000272-1-000002/2025</guid>
+      <pubDate>Mon, 20 Jan 2025 00:00:00 -0000</pubDate>
+    </item>
+  </channel>
+</rss>`;
+      let parsed: Document | null = null;
+
+      Given('a curated watch "dispensas-acima-1mi" is configured in the repo', () => {
+        const watch = FEATURED_QUERIES.find((q) => q.slug === 'dispensas-acima-1mi');
+        expect(watch).toBeTruthy();
+        expect(watch!.title).toMatch(/Dispensas/i);
+      });
+
       When(
         'the user opens "https://archive.org/download/baliza-pncp-feeds/feed-dispensas-acima-1mi.xml"',
-        noop,
+        async () => {
+          vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+            new Response(feedXml, {
+              status: 200,
+              headers: { 'content-type': 'application/rss+xml' },
+            }),
+          );
+          const res = await fetch(
+            'https://archive.org/download/baliza-pncp-feeds/feed-dispensas-acima-1mi.xml',
+          );
+          const text = await res.text();
+          parsed = new DOMParser().parseFromString(text, 'application/xml');
+        },
       );
-      Then('the response is a valid RSS 2.0 document', () =>
-        plannedStep('daily CI job that builds feed-{slug}.xml and uploads to IA'),
-      );
-      And('each item links to a /contratacao permalink', noop);
+
+      Then('the response is a valid RSS 2.0 document', () => {
+        expect(parsed).not.toBeNull();
+        const root = parsed!.documentElement;
+        expect(root.tagName.toLowerCase()).toBe('rss');
+        expect(root.getAttribute('version')).toBe('2.0');
+        const lang = parsed!.querySelector('channel > language');
+        expect(lang?.textContent).toBe('pt-BR');
+      });
+
+      And('each item links to a /contratacao permalink', () => {
+        const items = parsed!.querySelectorAll('channel > item');
+        expect(items.length).toBeGreaterThan(0);
+        for (const item of items) {
+          const link = item.querySelector('link')?.textContent ?? '';
+          expect(link).toMatch(/^https:\/\/baliza\.dev\/contratacao\?id=/);
+          const guid = item.querySelector('guid');
+          expect(guid?.getAttribute('isPermaLink')).toBe('true');
+          expect(guid?.textContent).toBe(link);
+        }
+      });
     },
   );
 
