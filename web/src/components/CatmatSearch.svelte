@@ -10,7 +10,7 @@
 
   $effect(() => {
     const trimmed = searchInput.trim();
-    if (trimmed.length < 3) {
+    if (trimmed.length < 2) {
       ++activeQueryId; // cancel any in-flight search so it can't repopulate stale results
       results = [];
       error = null;
