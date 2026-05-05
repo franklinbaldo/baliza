@@ -6,8 +6,7 @@ import re
 from email.utils import parsedate_to_datetime
 from xml.etree import ElementTree as ET
 
-from baliza import rss_feed
-
+from baliza import rss_feed  # noqa: I001
 
 CONTRATACAO_RE = re.compile(r"^https://baliza\.dev/contratacao\?id=")
 

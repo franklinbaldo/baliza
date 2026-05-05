@@ -599,7 +599,7 @@ class IAUploader:
                     cursor = self.engine.con.raw_sql(sql)
                     raw_rows = cursor.fetchall()
                     columns = [d[0] for d in cursor.description]
-                    rows = [dict(zip(columns, r)) for r in raw_rows]
+                    rows = [dict(zip(columns, r, strict=True)) for r in raw_rows]
                     xml = rss_feed.generate(rows, slug, title)
                     out = tmp / f"feed-{slug}.xml"
                     out.write_text(xml, encoding="utf-8")
@@ -625,7 +625,7 @@ class IAUploader:
             )
         return published
 
-    def upload_month(  # noqa: PLR0913
+    def upload_month(  # noqa: PLR0912, PLR0913
         self,
         start_date: date,
         output_dir: Path,

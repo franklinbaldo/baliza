@@ -1,5 +1,5 @@
 import { loadFeature, describeFeature } from '@amiceli/vitest-cucumber';
-import { noop, plannedStep, render, mockFetchError } from './_shared';
+import { render, mockFetchError } from './_shared';
 import { screen, fireEvent, waitFor, cleanup } from '@testing-library/svelte/pure';
 import { expect, vi } from 'vitest';
 import { tick } from 'svelte';

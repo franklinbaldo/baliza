@@ -6,9 +6,10 @@ must stay in sync until we cross the static-only architecture boundary.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import datetime
 from email.utils import format_datetime
-from typing import Any, Iterable
+from typing import Any
 from xml.etree import ElementTree as ET
 
 CHANNEL_LINK = "https://baliza.dev"
