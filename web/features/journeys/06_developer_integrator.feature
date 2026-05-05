@@ -13,7 +13,7 @@ Feature: Journey 6 — Developer integrator
     Given the user opens "/desenvolvedores"
     Then the user sees a table with one row per Parquet file, including URL, sha256 hash and snapshot date
 
-  @planned @api
+  @green @api
   Scenario: Consumption examples are shown for Python, R and JavaScript
     # Planned: examples page does not exist.
     Given the user opens "/desenvolvedores"
