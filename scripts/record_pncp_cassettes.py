@@ -128,13 +128,20 @@ def main() -> None:
         ),
     ]
 
+    failed: list[str] = []
     for name, url, params in endpoints:
         print(f"[{name}]")
         try:
             fetch_and_save(name, url, params)
         except Exception as exc:
             print(f"  ERROR: {exc}")
+            failed.append(name)
         print()
+
+    if failed:
+        print(f"FAILED to record {len(failed)} cassette(s): {failed}")
+        print("Do NOT commit — fix the errors above and re-run.")
+        raise SystemExit(1)
 
     print("Done.  Commit the files in tests/cassettes/pncp/")
 
