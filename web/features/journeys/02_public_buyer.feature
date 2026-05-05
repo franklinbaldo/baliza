@@ -36,6 +36,13 @@ Feature: Journey 2 — Public buyer
     Given the user types "papel sulfite branco A4 75g" into a catalog input
     Then the user sees the most likely CATMAT codes ranked by match confidence
 
+  @green @catmat
+  Scenario: Look up a short CATMAT code by typing its 2-digit number
+    # catmat.json has 83 codes with 1–2 digit codes (e.g. "37" AGENDA).
+    # The search threshold must be ≤ 2 so exact-code lookups are not blocked.
+    Given the user types "37" into a catalog input
+    Then the user sees the CATMAT entry for code "37"
+
   @green @frameworks
   Scenario: Inspect the legal basis cited by peers in similar exemptions
     # Covered by DispensasView at /dispensas?objeto= — paginates modality 8

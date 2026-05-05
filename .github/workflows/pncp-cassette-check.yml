@@ -5,7 +5,10 @@ name: PNCP Cassette Check
 #   2. All cassette-based integration tests pass using only the pre-recorded
 #      YAML files — no live network calls to pncp.gov.br.
 #
-# To refresh cassettes after an API schema change:
+# Weekly schedule (Mondays 06:00 UTC): re-records cassettes and opens a PR
+# if any responses changed — keeps fixtures from going silently stale.
+#
+# To refresh cassettes manually after an API schema change:
 #   uv run python scripts/record_pncp_cassettes.py
 # then commit the updated files in tests/cassettes/pncp/.
 
@@ -24,7 +27,15 @@ on:
       - 'tests/cassettes/**'
       - 'tests/integration/test_pncp_cassettes.py'
       - 'src/**'
+  schedule:
+    # Every Monday at 06:00 UTC — refresh cassettes from the live API.
+    - cron: '0 6 * * 1'
   workflow_dispatch:
+    inputs:
+      refresh_cassettes:
+        description: 'Re-record cassettes from the live PNCP API'
+        type: boolean
+        default: false
 
 jobs:
   cassette-check:
@@ -44,6 +55,34 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-groups --all-extras
 
+      - name: Refresh cassettes (scheduled / manual)
+        # Runs on the weekly cron or when refresh_cassettes=true is set.
+        # Overwrites cassette files with fresh PNCP API responses.
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.refresh_cassettes == 'true')
+        run: uv run python scripts/record_pncp_cassettes.py
+
+      - name: Open PR if cassettes changed after refresh
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.refresh_cassettes == 'true')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet tests/cassettes/; then
+            echo "Cassettes unchanged — no PR needed."
+          else
+            git config user.name  "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            BRANCH="chore/refresh-pncp-cassettes-$(date +%Y-%m-%d)"
+            git checkout -b "$BRANCH"
+            git add tests/cassettes/
+            git commit -m "chore(cassettes): refresh PNCP cassettes $(date +%Y-%m-%d)"
+            git push origin "$BRANCH"
+            gh pr create \
+              --title "chore(cassettes): refresh PNCP cassettes $(date +%Y-%m-%d)" \
+              --body "Automated weekly refresh of PNCP API cassettes. Review the diff to confirm the schema is unchanged before merging." \
+              --base main \
+              --head "$BRANCH"
+          fi
+
       - name: Verify cassette files are present
         run: |
           REQUIRED=(
@@ -51,6 +90,7 @@ jobs:
             tests/cassettes/pncp/publicacao_pregao_page1.yaml
             tests/cassettes/pncp/publicacao_dispensa_page1.yaml
             tests/cassettes/pncp/publicacao_inexigibilidade_page1.yaml
+            tests/cassettes/pncp/publicacao_municipio_pregao_page1.yaml
           )
           missing=()
           for f in "${REQUIRED[@]}"; do

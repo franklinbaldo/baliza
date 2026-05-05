@@ -220,6 +220,33 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     });
   });
 
+  Scenario('Look up a short CATMAT code by typing its 2-digit number', ({ Given, Then }) => {
+    Given('the user types "37" into a catalog input', async () => {
+      cleanup();
+      __setCatmatEntriesForTest([
+        { code: '37', description: 'AGENDA', type: 'CATMAT' },
+        { code: '3700', description: 'PRODUTOS FARMACÊUTICOS', type: 'CATMAT' },
+      ]);
+      render(CatmatSearch);
+      await tick();
+      const input = screen.getByLabelText('Descrição do item para busca CATMAT');
+      await fireEvent.input(input, { target: { value: '37' } });
+      await tick();
+    });
+
+    Then('the user sees the CATMAT entry for code "37"', async () => {
+      await waitFor(
+        () => expect(screen.getByTestId('catmat-results')).toBeTruthy(),
+        { timeout: 2000 },
+      );
+      const items = screen.getAllByTestId('catmat-result-item');
+      expect(items.length).toBeGreaterThan(0);
+      // Exact code match must appear and code "37" must be surfaced.
+      const texts = items.map((el) => el.textContent ?? '');
+      expect(texts.some((t) => t.includes('37'))).toBe(true);
+    });
+  });
+
   Scenario(
     "Crossover with journey 3 — buyer audits a peer's contract before riding on it",
     ({ Given, Then, And }) => {
