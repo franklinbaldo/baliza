@@ -2,7 +2,7 @@ import { loadFeature, describeFeature } from '@amiceli/vitest-cucumber';
 import { screen, cleanup, waitFor } from '@testing-library/svelte/pure';
 import { vi, expect } from 'vitest';
 import { tick } from 'svelte';
-import { render, noop, plannedStep } from './_shared';
+import { render, noop } from './_shared';
 import DuckDBExplorerRaw from '../../DuckDBExplorer.svelte';
 import ManifestTableRaw from '../../ManifestTable.svelte';
 import DevExamplesViewRaw from '../../DevExamplesView.svelte';
