@@ -107,13 +107,14 @@
 
   // Canonical key includes q + all active filters so two watches with the
   // same free-text term but different filters are not collapsed as duplicates.
+  // Keys are sorted so cnpj+ibge and ibge+cnpj produce the same string.
   const watchKey = $derived.by(() => {
-    const params: Record<string, string> = {};
-    if (submitted.q) params['q'] = submitted.q;
+    const raw: Record<string, string> = {};
+    if (submitted.q) raw['q'] = submitted.q;
     for (const [k, v] of Object.entries(toUrlEntries(submitted.filters))) {
-      params[k] = v;
+      raw[k] = v;
     }
-    return new URLSearchParams(params).toString();
+    return new URLSearchParams(Object.keys(raw).sort().map((k) => [k, raw[k]])).toString();
   });
   const queryWatched = $derived(isWatched('query', watchKey));
 
@@ -402,7 +403,7 @@
           data-testid="busca-save-watch"
           onclick={saveWatch}
           aria-pressed={queryWatched}
-          disabled={!submitted.q || results.length === 0}
+          disabled={!watchKey || results.length === 0}
         >{queryWatched ? '✓ Vigilância salva' : 'Salvar vigilância'}</button>
         <button
           type="button"
