@@ -14,20 +14,24 @@
     watchState,
     type WatchEntry,
   } from '../lib/watchStore.svelte';
+  import { readFilters, toApiParams } from '../lib/searchFilters';
 
   setQueryClientContext(getQueryClient());
 
   const { id }: { id: string } = $props();
 
-  // Capture the previous-visit cutoff exactly once on mount, BEFORE
-  // markVisited writes the new timestamp — otherwise the cutoff and the
-  // freshly stamped value would coincide and the diff section would
-  // always render zero matches.
+  // Snapshot the previous-visit cutoff on mount and *do not* stamp the
+  // new timestamp yet — markVisited fires only after the fetch succeeds
+  // so a transient PNCP failure cannot silently advance the cutoff and
+  // hide contracts published between the last good visit and a failed
+  // attempt.
   let previousVisited = $state<string | undefined>(undefined);
   let mounted = $state(false);
+  let visitStamped = false;
   onMount(() => {
     hydrateWatches();
-    previousVisited = markVisited(id);
+    const e = watchState.entries.find(w => w.id === id);
+    previousVisited = e?.lastVisited;
     mounted = true;
   });
 
@@ -42,12 +46,26 @@
       const e = entry!;
       if (e.type === 'agency') return fetchPublicacaoList({ orgaoCnpj: e.filter });
       if (e.type === 'supplier') return fetchPublicacaoList({ niFornecedor: e.filter });
-      // 'query' watches store a URLSearchParams string with at least `q=…`;
-      // the label captures the human-readable term used to create them, so
-      // it's the most faithful free-text input to re-run.
-      return fetchPublicacaoPagesForObjeto(e.label || e.filter);
+      // 'query' watches store a canonical URLSearchParams string with `q`
+      // plus any advanced filters that were active when the watch was
+      // created (cnpj, ibge, uf, …). Replay both so the re-fetch matches
+      // the user's saved definition rather than a broader free-text search.
+      const params = new URLSearchParams(e.filter);
+      const term = params.get('q') ?? e.label ?? '';
+      const filters = readFilters(params);
+      return fetchPublicacaoPagesForObjeto(term, { filters: toApiParams(filters) });
     },
   }));
+
+  // Stamp the new lastVisited only on a successful fetch. Until then,
+  // the previous cutoff stays put so a refresh after a failure still
+  // shows the user the same diff window.
+  $effect(() => {
+    if (!visitStamped && query.isSuccess && entry) {
+      visitStamped = true;
+      markVisited(id);
+    }
+  });
 
   const results = $derived(query.data ?? []);
   const loading = $derived(query.isFetching);
