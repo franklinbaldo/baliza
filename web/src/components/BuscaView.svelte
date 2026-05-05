@@ -104,11 +104,22 @@
   const error = $derived(query.error as Error | null);
 
   $effect(() => { hydrateWatches(); });
-  const queryWatched = $derived(isWatched('query', submitted.q));
+
+  // Canonical key includes q + all active filters so two watches with the
+  // same free-text term but different filters are not collapsed as duplicates.
+  const watchKey = $derived.by(() => {
+    const params: Record<string, string> = {};
+    if (submitted.q) params['q'] = submitted.q;
+    for (const [k, v] of Object.entries(toUrlEntries(submitted.filters))) {
+      params[k] = v;
+    }
+    return new URLSearchParams(params).toString();
+  });
+  const queryWatched = $derived(isWatched('query', watchKey));
 
   function saveWatch() {
-    if (!submitted.q) return;
-    addWatch('query', submitted.q, submitted.q);
+    if (!watchKey) return;
+    addWatch('query', watchKey, submitted.q || watchKey);
   }
 
   function uniqSorted(values: Array<string | null | undefined>): string[] {
