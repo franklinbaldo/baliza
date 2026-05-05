@@ -17,10 +17,22 @@
     return new URLSearchParams(window.location.search).get(key) ?? '';
   }
 
-  let searchIbge = $state(initialParam('ibge', ibgeProp));
-  let searchObjeto = $state(initialParam('objeto', objetoProp));
-  let submittedIbge = $state(initialParam('ibge', ibgeProp));
-  let submittedObjeto = $state(initialParam('objeto', objetoProp));
+  function initialIbge(): string {
+    if (ibgeProp) return ibgeProp;
+    if (typeof window === 'undefined') return '';
+    return new URLSearchParams(window.location.search).get('ibge') ?? '';
+  }
+
+  let searchIbge = $state(initialIbge());
+  function initialObjeto(): string {
+    if (objetoProp) return objetoProp;
+    if (typeof window === 'undefined') return '';
+    return new URLSearchParams(window.location.search).get('objeto') ?? '';
+  }
+
+  let searchObjeto = $state(initialObjeto());
+  let submittedIbge = $state(initialIbge());
+  let submittedObjeto = $state(initialObjeto());
 
   const query = createQuery(() => {
     const ibge = submittedIbge;
