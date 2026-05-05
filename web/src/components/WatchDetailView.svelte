@@ -4,7 +4,7 @@
   import { getQueryClient } from '../lib/queryClient';
   import { fetchPublicacaoPagesForObjeto, fetchPublicacaoList } from '../lib/pncpPublicacao';
   import { archivedContratoToInternalContract, type PNCPContract } from '../lib/pncp';
-  import { queryParquetFallback } from '../lib/parquetFallback';
+  import { queryParquetFallback, archiveErrorMessage } from '../lib/parquetFallback';
   import type { ArchivedContrato } from '../lib/archive/schema';
   import { resolve } from '../lib/baseUrl';
   import { formatBRL, formatDate } from '../lib/format';
@@ -60,7 +60,12 @@
       if (e.type === 'supplier') {
         // PNCP has no supplier-by-CNPJ filter on /publicacao, so we mirror
         // SupplierDetailView and read the parquet snapshot, mapping rows
-        // back into PNCPContract for a uniform render path.
+        // back into PNCPContract for a uniform render path. Only `empty`
+        // is treated as a valid no-results state — other archive failures
+        // (no_manifest, duckdb_init_failed, sql_error, timeout) must
+        // throw so the query does not succeed, the user sees the real
+        // error, and lastVisited is *not* advanced past contracts that
+        // we never actually checked.
         const archived = await queryParquetFallback<ArchivedContrato>(
           'ni_fornecedor',
           e.filter,
@@ -68,7 +73,8 @@
           'data_publicacao_pncp',
         );
         if (archived.ok) return archived.rows.map((row) => archivedContratoToInternalContract(row));
-        return [];
+        if (archived.reason === 'empty') return [];
+        throw new Error(archiveErrorMessage(archived.reason));
       }
       // 'query' watches store a canonical URLSearchParams string with `q`
       // plus any advanced filters that were active when the watch was

@@ -562,16 +562,23 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
     if not dry_run and ia_access_key and ia_secret_key:
         try:
             manifest_rows = read_manifest_from_ia()
-            parquet_urls = [
-                r["parquet_url"]
+            # Manifest is persisted in write order, but sync runs months in
+            # parallel and reverse-chronologically — slicing without sorting
+            # would pick arbitrary partitions. Sort by data_particao (a
+            # `YYYY-MM` string sorts correctly lexicographically) so the cap
+            # at the tail always reflects the most recent months.
+            canonical_rows = [
+                r
                 for r in manifest_rows
                 if r.get("parquet_url")
                 and r.get("table_name") == "contratos"
                 and r.get("file_type", "monthly_canonical") == "monthly_canonical"
+                and r.get("data_particao")
             ]
+            canonical_rows.sort(key=lambda r: r["data_particao"])
             # Cap at the most recent 12 months so the feed view doesn't pull
             # the entire history into memory just to read the LIMIT 50 head.
-            parquet_urls = parquet_urls[-12:]
+            parquet_urls = [r["parquet_url"] for r in canonical_rows[-12:]]
             if parquet_urls:
                 feed_engine = BalizaEngine()
                 try:
