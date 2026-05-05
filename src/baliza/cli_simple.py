@@ -550,6 +550,55 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
             # Final drain
             concurrent.futures.wait(futures.keys())
 
+    # 4b. POST-SYNC FEED PUBLISH
+    #
+    # Curated RSS feeds (see baliza.rss_feed.CURATED_WATCHES) need a snapshot
+    # that spans every recent month, not just whichever month a worker thread
+    # happened to ingest. Run once here, after every per-month future has
+    # drained, against a fresh in-memory engine that views the canonical IA
+    # parquets directly via DuckDB's httpfs reader. Best-effort: a feed
+    # failure must not flip the sync's exit code red because the data was
+    # already published successfully above.
+    if not dry_run and ia_access_key and ia_secret_key:
+        try:
+            manifest_rows = read_manifest_from_ia()
+            parquet_urls = [
+                r["parquet_url"]
+                for r in manifest_rows
+                if r.get("parquet_url")
+                and r.get("table_name") == "contratos"
+                and r.get("file_type", "monthly_canonical") == "monthly_canonical"
+            ]
+            # Cap at the most recent 12 months so the feed view doesn't pull
+            # the entire history into memory just to read the LIMIT 50 head.
+            parquet_urls = parquet_urls[-12:]
+            if parquet_urls:
+                feed_engine = BalizaEngine()
+                try:
+                    feed_engine.con.raw_sql("INSTALL httpfs; LOAD httpfs;")
+                    url_list = ", ".join(f"'{u}'" for u in parquet_urls)
+                    feed_engine.con.raw_sql(
+                        f"CREATE OR REPLACE VIEW main.contratos AS "
+                        f"SELECT * FROM read_parquet([{url_list}], union_by_name = true)"
+                    )
+                    published = IAUploader(feed_engine).upload_feeds(
+                        ia_access_key, ia_secret_key
+                    )
+                    console.print(
+                        f"[green]✓ Curated feeds published: {len(published)}[/green]"
+                    )
+                finally:
+                    try:
+                        feed_engine.con.disconnect()
+                    except Exception:
+                        pass
+            else:
+                console.print(
+                    "[yellow]⚠ Manifest has no parquet rows yet — skipping feed publish[/yellow]"
+                )
+        except Exception as e:
+            console.print(f"[yellow]⚠ Feed publish failed: {e}[/yellow]")
+
     # 5. FINAL SUMMARY PANEL
     duration = datetime.now() - start_time_exec
     if consolidated:
