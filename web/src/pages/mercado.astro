@@ -1,0 +1,13 @@
+---
+import Layout from '../layouts/Layout.astro';
+import MercadoView from '../components/MercadoView.svelte';
+
+const objeto = Astro.url.searchParams.get('objeto') ?? '';
+---
+
+<Layout
+  title="Mercado — Agregação"
+  description="Panorama agregado de fornecedores, compradores e preços."
+>
+  <MercadoView client:only="svelte" objeto={objeto} />
+</Layout>

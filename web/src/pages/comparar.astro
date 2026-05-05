@@ -1,0 +1,14 @@
+---
+import Layout from '../layouts/Layout.astro';
+import CompararView from '../components/CompararView.svelte';
+
+const ibge = Astro.url.searchParams.get('ibge') ?? '';
+const objeto = Astro.url.searchParams.get('objeto') ?? '';
+---
+
+<Layout
+  title="Comparar Municípios"
+  description="Compare os gastos da sua cidade com municípios do mesmo porte."
+>
+  <CompararView client:only="svelte" ibge={ibge} objeto={objeto} />
+</Layout>

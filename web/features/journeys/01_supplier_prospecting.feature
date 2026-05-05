@@ -4,7 +4,7 @@ Feature: Journey 1 — B2G supplier prospecting
   benchmark prices, and understand who already supplies what they sell.
   See VISION.md → "B2G supplier prospecting".
 
-  @planned @market
+  @green @market
   Scenario: Search for an object opens an aggregated market page
     # Planned: route /mercado/{objeto} does not exist yet.
     Given the user opens the home page
