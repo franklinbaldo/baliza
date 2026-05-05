@@ -1,0 +1,70 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      User-Agent:
+      - Baliza/1.0 (cassette-recorder)
+    method: GET
+    uri: https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?dataInicial=20250101&dataFinal=20250103&codigoModalidadeContratacao=6&codigoMunicipioIbge=3550308&pagina=1&tamanhoPagina=10
+  response:
+    body:
+      string: '{"data": [{"dataAtualizacao": "2025-01-02T09:04:20", "orgaoEntidade": {"cnpj": "62070362000106", "razaoSocial":
+        "(UO) ESP-CIA.DO METROPOLIT DE SAO PAULO-METRO", "poderId": "E", "esferaId": "E"}, "anoCompra": 2024, "sequencialCompra":
+        586, "numeroCompra": "90597", "processo": "10021391", "objetoCompra": "Fornecimento de válvulas hidráulicas.", "orgaoSubRogado":
+        null, "unidadeOrgao": {"ufNome": "São Paulo", "codigoUnidade": "373301", "ufSigla": "SP", "municipioNome": "São Paulo",
+        "nomeUnidade": "ESP-CIA. METROPOLITANA DE SAO PAULO-METRO", "codigoIbge": "3550308"}, "unidadeSubRogada": null, "valorTotalHomologado":
+        null, "srp": false, "dataInclusao": "2025-01-02T09:04:20", "amparoLegal": {"codigo": 1, "nome": "Lei 14.133/2021,
+        Art. 28, I", "descricao": "pregão: modalidade de licitação obrigatória para aquisição de bens e serviços comuns"},
+        "dataAberturaProposta": "2025-01-03T08:00:00", "dataEncerramentoProposta": "2025-01-21T09:00:00", "informacaoComplementar":
+        "A aquisição deverá ser feita por grupo, portanto, com orçamento para todos os itens do grupo. Para as respostas de
+        esclarecimentos e impugnações deste edital acesse o link: https://cnetmobile.estaleiro.serpro.gov.br/comprasnet-web/public/landing?destino=quadro-informativo&compra=37330105905972024",
+        "linkSistemaOrigem": "https://cnetmobile.estaleiro.serpro.gov.br/comprasnet-web/public/landing?destino=acompanhamento-compra&compra=37330105905972024",
+        "justificativaPresencial": null, "dataPublicacaoPncp": "2025-01-02T09:04:20", "dataAtualizacaoGlobal": "2025-01-31T10:17:41",
+        "numeroControlePNCP": "62070362000106-1-000586/2024", "modalidadeId": 6, "linkProcessoEletronico": null, "modoDisputaId":
+        1, "valorTotalEstimado": 0.0, "modalidadeNome": "Pregão - Eletrônico", "modoDisputaNome": "Aberto", "tipoInstrumentoConvocatorioCodigo":
+        1, "tipoInstrumentoConvocatorioNome": "Edital", "fontesOrcamentarias": [], "situacaoCompraId": 1, "situacaoCompraNome":
+        "Divulgada no PNCP", "usuarioNome": "Compras.gov.br"}, {"dataAtualizacao": "2025-01-02T09:04:52", "orgaoEntidade":
+        {"cnpj": "15519361000116", "razaoSocial": "DEPARTAMENTO ESTADUAL DE TRANSITO", "poderId": "E", "esferaId": "E"}, "anoCompra":
+        2024, "sequencialCompra": 69, "numeroCompra": "90017", "processo": "14000602908202442", "objetoCompra": "Prestação
+        de serviços de manutenção completa de extintores de incêndio, hidrantes e mangueiras, incluindo recargas, testes hidrostáticos
+        e instalação de placas de sinalização, no DETRAN-SP. ", "orgaoSubRogado": null, "unidadeOrgao": {"ufNome": "São Paulo",
+        "codigoUnidade": "532401", "ufSigla": "SP", "municipioNome": "São Paulo", "nomeUnidade": "ESP-DEP. ESTADUAL DE TRANSITO-DETRAN-SP",
+        "codigoIbge": "3550308"}, "unidadeSubRogada": null, "valorTotalHomologado": 89775.0, "srp": false, "dataInclusao":
+        "2025-01-02T09:04:52", "amparoLegal": {"codigo": 1, "nome": "Lei 14.133/2021, Art. 28, I", "descricao": "pregão: modalidade
+        de licitação obrigatória para aquisição de bens e serviços comuns"}, "dataAberturaProposta": "2025-01-02T08:00:00",
+        "dataEncerramentoProposta": "2025-01-16T10:00:00", "informacaoComplementar": "Em caso de eventual divergência entre
+        a descrição do item do catálogo do sistema  Compras.gov.br e as disposições deste Termo de Referência, prevalecem
+        as disposições deste Termo de  Referência. Para as respostas de esclarecimentos e impugnações deste edital acesse
+        o link: https://cnetmobile.estaleiro.serpro.gov.br/comprasnet-web/public/landing?destino=quadro-informativo&compra=53240105900172024",
+        "linkSistemaOrigem": "https://cnetmobile.estaleiro.serpro.gov.br/comprasnet-web/public/landing?destino=acompanhamento-compra&compra=53240105900172024",
+        "justificativaPresencial": null, "dataPublicacaoPncp": "2025-01-02T09:04:52", "dataAtualizacaoGlobal": "2025-01-27T11:59:36",
+        "numeroControlePNCP": "15519361000116-1-000069/2024", "modalidadeId": 6, "linkProcessoEletronico": null, "modoDisputaId":
+        1, "valorTotalEstimado": 214889.63, "modalidadeNome": "Pregão - Eletrônico", "modoDisputaNome": "Aberto", "tipoInstrumentoConvocatorioCodigo":
+        1, "tipoInstrumentoConvocatorioNome": "Edital", "fontesOrcamentarias": [], "situacaoCompraId": 1, "situacaoCompraNome":
+        "Divulgada no PNCP", "usuarioNome": "Compras.gov.br"}, {"dataAtualizacao": "2025-01-02T09:05:31", "orgaoEntidade":
+        {"cnpj": "62070362000106", "razaoSocial": "(UO) ESP-CIA.DO METROPOLIT DE SAO PAULO-METRO", "poderId": "E", "esferaId":
+        "E"}, "anoCompra": 2024, "sequencialCompra": 587, "numeroCompra": "90600", "processo": "10021238", "objetoCompra":
+        "Transdutor de corrente", "orgaoSubRogado": null, "unidadeOrgao": {"ufNome": "São Paulo", "codigoUnidade": "373301",
+        "ufSigla": "SP", "municipioNome": "São Paulo", "nomeUnidade": "ESP-CIA. METROPOLITANA DE SAO PAULO-METRO", "codigoIbge":
+        "3550308"}, "unidadeSubRogada": null, "valorTotalHomologado": 38780.0, "srp": false, "dataInclusao": "2025-01-02T09:05:31",
+        "amparoLegal": {"codigo": 1, "nome": "Lei 14.133/2021, Art. 28, I", "descricao": "pregão: modalidade de licitação
+        obrigatória para aquisição de bens e serviços comuns"}, "dataAberturaProposta": "2025-01-03T08:00:00", "dataEncerramentoProposta":
+        "2025-01-17T09:00:00", "informacaoComplementar": " Para as respostas de esclarecimentos e impugnações deste edital
+        acesse o link: https://cnetmobile.estaleiro.serpro.gov.br/comprasnet-web/public/landing?destino=quadro-informativo&compra=37330105906002024",
+        "linkSistemaOrigem": "https://cnetmobile.estaleiro.serpro.gov.br/comprasnet-web/public/landing?destino=acompanhamento-compra&compra=37330105906002024",
+        "justificativaPresencial": null, "dataPublicacaoPncp": "2025-01-02T09:05:31", "dataAtualizacaoGlobal": "2025-01-21T15:18:46",
+        "numeroControlePNCP": "62070362000106-1-000587/2024", "modalidadeId": 6, "linkProcessoEletronico": null, "modoDisputaId":
+        1, "valorTotalEstimado": 55288.4, "modalidadeNome": "Pregão - Eletrônico", "modoDisputaNome": "Aberto", "tipoInstrumentoConvocatorioCodigo":
+        1, "tipoInstrumentoConvocatorioNome": "Edital", "fontesOrcamentarias": [], "situacaoCompraId": 1, "situacaoCompraNome":
+        "Divulgada no PNCP", "usuarioNome": "Compras.gov.br"}], "totalRegistros": 26, "totalPaginas": 3, "numeroPagina": 1,
+        "paginasRestantes": 2, "empty": false}'
+    headers:
+      Content-Type:
+      - application/json
+    status:
+      code: 200
+      message: OK
+    url: https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?dataInicial=20250101&dataFinal=20250103&codigoModalidadeContratacao=6&codigoMunicipioIbge=3550308&pagina=1&tamanhoPagina=10
+version: 1

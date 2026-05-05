@@ -126,6 +126,20 @@ def main() -> None:
                 "tamanhoPagina": 10,
             },
         ),
+        # 5. Municipality filter (São Paulo, IBGE 3550308) — used by LocalBids
+        #    and CompararView when the web UI narrows by city.
+        (
+            "publicacao_municipio_pregao_page1",
+            f"{BASE}/contratacoes/publicacao",
+            {
+                "dataInicial": DATE_INITIAL,
+                "dataFinal": DATE_FINAL,
+                "codigoModalidadeContratacao": 6,
+                "codigoMunicipioIbge": "3550308",
+                "pagina": 1,
+                "tamanhoPagina": 10,
+            },
+        ),
     ]
 
     failed: list[str] = []
