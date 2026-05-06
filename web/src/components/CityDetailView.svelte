@@ -13,7 +13,10 @@
   import StatCard from './StatCard.svelte';
   import ContractCard from './ContractCard.svelte';
   import PaginatedList from './PaginatedList.svelte';
+  import CopyButton from './CopyButton.svelte';
+  import ShareButton from './ShareButton.svelte';
   import { findMunicipalityByIbge } from '../lib/geo';
+  import { setPageMeta } from '../lib/pageMeta';
 
   setQueryClientContext(getQueryClient());
 
@@ -98,6 +101,14 @@
       ? 'Dados do município indisponíveis no momento'
       : 'Município não encontrado';
   });
+
+  $effect(() => {
+    if (!data) return;
+    setPageMeta({
+      title: `${data.name}/${data.uf} — Município ${data.ibge}`,
+      description: `Contratações públicas recentes registradas pelo município ${data.name}/${data.uf}.`,
+    });
+  });
 </script>
 
 <EntityDetailLayout
@@ -117,7 +128,11 @@
 >
   {#snippet metaRow()}
     {#if data}
-      <small>Cód. IBGE: <code>{data.ibge}</code></small>
+      <small>
+        Cód. IBGE: <code>{data.ibge}</code>
+        <CopyButton text={data.ibge} label="Copiar código IBGE" />
+        <ShareButton title={`${data.name}/${data.uf} — Município`} text={`Município ${data.ibge}`} />
+      </small>
       <small>Fonte: <span data-badge>{data.archived ? 'Arquivo Parquet (IA)' : 'PNCP V1'}</span></small>
     {/if}
   {/snippet}

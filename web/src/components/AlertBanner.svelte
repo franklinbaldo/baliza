@@ -1,14 +1,16 @@
 <script lang="ts">
   import Icon from './Icon.svelte';
+  import CopyButton from './CopyButton.svelte';
   import type { IconName } from '../lib/icons';
 
   interface Props {
     title: string;
     message: string;
     level?: 'info' | 'success' | 'warning' | 'error';
+    copyable?: boolean;
   }
 
-  let { title, message, level = 'info' }: Props = $props();
+  let { title, message, level = 'info', copyable = true }: Props = $props();
 
   const levelIcon: Record<NonNullable<Props['level']>, IconName> = {
     info: 'info',
@@ -31,4 +33,9 @@
     </strong>
   </header>
   <p>{message}</p>
+  {#if copyable && message}
+    <footer>
+      <CopyButton text={`${title}: ${message}`} label="Copiar mensagem" />
+    </footer>
+  {/if}
 </article>

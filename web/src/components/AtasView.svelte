@@ -14,6 +14,7 @@
   import EmptyState from './EmptyState.svelte';
   import HubHeader from './HubHeader.svelte';
   import Skeleton from './Skeleton.svelte';
+  import CopyButton from './CopyButton.svelte';
 
   setQueryClientContext(getQueryClient());
 
@@ -121,11 +122,17 @@
     <section data-testid="atas-list">
       {#each rows as row (row.numero_controle_pncp ?? `${row.cnpj_orgao}-${row.sequencial_contrato}`)}
         <article>
+          <header>
+            <strong>{row.razao_social_orgao ?? 'Órgão Arquivado'}</strong>
+            <code>{row.cnpj_orgao ?? ''}</code>
+            {#if row.cnpj_orgao}
+              <CopyButton text={row.cnpj_orgao} label="Copiar CNPJ" />
+            {/if}
+            {#if row.numero_controle_pncp}
+              <CopyButton text={row.numero_controle_pncp} label="Copiar ID PNCP" />
+            {/if}
+          </header>
           <a href={resolve(`contratacao?id=${row.numero_controle_pncp ?? ''}`)}>
-            <header>
-              <strong>{row.razao_social_orgao ?? 'Órgão Arquivado'}</strong>
-              <code>{row.cnpj_orgao ?? ''}</code>
-            </header>
             <p>{truncate(row.objeto_contrato, 150)}</p>
             <footer>
               <small>

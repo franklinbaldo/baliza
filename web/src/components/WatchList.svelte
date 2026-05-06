@@ -7,6 +7,7 @@
     type WatchEntry,
   } from '../lib/watchStore.svelte';
   import { resolve } from '../lib/baseUrl';
+  import CopyButton from './CopyButton.svelte';
 
   // Mirror state lazily so SSR renders an empty list instead of leaking
   // whichever entries exist on the build machine (always empty today, but
@@ -51,6 +52,7 @@
           <header>
             <small data-badge>{labelForType(entry.type)}</small>
             <code>{entry.filter}</code>
+            <CopyButton text={entry.filter} label="Copiar filtro" />
           </header>
           <p><strong>{entry.label}</strong></p>
           <footer class="actions">

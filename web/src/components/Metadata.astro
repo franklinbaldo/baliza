@@ -2,7 +2,13 @@
 /**
  * Baliza SEO & Metadata Component
  * Handles title, description, and social media cards (OG/Twitter).
+ *
+ * og:image is per-route: each top-level route has a static SVG generated
+ * by /og/<slug>.svg (see src/pages/og/[slug].svg.ts and lib/ogManifest).
+ * twitter:image keeps the static PNG fallback because Twitter does not
+ * render SVG previews.
  */
+import { findOgRoute } from '../lib/ogManifest';
 
 interface Props {
   title: string;
@@ -13,12 +19,17 @@ interface Props {
 
 const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
 
+const ogRoute = findOgRoute(Astro.url.pathname);
+const defaultOgImage = `${BASE}og/${ogRoute.slug}.svg`;
+
 const {
   title,
   description = "Baliza: Monitoramento diário das contratações públicas brasileiras. Transparência, preservação e dados abertos do PNCP.",
-  image = `${BASE}og-image.png`,
+  image = defaultOgImage,
   canonicalURL = new URL(Astro.url.pathname, Astro.site),
 } = Astro.props;
+
+const twitterImage = `${BASE}og-image.png`;
 
 const fullTitle = `${title} | Baliza Monitor`;
 ---
@@ -49,4 +60,4 @@ const fullTitle = `${title} | Baliza Monitor`;
 <meta property="twitter:url" content={Astro.url} />
 <meta property="twitter:title" content={fullTitle} />
 <meta property="twitter:description" content={description} />
-<meta property="twitter:image" content={new URL(image, Astro.url)} />
+<meta property="twitter:image" content={new URL(twitterImage, Astro.url)} />

@@ -32,6 +32,10 @@ export const ICON_PATHS = {
     '<path d="M3 12c2-2 4-3 6-3M3 16c4-4 8-5 12-5M3 20c6-6 12-7 18-7"></path>',
   swap:
     '<path d="M4 8h14M14 4l4 4-4 4"></path><path d="M20 16H6M10 12l-4 4 4 4"></path>',
+  copy:
+    '<rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a1 1 0 0 1 1-1h10"></path>',
+  share:
+    '<circle cx="6" cy="12" r="2.5"></circle><circle cx="18" cy="6" r="2.5"></circle><circle cx="18" cy="18" r="2.5"></circle><path d="m8.2 10.8 7.6-3.6M8.2 13.2l7.6 3.6"></path>',
 } as const;
 
 export type IconName = keyof typeof ICON_PATHS;
