@@ -30,6 +30,7 @@ const isCityActive = cleanPath === cityPrefix;
           <CityNavLink client:load isActive={isCityActive} asLabel={true} />
         </summary>
         <ul role="listbox">
+          <li><CityNavLink client:load isActive={isCityActive} /></li>
           <li><a href={BASE}>Trocar cidade</a></li>
           <li><a href={BASE + 'busca'}>Buscar contratações</a></li>
         </ul>
