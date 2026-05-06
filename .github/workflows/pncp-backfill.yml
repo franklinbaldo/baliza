@@ -50,6 +50,16 @@ jobs:
           if [[ "$DRY_RUN" == "true" ]]; then
             extra+=(--dry-run)
           fi
+          # Mirror first so months that were never previously fetched
+          # (no manifest row, no raw ZIP) become buildable. The builder
+          # in src/baliza/builder.py only iterates manifest rows that
+          # already have raw_zip_url set, so a build-only run silently
+          # skips truly absent months — defeating the point of a
+          # historical backfill.
+          uv run baliza mirror \
+            --start-date "${START_YEAR}-01-01" \
+            --workers 2 \
+            "${extra[@]}"
           uv run baliza build \
             --backfill \
             --start-date "${START_YEAR}-01-01" \
