@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import threading
 import time
@@ -50,13 +51,15 @@ def _is_retryable_error(exception: BaseException) -> bool:
     return False
 
 def _validate_resource(resource: str):
-    """Confirm the resource is registered.
+    """Reject path-traversal/injection AND confirm the resource is registered.
 
-    Looks the name up in the resources registry instead of just regex-
-    matching it. Path-traversal is still rejected because get_resource
-    raises ValueError on any name not in RESOURCES (and registered
-    names are validated at import time by the dataclass).
+    The regex check stays first so the error message for path-traversal
+    inputs continues to read 'Invalid resource path' (the security suite
+    matches on that phrase). The registry lookup catches typos like
+    --resource=ata that pass the regex but aren't registered.
     """
+    if not re.match(r"^[a-zA-Z0-9_]+$", resource):
+        raise ValueError(f"Invalid resource path: {resource}")
     get_resource(resource)
 
 
