@@ -187,7 +187,38 @@ class IAConsolidator:
         except Exception:
             return False
 
-    def consolidate_year(  # noqa: PLR0912, PLR0913
+    def _consolidated_mtime_on_ia(
+        self, year: int, *, resource: str = CONTRATOS.name
+    ) -> datetime.datetime | None:
+        """Return the upload time of the consolidated annual file on IA, or None.
+
+        IA exposes per-file ``mtime`` as a unix timestamp string. The
+        freshness gate for resources without UF shards uses this to
+        decide "did the file land after the newest monthly canonical
+        upload" without piling extra rows into the manifest.
+
+        Returns None when the file is missing OR present without a
+        usable mtime — callers must treat None as "can't decide
+        freshness from IA, fall back to a rebuild".
+        """
+        filename = _consolidated_file_name(year, resource=resource)
+        try:
+            item = ia.get_item(CONSOLIDATED_IA_ITEM)
+        except Exception:
+            return None
+        for f in item.files:
+            if f.get("name") != filename:
+                continue
+            mtime = f.get("mtime")
+            if not mtime:
+                return None
+            try:
+                return datetime.datetime.fromtimestamp(int(mtime), tz=datetime.UTC)
+            except (TypeError, ValueError):
+                return None
+        return None
+
+    def consolidate_year(  # noqa: PLR0912, PLR0913, PLR0915
         self,
         year: int,
         ia_access_key: str,
@@ -238,6 +269,33 @@ class IAConsolidator:
                     f"[dim]Skipping {resource}/{year}: consolidated shards are up to date.[/dim]"
                 )
                 return False
+            # Resources without per-UF shards (atas etc.) have no
+            # monthly_uf rows for the manifest gate to inspect, so the
+            # gate above is conservative — it returns False whenever any
+            # canonical month exists. Avoid the resulting daily rebuild
+            # storm by also checking the consolidated annual file's IA
+            # mtime: if it landed after the newest canonical upload,
+            # nothing has changed and the rebuild is wasted work.
+            if not _resource_has_uf_shards(resource):
+                consolidated_mtime = self._consolidated_mtime_on_ia(year, resource=resource)
+                if consolidated_mtime is not None:
+                    newest_canonical = max(
+                        (
+                            _parse_iso_mtime(row.get("uploaded_at") or "")
+                            for row in shared_manifest
+                            if row.get("table_name") == resource
+                            and (row.get("data_particao") or "").startswith(str(year))
+                            and row.get("file_type", "") in ("", "monthly_canonical")
+                        ),
+                        default=None,
+                    )
+                    if newest_canonical is not None and consolidated_mtime >= newest_canonical:
+                        console.print(
+                            f"[dim]Skipping {resource}/{year}: consolidated annual file "
+                            f"({consolidated_mtime.isoformat()}) is at-or-after the newest "
+                            f"canonical upload ({newest_canonical.isoformat()}).[/dim]"
+                        )
+                        return False
 
         console.print(f"[cyan]Consolidating {resource}/{year}...[/cyan]")
 
