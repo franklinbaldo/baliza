@@ -1,0 +1,123 @@
+name: Baliza Backfill Audit (diagnostic)
+
+# Diagnostic-only. Runs on push to claude/baliza-audit/** and on
+# manual dispatch. Always fails on the last step so logs are surfaced
+# in the PR check view — there is nothing to "fix" here.
+
+on:
+  push:
+    branches:
+      - 'claude/baliza-audit/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+
+      - name: Fetch live IA manifest
+        run: |
+          set -eux
+          curl -fsSL --retry 3 --retry-delay 5 -o /tmp/manifest.csv \
+            "https://archive.org/download/baliza-pncp-manifest/manifest.csv"
+          ls -lh /tmp/manifest.csv
+          echo '--- header + first 3 rows ---'
+          head -4 /tmp/manifest.csv
+          echo '--- row count ---'
+          wc -l /tmp/manifest.csv
+
+      - name: Aggregate manifest contents
+        run: |
+          python3 - <<'PY'
+          import csv, collections, datetime
+          rows = list(csv.DictReader(open('/tmp/manifest.csv')))
+          print(f'TOTAL ROWS: {len(rows)}')
+
+          by_table = collections.Counter(r['table_name'] for r in rows)
+          print('\nROWS BY table_name:')
+          for k, v in by_table.most_common():
+              print(f'  {k}: {v}')
+
+          partitions = sorted({r['data_particao'] for r in rows if r.get('data_particao')})
+          print(f'\nDISTINCT data_particao: {len(partitions)}')
+          if partitions:
+              print(f'  oldest: {partitions[0]}')
+              print(f'  newest: {partitions[-1]}')
+
+          ufs = collections.Counter(r.get('uf_sigla') or '' for r in rows)
+          print('\nBY UF (top 15):')
+          for k, v in ufs.most_common(15):
+              print(f'  {k!r}: {v}')
+
+          row_total = sum(int(r.get('row_count') or 0) for r in rows)
+          print(f'\nsum(row_count) across manifest: {row_total:,}')
+
+          quar = sum(int(r.get('quarantine_count') or 0) for r in rows)
+          print(f'sum(quarantine_count): {quar:,}')
+
+          # Coverage gaps: how many distinct months between oldest and
+          # newest, vs how many we actually have.
+          if partitions:
+              try:
+                  oldest = datetime.date.fromisoformat(partitions[0])
+                  newest = datetime.date.fromisoformat(partitions[-1])
+                  expected_months = (newest.year - oldest.year) * 12 + (newest.month - oldest.month) + 1
+                  print(f'\nCOVERAGE WINDOW: {oldest} .. {newest}')
+                  print(f'  expected months: {expected_months}')
+                  months_present = {p[:7] for p in partitions}
+                  print(f'  distinct months present: {len(months_present)}')
+                  print(f'  missing months: {expected_months - len(months_present)}')
+              except ValueError:
+                  print('  (data_particao is not date-formatted)')
+
+          last_uploads = sorted(
+              {r.get('uploaded_at', '') for r in rows if r.get('uploaded_at')}
+          )[-5:]
+          print(f'\nLAST 5 distinct uploaded_at:\n  ' + '\n  '.join(last_uploads))
+          PY
+
+      - name: Recent PNCP Sync workflow runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eux
+          gh run list \
+            --repo "${{ github.repository }}" \
+            --workflow pncp-sync.yml \
+            --limit 25 \
+            --json databaseId,number,status,conclusion,createdAt,event,displayTitle \
+            > runs.json
+          echo '--- summary ---'
+          jq -r '.[] | "\(.number)\t\(.conclusion // .status)\t\(.createdAt)\t\(.event)"' runs.json
+          echo '--- failure count in last 25 ---'
+          jq '[.[] | select(.conclusion=="failure")] | length' runs.json
+          echo '--- success count in last 25 ---'
+          jq '[.[] | select(.conclusion=="success")] | length' runs.json
+
+      - name: Tail logs of most recent failed run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eux
+          run_id=$(jq -r '[.[] | select(.conclusion=="failure")][0].databaseId' runs.json)
+          if [[ "$run_id" == "null" || -z "$run_id" ]]; then
+            echo 'No failed runs in the last 25.'
+            exit 0
+          fi
+          echo "Inspecting failed run $run_id"
+          gh run view "$run_id" --repo "${{ github.repository }}" || true
+          echo '--- failed-step log tail (last 300 lines) ---'
+          gh run view "$run_id" --repo "${{ github.repository }}" --log-failed 2>&1 | tail -300 || true
+
+      - name: Force red so logs are surfaced
+        run: |
+          echo "Audit complete — failing the job intentionally so the logs above are visible in the PR check view."
+          exit 1
