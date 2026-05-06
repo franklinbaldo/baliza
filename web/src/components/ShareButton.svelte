@@ -45,7 +45,6 @@
 
   async function handleClick(event: MouseEvent) {
     event.preventDefault();
-    event.stopPropagation();
     event.stopImmediatePropagation();
     const target = resolvedUrl();
     if (!target) return;
