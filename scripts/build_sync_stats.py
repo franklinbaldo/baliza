@@ -69,13 +69,23 @@ def main() -> int:
         print("manifest is empty; leaving existing sync_stats.json", file=sys.stderr)
         return 1
 
-    total_contracts = sum(_to_int(r.get("row_count"), field="row_count") for r in rows)
+    # Restrict to canonical monthly partitions so non-canonical shards
+    # (e.g. monthly_uf splits introduced by consolidation) don't
+    # double-count rows already present in the canonical monthly file.
+    # Empty file_type is treated as canonical for backward compatibility
+    # with manifest entries written before the column was added.
+    canonical = [
+        r for r in rows
+        if (r.get("file_type") or "monthly_canonical") == "monthly_canonical"
+    ]
+
+    total_contracts = sum(_to_int(r.get("row_count"), field="row_count") for r in canonical)
     total_quarantine = sum(
-        _to_int(r.get("quarantine_count"), field="quarantine_count") for r in rows
+        _to_int(r.get("quarantine_count"), field="quarantine_count") for r in canonical
     )
 
     partitions = sorted(
-        {p for r in rows if (p := r.get("data_particao"))}
+        {p for r in canonical if (p := r.get("data_particao"))}
     )
     days_on_ia = 0
     if partitions:
