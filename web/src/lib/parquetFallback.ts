@@ -494,12 +494,16 @@ export async function queryPublishingCnpjRaizes(
     }
     const raizes = result
       .toArray()
-      .map((r: unknown) => {
-        const anyRow = r as { toJSON?: () => unknown };
-        const obj = (typeof anyRow.toJSON === 'function' ? anyRow.toJSON() : r) as { raiz: string };
-        return obj.raiz;
+      .map((r: unknown): unknown => {
+        const anyRow = r as { toJSON?: () => unknown; raiz?: unknown };
+        const obj =
+          typeof anyRow.toJSON === 'function' ? anyRow.toJSON() : anyRow;
+        return (obj as { raiz?: unknown }).raiz;
       })
-      .filter((s) => typeof s === 'string' && /^\d{8}$/.test(s));
+      .filter(
+        (s: unknown): s is string =>
+          typeof s === 'string' && /^\d{8}$/.test(s),
+      );
 
     if (raizes.length === 0) {
       logFallbackFailed(CITY_AGGREGATES_TABLE, 'cnpj_orgao', 'empty');

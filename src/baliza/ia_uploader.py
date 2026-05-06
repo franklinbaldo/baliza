@@ -17,6 +17,7 @@ from rich.console import Console
 
 from . import rss_feed
 from .engine import BalizaEngine
+from .extractor import FETCHED_SENTINEL
 from .resources import CONTRATOS, get_resource, raw_zip_filename
 from .utils import DUCKDB_PARQUET_COPY_OPTIONS, PARQUET_ROW_GROUP_SIZE
 
@@ -272,6 +273,36 @@ def register_monthly_uf_shards(
         write_manifest_to_ia(manifest, access_key, secret_key)
 
 
+def _pack_resource_pages_zip(
+    raw_dir: Path,
+    zip_path: Path,
+    *,
+    resource: str,
+) -> bool:
+    """Pack only ``{resource}_p*.json`` pages and the FETCHED_SENTINEL into ``zip_path``.
+
+    Returns True when at least one page was written. The sentinel is
+    content-free so it doesn't carry resource-specific state, but
+    including it lets ``restore_from_raw_zip`` skip ``probe_range`` on
+    the build/sync side.
+
+    Both upload paths (``upload_raw_zip`` and ``upload_month``) call
+    this so the published ``raw_zip_sha256`` represents exactly the
+    same set of files in either flow.
+    """
+    page_glob = f"{resource}_p*.json"
+    page_files = sorted(raw_dir.glob(page_glob))
+    if not page_files:
+        return False
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        for page_path in page_files:
+            zf.write(page_path, page_path.name)
+        sentinel = raw_dir / FETCHED_SENTINEL
+        if sentinel.exists():
+            zf.write(sentinel, sentinel.name)
+    return True
+
+
 def _sha256(path: Path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -467,18 +498,11 @@ class IAUploader:
             temp_path = Path(tmp_dir)
             zip_path = temp_path / zip_basename
 
-            # Per-resource scoping: pack only this resource's pages
-            # (matching ``{resource}_p*.json``) so a sequential
-            # ``mirror --resource contratos`` followed by
+            # Per-resource scoping: pack only this resource's pages so a
+            # sequential ``mirror --resource contratos`` followed by
             # ``mirror --resource atas`` doesn't end up with one
-            # resource's zip containing the other's cached pages —
-            # which would make the published raw_zip_sha256
-            # misrepresent the artifact.
-            page_glob = f"{resource}_p*.json"
-            page_files = sorted(raw_dir.glob(page_glob))
-            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-                for page_path in page_files:
-                    zf.write(page_path, page_path.name)
+            # resource's zip containing the other's cached pages.
+            _pack_resource_pages_zip(raw_dir, zip_path, resource=resource)
 
             raw_zip_sha256 = _sha256(zip_path)
             raw_zip_size = zip_path.stat().st_size
@@ -699,7 +723,7 @@ class IAUploader:
             )
         return published
 
-    def upload_month(  # noqa: PLR0913
+    def upload_month(  # noqa: PLR0912, PLR0913
         self,
         start_date: date,
         output_dir: Path,
@@ -707,27 +731,41 @@ class IAUploader:
         ia_secret_key: str,
         quarantine_stats: dict[str, int] | None = None,
         quarantine_csv: Path | None = None,
+        *,
+        resource: str = CONTRATOS.name,
     ) -> None:
-        """Export, Zip, and Upload monthly consolidated data to Internet Archive, then cleanup."""
+        """Export, Zip, and Upload monthly consolidated data to Internet Archive, then cleanup.
+
+        Args:
+            resource: PNCP resource name. Determines the canonical table
+                queried by export_month, the parquet filename, and the
+                raw ZIP basename so contratos and atas stay isolated
+                inside the same monthly IA item.
+        """
         if self.engine is None or self.exporter is None:
             raise RuntimeError("upload_month requires an engine — construct IAUploader(engine=...)")
 
         month_str = start_date.strftime("%Y-%m")
         item_id = f"baliza-pncp-{month_str}"
+        zip_basename = raw_zip_filename(resource, month_str)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             temp_path = Path(tmp_dir)
 
             # 1. Export Parquet from shared engine
-            exported_files = self.exporter.export_month(start_date, temp_path)
+            exported_files = self.exporter.export_month(
+                start_date, temp_path, resource=resource
+            )
 
-            # 2. Zip raw JSON files
+            # 2. Zip raw JSON files (per-resource: only this resource's
+            # pages, so a contratos+atas same-month run produces two
+            # distinct zip basenames sharing the same monthly item).
             raw_dir = Path("data/raw") / month_str
             zip_path = None
             if raw_dir.exists():
-                zip_path = temp_path / f"raw-{month_str}.zip"
-                shutil.make_archive(str(zip_path.with_suffix("")), "zip", raw_dir)
-                zip_path = zip_path.with_suffix(".zip")
+                candidate = temp_path / zip_basename
+                if _pack_resource_pages_zip(raw_dir, candidate, resource=resource):
+                    zip_path = candidate
 
             # 3. Preparation for upload
             files_to_upload = {}
@@ -770,6 +808,7 @@ class IAUploader:
                     ia_access_key,
                     ia_secret_key,
                     quarantine_stats,
+                    resource=resource,
                 )
                 success = True
             except Exception as e:
@@ -809,8 +848,10 @@ class IAUploader:
         access_key: str,
         secret_key: str,
         q_stats: dict[str, int] | None = None,
+        *,
+        resource: str = CONTRATOS.name,
     ) -> None:
-        """Append a new row to the manifest.csv on IA.
+        """Append a new row to the manifest.csv on IA for (resource, month).
 
         Emits manifest v2 columns (``file_type``, ``sha256``,
         ``file_size_bytes``, ``sort_key``, ``row_group_size``,
@@ -823,11 +864,15 @@ class IAUploader:
         must abort the publish rather than overwrite the live manifest with
         only the new row.
         """
+        spec = get_resource(resource)
+        table_name = spec.canonical_tables[0].table_name
+
         # Build the new row before acquiring the lock — sha256/size computation
         # is pure local I/O and doesn't need to be serialized.
         month_str = start_date.strftime("%Y-%m")
-        parquet_filename = f"contratos-{month_str}.parquet"
+        parquet_filename = f"{table_name}-{month_str}.parquet"
         parquet_url = f"https://archive.org/download/{item_id}/{parquet_filename}"
+        zip_basename = raw_zip_filename(resource, month_str)
 
         parquet_local = uploaded_files.get(parquet_filename)
         if parquet_local and Path(parquet_local).exists():
@@ -839,11 +884,11 @@ class IAUploader:
 
         new_row = {
             "data_particao": month_str,
-            "table_name": CONTRATOS.name,
+            "table_name": resource,
             "row_count": q_stats.get("valid", 0) if q_stats else 0,
             "quarantine_count": q_stats.get("quarantine", 0) if q_stats else 0,
             "ia_item_id": item_id,
-            "raw_zip_url": f"https://archive.org/download/{item_id}/raw-{month_str}.zip",
+            "raw_zip_url": f"https://archive.org/download/{item_id}/{zip_basename}",
             # Only write parquet_url when we confirmed the file was in the upload set.
             # An empty sha256 means the Parquet was never generated; writing the URL
             # anyway produces a manifest entry that points to a non-existent file and
@@ -865,17 +910,18 @@ class IAUploader:
 
         with _manifest_lock:
             manifest = read_manifest_from_ia()
-            # Deduplicate only against the canonical row for this partition.
-            # Manifest v2 allows multiple rows per partition (monthly_uf shards,
-            # supplemental dailies); blanket removal would silently drop their
-            # hash/size metadata. Empty/missing file_type is treated as canonical
-            # for v1 backward compat (matches web's isCanonicalRow).
+            # Deduplicate only against the canonical row for this (resource,
+            # partition). Manifest v2 allows multiple rows per partition
+            # (monthly_uf shards, supplemental dailies, other resources);
+            # blanket removal would silently drop their hash/size metadata.
+            # Empty/missing file_type is treated as canonical for v1
+            # backward compat (matches web's isCanonicalRow).
             manifest = [
                 r
                 for r in manifest
                 if not (
                     r["data_particao"] == month_str
-                    and r["table_name"] == CONTRATOS.name
+                    and r["table_name"] == resource
                     and r.get("file_type", "") in ("", "monthly_canonical")
                 )
             ]

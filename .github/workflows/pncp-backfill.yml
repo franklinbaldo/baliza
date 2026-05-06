@@ -18,6 +18,16 @@ on:
         required: false
         type: boolean
         default: false
+      resource:
+        description: 'PNCP resource to backfill (cron always uses contratos)'
+        required: false
+        type: choice
+        default: contratos
+        # Keep this list in sync with the active RESOURCES dict in
+        # src/baliza/resources/__init__.py — see pncp-sync.yml.
+        options:
+          - contratos
+          - atas
 
 concurrency:
   group: pncp-backfill
@@ -41,6 +51,7 @@ jobs:
           # the manual dispatch uses so the substitution stays valid.
           START_YEAR: ${{ inputs.start_year || '2023' }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          RESOURCE: ${{ inputs.resource || 'contratos' }}
         run: |
           if [[ ! "$START_YEAR" =~ ^[0-9]{4}$ ]]; then
             echo "::error::start_year must be a 4-digit year, got: $START_YEAR"
@@ -59,9 +70,11 @@ jobs:
           uv run baliza mirror \
             --start-date "${START_YEAR}-01-01" \
             --workers 2 \
+            --resource "$RESOURCE" \
             "${extra[@]}"
           uv run baliza build \
             --backfill \
             --start-date "${START_YEAR}-01-01" \
             --workers 2 \
+            --resource "$RESOURCE" \
             "${extra[@]}"

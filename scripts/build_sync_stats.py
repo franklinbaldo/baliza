@@ -69,46 +69,65 @@ def main() -> int:
         print("manifest is empty; leaving existing sync_stats.json", file=sys.stderr)
         return 1
 
-    # Restrict to canonical monthly contratos partitions:
+    # Canonical monthly partitions only:
     #   - file_type='monthly_canonical' (or empty for backward compat
     #     with rows written before the column existed) so non-canonical
     #     shards like monthly_uf don't double-count.
-    #   - table_name='contratos' so when the manifest grows to carry
-    #     atas / dispensas / itens, those rows don't inflate the
-    #     "Contratos citáveis" total or skew the partition span.
-    canonical = [
+    canonical_all = [
         r for r in rows
         if (r.get("file_type") or "monthly_canonical") == "monthly_canonical"
-        and r.get("table_name") == "contratos"
     ]
 
-    total_contracts = sum(_to_int(r.get("row_count"), field="row_count") for r in canonical)
-    total_quarantine = sum(
-        _to_int(r.get("quarantine_count"), field="quarantine_count") for r in canonical
-    )
+    def _aggregate(resource_rows: list[dict]) -> dict[str, int]:
+        partitions = sorted({p for r in resource_rows if (p := r.get("data_particao"))})
+        days = 0
+        if partitions:
+            oldest = _partition_to_date(partitions[0])
+            newest = _partition_to_date(partitions[-1])
+            if oldest is None or newest is None:
+                print(
+                    f"warning: could not parse partition span "
+                    f"({partitions[0]!r} .. {partitions[-1]!r}); "
+                    "leaving days_on_ia at 0",
+                    file=sys.stderr,
+                )
+            else:
+                days = (newest - oldest).days
+        return {
+            "row_count": sum(_to_int(r.get("row_count"), field="row_count") for r in resource_rows),
+            "quarantine_count": sum(
+                _to_int(r.get("quarantine_count"), field="quarantine_count")
+                for r in resource_rows
+            ),
+            "partition_count": len(partitions),
+            "days_on_ia": days,
+        }
 
-    partitions = sorted(
-        {p for r in canonical if (p := r.get("data_particao"))}
-    )
-    days_on_ia = 0
-    if partitions:
-        oldest = _partition_to_date(partitions[0])
-        newest = _partition_to_date(partitions[-1])
-        if oldest is None or newest is None:
-            print(
-                f"warning: could not parse partition span "
-                f"({partitions[0]!r} .. {partitions[-1]!r}); "
-                "leaving days_on_ia at 0",
-                file=sys.stderr,
-            )
-        else:
-            days_on_ia = (newest - oldest).days
+    # Per-resource breakdown so the dashboard can render any registered
+    # resource's tile (atas, contratacoes, …) once data lands. Unknown
+    # resources still flow through verbatim — this is a derived view of
+    # whatever the manifest reports, not a hardcoded list.
+    by_resource: dict[str, list[dict]] = {}
+    for r in canonical_all:
+        name = r.get("table_name") or ""
+        if not name:
+            continue
+        by_resource.setdefault(name, []).append(r)
+    resources_breakdown = {name: _aggregate(rs) for name, rs in by_resource.items()}
+
+    # Top-level fields stay shaped exactly as before so the existing
+    # SyncStatsSchema (z.object) still parses without surgery — they
+    # describe contratos because the homepage tile is "Contratos
+    # citáveis". The dashboard can extend the schema to read
+    # `resources.{name}` directly when it adds per-resource tiles.
+    contratos_stats = resources_breakdown.get("contratos") or _aggregate([])
 
     payload = {
-        "total_contracts": total_contracts,
-        "total_quarantine": total_quarantine,
-        "days_on_ia": days_on_ia,
+        "total_contracts": contratos_stats["row_count"],
+        "total_quarantine": contratos_stats["quarantine_count"],
+        "days_on_ia": contratos_stats["days_on_ia"],
         "generated_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "resources": resources_breakdown,
     }
 
     out = REPO_ROOT / "web" / "public" / "data" / "sync_stats.json"
