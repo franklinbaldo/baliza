@@ -23,13 +23,19 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'schedule' }}
 
 permissions:
-  contents: write
+  contents: read
   issues: write
 
 jobs:
   sync:
     runs-on: ubuntu-latest
     timeout-minutes: 360
+    permissions:
+      # Only the sync job needs to push the refreshed sync_stats.json
+      # commit. The report-failure / report-recovery jobs operate on
+      # issues only (workflow-level issues:write covers them).
+      contents: write
+      issues: write
     env:
       # Keep a 3-minute buffer vs timeout-minutes=360 so the CLI exits gracefully first.
       SYNC_LIMIT_MINUTES: 357

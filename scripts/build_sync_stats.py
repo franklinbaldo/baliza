@@ -24,10 +24,20 @@ from baliza.ia_uploader import (  # noqa: E402
 )
 
 
-def _to_int(raw: object) -> int:
+def _to_int(raw: object, *, field: str) -> int:
+    if raw is None or raw == "":
+        return 0
     try:
-        return int(raw or 0)
+        return int(raw)
     except (TypeError, ValueError):
+        # Surface corrupt manifest cells loudly. We still default to 0 so
+        # one bad row doesn't block the whole publish, but the warning
+        # makes upstream rot visible rather than silently zeroing the
+        # totals.
+        print(
+            f"warning: could not coerce {field}={raw!r} to int; treating as 0",
+            file=sys.stderr,
+        )
         return 0
 
 
@@ -59,8 +69,10 @@ def main() -> int:
         print("manifest is empty; leaving existing sync_stats.json", file=sys.stderr)
         return 1
 
-    total_contracts = sum(_to_int(r.get("row_count")) for r in rows)
-    total_quarantine = sum(_to_int(r.get("quarantine_count")) for r in rows)
+    total_contracts = sum(_to_int(r.get("row_count"), field="row_count") for r in rows)
+    total_quarantine = sum(
+        _to_int(r.get("quarantine_count"), field="quarantine_count") for r in rows
+    )
 
     partitions = sorted(
         {p for r in rows if (p := r.get("data_particao"))}
@@ -69,7 +81,14 @@ def main() -> int:
     if partitions:
         oldest = _partition_to_date(partitions[0])
         newest = _partition_to_date(partitions[-1])
-        if oldest and newest:
+        if oldest is None or newest is None:
+            print(
+                f"warning: could not parse partition span "
+                f"({partitions[0]!r} .. {partitions[-1]!r}); "
+                "leaving days_on_ia at 0",
+                file=sys.stderr,
+            )
+        else:
             days_on_ia = (newest - oldest).days
 
     payload = {
