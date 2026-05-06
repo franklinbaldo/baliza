@@ -1,6 +1,6 @@
 # Baliza Frontend Architecture Guide
 
-This document describes the tech stack, idioms, and patterns for the Baliza web dashboard, adapted from the CausaGanha standard.
+This document describes the tech stack, idioms, and patterns for the Baliza web dashboard.
 All frontend code lives under `web/`.
 
 ---
@@ -11,7 +11,7 @@ All frontend code lives under `web/`.
 |---|---|
 | Meta-framework | Astro 5 |
 | Component framework | Svelte 5 |
-| Styling | Vanilla CSS with design tokens (No Tailwind) |
+| Styling | Pico CSS v2 + Semantic HTML + Global CSS Variables (No Tailwind) |
 | Local state | Svelte 5 runes (`$state`, `$derived`) |
 | Async state | TanStack Query (`@tanstack/svelte-query@^6`) |
 | Build | Vite |
@@ -65,13 +65,30 @@ type ManifestRow = z.infer<typeof ManifestRowSchema>;
 
 ---
 
-## Vanilla CSS & Design Tokens
+## Styling & Pico CSS Rules
 
-Like CausaGanha, **Tailwind is strictly forbidden in new components.**
-All components must use scoped `<style>` blocks referencing global CSS variables (`var(--color-primary)`, `var(--space-md)`) defined in `web/src/index.css`.
+- Baliza uses Pico CSS v2 as the baseline styling framework.
+- Zero Tailwind. Tailwind syntax, utility-class composition, and Tailwind-style local styling are not allowed.
+- Component-local `<style>` blocks inside `.svelte` or `.astro` files are prohibited.
+- Visual structure must first be solved with semantic HTML supported by Pico: `<article>`, `<header>`, `<hgroup>`, `<nav>`, `<details>`, `<summary>`, `<section>`, forms, tables, and native buttons.
+- Pico's own small class vocabulary is allowed when semantically appropriate, for example `container`, `grid`, `outline`, `secondary`, `contrast`, and `overflow-auto`.
+- Baliza-specific visual variations must be centralized in `web/src/styles/global.css`.
+- When a variation is necessary, prefer explicit semantic/state attributes such as `data-badge`, `data-icon`, `data-invalid`, `aria-busy`, `role="alert"`, or `role="status"` rather than inventing local component classes.
+- New CSS must be rare, global, documented, and expressed as design-system vocabulary, not one-off component styling.
 
-- **Do not** write inline `style="..."` with hardcoded values.
-- **Do not** duplicate hex codes.
+### Do / Don't
+
+Do:
+- `<article>`
+- `<button class="outline">`
+- `<article role="alert" data-invalid="true">`
+- `<div class="table-scroll"><table>...</table></div>`
+
+Don't:
+- Tailwind classes
+- component-scoped `<style>`
+- one-off classes such as `.custom-card`, `.blue-box`, `.page-title-special`
+- visual layout solved by arbitrary `<div>` nesting when semantic tags would work
 
 ---
 
