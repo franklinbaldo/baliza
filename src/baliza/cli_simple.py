@@ -507,6 +507,7 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                     ia_access_key,
                     ia_secret_key,
                     manifest=raw_manifest if raw_manifest else None,
+                    resource=resource,
                 )
             consolidated = True
         except Exception as e:
@@ -977,9 +978,13 @@ def verify(
 def consolidate_cmd(
     start_year: int = typer.Option(2021, "--start-year"),
     force: bool = typer.Option(False, "--force"),
+    resource: str = typer.Option(
+        RESOURCE_CONTRATOS, "--resource", "-r", help="PNCP resource to consolidate"
+    ),
 ) -> None:
     """Annual consolidation of daily Parquet files (Stateless)."""
     try:
+        _validate_resource(resource)
         ia_access_key = os.environ.get("IA_ACCESS_KEY")
         ia_secret_key = os.environ.get("IA_SECRET_KEY")
         if not ia_access_key or not ia_secret_key:
@@ -987,7 +992,9 @@ def consolidate_cmd(
             raise typer.Exit(1)
 
         consolidator = IAConsolidator()
-        consolidator.consolidate_all(start_year, ia_access_key, ia_secret_key, force=force)
+        consolidator.consolidate_all(
+            start_year, ia_access_key, ia_secret_key, force=force, resource=resource
+        )
     except Exception as e:
         console.print(f"[red]✗ Consolidation failed: {e}")
         raise typer.Exit(1) from e

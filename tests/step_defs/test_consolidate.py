@@ -81,7 +81,7 @@ def run_consolidate_force(
     monkeypatch.setattr(
         consolidator,
         "_get_daily_urls_for_year",
-        lambda _year, manifest=None: daily_parquets,
+        lambda _year, manifest=None, *, resource="contratos": daily_parquets,
     )
     # Ensure the frozen-check never short-circuits (scenario passes force=True anyway).
     monkeypatch.setattr("baliza.consolidator._is_frozen", lambda _year: False)

@@ -60,6 +60,13 @@ class CanonicalTableSpec:
     # downstream consumers depend on; new resources should leave it
     # blank to get the derived ordering.
     order_by_sql: str | None = None
+    # Whether the canonical schema carries a ``uf_sigla`` column the
+    # consolidator can shard on. Contratos = True (every contrato has a
+    # buyer's UF); atas = False (atas API responses don't carry UF info).
+    # Drives ``_build_per_uf_shards`` + ``register_monthly_uf_shards``
+    # in the consolidator. Keep this declarative because the column
+    # presence isn't always derivable from sort/bloom column lists.
+    partition_by_uf: bool = False
 
 @dataclass
 class PNCPResource:

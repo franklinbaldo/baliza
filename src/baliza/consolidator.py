@@ -19,7 +19,7 @@ import internetarchive as ia
 from rich.console import Console
 
 from .ia_uploader import read_manifest_from_ia, register_monthly_uf_shards
-from .resources import CONTRATOS
+from .resources import CONTRATOS, get_resource
 from .utils import DUCKDB_PARQUET_COPY_OPTIONS
 
 CONSOLIDATED_IA_ITEM = "baliza-pncp-consolidated"
@@ -39,8 +39,15 @@ def _is_frozen(year: int) -> bool:
     return datetime.date.today() >= freeze_date
 
 
-def _consolidated_file_name(year: int) -> str:
-    return f"contratos-{year}.parquet"
+def _consolidated_file_name(year: int, *, resource: str = CONTRATOS.name) -> str:
+    """Annual consolidated parquet basename — `{canonical_table}-{year}.parquet`.
+
+    Drives off the resource's CanonicalTableSpec so atas / future
+    resources get their own file alongside contratos in the same
+    `baliza-pncp-consolidated` IA item.
+    """
+    table_name = get_resource(resource).canonical_tables[0].table_name
+    return f"{table_name}-{year}.parquet"
 
 
 def _requires_httpfs(paths_or_urls: list[str]) -> bool:
@@ -58,19 +65,27 @@ def _parse_iso_mtime(value: str) -> datetime.datetime | None:
         return None
 
 
-def _current_year_is_fresh(manifest: list[dict], year: int) -> bool:
+def _current_year_is_fresh(
+    manifest: list[dict], year: int, *, resource: str = CONTRATOS.name
+) -> bool:
     """True when the current year's consolidated shards are at-or-after every monthly canonical upload.
 
     Uses the manifest as a single source of truth: consolidation writes
     ``monthly_uf`` shard rows after a successful IA upload, so the newest
     shard timestamp bounds the last successful consolidation. If a monthly
     canonical upload is newer, current-year consolidation is stale.
+
+    Resources whose canonical table doesn't carry ``uf_sigla`` (e.g. atas)
+    skip the per-UF sharding step entirely — for them, freshness is "the
+    annual consolidated row is at-or-after every monthly canonical upload"
+    instead of comparing canonical to shards. We still gate via the manifest
+    by treating the absence of new canonical uploads as fresh.
     """
     year_str = str(year)
     canonical_mtimes: list[datetime.datetime] = []
     shard_mtimes: list[datetime.datetime] = []
     for row in manifest:
-        if row.get("table_name") != CONTRATOS.name:
+        if row.get("table_name") != resource:
             continue
         part = row.get("data_particao") or ""
         if not part.startswith(year_str):
@@ -86,9 +101,29 @@ def _current_year_is_fresh(manifest: list[dict], year: int) -> bool:
             shard_mtimes.append(parsed)
     if not canonical_mtimes:
         return True  # nothing to consolidate yet
+
+    # Resources without UF sharding don't write monthly_uf rows; their
+    # freshness gate falls back to "any new monthly canonical means rebuild".
+    # Conservatively treat them as stale whenever a canonical upload exists
+    # — the consolidator's own no-op short-circuit handles repeated calls.
+    if not _resource_has_uf_shards(resource):
+        return False
+
     if not shard_mtimes:
         return False  # canonical months exist but no shards → needs first build
     return max(shard_mtimes) >= max(canonical_mtimes)
+
+
+def _resource_has_uf_shards(resource: str) -> bool:
+    """Whether the consolidator should emit per-UF monthly shards.
+
+    Reads the explicit ``CanonicalTableSpec.partition_by_uf`` flag —
+    inferring from sort/bloom column lists silently regressed contratos
+    (its canonical row carries ``uf_sigla`` even though the column isn't
+    in either list, so the heuristic returned False and skipped shard
+    publication; see Codex review on PR #555).
+    """
+    return get_resource(resource).canonical_tables[0].partition_by_uf
 
 
 class IAConsolidator:
@@ -108,11 +143,19 @@ class IAConsolidator:
         """
         return read_manifest_from_ia()
 
-    def _get_daily_urls_for_year(self, year: int, manifest: list[dict] | None = None) -> list[str]:
-        """Read the manifest.csv on IA and get all daily contratos file URLs for the year.
+    def _get_daily_urls_for_year(
+        self,
+        year: int,
+        manifest: list[dict] | None = None,
+        *,
+        resource: str = CONTRATOS.name,
+    ) -> list[str]:
+        """Read the manifest.csv on IA and get all daily file URLs for ``resource`` in ``year``.
 
         Propagates ``ManifestReadError`` on transient failures so we never
-        silently consolidate from a partial view of the manifest.
+        silently consolidate from a partial view of the manifest. Filters
+        by ``table_name == resource`` so atas rows don't feed contratos
+        consolidation (and vice versa).
         """
         rows = manifest if manifest is not None else self._read_manifest()
         urls = []
@@ -124,7 +167,7 @@ class IAConsolidator:
             file_type = row.get("file_type", "")
             if (
                 (row.get("data_particao") or "").startswith(year_str)
-                and row.get("table_name") == CONTRATOS.name
+                and row.get("table_name") == resource
                 and file_type in ("", "monthly_canonical")
             ):
                 url = row.get("parquet_url") or row.get("file_url")
@@ -132,35 +175,79 @@ class IAConsolidator:
                     urls.append(url)
         return urls
 
-    def _check_consolidated_exists_on_ia(self, year: int) -> bool:
+    def _check_consolidated_exists_on_ia(
+        self, year: int, *, resource: str = CONTRATOS.name
+    ) -> bool:
         """Check if the consolidated annual file already exists in the IA item."""
-        filename = _consolidated_file_name(year)
+        filename = _consolidated_file_name(year, resource=resource)
         try:
             item = ia.get_item(CONSOLIDATED_IA_ITEM)
             return any(f.get("name") == filename for f in item.files)
         except Exception:
             return False
 
-    def consolidate_year(  # noqa: PLR0912
+    def _consolidated_mtime_on_ia(
+        self, year: int, *, resource: str = CONTRATOS.name
+    ) -> datetime.datetime | None:
+        """Return the upload time of the consolidated annual file on IA, or None.
+
+        IA exposes per-file ``mtime`` as a unix timestamp string. The
+        freshness gate for resources without UF shards uses this to
+        decide "did the file land after the newest monthly canonical
+        upload" without piling extra rows into the manifest.
+
+        Returns None when the file is missing OR present without a
+        usable mtime — callers must treat None as "can't decide
+        freshness from IA, fall back to a rebuild".
+        """
+        filename = _consolidated_file_name(year, resource=resource)
+        try:
+            item = ia.get_item(CONSOLIDATED_IA_ITEM)
+        except Exception:
+            return None
+        for f in item.files:
+            if f.get("name") != filename:
+                continue
+            mtime = f.get("mtime")
+            if not mtime:
+                return None
+            try:
+                return datetime.datetime.fromtimestamp(int(mtime), tz=datetime.UTC)
+            except (TypeError, ValueError):
+                return None
+        return None
+
+    def consolidate_year(  # noqa: PLR0912, PLR0913, PLR0915
         self,
         year: int,
         ia_access_key: str,
         ia_secret_key: str,
         force: bool = False,
         manifest: list[dict] | None = None,
+        *,
+        resource: str = CONTRATOS.name,
     ) -> bool:
-        """Build and upload annual consolidated Parquet for the given year.
+        """Build and upload annual consolidated Parquet for ``resource`` in ``year``.
 
         ``manifest`` is optional: when supplied, the current-year freshness
-        gate uses it in place of refetching manifest.csv.
+        gate uses it in place of refetching manifest.csv. ``resource`` routes
+        through the canonical table from the registry — atas / future
+        resources land their own ``{table_name}-{year}.parquet`` alongside
+        contratos in the same ``baliza-pncp-consolidated`` IA item.
         """
         frozen = _is_frozen(year)
-        filename = _consolidated_file_name(year)
+        filename = _consolidated_file_name(year, resource=resource)
+        spec = get_resource(resource)
+        table_spec = spec.canonical_tables[0]
+        order_by_sql = table_spec.order_by_sql or ", ".join(
+            list(table_spec.sort_columns)
+            + ([table_spec.pk] if isinstance(table_spec.pk, str) else list(table_spec.pk))
+        )
 
         if frozen and not force:
-            if self._check_consolidated_exists_on_ia(year):
+            if self._check_consolidated_exists_on_ia(year, resource=resource):
                 console.print(
-                    f"[dim]Skipping {year}: frozen year, consolidated file already on IA.[/dim]"
+                    f"[dim]Skipping {resource}/{year}: frozen year, consolidated file already on IA.[/dim]"
                 )
                 return False
 
@@ -176,21 +263,55 @@ class IAConsolidator:
         if not force and year == datetime.date.today().year:
             if shared_manifest is None:
                 shared_manifest = self._read_manifest()
-            if _current_year_is_fresh(shared_manifest, year):
-                console.print(f"[dim]Skipping {year}: consolidated shards are up to date.[/dim]")
+            if _current_year_is_fresh(shared_manifest, year, resource=resource):
+                console.print(
+                    f"[dim]Skipping {resource}/{year}: consolidated shards are up to date.[/dim]"
+                )
                 return False
+            # Resources without per-UF shards (atas etc.) have no
+            # monthly_uf rows for the manifest gate to inspect, so the
+            # gate above is conservative — it returns False whenever any
+            # canonical month exists. Avoid the resulting daily rebuild
+            # storm by also checking the consolidated annual file's IA
+            # mtime: if it landed after the newest canonical upload,
+            # nothing has changed and the rebuild is wasted work.
+            if not _resource_has_uf_shards(resource):
+                consolidated_mtime = self._consolidated_mtime_on_ia(year, resource=resource)
+                if consolidated_mtime is not None:
+                    newest_canonical = max(
+                        (
+                            _parse_iso_mtime(row.get("uploaded_at") or "")
+                            for row in shared_manifest
+                            if row.get("table_name") == resource
+                            and (row.get("data_particao") or "").startswith(str(year))
+                            and row.get("file_type", "") in ("", "monthly_canonical")
+                        ),
+                        default=None,
+                    )
+                    if newest_canonical is not None and consolidated_mtime >= newest_canonical:
+                        console.print(
+                            f"[dim]Skipping {resource}/{year}: consolidated annual file "
+                            f"({consolidated_mtime.isoformat()}) is at-or-after the newest "
+                            f"canonical upload ({newest_canonical.isoformat()}).[/dim]"
+                        )
+                        return False
 
-        console.print(f"[cyan]Consolidating {year}...[/cyan]")
+        console.print(f"[cyan]Consolidating {resource}/{year}...[/cyan]")
 
         # 1. Get daily file URLs from manifest.csv (the helper fetches on its
         #    own when no manifest is threaded through).
-        daily_urls = self._get_daily_urls_for_year(year, manifest=shared_manifest)
+        daily_urls = self._get_daily_urls_for_year(
+            year, manifest=shared_manifest, resource=resource
+        )
         if not daily_urls:
-            console.print(f"[yellow]No daily files found in manifest for {year}.[/yellow]")
+            console.print(
+                f"[yellow]No daily files found in manifest for {resource}/{year}.[/yellow]"
+            )
             return False
 
         console.print(f"  Found {len(daily_urls)} daily files.")
         is_current_year = year == datetime.date.today().year
+        wants_uf_shards = _resource_has_uf_shards(resource)
 
         # 2. Use DuckDB httpfs to stream+sort and write one consolidated Parquet
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -206,7 +327,7 @@ class IAConsolidator:
                         COPY (
                             SELECT *
                             FROM read_parquet([{url_list}])
-                            ORDER BY cnpj_orgao, data_publicacao DESC, numero_controle_pncp
+                            ORDER BY {order_by_sql}
                         ) TO '{output_path}'
                         ({DUCKDB_PARQUET_COPY_OPTIONS})
                     """)
@@ -226,9 +347,13 @@ class IAConsolidator:
                 files_to_upload = {filename: str(output_path)}
 
                 # 2a. Per-UF shards (current year only; past years stay single-file).
+                # Gated on the resource's canonical table actually carrying
+                # `uf_sigla` — atas etc. don't, so they ship as single annual files.
                 shards: list[dict] = []
-                if is_current_year:
-                    shards = self._build_per_uf_shards(con, output_path, year, Path(tmpdir))
+                if is_current_year and wants_uf_shards:
+                    shards = self._build_per_uf_shards(
+                        con, output_path, year, Path(tmpdir), resource=resource
+                    )
                     for s in shards:
                         files_to_upload[s["filename"]] = str(s["path"])
                     console.print(f"  Built {len(shards)} per-UF shards.")
@@ -264,7 +389,7 @@ class IAConsolidator:
                     ]
                     register_monthly_uf_shards(
                         year=year,
-                        table_name=CONTRATOS.name,
+                        table_name=table_spec.table_name,
                         shards=shard_rows,
                         access_key=ia_access_key,
                         secret_key=ia_secret_key,
@@ -272,12 +397,18 @@ class IAConsolidator:
 
                 # 4. Rebuild cumulative dimension files (current year only —
                 # captures latest rollups consumers need for detail pages).
-                if is_current_year:
+                # The aggregations use contratos-only columns
+                # (cnpj_orgao + valor_inicial + ni_fornecedor + …); other
+                # resources skip this step until per-resource dim shapes
+                # are defined.
+                if is_current_year and resource == CONTRATOS.name:
                     self._rebuild_dimensions(
                         con, output_path, Path(tmpdir), ia_access_key, ia_secret_key
                     )
 
-        console.print(f"[green]✓ {year} consolidated uploaded ({size_mb:.1f} MB).[/green]")
+        console.print(
+            f"[green]✓ {resource}/{year} consolidated uploaded ({size_mb:.1f} MB).[/green]"
+        )
         return True
 
     @staticmethod
@@ -295,16 +426,27 @@ class IAConsolidator:
         source_path: Path,
         year: int,
         tmp_root: Path,
+        *,
+        resource: str = CONTRATOS.name,
     ) -> list[dict]:
-        """Emit one contratos-YYYY-uf=XX.parquet per UF present in the file.
+        """Emit one ``{table}-YYYY-uf=XX.parquet`` per UF present in the file.
 
         Flat filenames (not Hive directories) so IA preserves them verbatim
         and the Journey 6 URL regex still matches the canonical file.
         Each shard is bloom-filtered + sorted like the canonical.
 
         Returns per-shard metadata (uf, path, row_count, sha256, file_size_bytes)
-        so callers can register shard rows in the manifest.
+        so callers can register shard rows in the manifest. Caller is
+        responsible for gating on ``_resource_has_uf_shards`` — this method
+        assumes the canonical schema carries ``uf_sigla``.
         """
+        spec = get_resource(resource)
+        table_spec = spec.canonical_tables[0]
+        table_name = table_spec.table_name
+        order_by_sql = table_spec.order_by_sql or ", ".join(
+            list(table_spec.sort_columns)
+            + ([table_spec.pk] if isinstance(table_spec.pk, str) else list(table_spec.pk))
+        )
         shard_dir = tmp_root / "shards"
         shard_dir.mkdir(exist_ok=True)
 
@@ -318,7 +460,7 @@ class IAConsolidator:
 
         shards: list[dict] = []
         for uf in ufs:
-            shard_name = f"contratos-{year}-uf={uf}.parquet"
+            shard_name = f"{table_name}-{year}-uf={uf}.parquet"
             shard_path = shard_dir / shard_name
             con.execute(
                 f"""
@@ -326,7 +468,7 @@ class IAConsolidator:
                     SELECT *
                     FROM read_parquet('{source_path}')
                     WHERE uf_sigla = ?
-                    ORDER BY cnpj_orgao, data_publicacao DESC, numero_controle_pncp
+                    ORDER BY {order_by_sql}
                 ) TO '{shard_path}'
                 ({DUCKDB_PARQUET_COPY_OPTIONS})
                 """,
@@ -440,15 +582,17 @@ class IAConsolidator:
         )
         console.print(f"  Rebuilt {len(files_to_upload)} cumulative dimension files.")
 
-    def consolidate_all(
+    def consolidate_all(  # noqa: PLR0913
         self,
         start_year: int,
         ia_access_key: str,
         ia_secret_key: str,
         force: bool = False,
         manifest: list[dict] | None = None,
+        *,
+        resource: str = CONTRATOS.name,
     ) -> dict[int, bool]:
-        """Consolidate from start_year through the current year.
+        """Consolidate ``resource`` from ``start_year`` through the current year.
 
         Reads the manifest once up-front (unless ``manifest`` is supplied)
         so the current-year freshness gate doesn't re-fetch per year.
@@ -463,5 +607,6 @@ class IAConsolidator:
                 ia_secret_key,
                 force=force,
                 manifest=shared_manifest,
+                resource=resource,
             )
         return results
