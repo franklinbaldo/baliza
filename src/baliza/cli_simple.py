@@ -1019,8 +1019,8 @@ def doctor(  # noqa: PLR0912, PLR0915
     # Optional: probe URLs with HEAD to catch deleted IA files.
     if head_check:
         # Retry transient HEAD failures so a 1s IA blip doesn't cry wolf.
-        # 3 attempts, exponential backoff 1s/2s/4s. A genuine deletion
-        # is still surfaced because IA returns 4xx, not a transport error.
+        # 3 attempts. A genuine deletion is still surfaced because IA
+        # returns 4xx, not a transport error.
         transport = httpx.HTTPTransport(retries=3)
         with httpx.Client(
             follow_redirects=True, timeout=15.0, transport=transport
@@ -1030,6 +1030,17 @@ def doctor(  # noqa: PLR0912, PLR0915
                 for url_col in ("parquet_url", "raw_zip_url"):
                     u = r.get(url_col) or ""
                     if not u:
+                        continue
+                    # Defense in depth: never let doctor make outbound
+                    # requests to a host the manifest validator already
+                    # rejected. A malicious/accidental external URL
+                    # would otherwise turn the scheduled cron into an
+                    # SSRF probe from the GHA runner.
+                    host = urlparse(u).netloc
+                    if not (
+                        u.startswith("https://")
+                        and (host == "archive.org" or host.endswith(".archive.org"))
+                    ):
                         continue
                     try:
                         resp = client.head(u)
