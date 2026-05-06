@@ -519,7 +519,13 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
 
                     progress.update(overall_task, advance=1)
                 except ValueError as e:
-                    if "Invalid resource path" in str(e):
+                    # Resource validation now raises 'unknown resource …'
+                    # (registry miss) or 'Invalid resource_name …'
+                    # (registration-time charset check). Surface either
+                    # before re-raising so the operator sees what went
+                    # wrong on the way out of the progress loop.
+                    msg = str(e)
+                    if "unknown resource" in msg or "Invalid resource_name" in msg:
                         progress.console.log(f"[bold red]✗ {e}[/bold red]")
                     raise
                 except Exception as e:
