@@ -33,11 +33,15 @@ def _pending_mirror_months(
     The current month is always included — its ZIP grows daily as new pages arrive.
     """
     raw_manifest = read_manifest_from_ia()  # strict: raises ManifestReadError on failure
-    # A past month is "done" when it has a non-empty raw_zip_url.
+    # A past month is "done" when it has a non-empty raw_zip_url for the
+    # selected resource. Without the table_name filter, contratos rows
+    # would mark months as mirrored and skip the atas backfill entirely.
     mirrored: set[str] = {
         row["data_particao"]
         for row in raw_manifest
-        if row.get("data_particao") and row.get("raw_zip_url")
+        if row.get("data_particao")
+        and row.get("raw_zip_url")
+        and row.get("table_name") == resource
     }
 
     today = date.today()
@@ -230,6 +234,7 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
         ia_access_key,
         ia_secret_key,
         keep_raw_dir=is_current_month,
+        resource=resource,
     )
     result["uploaded"] = uploaded
 

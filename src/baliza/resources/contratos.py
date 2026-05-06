@@ -44,6 +44,11 @@ CONTRATOS = PNCPResource(
             source_entity="contrato",
             sort_columns=["cnpj_orgao", "data_publicacao_pncp"],
             bloom_filter_columns=["cnpj_orgao"],
+            # Preserve the historical ORDER BY shape so existing
+            # parquet files (and the bloom filter prefiltering that
+            # depends on cnpj_orgao locality) stay byte-comparable
+            # across this multi-resource refactor.
+            order_by_sql="cnpj_orgao, data_publicacao DESC, numero_controle_pncp",
         )
     ],
     entity_model=RecuperarContratoDTO,

@@ -51,6 +51,11 @@ def _pending_build_months(
 
     pending_set: set[date] = set()
     for row in raw_manifest:
+        # Per-resource scoping: ignore rows that belong to a different
+        # canonical table so contratos rows don't trigger atas rebuilds
+        # (and vice versa) once the manifest carries multiple resources.
+        if row.get("table_name") != resource:
+            continue
         part = row.get("data_particao") or ""
         if not part:
             continue
@@ -132,9 +137,17 @@ def build_month(  # noqa: PLR0913, PLR0915
 
     # Resolve raw_zip_url from manifest — decoupled from item naming so it
     # works whether the ZIP lives in baliza-pncp-raw or a per-month item.
+    # Scope by table_name so atas rows don't feed contratos builds (and
+    # vice versa) once the manifest carries multiple resources.
     rows = manifest if manifest is not None else read_manifest_from_ia()
     manifest_row = next(
-        (r for r in rows if r.get("data_particao") == month_str and r.get("raw_zip_url")),
+        (
+            r
+            for r in rows
+            if r.get("data_particao") == month_str
+            and r.get("table_name") == resource
+            and r.get("raw_zip_url")
+        ),
         None,
     )
     if not manifest_row:
@@ -205,6 +218,7 @@ def build_month(  # noqa: PLR0913, PLR0915
                 quarantine_stats=stats,
                 quarantine_csv=q_csv if has_q else None,
                 schema_version=SCHEMA_VERSION,
+                resource=resource,
             )
             result["uploaded"] = uploaded
 
