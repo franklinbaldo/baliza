@@ -53,6 +53,13 @@ class CanonicalTableSpec:
     source_entity: str             # EntitySpec.name que origina esta tabela
     sort_columns: list[str]
     bloom_filter_columns: list[str]
+    # Optional override for the ORDER BY clause used when exporting the
+    # monthly Parquet. When None, callers derive a default from
+    # sort_columns + pk (preserving determinism). Contratos sets this
+    # explicitly because it carries a `data_publicacao DESC` shape that
+    # downstream consumers depend on; new resources should leave it
+    # blank to get the derived ordering.
+    order_by_sql: str | None = None
 
 @dataclass
 class PNCPResource:

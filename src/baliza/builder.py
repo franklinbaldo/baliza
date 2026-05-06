@@ -218,6 +218,7 @@ def build_month(  # noqa: PLR0913, PLR0915
                 quarantine_stats=stats,
                 quarantine_csv=q_csv if has_q else None,
                 schema_version=SCHEMA_VERSION,
+                resource=resource,
             )
             result["uploaded"] = uploaded
 
