@@ -23,6 +23,7 @@
 
 <button
   type="button"
+  class="outline"
   onclick={toggle}
   aria-label={isDark ? 'Alternar para tema claro' : 'Alternar para tema escuro'}
   aria-pressed={isDark}

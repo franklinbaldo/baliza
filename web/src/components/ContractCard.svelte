@@ -13,17 +13,17 @@
   const { id, date, obj, valor, buyer }: Props = $props();
 </script>
 
-<a href={resolve(`contratacao?id=${id}`)}>
-  <div>
-    <span>{id}</span>
-    <span>{date ? formatDate(date) : ''}</span>
-  </div>
-  <p>{truncate(obj, 150)}</p>
-  <div>
-    {#if buyer}
-      <span>{buyer}</span>
-    {/if}
-    <span>{formatBRL(valor)}</span>
-  </div>
-</a>
+<article>
+  <a href={resolve(`contratacao?id=${id}`)}>
+    <header>
+      <code>{id}</code>
+      <small>{date ? formatDate(date) : ''}</small>
+    </header>
+    <p>{truncate(obj, 150)}</p>
+    <footer>
+      {#if buyer}<strong>{buyer}</strong>{/if}
+      <strong>{formatBRL(valor)}</strong>
+    </footer>
+  </a>
+</article>
 

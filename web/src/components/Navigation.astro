@@ -15,51 +15,35 @@ const cityPrefix = (BASE + 'municipio').replace(/\/$/, '');
 const isCityActive = cleanPath === cityPrefix;
 ---
 
-<nav>
-  <div>
-    <a href={BASE}>
-      <span>B</span>
-      <span><span>Baliza</span> Monitor</span>
-    </a>
-
-    <input type="checkbox" id="nav-toggle" aria-label="Alternar menu" />
-    <label for="nav-toggle">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-        <line x1="3" y1="12" x2="21" y2="12"></line>
-        <line x1="3" y1="6" x2="21" y2="6"></line>
-        <line x1="3" y1="18" x2="21" y2="18"></line>
-      </svg>
-      <span>Alternar menu</span>
-    </label>
-
-    <div>
-      <ul>
-        <li><CityNavLink client:load isActive={isCityActive} /></li>
-        <li><a href={BASE + 'atas'}>Atas</a></li>
-        
-        <li>
-          <button type="button" aria-haspopup="true">
-            Dados Abertos
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-          </button>
-          <ul>
-            <li><a href={BASE + 'explorador'}>Explorador SQL</a></li>
-            <li><a href={BASE + 'desenvolvedores'}>Devs & API</a></li>
-            <li><a href={BASE + 'status'}>Status do Arquivo</a></li>
-          </ul>
-        </li>
-
-        <li><a href={BASE + 'sobre'}>Sobre</a></li>
-      </ul>
-
-      <div>
-        <a href={BASE + 'busca'} aria-label="Buscar" title="Buscar">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-          <span>Buscar</span>
-        </a>
-        <ThemeToggle client:only="svelte" />
-      </div>
-    </div>
-  </div>
+<nav class="container">
+  <ul>
+    <li>
+      <a href={BASE}>
+        <strong>Baliza</strong> <small>Monitor</small>
+      </a>
+    </li>
+  </ul>
+  <ul>
+    <li><CityNavLink client:load isActive={isCityActive} /></li>
+    <li><a href={BASE + 'atas'} aria-current={isActive(BASE + 'atas') ? 'page' : undefined}>Atas</a></li>
+    <li>
+      <details role="list" dir="rtl">
+        <summary aria-haspopup="listbox">Dados Abertos</summary>
+        <ul role="listbox">
+          <li><a href={BASE + 'explorador'}>Explorador SQL</a></li>
+          <li><a href={BASE + 'desenvolvedores'}>Devs & API</a></li>
+          <li><a href={BASE + 'status'}>Status do Arquivo</a></li>
+        </ul>
+      </details>
+    </li>
+    <li><a href={BASE + 'sobre'} aria-current={isActive(BASE + 'sobre') ? 'page' : undefined}>Sobre</a></li>
+    <li>
+      <a href={BASE + 'busca'} role="button" class="outline" aria-label="Buscar">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <span class="sr-only">Buscar</span>
+      </a>
+    </li>
+    <li><ThemeToggle client:only="svelte" /></li>
+  </ul>
 </nav>
 

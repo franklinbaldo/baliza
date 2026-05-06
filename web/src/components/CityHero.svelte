@@ -57,81 +57,61 @@
 </script>
 
 <section aria-labelledby="city-hero-title">
-  <div>
-    <div>
-      <span>Painel cívico · O que é o Baliza?</span>
+  <header>
+    <hgroup>
+      <small><mark>Painel cívico · O que é o Baliza?</mark></small>
       <h1 id="city-hero-title">
-        O que
-        <em>
-          {cityState.nome}{cityState.uf ? ` / ${cityState.uf}` : ''}
-        </em>
-        está comprando?
+        O que <em>{cityState.nome}{cityState.uf ? ` / ${cityState.uf}` : ''}</em> está comprando?
       </h1>
       <p>
         <strong>B</strong>ackup <strong>A</strong>berto de <strong>Li</strong>citações <strong>Z</strong>elando pelo <strong>A</strong>cesso.
       </p>
+    </hgroup>
+  </header>
 
-      <form method="get" action={resolve('busca')}>
-        {#if cityState.source !== 'default'}
-          <input type="hidden" name="ibge" value={cityState.ibge} />
-        {/if}
-        <input
-          type="search"
-          name="q"
-          placeholder={cityState.source === 'default'
-            ? 'Ex: hospital municipal, merenda, obras...'
-            : `Buscar em ${cityState.nome} — ex.: merenda, obras...`}
-          aria-label="Buscar no PNCP"
-        />
-        <button type="submit">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-          Buscar
-        </button>
-      </form>
+  <form role="search" method="get" action={resolve('busca')}>
+    {#if cityState.source !== 'default'}
+      <input type="hidden" name="ibge" value={cityState.ibge} />
+    {/if}
+    <fieldset role="group">
+      <input
+        type="search"
+        name="q"
+        placeholder={cityState.source === 'default'
+          ? 'Ex: hospital municipal, merenda, obras...'
+          : `Buscar em ${cityState.nome} — ex.: merenda, obras...`}
+        aria-label="Buscar no PNCP"
+      />
+      <button type="submit">Buscar</button>
+    </fieldset>
+  </form>
 
-      <div>
-        <a href={dashboardHref}>
-          Ver painel de {cityState.nome}
-        </a>
+  <div role="group" class="actions">
+    <a href={dashboardHref} role="button">Ver painel de {cityState.nome}</a>
 
-        {#if geoStatus !== 'ready'}
-          <button
-            type="button"
-            onclick={handleFindLocal}
-            disabled={geoStatus === 'locating'}
-          >
-            {#if geoStatus === 'locating'}
-              <span></span> Localizando...
-            {:else}
-              📍 Usar minha localização
-            {/if}
-          </button>
-        {/if}
+    {#if geoStatus !== 'ready'}
+      <button type="button" class="outline" onclick={handleFindLocal} disabled={geoStatus === 'locating'} aria-busy={geoStatus === 'locating'}>
+        {geoStatus === 'locating' ? 'Localizando...' : '📍 Usar minha localização'}
+      </button>
+    {/if}
 
-        <button
-          type="button"
-          aria-expanded={pickerOpen}
-          aria-controls="city-hero-picker"
-          onclick={() => (pickerOpen = !pickerOpen)}
-        >
-          {pickerOpen ? 'Fechar seletor' : 'Buscar outra cidade'}
-        </button>
-      </div>
-
-      {#if geoStatus === 'denied'}
-        <p aria-live="polite">Acesso à localização negado. Use o seletor manual.</p>
-      {:else if geoStatus === 'error'}
-        <p aria-live="polite">Não conseguimos determinar sua localização. Use o seletor manual.</p>
-      {:else}
-        <p aria-live="polite">{sourceLabel}</p>
-      {/if}
-
-      {#if pickerOpen}
-        <div id="city-hero-picker">
-          <CityPicker autofocus onselect={() => (pickerOpen = false)} />
-        </div>
-      {/if}
-    </div>
+    <button type="button" class="outline secondary" aria-expanded={pickerOpen} aria-controls="city-hero-picker" onclick={() => (pickerOpen = !pickerOpen)}>
+      {pickerOpen ? 'Fechar seletor' : 'Buscar outra cidade'}
+    </button>
   </div>
+
+  {#if geoStatus === 'denied'}
+    <small role="alert" aria-live="polite">Acesso à localização negado. Use o seletor manual.</small>
+  {:else if geoStatus === 'error'}
+    <small role="alert" aria-live="polite">Não conseguimos determinar sua localização. Use o seletor manual.</small>
+  {:else}
+    <small aria-live="polite">{sourceLabel}</small>
+  {/if}
+
+  {#if pickerOpen}
+    <div id="city-hero-picker">
+      <CityPicker autofocus onselect={() => (pickerOpen = false)} />
+    </div>
+  {/if}
 </section>
 

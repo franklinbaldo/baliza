@@ -68,57 +68,51 @@
        below handles "what next" prompts that don't depend on the archive. -->
 {:else}
   <section aria-label={`Pulso de ${cityState.nome}`}>
-    <div>
-      <div>
-        {#if loading}
-          {#each [1, 2, 3, 4] as _, col (col)}
-            <div aria-busy="true">
-              <div></div>
-              <div></div>
-            </div>
-          {/each}
-        {:else if data}
-          <a href={buscaHref} aria-label={`Ver os ${formatInteger(data.contratos)} contratos arquivados de ${cityState.nome}`}>
-            <span>{formatInteger(data.contratos)}</span>
-            <span>contratos arquivados</span>
-            {#if desdeLabel}<span>{desdeLabel}</span>{/if}
-          </a>
-
-          <a href={buscaHref} aria-label={`Ver contratos de ${cityState.nome} (valor total ${formatBRL(data.valorTotal)})`}>
-            <span>{formatBRL(data.valorTotal)}</span>
-            <span>valor estimado total</span>
-          </a>
-
-          {#if data.topOrgao}
-            <a href={resolve(`orgao?cnpj=${data.topOrgao.cnpj}`)} aria-label={`Ver contratos do órgão ${data.topOrgao.razaoSocial ?? data.topOrgao.cnpj}`}>
-              <span>{data.topOrgao.razaoSocial ?? data.topOrgao.cnpj}</span>
-              <span>maior comprador</span>
-              <span>{formatInteger(data.topOrgao.n)} contratos</span>
-            </a>
-          {:else}
-            <div role="status">
-              <span>—</span>
-              <span>sem comprador frequente</span>
-            </div>
-          {/if}
-
-          <div role="status" aria-live="polite">
-            <span>{ateLabel || '—'}</span>
-            <span>snapshot via Internet Archive</span>
-          </div>
-        {/if}
-      </div>
-
-      {#if data && data.contratos > 0}
-        <a href={buscaHref}>
-          Ver todos os contratos de {cityState.nome} →
-        </a>
+    <div class="grid">
+      {#if loading}
+        {#each [1, 2, 3, 4] as _, col (col)}
+          <article aria-busy="true" class="is-skeleton"><p>&nbsp;</p><p>&nbsp;</p></article>
+        {/each}
       {:else if data}
-        <p aria-live="polite">
-          Nenhum contrato arquivado para {cityState.nome} até agora.
-        </p>
+        <article>
+          <a href={buscaHref} aria-label={`Ver os ${formatInteger(data.contratos)} contratos arquivados de ${cityState.nome}`}>
+            <strong>{formatInteger(data.contratos)}</strong>
+            <p><small>contratos arquivados</small></p>
+            {#if desdeLabel}<small>{desdeLabel}</small>{/if}
+          </a>
+        </article>
+
+        <article>
+          <a href={buscaHref} aria-label={`Ver contratos de ${cityState.nome} (valor total ${formatBRL(data.valorTotal)})`}>
+            <strong>{formatBRL(data.valorTotal)}</strong>
+            <p><small>valor estimado total</small></p>
+          </a>
+        </article>
+
+        {#if data.topOrgao}
+          <article>
+            <a href={resolve(`orgao?cnpj=${data.topOrgao.cnpj}`)} aria-label={`Ver contratos do órgão ${data.topOrgao.razaoSocial ?? data.topOrgao.cnpj}`}>
+              <strong>{data.topOrgao.razaoSocial ?? data.topOrgao.cnpj}</strong>
+              <p><small>maior comprador</small></p>
+              <small>{formatInteger(data.topOrgao.n)} contratos</small>
+            </a>
+          </article>
+        {:else}
+          <article role="status"><strong>—</strong><p><small>sem comprador frequente</small></p></article>
+        {/if}
+
+        <article role="status" aria-live="polite">
+          <strong>{ateLabel || '—'}</strong>
+          <p><small>snapshot via Internet Archive</small></p>
+        </article>
       {/if}
     </div>
+
+    {#if data && data.contratos > 0}
+      <p><a href={buscaHref}>Ver todos os contratos de {cityState.nome} →</a></p>
+    {:else if data}
+      <p aria-live="polite"><small>Nenhum contrato arquivado para {cityState.nome} até agora.</small></p>
+    {/if}
   </section>
 {/if}
 

@@ -120,21 +120,18 @@
   });
 </script>
 
-<div role="search" aria-label="Trocar cidade">
-  <div>
-    <span>
-      {cityState.source === 'default' ? 'Cidade inicial' : 'Cidade escolhida'}
-    </span>
+<form role="search" aria-label="Trocar cidade">
+  <header>
+    <small>{cityState.source === 'default' ? 'Cidade inicial' : 'Cidade escolhida'}</small>
     <strong>{cityState.nome}{cityState.uf ? ` / ${cityState.uf}` : ''}</strong>
     {#if cityState.source !== 'default'}
-      <button type="button" onclick={resetToDefault}>
+      <button type="button" class="outline" onclick={resetToDefault}>
         usar {DEFAULT_CITY.nome}
       </button>
     {/if}
-  </div>
+  </header>
 
-  <label>
-    <span>Buscar município</span>
+  <fieldset role="group">
     <input
       type="search"
       role="combobox"
@@ -150,44 +147,35 @@
       onkeydown={onKeydown}
       autocomplete="off"
     />
-    <button
-      type="button"
-      onclick={useMyLocation}
-      disabled={geoStatus === 'locating'}
-      aria-label="Usar minha localização atual"
-    >
+    <button type="button" class="outline" onclick={useMyLocation} disabled={geoStatus === 'locating'} aria-busy={geoStatus === 'locating'} aria-label="Usar minha localização atual">
       {geoStatus === 'locating' ? 'Buscando…' : '📍 minha localização'}
     </button>
-  </label>
+  </fieldset>
 
   {#if loading}
-    <p aria-live="polite">Buscando municípios…</p>
+    <small aria-live="polite" aria-busy="true">Buscando municípios…</small>
   {:else if query.trim().length === 1}
-    <p aria-live="polite">Digite ao menos 2 letras para buscar.</p>
+    <small aria-live="polite">Digite ao menos 2 letras para buscar.</small>
   {/if}
 
   {#if geoStatus === 'denied'}
-    <p>Acesso à localização negado. Digite o nome da cidade.</p>
+    <small role="alert">Acesso à localização negado. Digite o nome da cidade.</small>
   {:else if geoStatus === 'error'}
-    <p>Não foi possível obter sua localização.</p>
+    <small role="alert">Não foi possível obter sua localização.</small>
   {/if}
 
   {#if results.length > 0}
     <ul id="city-picker-listbox" role="listbox">
       {#each results as r, i (r.ibge)}
-        <li
-          id={`city-opt-${i}`}
-          role="option"
-          aria-selected={i === activeIndex}
-        >
-          <button type="button" onclick={() => pick(r)} onmouseenter={() => (activeIndex = i)}>
-            <span>{r.nome}</span>
-            <span>{r.uf || '—'}</span>
-            <span>IBGE {r.ibge}</span>
+        <li id={`city-opt-${i}`} role="option" aria-selected={i === activeIndex}>
+          <button type="button" class="outline" onclick={() => pick(r)} onmouseenter={() => (activeIndex = i)}>
+            <strong>{r.nome}</strong>
+            <small>{r.uf || '—'}</small>
+            <code>IBGE {r.ibge}</code>
           </button>
         </li>
       {/each}
     </ul>
   {/if}
-</div>
+</form>
 

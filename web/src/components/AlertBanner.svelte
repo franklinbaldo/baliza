@@ -8,10 +8,13 @@
   let { title, message, level = 'info' }: Props = $props();
 </script>
 
-<div role={level === 'error' || level === 'warning' ? 'alert' : 'status'} aria-live={level === 'error' || level === 'warning' ? 'assertive' : 'polite'}>
-  <div>
-    <strong>{title}</strong>
-    <div>{message}</div>
-  </div>
-</div>
+<article
+  role={level === 'error' || level === 'warning' ? 'alert' : 'status'}
+  aria-live={level === 'error' || level === 'warning' ? 'assertive' : 'polite'}
+  aria-invalid={level === 'error' || level === 'warning' ? 'true' : undefined}
+  data-level={level}
+>
+  <strong>{title}</strong>
+  <p>{message}</p>
+</article>
 

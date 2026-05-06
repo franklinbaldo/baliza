@@ -46,10 +46,12 @@
 {@render children(paginatedItems)}
 
 {#if totalPages > 1}
-  <div>
-    <button disabled={currentPage === 1} onclick={prev}>Anterior</button>
-    <span>Página {currentPage} de {totalPages}</span>
-    <button disabled={currentPage === totalPages} onclick={next}>Próxima</button>
-  </div>
+  <nav aria-label="Paginação">
+    <ul role="group">
+      <li><button class="outline" disabled={currentPage === 1} onclick={prev}>Anterior</button></li>
+      <li><small>Página {currentPage} de {totalPages}</small></li>
+      <li><button class="outline" disabled={currentPage === totalPages} onclick={next}>Próxima</button></li>
+    </ul>
+  </nav>
 {/if}
 

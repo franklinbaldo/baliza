@@ -23,10 +23,16 @@
 </script>
 
 {#if entry}
-  <button data-testid="glossary-term" type="button" aria-describedby={tooltipId}>
+  <span
+    data-testid="glossary-term"
+    data-tooltip={entry.plain}
+    data-placement="top"
+    aria-describedby={tooltipId}
+    role="button"
+    tabindex="0"
+  >
     {#if children}{@render children()}{:else}{term}{/if}
-    <span id={tooltipId} role="tooltip">{entry.plain}</span>
-  </button>
+  </span>
 {:else if children}
   {@render children()}
 {:else}

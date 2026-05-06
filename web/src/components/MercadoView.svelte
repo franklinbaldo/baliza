@@ -89,82 +89,65 @@
   }
 </script>
 
-<div>
+<section>
   <header>
-    <span>📊 MERCADO</span>
-    <h1>Análise de Mercado</h1>
-    <p>
-      Top compradores, fornecedores e faixa de preço. Fonte: API PNCP.
-    </p>
+    <hgroup>
+      <small><mark>📊 MERCADO</mark></small>
+      <h1>Análise de Mercado</h1>
+      <p>Top compradores, fornecedores e faixa de preço. Fonte: API PNCP.</p>
+    </hgroup>
   </header>
 
-  <form onsubmit={handleSubmit}>
-    <label for="mercado-objeto-input">Objeto a pesquisar</label>
-    <input
-      id="mercado-objeto-input"
-      type="search"
-      bind:value={searchInput}
-      placeholder="Ex.: merenda escolar..."
-      aria-label="Objeto a pesquisar"
-    />
-    <button type="submit">Buscar</button>
+  <form role="search" onsubmit={handleSubmit}>
+    <label for="mercado-objeto-input" class="sr-only">Objeto a pesquisar</label>
+    <fieldset role="group">
+      <input id="mercado-objeto-input" type="search" bind:value={searchInput} placeholder="Ex.: merenda escolar..." aria-label="Objeto a pesquisar" />
+      <button type="submit">Buscar</button>
+    </fieldset>
   </form>
 
   {#if !submittedObjeto || submittedObjeto.length < 3}
-    <EmptyState
-      title="Digite o objeto a pesquisar"
-      message="Use ao menos 3 caracteres para ver o panorama do mercado."
-    />
+    <EmptyState title="Digite o objeto a pesquisar" message="Use ao menos 3 caracteres para ver o panorama do mercado." />
   {:else if loading}
-    <div aria-busy="true" aria-label="Buscando mercado">
-      <div></div>
-      <div></div>
-    </div>
+    <article aria-busy="true" class="is-skeleton" aria-label="Buscando mercado"><p>&nbsp;</p><p>&nbsp;</p></article>
   {:else if error}
     <AlertBanner title="Não foi possível buscar mercado" message={error.message} level="error" />
   {:else if contracts.length === 0}
-    <EmptyState
-      title="Nenhum dado de mercado encontrado"
-      message="Nenhum contrato recente do PNCP correspondeu ao objeto pesquisado."
-    />
+    <EmptyState title="Nenhum dado de mercado encontrado" message="Nenhum contrato recente do PNCP correspondeu ao objeto pesquisado." />
   {:else}
-    <div>
-      <div data-testid="mercado-count">
-        <span>Total de contratos</span>
-        <span>{contracts.length}</span>
-      </div>
-      <div data-testid="mercado-price-range">
-        <span>Faixa de preço</span>
-        <span>
+    <div class="grid">
+      <article data-testid="mercado-count">
+        <small>Total de contratos</small>
+        <p><strong>{contracts.length}</strong></p>
+      </article>
+      <article data-testid="mercado-price-range">
+        <small>Faixa de preço</small>
+        <p><strong>
           {#if priceRange.min !== null && priceRange.max !== null}
             {formatBrl(priceRange.min)} — {formatBrl(priceRange.max)}
           {:else}
             N/D
           {/if}
-        </span>
-      </div>
+        </strong></p>
+      </article>
     </div>
-    <div>
+    <div class="grid">
       <section data-testid="mercado-top-buyers">
         <h2>Top Compradores</h2>
         <ul>
-          {#each topBuyers as buyer (buyer.razaoSocial)}
-            <li>{buyer.razaoSocial} ({buyer.count})</li>
-          {/each}
+          {#each topBuyers as buyer (buyer.razaoSocial)}<li>{buyer.razaoSocial} <small>({buyer.count})</small></li>{/each}
         </ul>
       </section>
       <section data-testid="mercado-top-suppliers">
         <h2>Top Fornecedores</h2>
         <ul>
-          {#each topSuppliers as supplier (supplier.name)}
-            <li>{supplier.name} ({supplier.count})</li>
-          {/each}
+          {#each topSuppliers as supplier (supplier.name)}<li>{supplier.name} <small>({supplier.count})</small></li>{/each}
         </ul>
       </section>
     </div>
-    <div>
-        <a href={resolve(`atas?objeto=${submittedObjeto}`)}>Ver pesquisa de preços</a>
+    <div class="actions">
+      <a href={resolve(`atas?objeto=${submittedObjeto}`)} role="button" class="outline">Ver pesquisa de preços</a>
     </div>
   {/if}
-</div>
+</section>
 

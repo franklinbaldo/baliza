@@ -3,6 +3,7 @@ import { ClientRouter } from 'astro:transitions';
 import Navigation from '../components/Navigation.astro';
 import Metadata from '../components/Metadata.astro';
 import SecurityHeaders from '../components/SecurityHeaders.astro';
+import '../styles/global.css';
 
 interface Props {
   title: string;
@@ -90,26 +91,23 @@ const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
       </defs>
     </svg>
 
-    <a href="#main-content">Pular para o conteúdo principal</a>
+    <a href="#main-content" class="sr-only">Pular para o conteúdo principal</a>
     <Navigation />
 
-    <main id="main-content">
+    <main id="main-content" class="container">
       <slot />
     </main>
 
-    <footer>
-      <div>
-        <p>Baliza: Arquivo público das contratações nacionais.</p>
-        <div>
-          <a href="https://github.com/franklinbaldo" target="_blank" rel="noopener">Codificado por Franklin Baldo</a>
-          <span>·</span>
-          <span>Fonte: PNCP & Internet Archive</span>
-          <span>·</span>
-          <a href={BASE + 'explorador'}>Explorador SQL (Beta)</a>
-          <span>·</span>
-          <a href={BASE + 'status'}>Status</a>
-        </div>
-      </div>
+    <footer class="container">
+      <p>Baliza: Arquivo público das contratações nacionais.</p>
+      <nav aria-label="Rodapé">
+        <ul>
+          <li><a href="https://github.com/franklinbaldo" target="_blank" rel="noopener">Codificado por Franklin Baldo</a></li>
+          <li><small>Fonte: PNCP & Internet Archive</small></li>
+          <li><a href={BASE + 'explorador'}>Explorador SQL (Beta)</a></li>
+          <li><a href={BASE + 'status'}>Status</a></li>
+        </ul>
+      </nav>
     </footer>
   </body>
 </html>

@@ -71,32 +71,34 @@
   {#if !visible}
     <button
       type="button"
+      class="outline"
       data-testid="open-citation"
       onclick={() => { visible = true; }}
       disabled={loading}
+      aria-busy={loading}
     >
       {loading ? 'Carregando snapshot…' : 'Gerar citação acadêmica'}
     </button>
   {:else}
-    <div data-testid="citation-meta">
-      {#if snapshotDate}
-        Snapshot: <code>{snapshotDate}</code>
-      {:else}
-        Snapshot: <em>não identificado no manifesto — verifique o /status</em>
-      {/if}
-      {#if archiveUrl}
-        <span>·</span>
-        <a href={archiveUrl} target="_blank" rel="noopener">Arquivo no Internet Archive</a>
-      {/if}
-    </div>
-    <pre data-testid="bibtex-block"><code>{bibtex}</code></pre>
-    <button
-      type="button"
-      data-testid="copy-bibtex"
-      onclick={copyBibtex}
-    >
-      {copied ? 'Copiado ✓' : 'Copiar BibTeX'}
-    </button>
+    <blockquote>
+      <small data-testid="citation-meta">
+        {#if snapshotDate}
+          Snapshot: <code>{snapshotDate}</code>
+        {:else}
+          Snapshot: <em>não identificado no manifesto — verifique o /status</em>
+        {/if}
+        {#if archiveUrl}
+          ·
+          <a href={archiveUrl} target="_blank" rel="noopener">Arquivo no Internet Archive</a>
+        {/if}
+      </small>
+      <pre data-testid="bibtex-block"><code>{bibtex}</code></pre>
+      <footer>
+        <button type="button" class="outline" data-testid="copy-bibtex" onclick={copyBibtex}>
+          {copied ? 'Copiado ✓' : 'Copiar BibTeX'}
+        </button>
+      </footer>
+    </blockquote>
   {/if}
 </section>
 

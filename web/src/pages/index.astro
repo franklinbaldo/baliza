@@ -93,31 +93,27 @@ const TOOLS: Array<{
   <!-- 7. Utilidades avançadas: compact secondary entry points. Demoted link
        grid — no second hero. The single search input lives in section 2b. -->
   <section aria-labelledby="tools-title">
-    <div>
-      <header>
-        <span>Utilidades avançadas</span>
-        <h2 id="tools-title">Outras entradas no arquivo</h2>
-        <p>
-          Para quem já sabe o que procurar: análise, dados brutos e metodologia.
-        </p>
-      </header>
-      <ul>
-        {TOOLS.map((tool) => (
-          <li>
-            <a
-              href={tool.href}
-              rel={tool.external ? 'noopener' : undefined}
-              target={tool.external ? '_blank' : undefined}
-            >
-              <span>
-                {tool.label}
-                {tool.external && <span aria-hidden="true"> ↗</span>}
-              </span>
-              <span>{tool.blurb}</span>
-            </a>
-          </li>
-        ))}
-      </ul>
+    <hgroup>
+      <small>Utilidades avançadas</small>
+      <h2 id="tools-title">Outras entradas no arquivo</h2>
+      <p>Para quem já sabe o que procurar: análise, dados brutos e metodologia.</p>
+    </hgroup>
+    <div class="grid">
+      {TOOLS.map((tool) => (
+        <article>
+          <a
+            href={tool.href}
+            rel={tool.external ? 'noopener' : undefined}
+            target={tool.external ? '_blank' : undefined}
+          >
+            <strong>
+              {tool.label}
+              {tool.external && <span aria-hidden="true"> ↗</span>}
+            </strong>
+          </a>
+          <p>{tool.blurb}</p>
+        </article>
+      ))}
     </div>
   </section>
 </Layout>

@@ -68,57 +68,44 @@
   }
 </script>
 
-<div>
+<section>
   <header>
-    <span>⚖️ DISPENSAS</span>
-    <h1>Dispensas — Bases Legais</h1>
-    <p>
-      Quais artigos da lei são mais citados em dispensas similares. Fonte: API PNCP, modalidade 8 (Dispensa).
-    </p>
+    <hgroup>
+      <small><mark>⚖️ DISPENSAS</mark></small>
+      <h1>Dispensas — Bases Legais</h1>
+      <p>Quais artigos da lei são mais citados em dispensas similares. Fonte: API PNCP, modalidade 8 (Dispensa).</p>
+    </hgroup>
   </header>
 
-  <form onsubmit={handleSubmit}>
-    <label for="dispensas-objeto-input">Objeto a pesquisar</label>
-    <input
-      id="dispensas-objeto-input"
-      type="search"
-      bind:value={searchInput}
-      placeholder="Ex.: papel A4, manutenção de veículos..."
-      aria-label="Objeto a pesquisar"
-    />
-    <button type="submit">Buscar</button>
+  <form role="search" onsubmit={handleSubmit}>
+    <label for="dispensas-objeto-input" class="sr-only">Objeto a pesquisar</label>
+    <fieldset role="group">
+      <input id="dispensas-objeto-input" type="search" bind:value={searchInput} placeholder="Ex.: papel A4, manutenção de veículos..." aria-label="Objeto a pesquisar" />
+      <button type="submit">Buscar</button>
+    </fieldset>
   </form>
 
   {#if !submittedObjeto || submittedObjeto.length < 3}
-    <EmptyState
-      title="Digite o objeto da dispensa"
-      message="Use ao menos 3 caracteres para ver os artigos legais mais citados em dispensas similares."
-    />
+    <EmptyState title="Digite o objeto da dispensa" message="Use ao menos 3 caracteres para ver os artigos legais mais citados em dispensas similares." />
   {:else if loading}
-    <div aria-busy="true" aria-label="Buscando dispensas">
-      <div></div>
-      <div></div>
-    </div>
+    <article aria-busy="true" class="is-skeleton" aria-label="Buscando dispensas"><p>&nbsp;</p><p>&nbsp;</p></article>
   {:else if error}
     <AlertBanner title="Não foi possível buscar dispensas" message={error.message} level="error" />
   {:else if citations.length === 0}
-    <EmptyState
-      title="Nenhuma base legal encontrada"
-      message="Nenhuma dispensa recente do PNCP correspondeu ao objeto pesquisado."
-    />
+    <EmptyState title="Nenhuma base legal encontrada" message="Nenhuma dispensa recente do PNCP correspondeu ao objeto pesquisado." />
   {:else}
     <section data-testid="dispensas-legal-list">
       {#each citations as cit (cit.article)}
         <article data-testid="dispensas-legal-item">
           <header>
-            <span>{cit.count} contrato{cit.count > 1 ? 's' : ''}</span>
-            <h2>{cit.article}</h2>
+            <small><mark>{cit.count} contrato{cit.count > 1 ? 's' : ''}</mark></small>
+            <h2><code>{cit.article}</code></h2>
           </header>
           <ul>
             {#each cit.samples as sample (sample.numeroControlePNCP)}
               <li>
-                <span>{sample.orgaoEntidade.razaoSocial}</span>
-                <span>{sample.objetoContratacao}</span>
+                <strong>{sample.orgaoEntidade.razaoSocial}</strong>
+                <p>{sample.objetoContratacao}</p>
               </li>
             {/each}
           </ul>
@@ -126,5 +113,5 @@
       {/each}
     </section>
   {/if}
-</div>
+</section>
 

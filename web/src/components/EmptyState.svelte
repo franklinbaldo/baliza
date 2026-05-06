@@ -9,13 +9,13 @@
   let { title, message, actionHref, actionLabel }: Props = $props();
 </script>
 
-<div role="status" aria-live="polite">
+<article role="status" aria-live="polite">
   <h3>{title}</h3>
   <p>{message}</p>
   {#if actionHref && actionLabel}
-    <div>
-      <a href={actionHref}>{actionLabel}</a>
-    </div>
+    <footer>
+      <a href={actionHref} role="button">{actionLabel}</a>
+    </footer>
   {/if}
-</div>
+</article>
 

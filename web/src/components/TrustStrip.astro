@@ -25,22 +25,20 @@ const PILLARS = [
 ---
 
 <section aria-labelledby="trust-title">
-  <div>
-    <header>
-      <span>Por que Baliza é diferente</span>
-      <h2 id="trust-title">Arquivo permanente, citação estável, análise sem servidor</h2>
-    </header>
+  <hgroup>
+    <small>Por que Baliza é diferente</small>
+    <h2 id="trust-title">Arquivo permanente, citação estável, análise sem servidor</h2>
+  </hgroup>
 
-    <ul>
-      {PILLARS.map((p) => (
-        <li>
-          <span>{p.kicker}</span>
-          <h3>{p.title}</h3>
-          <p>{p.body}</p>
-          <a href={resolve(p.cta.href)}>{p.cta.label} →</a>
-        </li>
-      ))}
-    </ul>
+  <div class="grid">
+    {PILLARS.map((p) => (
+      <article>
+        <header><small>{p.kicker}</small></header>
+        <h3>{p.title}</h3>
+        <p>{p.body}</p>
+        <footer><a href={resolve(p.cta.href)}>{p.cta.label} →</a></footer>
+      </article>
+    ))}
   </div>
 </section>
 

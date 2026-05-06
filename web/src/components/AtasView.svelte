@@ -82,17 +82,19 @@
   }
 </script>
 
-<div>
+<section>
   <header>
-    <span>📒 ATAS VIGENTES</span>
-    <h1>Atas de Registro de Preços</h1>
-    <p>
-      Busca contratos vigentes cujo objeto corresponde ao termo pesquisado. Fonte: arquivo Parquet (IA).
-    </p>
+    <hgroup>
+      <small><mark>📒 ATAS VIGENTES</mark></small>
+      <h1>Atas de Registro de Preços</h1>
+      <p>
+        Busca contratos vigentes cujo objeto corresponde ao termo pesquisado. Fonte: arquivo Parquet (IA).
+      </p>
+    </hgroup>
   </header>
 
-  <form onsubmit={handleSubmit}>
-    <label for="atas-objeto-input">Objeto a pesquisar</label>
+  <form role="search" onsubmit={handleSubmit}>
+    <label for="atas-objeto-input" class="sr-only">Objeto a pesquisar</label>
     <input
       id="atas-objeto-input"
       type="search"
@@ -109,11 +111,9 @@
       message="Use ao menos 3 caracteres para buscar atas vigentes pelo objeto contratado."
     />
   {:else if loading}
-    <div aria-busy="true" aria-label="Buscando atas vigentes">
-      <div></div>
-      <div></div>
-      <div></div>
-    </div>
+    <article aria-busy="true" class="is-skeleton" aria-label="Buscando atas vigentes">
+      <p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p>
+    </article>
   {:else if error}
     <AlertBanner title="Não foi possível buscar as atas" message={error.message} level="error" />
   {:else if rows.length === 0}
@@ -124,23 +124,23 @@
   {:else}
     <section data-testid="atas-list">
       {#each rows as row (row.numero_controle_pncp ?? `${row.cnpj_orgao}-${row.sequencial_contrato}`)}
-        <a
-          href={resolve(`contratacao?id=${row.numero_controle_pncp ?? ''}`)}
-        >
-          <div>
-            <span>{row.razao_social_orgao ?? 'Órgão Arquivado'}</span>
-            <span>{row.cnpj_orgao ?? ''}</span>
-          </div>
-          <p>{truncate(row.objeto_contrato, 150)}</p>
-          <div>
-            <span>
-              {formatDate(row.data_vigencia_inicio ?? '')} → {formatDate(row.data_vigencia_fim ?? '')}
-            </span>
-            <span>{formatBRL(row.valor_global ?? row.valor_inicial ?? null)}</span>
-          </div>
-        </a>
+        <article>
+          <a href={resolve(`contratacao?id=${row.numero_controle_pncp ?? ''}`)}>
+            <header>
+              <strong>{row.razao_social_orgao ?? 'Órgão Arquivado'}</strong>
+              <code>{row.cnpj_orgao ?? ''}</code>
+            </header>
+            <p>{truncate(row.objeto_contrato, 150)}</p>
+            <footer>
+              <small>
+                {formatDate(row.data_vigencia_inicio ?? '')} → {formatDate(row.data_vigencia_fim ?? '')}
+              </small>
+              <strong>{formatBRL(row.valor_global ?? row.valor_inicial ?? null)}</strong>
+            </footer>
+          </a>
+        </article>
       {/each}
     </section>
   {/if}
-</div>
+</section>
 

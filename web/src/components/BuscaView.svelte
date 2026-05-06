@@ -301,20 +301,22 @@
   }
 </script>
 
-<div>
+<section>
   <header>
-    <span>🔎 BUSCA LIVRE</span>
-    <h1>Busca livre no PNCP</h1>
-    <p>
-      Busca texto-livre nas contratações publicadas no PNCP nos últimos 365 dias.
-      Informe também um número de controle PNCP (<code>cnpj-tipo-sequencial/ano</code>)
-      para ir direto ao contrato.
-    </p>
+    <hgroup>
+      <small><mark>🔎 BUSCA LIVRE</mark></small>
+      <h1>Busca livre no PNCP</h1>
+      <p>
+        Busca texto-livre nas contratações publicadas no PNCP nos últimos 365 dias.
+        Informe também um número de controle PNCP (<code>cnpj-tipo-sequencial/ano</code>)
+        para ir direto ao contrato.
+      </p>
+    </hgroup>
   </header>
 
-  <form onsubmit={handleSubmit}>
-    <div>
-      <label for="busca-input">Termo a pesquisar</label>
+  <form role="search" onsubmit={handleSubmit}>
+    <fieldset role="group">
+      <label for="busca-input" class="sr-only">Termo a pesquisar</label>
       <input
         id="busca-input"
         type="search"
@@ -323,18 +325,18 @@
         aria-label="Termo a pesquisar"
       />
       <button type="submit">Buscar</button>
-    </div>
-    
+    </fieldset>
+
     <details open={draftHasAny}>
       <summary>Filtros Avançados (API do PNCP)</summary>
-      <div>
+      <fieldset class="grid">
         {#each Object.values(FILTERS) as def (def.key)}
           <label>
-            <span>{def.label}</span>
+            {def.label}
             <input type="text" bind:value={drafts[def.key]} placeholder={def.placeholder} />
           </label>
         {/each}
-      </div>
+      </fieldset>
     </details>
   </form>
 
@@ -344,12 +346,9 @@
       message="Use ao menos 3 caracteres no termo ou preencha um filtro avançado para buscar."
     />
   {:else if loading}
-    <div aria-busy="true" aria-label="Buscando contratações">
-      <div></div>
-      <div></div>
-      <div></div>
-      <div></div>
-    </div>
+    <article aria-busy="true" class="is-skeleton" aria-label="Buscando contratações">
+      <p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p>
+    </article>
   {:else if error}
     <AlertBanner title="Não foi possível buscar" message={error.message} level="error" />
   {:else if results.length === 0}
@@ -368,75 +367,43 @@
       </p>
     {/if}
   {:else}
-    <div data-testid="busca-filters">
+    <fieldset data-testid="busca-filters" class="grid">
       <label>
-        <span>UF</span>
-        <select
-          bind:value={selectedUf}
-          aria-label="Filtrar por UF"
-          data-testid="busca-filter-uf"
-        >
+        UF
+        <select bind:value={selectedUf} aria-label="Filtrar por UF" data-testid="busca-filter-uf">
           <option value="">Todas</option>
-          {#each ufOptions as uf (uf)}
-            <option value={uf}>{uf}</option>
-          {/each}
+          {#each ufOptions as uf (uf)}<option value={uf}>{uf}</option>{/each}
         </select>
       </label>
       <label>
-        <span>Modalidade</span>
-        <select
-          bind:value={selectedModality}
-          aria-label="Filtrar por modalidade"
-          data-testid="busca-filter-modality"
-        >
+        Modalidade
+        <select bind:value={selectedModality} aria-label="Filtrar por modalidade" data-testid="busca-filter-modality">
           <option value="">Todas</option>
-          {#each modalityOptions as mod (mod)}
-            <option value={mod}>{mod}</option>
-          {/each}
+          {#each modalityOptions as mod (mod)}<option value={mod}>{mod}</option>{/each}
         </select>
       </label>
-      <div role="group" aria-label="Exportar resultados visíveis">
-        <button
-          type="button"
-          data-testid="busca-save-watch"
-          onclick={saveWatch}
-          aria-pressed={queryWatched}
-          disabled={!watchKey || results.length === 0}
-        >{queryWatched ? '✓ Vigilância salva' : 'Salvar vigilância'}</button>
-        <button
-          type="button"
-          data-testid="busca-export-csv"
-          onclick={exportCsv}
-        >Exportar CSV</button>
-        <button
-          type="button"
-          data-testid="busca-export-markdown"
-          onclick={exportMarkdown}
-        >Exportar Markdown</button>
-        {#if copyStatus !== 'idle'}
-          <span
-            role="status"
-            aria-live="polite"
-            data-testid="busca-export-status"
-          >{copyStatus === 'copied' ? 'Copiado!' : 'Falha ao copiar'}</span>
-        {/if}
-      </div>
+    </fieldset>
+
+    <div role="group" aria-label="Exportar resultados visíveis" class="actions">
+      <button type="button" class="outline" data-testid="busca-save-watch" onclick={saveWatch} aria-pressed={queryWatched} disabled={!watchKey || results.length === 0}>
+        {queryWatched ? '✓ Vigilância salva' : 'Salvar vigilância'}
+      </button>
+      <button type="button" class="outline" data-testid="busca-export-csv" onclick={exportCsv}>Exportar CSV</button>
+      <button type="button" class="outline" data-testid="busca-export-markdown" onclick={exportMarkdown}>Exportar Markdown</button>
+      {#if copyStatus !== 'idle'}
+        <small role="status" aria-live="polite" data-testid="busca-export-status">
+          {copyStatus === 'copied' ? 'Copiado!' : 'Falha ao copiar'}
+        </small>
+      {/if}
     </div>
 
-    <dl data-testid="busca-aggregates" aria-label="Resumo dos resultados visíveis">
-      <div>
-        <dt>Contratos</dt>
-        <dd data-testid="busca-aggregate-count">{aggregates.count}</dd>
-      </div>
-      <div>
-        <dt>Valor total</dt>
-        <dd data-testid="busca-aggregate-total">{formatBRL(aggregates.total)}</dd>
-      </div>
-      <div>
-        <dt>Valor médio</dt>
-        <dd data-testid="busca-aggregate-average">{formatBRL(aggregates.average)}</dd>
-      </div>
-    </dl>
+    <article data-testid="busca-aggregates" aria-label="Resumo dos resultados visíveis">
+      <dl class="grid">
+        <div><dt><small>Contratos</small></dt><dd data-testid="busca-aggregate-count"><strong>{aggregates.count}</strong></dd></div>
+        <div><dt><small>Valor total</small></dt><dd data-testid="busca-aggregate-total"><strong>{formatBRL(aggregates.total)}</strong></dd></div>
+        <div><dt><small>Valor médio</small></dt><dd data-testid="busca-aggregate-average"><strong>{formatBRL(aggregates.average)}</strong></dd></div>
+      </dl>
+    </article>
 
     {#if filteredResults.length === 0}
       <EmptyState
@@ -449,17 +416,19 @@
           <ul role="listbox" data-testid="busca-results">
             {#each pageItems as c (c.numeroControlePNCP)}
               <li role="option" aria-selected="false" data-testid="busca-result-item">
-                <a href={linkFor(c)}>
-                  <div>
-                    <span>{c.orgaoEntidade?.razaoSocial ?? 'Órgão'}</span>
-                    <span>{c.modalidadeNome ?? ''}</span>
-                  </div>
-                  <p title={c.objetoContratacao}>{truncate(c.objetoContratacao, 180)}</p>
-                  <div>
-                    <span>{formatDate(c.dataPublicacaoPncp ?? '')}</span>
-                    <span>{formatBRL(c.valorTotalEstimado ?? null)}</span>
-                  </div>
-                </a>
+                <article>
+                  <a href={linkFor(c)}>
+                    <header>
+                      <strong>{c.orgaoEntidade?.razaoSocial ?? 'Órgão'}</strong>
+                      <small><mark>{c.modalidadeNome ?? ''}</mark></small>
+                    </header>
+                    <p title={c.objetoContratacao}>{truncate(c.objetoContratacao, 180)}</p>
+                    <footer>
+                      <small>{formatDate(c.dataPublicacaoPncp ?? '')}</small>
+                      <strong>{formatBRL(c.valorTotalEstimado ?? null)}</strong>
+                    </footer>
+                  </a>
+                </article>
               </li>
             {/each}
           </ul>
@@ -467,5 +436,5 @@
       </PaginatedList>
     {/if}
   {/if}
-</div>
+</section>
 

@@ -25,22 +25,27 @@
 </script>
 
 {#if href}
-  <a {href}>
-    <div>
-      <svg width="20" height="20" aria-hidden="true"><use href="#t2"/></svg>
-      <h3>{title}</h3>
-    </div>
-    <p>{value}</p>
-    {#if hint}<p>{hint}</p>{/if}
-  </a>
+  <article>
+    <a {href} role="button" class="contrast outline" style="--pico-primary:{accent}">
+      <header>
+        <svg width="20" height="20" aria-hidden="true"><use href="#t2"/></svg>
+        <h3>{title}</h3>
+      </header>
+      <p><strong>{value}</strong></p>
+      {#if hint}<small>{hint}</small>{/if}
+    </a>
+  </article>
 {:else}
-  <div>
-    <div>
+  <article style="--pico-primary:{accent}">
+    <header>
       <svg width="20" height="20" aria-hidden="true"><use href="#t1"/></svg>
       <h3>{title}</h3>
-    </div>
-    <p>{value}</p>
-    {#if hint}<p>{hint}</p>{/if}
-  </div>
+    </header>
+    <p><strong>{value}</strong></p>
+    {#if hint}<small>{hint}</small>{/if}
+  </article>
 {/if}
+<!-- WHY inline style: only the per-instance accent CSS variable
+     varies; all box/typography styling comes from Pico defaults. -->
+
 

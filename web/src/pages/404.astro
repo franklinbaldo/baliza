@@ -4,14 +4,15 @@ import { resolve } from '../lib/baseUrl';
 ---
 
 <Layout title="404: Não Encontrado" description="Ops! Esta página não existe no radar do Baliza.">
-  <div>
-    <div>404</div>
-    <h1>Coordenada Inexistente</h1>
+  <article>
+    <hgroup>
+      <h2><code>404</code></h2>
+      <h1>Coordenada Inexistente</h1>
+    </hgroup>
     <p>A página que você procura não foi localizada ou foi movida para uma nova órbita de transparência.</p>
-    
-    <div>
-      <a href={resolve('')}>Voltar ao Radar</a>
-    </div>
-  </div>
+    <footer>
+      <a href={resolve('')} role="button">Voltar ao Radar</a>
+    </footer>
+  </article>
 </Layout>
 

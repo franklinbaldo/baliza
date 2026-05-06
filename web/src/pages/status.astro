@@ -9,25 +9,20 @@ import CoverageReport from '../components/CoverageReport.svelte';
   description="Monitoramento da integridade do pipeline de dados Baliza."
 >
   <section>
-    <div>
-      <div>
+    <header>
+      <hgroup>
         <h1>Status do Pipeline</h1>
-        <span>🟢 Operacional</span>
-      </div>
+        <p><mark class="secondary">🟢 Operacional</mark></p>
+      </hgroup>
       <p>
         Acompanhe o estado do item bruto no Internet Archive. Esta tela lê
         diretamente os metadados públicos de <code>baliza-pncp-raw</code>,
         incluindo arquivos ZIP, tamanho, cobertura e atualização do item.
       </p>
-    </div>
+    </header>
 
-    <div>
-      <RawArchiveStatus client:load />
-    </div>
-
-    <div>
-      <CoverageReport client:visible />
-    </div>
+    <RawArchiveStatus client:load />
+    <CoverageReport client:visible />
   </section>
 </Layout>
 

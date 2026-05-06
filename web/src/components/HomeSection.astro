@@ -14,47 +14,26 @@ const {
   title,
   titleHidden = false,
   tone = 'surface',
-  divider = 'bottom'
+  divider = 'bottom',
 } = Astro.props;
-
-const bgMap = {
-  surface: 'var(--color-surface)',
-  bg: 'var(--color-bg)',
-  sunk: 'var(--color-surface-sunk)',
-};
-
-const borderMap = {
-  top: 'border-top: 1px solid var(--color-border);',
-  bottom: 'border-bottom: 1px solid var(--color-border);',
-  both: 'border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border);',
-  none: '',
-};
 ---
 
-<section
-  aria-labelledby={id}
-  data-tone={tone}
->
-  <div>
-    {titleHidden ? (
-      <h2 id={id}>{title}</h2>
-    ) : (
-      <header>
-        <div>
-          {kicker && <span>{kicker}</span>}
-          <h2 id={id}>{title}</h2>
-          <slot name="subtitle" />
-        </div>
-        {Astro.slots.has('aside') && (
-          <div>
-            <slot name="aside" />
-          </div>
-        )}
-      </header>
-    )}
-    <div>
-      <slot />
-    </div>
-  </div>
+<section aria-labelledby={id} data-tone={tone} data-divider={divider}>
+  {titleHidden ? (
+    <h2 id={id} class="sr-only">{title}</h2>
+  ) : (
+    <header>
+      <hgroup>
+        {kicker && <small>{kicker}</small>}
+        <h2 id={id}>{title}</h2>
+        <slot name="subtitle" />
+      </hgroup>
+      {Astro.slots.has('aside') && (
+        <aside>
+          <slot name="aside" />
+        </aside>
+      )}
+    </header>
+  )}
+  <slot />
 </section>
-

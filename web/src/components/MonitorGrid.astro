@@ -54,33 +54,29 @@ const ITEMS = [
 ---
 
 <section aria-labelledby="monitor-title">
-  <div>
-    <header>
-      <span>O que é possível monitorar</span>
-      <h2 id="monitor-title">Perguntas que Baliza ajuda a responder</h2>
-      <p>
-        São os mesmos dados públicos do PNCP, organizados para que você saia
-        com uma resposta em vez de uma tabela crua.
-      </p>
-    </header>
+  <hgroup>
+    <small>O que é possível monitorar</small>
+    <h2 id="monitor-title">Perguntas que Baliza ajuda a responder</h2>
+    <p>
+      São os mesmos dados públicos do PNCP, organizados para que você saia
+      com uma resposta em vez de uma tabela crua.
+    </p>
+  </hgroup>
 
-    <ul>
-      {ITEMS.map((item) => (
-        <li>
-          <a href={resolve(item.href)}>
-            <span aria-hidden="true">
-              <svg viewBox="0 0 100 100" preserveAspectRatio="none">
-                <use href={`#${item.tile}`} />
-              </svg>
-            </span>
-            <span>
-              <span>{item.title}</span>
-              <span>{item.question}</span>
-            </span>
-          </a>
-        </li>
-      ))}
-    </ul>
+  <div class="grid">
+    {ITEMS.map((item) => (
+      <article>
+        <a href={resolve(item.href)}>
+          <figure aria-hidden="true">
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none" width="64" height="64">
+              <use href={`#${item.tile}`} />
+            </svg>
+          </figure>
+          <strong>{item.title}</strong>
+          <p><small>{item.question}</small></p>
+        </a>
+      </article>
+    ))}
   </div>
 </section>
 

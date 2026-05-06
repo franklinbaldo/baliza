@@ -89,66 +89,44 @@
   }
 </script>
 
-<div>
+<section>
   <header>
-    <span>🌍 COMPARAR</span>
-    <h1>Comparação de Municípios</h1>
-    <p>
-      Gastos per-capita e comparação com municípios do mesmo porte.
-    </p>
+    <hgroup>
+      <small><mark>🌍 COMPARAR</mark></small>
+      <h1>Comparação de Municípios</h1>
+      <p>Gastos per-capita e comparação com municípios do mesmo porte.</p>
+    </hgroup>
   </header>
 
-  <form onsubmit={handleSubmit}>
-    <input
-      type="text"
-      bind:value={searchIbge}
-      placeholder="Código IBGE (ex: 3550308)"
-      aria-label="Código IBGE"
-    />
-    <input
-      type="text"
-      bind:value={searchObjeto}
-      placeholder="Objeto (ex: merenda)"
-      aria-label="Objeto"
-    />
-    <button type="submit">Comparar</button>
+  <form role="search" onsubmit={handleSubmit}>
+    <fieldset role="group">
+      <input type="text" bind:value={searchIbge} placeholder="Código IBGE (ex: 3550308)" aria-label="Código IBGE" />
+      <input type="text" bind:value={searchObjeto} placeholder="Objeto (ex: merenda)" aria-label="Objeto" />
+      <button type="submit">Comparar</button>
+    </fieldset>
   </form>
 
   {#if (!submittedIbge || submittedIbge.length !== 7) || (!submittedObjeto || submittedObjeto.length < 3)}
-    <EmptyState
-      title="Preencha os campos"
-      message="Informe o IBGE (7 dígitos) e o objeto para comparar."
-    />
+    <EmptyState title="Preencha os campos" message="Informe o IBGE (7 dígitos) e o objeto para comparar." />
   {:else if loading}
-    <div aria-busy="true" aria-label="Buscando dados">
-      <div></div>
-    </div>
+    <article aria-busy="true" class="is-skeleton" aria-label="Buscando dados"><p>&nbsp;</p></article>
   {:else if error}
     <AlertBanner title="Não foi possível buscar dados" message={error.message} level="error" />
   {:else}
-    <div>
+    <article>
       <h3>Gasto Per-Capita (Objeto: {submittedObjeto})</h3>
-      <p>{formatBrl(perCapitaSpend)} / habitante</p>
-      <p>Gasto total: {formatBrl(totalSpend)} | População estimada: {getPop(submittedIbge)}</p>
-    </div>
+      <p><strong>{formatBrl(perCapitaSpend)}</strong> / habitante</p>
+      <footer><small>Gasto total: {formatBrl(totalSpend)} | População estimada: {getPop(submittedIbge)}</small></footer>
+    </article>
 
     <section data-testid="comparar-peers">
       <h3>Municípios Semelhantes</h3>
-      <div>
-        <div data-testid="comparar-peer-item">
-          <h4>Peer 1 (Simulado)</h4>
-          <p>{formatBrl(perCapitaSpend * 0.9)} / hab</p>
-        </div>
-        <div data-testid="comparar-peer-item">
-          <h4>Peer 2 (Simulado)</h4>
-          <p>{formatBrl(perCapitaSpend * 1.1)} / hab</p>
-        </div>
-        <div data-testid="comparar-peer-item">
-          <h4>Peer 3 (Simulado)</h4>
-          <p>{formatBrl(perCapitaSpend * 0.8)} / hab</p>
-        </div>
+      <div class="grid">
+        <article data-testid="comparar-peer-item"><h4>Peer 1 (Simulado)</h4><p><strong>{formatBrl(perCapitaSpend * 0.9)}</strong> / hab</p></article>
+        <article data-testid="comparar-peer-item"><h4>Peer 2 (Simulado)</h4><p><strong>{formatBrl(perCapitaSpend * 1.1)}</strong> / hab</p></article>
+        <article data-testid="comparar-peer-item"><h4>Peer 3 (Simulado)</h4><p><strong>{formatBrl(perCapitaSpend * 0.8)}</strong> / hab</p></article>
       </div>
     </section>
   {/if}
-</div>
+</section>
 

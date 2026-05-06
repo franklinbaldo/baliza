@@ -11,20 +11,12 @@ const { variant = 'wave', height = 32 }: Props = Astro.props;
 ---
 
 {variant === 'wave' && (
-  <div aria-hidden="true">
-    <svg viewBox="0 0 100 100" preserveAspectRatio="none">
-      <use href="#t4" />
-    </svg>
-  </div>
+  <hr aria-hidden="true" data-ornament="wave" style={`height:${height}px`} />
 )}
 
 {variant === 'volpi' && (
-  <div aria-hidden="true">
-    <svg viewBox="0 0 400 60" preserveAspectRatio="none">
-      <rect x="0" y="0" width="80" height="60" fill="var(--bulcao-fg)" />
-      <rect x="80" y="0" width="200" height="60" fill="var(--bulcao-bg)" />
-      <rect x="280" y="0" width="120" height="60" fill="var(--bulcao-accent)" />
-    </svg>
-  </div>
+  <hr aria-hidden="true" data-ornament="volpi" style={`height:${height}px`} />
 )}
+{/* WHY inline style: only the band height varies per usage; everything
+    visual lives in global.css via the [data-ornament] selectors. */}
 
