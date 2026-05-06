@@ -9,11 +9,14 @@ from __future__ import annotations
 import concurrent.futures
 import json
 import os
+import re
 import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
+import httpx
 import structlog
 import typer
 from rich.console import Console
@@ -934,7 +937,7 @@ def consolidate_cmd(
 
 
 @app.command("doctor")
-def doctor(
+def doctor(  # noqa: PLR0912, PLR0915
     resource: str = typer.Option(RESOURCE_CONTRATOS, "--resource", "-r", help="Resource to check"),
     start: str = typer.Option("2021-01-01", "--start", help="Earliest month to check (YYYY-MM-DD)"),
     head_check: bool = typer.Option(
@@ -949,11 +952,6 @@ def doctor(
     invalid sha256, table_name mismatch with --resource. Exits 1 on any
     finding so it can drive a CI alert.
     """
-    import re
-    from urllib.parse import urlparse
-
-    import httpx
-
     try:
         _validate_resource(resource)
         start_date = clamp_to_known_data_start_month(
@@ -1054,8 +1052,6 @@ def orphans(
     a separate, destructive command — do not add it here without a
     --apply flag and explicit IA credentials.
     """
-    import httpx
-
     try:
         rows = read_manifest_from_ia()
     except Exception as exc:
