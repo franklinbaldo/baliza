@@ -39,6 +39,32 @@ function isArchivedTable(name: string): name is ArchivedTable {
   return (ARCHIVED_TABLES as readonly string[]).includes(name);
 }
 
+/**
+ * Executes a DuckDB query with a timeout and automatic cancellation.
+ */
+async function withDuckDBTimeout(
+  conn: any,
+  sql: string,
+  timeoutMs: number,
+): Promise<any | '__timeout__'> {
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+  const queryPromise = conn.query(sql);
+  queryPromise.catch(() => null); // Swallow late rejections
+
+  const timeoutPromise = new Promise<'__timeout__'>((resolve) => {
+    timeoutHandle = setTimeout(() => {
+      void conn.cancelSent().catch(() => null);
+      resolve('__timeout__');
+    }, Math.max(0, timeoutMs));
+  });
+
+  try {
+    return await Promise.race([queryPromise, timeoutPromise]);
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
+  }
+}
+
 export function archiveErrorMessage(reason: ArchiveFailureReason): string {
   switch (reason) {
     case 'no_manifest':
@@ -136,32 +162,13 @@ async function runArchiveQuery<K extends ArchivedTable>(
   const whereStr = buildWhere(safeValues);
   const sql = `SELECT * FROM ${readClause} WHERE ${whereStr}${orderBy} LIMIT ${safeLimit}`;
 
-  let timedOut = false;
-  let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
-  // Kick off the query first so we can tell DuckDB to cancel it if the
-  // timer wins the race. Without cancelSent() the worker keeps the query
-  // running against the shared singleton connection and can tie up later
-  // archive lookups.
-  const queryPromise = conn.query(sql);
-  // Swallow late rejections caused by cancelSent() — otherwise the
-  // rejection after the race has already resolved with '__timeout__'
-  // surfaces as an unhandled promise rejection.
-  queryPromise.catch(() => null);
-  const timeoutPromise = new Promise<'__timeout__'>((resolve) => {
-    timeoutHandle = setTimeout(() => {
-      timedOut = true;
-      void conn.cancelSent().catch(() => null);
-      resolve('__timeout__');
-    }, Math.max(0, timeoutMs));
-  });
-
   try {
-    const raced = await Promise.race([queryPromise, timeoutPromise]);
-    if (raced === '__timeout__') {
+    const result = await withDuckDBTimeout(conn, sql, timeoutMs);
+    if (result === '__timeout__') {
       logFallbackFailed(table, columnLabel, 'timeout');
       return { ok: false, reason: 'timeout' };
     }
-    const rows = raced.toArray().map((r: unknown) => {
+    const rows = result.toArray().map((r: unknown) => {
       const anyRow = r as { toJSON?: () => unknown };
       return (typeof anyRow.toJSON === 'function' ? anyRow.toJSON() : r) as ArchivedTableRowMap[K];
     });
@@ -172,14 +179,8 @@ async function runArchiveQuery<K extends ArchivedTable>(
     logFallbackServed(table, columnLabel, rows.length);
     return { ok: true, rows, dataParticao: infos[0].dataParticao };
   } catch {
-    if (timedOut) {
-      logFallbackFailed(table, columnLabel, 'timeout');
-      return { ok: false, reason: 'timeout' };
-    }
     logFallbackFailed(table, columnLabel, 'sql_error');
     return { ok: false, reason: 'sql_error' };
-  } finally {
-    if (timeoutHandle !== null) clearTimeout(timeoutHandle);
   }
 }
 
@@ -478,33 +479,17 @@ export async function queryPublishingCnpjRaizes(
   }
 
   const readClause = `read_parquet('${escapeSqlLiteral(info.url)}')`;
-  // SUBSTR is 1-indexed in DuckDB; (cnpj_orgao, 1, 8) returns the raiz.
-  // Filtering NOT NULL avoids a `null` row in the result set when older
-  // partitions still carry rows whose orgão CNPJ wasn't recovered.
   const sql = `SELECT DISTINCT SUBSTR(cnpj_orgao, 1, 8) AS raiz
     FROM ${readClause}
     WHERE cnpj_orgao IS NOT NULL AND LENGTH(cnpj_orgao) >= 8`;
 
-  const timeoutMs = opts.timeoutMs ?? DEFAULT_QUERY_TIMEOUT_MS;
-  let timedOut = false;
-  let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
-  const queryPromise = conn.query(sql);
-  queryPromise.catch(() => null);
-  const timeoutPromise = new Promise<'__timeout__'>((resolve) => {
-    timeoutHandle = setTimeout(() => {
-      timedOut = true;
-      void conn.cancelSent().catch(() => null);
-      resolve('__timeout__');
-    }, Math.max(0, timeoutMs));
-  });
-
   try {
-    const raced = await Promise.race([queryPromise, timeoutPromise]);
-    if (raced === '__timeout__') {
+    const result = await withDuckDBTimeout(conn, sql, timeoutMs);
+    if (result === '__timeout__') {
       logFallbackFailed(CITY_AGGREGATES_TABLE, 'cnpj_orgao', 'timeout');
       return { ok: false, reason: 'timeout' };
     }
-    const raizes = raced
+    const raizes = result
       .toArray()
       .map((r: unknown) => {
         const anyRow = r as { toJSON?: () => unknown };
@@ -512,6 +497,7 @@ export async function queryPublishingCnpjRaizes(
         return obj.raiz;
       })
       .filter((s) => typeof s === 'string' && /^\d{8}$/.test(s));
+
     if (raizes.length === 0) {
       logFallbackFailed(CITY_AGGREGATES_TABLE, 'cnpj_orgao', 'empty');
       return { ok: false, reason: 'empty' };
@@ -519,13 +505,7 @@ export async function queryPublishingCnpjRaizes(
     logFallbackServed(CITY_AGGREGATES_TABLE, 'cnpj_orgao', raizes.length);
     return { ok: true, rows: raizes, dataParticao: info.dataParticao };
   } catch {
-    if (timedOut) {
-      logFallbackFailed(CITY_AGGREGATES_TABLE, 'cnpj_orgao', 'timeout');
-      return { ok: false, reason: 'timeout' };
-    }
     logFallbackFailed(CITY_AGGREGATES_TABLE, 'cnpj_orgao', 'sql_error');
     return { ok: false, reason: 'sql_error' };
-  } finally {
-    if (timeoutHandle !== null) clearTimeout(timeoutHandle);
   }
 }

@@ -6,7 +6,7 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 import httpx
 import structlog
@@ -296,7 +296,48 @@ class PNCPExtractor:
             return False
         return "numeroControlePNCP" in columns and "numero_controle_pncp" not in columns
 
-    def ingest_range(  # noqa: PLR0912
+    def _iter_raw_entries(self, raw_dir: Path, resource_name: str, response_data_key: str) -> Iterator[dict]:
+        """Yield parsed JSON entries from the raw data directory."""
+        for json_file in sorted(raw_dir.glob(f"{resource_name}_p*.json")):
+            try:
+                with open(json_file) as f:
+                    data = json.load(f)
+            except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
+                logger.warning("corrupt_cache_found", file=str(json_file), error=str(e))
+                try:
+                    json_file.unlink()
+                except OSError:
+                    pass
+                continue
+
+            entries = data.get(response_data_key) or []
+            yield from entries
+
+    def _iter_valid_rows(
+        self,
+        entries: Iterator[dict],
+        spec: Any,
+        start_date: datetime,
+        stats: dict[str, int],
+    ) -> Iterator[dict]:
+        """Yield validated and flattened rows from raw entries, updating stats/quarantine."""
+        entity_model = spec.entity_model
+        flatten_fn = spec.canonical_tables[0].flatten_fn
+
+        for entry in entries:
+            try:
+                validated = entity_model.model_validate(entry)
+                if flatten_fn:
+                    yield flatten_fn(validated.model_dump())
+                else:
+                    yield validated.model_dump()
+                stats["valid"] += 1
+            except ValidationError as e:
+                stats["quarantine"] += 1
+                logger.warning("validation_failed", error=str(e), entry_id=entry.get("id"))
+                self.engine.quarantine_record(spec.name, start_date, str(e), entry)
+
+    def ingest_range(
         self,
         start_date: datetime,
         *,
@@ -339,55 +380,19 @@ class PNCPExtractor:
         if resource == CONTRATOS.name:
             self._archive_legacy_contratos_table()
 
-        # Scope the glob to the resource's own per-page files (mirror
-        # writes them as `{resource}_p{page}.json`). Without this filter
-        # a mixed-resource raw zip would feed contratos pages through
-        # the atas entity_model, inflating quarantine and producing
-        # empty atas output.
-        for json_file in sorted(raw_dir.glob(f"{resource}_p*.json")):
-            try:
-                with open(json_file) as f:
-                    data = json.load(f)
-            except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
-                # Corruption surfaces here (we no longer re-validate on every
-                # fetch_page cache hit). Unlink so the next sync refetches.
-                logger.warning("corrupt_cache_found", file=str(json_file), error=str(e))
-                try:
-                    json_file.unlink()
-                except OSError:
-                    pass
-                continue
+        # Flattened pipeline using generators
+        raw_entries = self._iter_raw_entries(
+            raw_dir, resource, spec.fetch.response_data_key
+        )
+        valid_rows = list(self._iter_valid_rows(raw_entries, spec, start_date, stats))
 
-            # Use the resource's declared payload key (defaults to "data"
-            # for contratos / atas; resources that wrap rows under a
-            # different key set FetchSpec.response_data_key accordingly).
-            entries = data.get(spec.fetch.response_data_key) or []
-            valid_rows = []
-            flatten_fn = spec.canonical_tables[0].flatten_fn
-
-            for entry in entries:
-                try:
-                    # Validate with the resource's Pydantic model, then
-                    # flatten to the snake_case schema the monthly/daily
-                    # exporters and consolidator share.
-                    validated = entity_model.model_validate(entry)
-                    if flatten_fn:
-                        valid_rows.append(flatten_fn(validated.model_dump()))
-                    else:
-                        valid_rows.append(validated.model_dump())
-                    stats["valid"] += 1
-                except ValidationError as e:
-                    stats["quarantine"] += 1
-                    logger.warning("validation_failed", error=str(e), entry_id=entry.get("id"))
-                    self.engine.quarantine_record(spec.name, start_date, str(e), entry)
-
-            # Ingest valid rows into Ibis (shared engine) via UPSERT
-            if valid_rows:
-                # Direct memory ingestion (Idempotent)
-                for table_spec in spec.canonical_tables:
-                    self.engine.upsert_rows(
-                        valid_rows, table_spec.table_name, schema="main", pk=table_spec.pk
-                    )
+        # Ingest valid rows into Ibis (shared engine) via UPSERT
+        if valid_rows:
+            # Direct memory ingestion (Idempotent)
+            for table_spec in spec.canonical_tables:
+                self.engine.upsert_rows(
+                    valid_rows, table_spec.table_name, schema="main", pk=table_spec.pk
+                )
 
         return stats
 

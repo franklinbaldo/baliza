@@ -11,6 +11,8 @@ import json
 import os
 import re
 import sys
+import threading
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -52,7 +54,6 @@ logger = structlog.get_logger()
 app = typer.Typer()
 console = Console()
 
-
 def _forced_month_or_empty(resource: str, force_month: str) -> list[date]:
     """Return a one-month batch, or an intentional no-op for pre-history months."""
     forced = datetime.strptime(force_month, "%Y-%m").date()
@@ -63,6 +64,296 @@ def _forced_month_or_empty(resource: str, force_month: str) -> list[date]:
         )
         return []
     return [forced]
+
+
+@dataclass
+class SyncContext:
+    """Shared state for parallel sync workers."""
+
+    engine: BalizaEngine
+    progress: Progress
+    overall_task: TaskID
+    month_tasks: dict[str, TaskID]
+    lock: threading.Lock
+    # Metrics
+    total_records: int = 0
+    quarantine_count: int = 0
+    error_count: int = 0
+    # Config
+    dry_run: bool = False
+    no_curl: bool = False
+    ia_access_key: str | None = None
+    ia_secret_key: str | None = None
+    manifest_by_month: dict[str, dict] | None = None
+
+
+def _page_is_cached(raw_month_dir: Path, p: int) -> bool:
+    """Validate a cached page on disk."""
+    path = raw_month_dir / page_filename(RESOURCE_CONTRATOS, p)
+    if not path.exists() or path.stat().st_size == 0:
+        return False
+    try:
+        with open(path) as fh:
+            data = json.load(fh)
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
+        logger.warning(
+            "corrupt_cache_found",
+            file=str(path),
+            error=str(e),
+        )
+        try:
+            path.unlink()
+        except OSError:
+            pass
+        return False
+    # Parse success alone isn't enough — a cached
+    # `{}` would silently satisfy exists() + load()
+    # but produce zero rows during ingest, and the
+    # month would still write the sentinel and
+    # upload with missing records.
+    if isinstance(data, dict) and ("data" in data or "totalPaginas" in data):
+        return True
+    logger.warning(
+        "corrupt_cache_found",
+        file=str(path),
+        error="schema mismatch (no 'data' or 'totalPaginas' key)",
+    )
+    try:
+        path.unlink()
+    except OSError:
+        pass
+    return False
+
+
+def process_month_full(start_of_month: date, ctx: SyncContext):  # noqa: PLR0912, PLR0915
+    """Standalone worker for processing a single month's data."""
+    month_str = start_of_month.strftime("%Y-%m")
+    # Calculate end of month
+    if start_of_month.month == 12:
+        next_month = start_of_month.replace(year=start_of_month.year + 1, month=1)
+    else:
+        next_month = start_of_month.replace(month=start_of_month.month + 1)
+    end_of_month = next_month - timedelta(days=1)
+
+    # THREAD-SAFE ENGINE: Each worker gets its own connection
+    thread_engine = ctx.engine.connect_thread_safe()
+
+    # 1. Lifecycle Progress Bar Start
+    tid = ctx.progress.add_task(f"Month {month_str} [Probing]", total=3, completed=0)
+    with ctx.lock:
+        ctx.month_tasks[month_str] = tid
+
+    try:
+        raw_month_dir = Path("data/raw") / month_str
+        sentinel = raw_month_dir / FETCHED_SENTINEL
+        month_start_dt = datetime.combine(start_of_month, datetime.min.time())
+        month_end_dt = datetime.combine(end_of_month, datetime.min.time())
+
+        with PNCPExtractor(thread_engine, use_curl=not ctx.no_curl) as extractor:
+            # For past months: if the raw ZIP is already on IA,
+            # restore from it instead of re-fetching from PNCP.
+            # This must happen BEFORE the sentinel/probe checks below,
+            # so that an outage in PNCP doesn't block the restore path.
+            today_month = date.today().replace(day=1)
+            manifest_row = (ctx.manifest_by_month or {}).get(month_str, {})
+            raw_zip_url = manifest_row.get("raw_zip_url", "")
+
+            # A full cache miss can be approximated by lacking page 1
+            is_full_miss = not _page_is_cached(raw_month_dir, 1)
+
+            if raw_zip_url and start_of_month < today_month and is_full_miss:
+                ctx.progress.update(
+                    tid,
+                    total=2,
+                    advance=1,
+                    description=f"Month {month_str} [Restoring from IA]",
+                )
+                restore_from_raw_zip(raw_zip_url, raw_month_dir)
+
+            # Sentinel optimisation: a prior run wrote .fetched
+            # after fetching all expected pages, so we can read
+            # totalPaginas from the cached page 1 and skip the
+            # API probe. The sentinel only gates the API call,
+            # NOT the per-page validation below — a gap in the
+            # cache (e.g. ingest_range unlinked a corrupt page
+            # between runs) must still be detected and refetched
+            # instead of silently uploading an incomplete month.
+            total_pages: int | None = None
+            if sentinel.exists():
+                p1 = raw_month_dir / first_page_filename(RESOURCE_CONTRATOS)
+                regression_reason: str | None = None
+                if not p1.exists() or p1.stat().st_size == 0:
+                    regression_reason = "page1_missing"
+                else:
+                    try:
+                        with open(p1) as fh:
+                            _d = json.load(fh)
+                    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
+                        logger.warning(
+                            "page1_corrupt_unreadable", path=str(p1), error=str(e)
+                        )
+                        regression_reason = "page1_corrupt"
+                    else:
+                        if isinstance(_d, dict) and isinstance(_d.get("totalPaginas"), int):
+                            total_pages = _d["totalPaginas"]
+                        else:
+                            regression_reason = "page1_schema_invalid"
+                if total_pages is None:
+                    # Sentinel exists but page 1 is gone/bad.
+                    # Drop the sentinel and fall back to probe.
+                    logger.warning(
+                        "sentinel_cache_regressed",
+                        month=month_str,
+                        reason=regression_reason,
+                    )
+                    try:
+                        sentinel.unlink()
+                    except OSError:
+                        pass
+
+            if total_pages is None:
+                res = extractor.probe_range(RESOURCE_CONTRATOS, month_start_dt, month_end_dt)
+                total_pages = res["total_pages"]
+
+            missing_pages = [
+                p for p in range(1, total_pages + 1) if not _page_is_cached(raw_month_dir, p)
+            ]
+            cached_pages = total_pages - len(missing_pages)
+
+            if not missing_pages:
+                logger.info(
+                    "month_cache_hit",
+                    month=month_str,
+                    source="all_pages_present",
+                    pages=total_pages,
+                )
+                ctx.progress.update(
+                    tid,
+                    total=2,
+                    advance=1,
+                    description=f"Month {month_str} [Cache hit]",
+                )
+            else:
+                # A sentinel-path regression (cache gap after
+                # sentinel was written) is the interesting case
+                # to log — flag it so operators can investigate.
+                if sentinel.exists():
+                    logger.warning(
+                        "sentinel_cache_regressed",
+                        month=month_str,
+                        reason="missing_pages",
+                        pages_missing=len(missing_pages),
+                        pages_total=total_pages,
+                    )
+                    try:
+                        sentinel.unlink()
+                    except OSError:
+                        pass
+                logger.info(
+                    "month_cache_partial" if cached_pages else "month_cache_miss",
+                    month=month_str,
+                    pages_cached=cached_pages,
+                    pages_total=total_pages,
+                    pages_to_fetch=len(missing_pages),
+                )
+
+                if missing_pages:
+                    ctx.progress.update(
+                        tid,
+                        total=len(missing_pages) + 2,
+                        advance=1,
+                        description=f"Month {month_str} [Pages 0/{len(missing_pages)}]",
+                    )
+                    for i, p in enumerate(missing_pages, start=1):
+                        ctx.progress.update(
+                            tid,
+                            description=f"Month {month_str} [Pages {i}/{len(missing_pages)}]",
+                        )
+                        extractor.fetch_page(RESOURCE_CONTRATOS, month_start_dt, month_end_dt, p)
+                        ctx.progress.update(tid, advance=1)
+
+            # All expected pages are now on disk — write the
+            # sentinel so the next run can skip probe_range.
+            # IAUploader.upload_month rmtrees the whole
+            # directory on success, taking this with it.
+            raw_month_dir.mkdir(parents=True, exist_ok=True)
+            sentinel.touch()
+
+            # 3b. Upload raw ZIP to baliza-pncp-raw before ingest.
+            # keep_raw_dir=True so pages stay on disk for ingest_range.
+            if not ctx.dry_run and ctx.ia_access_key and ctx.ia_secret_key:
+                ctx.progress.update(tid, description=f"Month {month_str} [Raw ZIP]")
+                try:
+                    uploader = IAUploader(thread_engine)
+                    uploader.upload_raw_zip(
+                        start_of_month,
+                        raw_month_dir,
+                        ctx.ia_access_key,
+                        ctx.ia_secret_key,
+                        keep_raw_dir=True,
+                    )
+                except Exception as e:
+                    ctx.progress.console.log(
+                        f"[yellow]⚠ Raw ZIP upload failed for {month_str}: {e}[/yellow]"
+                    )
+
+            # 4. Ingest
+            ctx.progress.update(tid, description=f"Month {month_str} [Ingesting]")
+            stats = extractor.ingest_range(month_start_dt)
+            with ctx.lock:
+                ctx.total_records += stats.get("valid", 0)
+                ctx.quarantine_count += stats.get("quarantine", 0)
+            ctx.progress.update(tid, advance=1)
+
+            # 5. Export & Upload
+            q_csv = Path(f"data/quarentena-{month_str}.csv")
+            has_q = extractor.export_quarantine(month_start_dt, q_csv)
+
+            if not ctx.dry_run:
+                ctx.progress.update(tid, description=f"Month {month_str} [Uploading]")
+                if ctx.ia_access_key and ctx.ia_secret_key:
+                    # Use thread_engine so export reads from the same
+                    # in-memory DB that ingest_range just populated.
+                    thread_uploader = IAUploader(thread_engine)
+                    thread_uploader.upload_month(
+                        start_of_month,
+                        Path("data/processed"),
+                        ctx.ia_access_key,
+                        ctx.ia_secret_key,
+                        quarantine_stats=stats,
+                        quarantine_csv=q_csv if has_q else None,
+                    )
+            else:
+                ctx.progress.console.log(
+                    f"[yellow]Dry-run: {month_str} verified ({stats['valid']} records)[/yellow]"
+                )
+
+            # Step complete
+            ctx.progress.update(tid, advance=1)
+
+            if q_csv.exists():
+                q_csv.unlink()
+
+        ctx.progress.update(ctx.overall_task, advance=1)
+    except ValueError as e:
+        # Resource validation now raises 'unknown resource …'
+        # (registry miss) or 'Invalid resource_name …'
+        # (registration-time charset check). Surface either
+        # before re-raising so the operator sees what went
+        # wrong on the way out of the progress loop.
+        msg = str(e)
+        if "unknown resource" in msg or "Invalid resource_name" in msg:
+            ctx.progress.console.log(f"[bold red]✗ {e}[/bold red]")
+        raise
+    except Exception as e:
+        with ctx.lock:
+            ctx.error_count += 1
+        ctx.progress.console.log(f"[bold red]✗ Error {month_str}: {e}[/bold red]")
+    finally:
+        ctx.progress.remove_task(tid)
+        with ctx.lock:
+            if month_str in ctx.month_tasks:
+                del ctx.month_tasks[month_str]
 
 
 @app.callback()
@@ -214,28 +505,6 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
             raise typer.Exit(1)
         console.print("[green]✓ Everything up to date.[/green]")
         return
-
-    # 4. Orchestration logic
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        BarColumn(bar_width=None),
-        TaskProgressColumn(),
-        MofNCompleteColumn(),
-        TimeElapsedColumn(),
-        console=console,
-        refresh_per_second=4,
-        expand=True,
-    ) as progress:
-        overall_task = progress.add_task(
-            "[bold white]Overall Progress[/bold white]", total=len(batch)
-        )
-
-    # 3. Micro-metrics
-    total_records = 0
-    quarantine_count = 0
-    error_count = 0
-
     # 3. Orchestration logic
     with Progress(
         SpinnerColumn(),
@@ -254,287 +523,23 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
 
         month_tasks: dict[str, TaskID] = {}
 
+        # 3. Micro-metrics & Thread-safe Context
+        ctx = SyncContext(
+            engine=engine,
+            progress=progress,
+            overall_task=overall_task,
+            month_tasks=month_tasks,
+            lock=threading.Lock(),
+            dry_run=dry_run,
+            no_curl=no_curl,
+            ia_access_key=ia_access_key,
+            ia_secret_key=ia_secret_key,
+            manifest_by_month=manifest_by_month,
+        )
+
         # Use pool for parallel scraping
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
             futures: dict[concurrent.futures.Future[Any], date] = {}
-
-            def process_month_full(start_of_month: date):  # noqa: PLR0912, PLR0915
-                nonlocal total_records, quarantine_count, error_count
-
-                month_str = start_of_month.strftime("%Y-%m")
-                # Calculate end of month
-                if start_of_month.month == 12:
-                    next_month = start_of_month.replace(year=start_of_month.year + 1, month=1)
-                else:
-                    next_month = start_of_month.replace(month=start_of_month.month + 1)
-                end_of_month = next_month - timedelta(days=1)
-
-                # THREAD-SAFE ENGINE: Each worker gets its own connection
-                thread_engine = engine.connect_thread_safe()
-
-                # 1. Lifecycle Progress Bar Start
-                tid = progress.add_task(f"Month {month_str} [Probing]", total=3, completed=0)
-                month_tasks[month_str] = tid
-
-                try:
-                    raw_month_dir = Path("data/raw") / month_str
-                    sentinel = raw_month_dir / FETCHED_SENTINEL
-                    month_start_dt = datetime.combine(start_of_month, datetime.min.time())
-                    month_end_dt = datetime.combine(end_of_month, datetime.min.time())
-
-                    with PNCPExtractor(thread_engine, use_curl=not no_curl) as extractor:
-                        # Validate each cached page on disk. `exists()` alone
-                        # would mis-count a zero-byte or corrupt file as
-                        # cached — we'd then skip fetch_page for that page,
-                        # write the sentinel, and let ingest_range silently
-                        # unlink the bad file, ending up with a month
-                        # uploaded with missing records. So validate the
-                        # cache here and unlink anything broken so
-                        # fetch_page sees a clean refetch.
-                        def _page_is_cached(p: int) -> bool:
-                            path = raw_month_dir / page_filename(RESOURCE_CONTRATOS, p)
-                            if not path.exists() or path.stat().st_size == 0:
-                                return False
-                            try:
-                                with open(path) as fh:
-                                    data = json.load(fh)
-                            except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
-                                logger.warning(
-                                    "corrupt_cache_found",
-                                    file=str(path),
-                                    error=str(e),
-                                )
-                                try:
-                                    path.unlink()
-                                except OSError:
-                                    pass
-                                return False
-                            # Parse success alone isn't enough — a cached
-                            # `{}` would silently satisfy exists() + load()
-                            # but produce zero rows during ingest, and the
-                            # month would still write the sentinel and
-                            # upload with missing records.
-                            if isinstance(data, dict) and (
-                                "data" in data or "totalPaginas" in data
-                            ):
-                                return True
-                            logger.warning(
-                                "corrupt_cache_found",
-                                file=str(path),
-                                error="schema mismatch (no 'data' or 'totalPaginas' key)",
-                            )
-                            try:
-                                path.unlink()
-                            except OSError:
-                                pass
-                            return False
-
-                        # For past months: if the raw ZIP is already on IA,
-                        # restore from it instead of re-fetching from PNCP.
-                        # This must happen BEFORE the sentinel/probe checks below,
-                        # so that an outage in PNCP doesn't block the restore path.
-                        today_month = date.today().replace(day=1)
-                        manifest_row = manifest_by_month.get(month_str, {})
-                        raw_zip_url = manifest_row.get("raw_zip_url", "")
-
-                        # A full cache miss can be approximated by lacking page 1
-                        is_full_miss = not _page_is_cached(1)
-
-                        if raw_zip_url and start_of_month < today_month and is_full_miss:
-                            progress.update(
-                                tid,
-                                total=2,
-                                advance=1,
-                                description=f"Month {month_str} [Restoring from IA]",
-                            )
-                            restore_from_raw_zip(raw_zip_url, raw_month_dir)
-
-                        # Sentinel optimisation: a prior run wrote .fetched
-                        # after fetching all expected pages, so we can read
-                        # totalPaginas from the cached page 1 and skip the
-                        # API probe. The sentinel only gates the API call,
-                        # NOT the per-page validation below — a gap in the
-                        # cache (e.g. ingest_range unlinked a corrupt page
-                        # between runs) must still be detected and refetched
-                        # instead of silently uploading an incomplete month.
-                        total_pages: int | None = None
-                        if sentinel.exists():
-                            p1 = raw_month_dir / first_page_filename(RESOURCE_CONTRATOS)
-                            regression_reason: str | None = None
-                            if not p1.exists() or p1.stat().st_size == 0:
-                                regression_reason = "page1_missing"
-                            else:
-                                try:
-                                    with open(p1) as fh:
-                                        _d = json.load(fh)
-                                except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
-                                    logger.warning(
-                                        "page1_corrupt_unreadable", path=str(p1), error=str(e)
-                                    )
-                                    regression_reason = "page1_corrupt"
-                                else:
-                                    if isinstance(_d, dict) and isinstance(
-                                        _d.get("totalPaginas"), int
-                                    ):
-                                        total_pages = _d["totalPaginas"]
-                                    else:
-                                        regression_reason = "page1_schema_invalid"
-                            if total_pages is None:
-                                # Sentinel exists but page 1 is gone/bad.
-                                # Drop the sentinel and fall back to probe.
-                                logger.warning(
-                                    "sentinel_cache_regressed",
-                                    month=month_str,
-                                    reason=regression_reason,
-                                )
-                                try:
-                                    sentinel.unlink()
-                                except OSError:
-                                    pass
-
-                        if total_pages is None:
-                            res = extractor.probe_range(
-                                RESOURCE_CONTRATOS, month_start_dt, month_end_dt
-                            )
-                            total_pages = res["total_pages"]
-
-                        missing_pages = [
-                            p for p in range(1, total_pages + 1) if not _page_is_cached(p)
-                        ]
-                        cached_pages = total_pages - len(missing_pages)
-
-                        if not missing_pages:
-                            logger.info(
-                                "month_cache_hit",
-                                month=month_str,
-                                source="all_pages_present",
-                                pages=total_pages,
-                            )
-                            progress.update(
-                                tid,
-                                total=2,
-                                advance=1,
-                                description=f"Month {month_str} [Cache hit]",
-                            )
-                        else:
-                            # A sentinel-path regression (cache gap after
-                            # sentinel was written) is the interesting case
-                            # to log — flag it so operators can investigate.
-                            if sentinel.exists():
-                                logger.warning(
-                                    "sentinel_cache_regressed",
-                                    month=month_str,
-                                    reason="missing_pages",
-                                    pages_missing=len(missing_pages),
-                                    pages_total=total_pages,
-                                )
-                                try:
-                                    sentinel.unlink()
-                                except OSError:
-                                    pass
-                            logger.info(
-                                "month_cache_partial" if cached_pages else "month_cache_miss",
-                                month=month_str,
-                                pages_cached=cached_pages,
-                                pages_total=total_pages,
-                                pages_to_fetch=len(missing_pages),
-                            )
-
-                            if missing_pages:
-                                progress.update(
-                                    tid,
-                                    total=len(missing_pages) + 2,
-                                    advance=1,
-                                    description=f"Month {month_str} [Pages 0/{len(missing_pages)}]",
-                                )
-                                for i, p in enumerate(missing_pages, start=1):
-                                    progress.update(
-                                        tid,
-                                        description=f"Month {month_str} [Pages {i}/{len(missing_pages)}]",
-                                    )
-                                    extractor.fetch_page(
-                                        RESOURCE_CONTRATOS, month_start_dt, month_end_dt, p
-                                    )
-                                    progress.update(tid, advance=1)
-
-                        # All expected pages are now on disk — write the
-                        # sentinel so the next run can skip probe_range.
-                        # IAUploader.upload_month rmtrees the whole
-                        # directory on success, taking this with it.
-                        raw_month_dir.mkdir(parents=True, exist_ok=True)
-                        sentinel.touch()
-
-                        # 3b. Upload raw ZIP to baliza-pncp-raw before ingest.
-                        # keep_raw_dir=True so pages stay on disk for ingest_range.
-                        if not dry_run and ia_access_key and ia_secret_key:
-                            progress.update(tid, description=f"Month {month_str} [Raw ZIP]")
-                            try:
-                                uploader.upload_raw_zip(
-                                    start_of_month,
-                                    raw_month_dir,
-                                    ia_access_key,
-                                    ia_secret_key,
-                                    keep_raw_dir=True,
-                                )
-                            except Exception as e:
-                                progress.console.log(
-                                    f"[yellow]⚠ Raw ZIP upload failed for {month_str}: {e}[/yellow]"
-                                )
-
-                        # 4. Ingest
-                        progress.update(tid, description=f"Month {month_str} [Ingesting]")
-                        stats = extractor.ingest_range(month_start_dt)
-                        total_records += stats.get("valid", 0)
-                        quarantine_count += stats.get("quarantine", 0)
-                        progress.update(tid, advance=1)
-
-                        # 5. Export & Upload
-                        q_csv = Path(f"data/quarentena-{month_str}.csv")
-                        has_q = extractor.export_quarantine(month_start_dt, q_csv)
-
-                        if not dry_run:
-                            progress.update(tid, description=f"Month {month_str} [Uploading]")
-                            if ia_access_key and ia_secret_key:
-                                # Use thread_engine so export reads from the same
-                                # in-memory DB that ingest_range just populated.
-                                thread_uploader = IAUploader(thread_engine)
-                                thread_uploader.upload_month(
-                                    start_of_month,
-                                    Path("data/processed"),
-                                    ia_access_key,
-                                    ia_secret_key,
-                                    quarantine_stats=stats,
-                                    quarantine_csv=q_csv if has_q else None,
-                                )
-                        else:
-                            progress.console.log(
-                                f"[yellow]Dry-run: {month_str} verified ({stats['valid']} records)[/yellow]"
-                            )
-
-                        # Step complete
-                        progress.update(tid, advance=1)
-
-                        if q_csv.exists():
-                            q_csv.unlink()
-
-                    progress.update(overall_task, advance=1)
-                except ValueError as e:
-                    # Resource validation now raises 'unknown resource …'
-                    # (registry miss) or 'Invalid resource_name …'
-                    # (registration-time charset check). Surface either
-                    # before re-raising so the operator sees what went
-                    # wrong on the way out of the progress loop.
-                    msg = str(e)
-                    if "unknown resource" in msg or "Invalid resource_name" in msg:
-                        progress.console.log(f"[bold red]✗ {e}[/bold red]")
-                    raise
-                except Exception as e:
-                    error_count += 1
-                    progress.console.log(f"[bold red]✗ Error {month_str}: {e}[/bold red]")
-                finally:
-                    progress.remove_task(tid)
-                    if month_str in month_tasks:
-                        del month_tasks[month_str]
 
             # DISPATCHER
             for target_month in batch:
@@ -554,11 +559,15 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                     for f in done:
                         futures.pop(f)
 
-                f = executor.submit(process_month_full, target_month)
+                f = executor.submit(process_month_full, target_month, ctx)
                 futures[f] = target_month
 
             # Final drain
             concurrent.futures.wait(futures.keys())
+
+    total_records = ctx.total_records
+    quarantine_count = ctx.quarantine_count
+    error_count = ctx.error_count
 
     # 4b. POST-SYNC FEED PUBLISH
     #

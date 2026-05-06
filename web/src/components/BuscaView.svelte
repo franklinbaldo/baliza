@@ -364,71 +364,75 @@
       </p>
     {/if}
   {:else}
-    <fieldset data-testid="busca-filters" class="grid">
-      <legend class="sr-only">Refinar resultados visíveis</legend>
-      <label>
-        UF
-        <select bind:value={selectedUf} aria-label="Filtrar por UF" data-testid="busca-filter-uf">
-          <option value="">Todas</option>
-          {#each ufOptions as uf (uf)}<option value={uf}>{uf}</option>{/each}
-        </select>
-      </label>
-      <label>
-        Modalidade
-        <select bind:value={selectedModality} aria-label="Filtrar por modalidade" data-testid="busca-filter-modality">
-          <option value="">Todas</option>
-          {#each modalityOptions as mod (mod)}<option value={mod}>{mod}</option>{/each}
-        </select>
-      </label>
-    </fieldset>
-
-    <div role="group" aria-label="Exportar resultados visíveis" class="actions">
-      <button type="button" class="outline" data-testid="busca-save-watch" onclick={saveWatch} aria-pressed={queryWatched} disabled={!watchKey || results.length === 0}>
-        {queryWatched ? '✓ Vigilância salva' : 'Salvar vigilância'}
-      </button>
-      <button type="button" class="outline" data-testid="busca-export-csv" onclick={exportCsv}>Exportar CSV</button>
-      <CopyButton text={markdown} variant="inline" label="Exportar Markdown" testid="busca-export-markdown" />
-      <ShareButton title="Busca Baliza" text={shareText} variant="inline" testid="busca-share" />
-    </div>
-
-    <article data-testid="busca-aggregates" aria-label="Resumo dos resultados visíveis">
-      <dl class="grid">
-        <div><dt><small>Contratos</small></dt><dd data-testid="busca-aggregate-count"><strong>{aggregates.count}</strong></dd></div>
-        <div><dt><small>Valor total</small></dt><dd data-testid="busca-aggregate-total"><strong>{formatBRL(aggregates.total)}</strong></dd></div>
-        <div><dt><small>Valor médio</small></dt><dd data-testid="busca-aggregate-average"><strong>{formatBRL(aggregates.average)}</strong></dd></div>
-      </dl>
-    </article>
-
-    {#if filteredResults.length === 0}
-      <EmptyState
-        title="Nenhum resultado para os filtros selecionados"
-        message="Ajuste a UF ou a modalidade para ver mais contratações."
-      />
-    {:else}
-      <PaginatedList items={filteredResults} pageSize={20} resetTrigger={`${submitted.q}${selectedUf}${selectedModality}`}>
-        {#snippet children(pageItems)}
-          <ul role="listbox" data-testid="busca-results">
-            {#each pageItems as c (c.numeroControlePNCP)}
-              <li role="option" aria-selected="false" data-testid="busca-result-item">
-                <article>
-                  <a href={linkFor(c)}>
-                    <header>
-                      <strong>{c.orgaoEntidade?.razaoSocial ?? 'Órgão'}</strong>
-                      <small data-badge>{c.modalidadeNome ?? ''}</small>
-                    </header>
-                    <p title={c.objetoContratacao}>{truncate(c.objetoContratacao, 180)}</p>
-                    <footer>
-                      <small>{formatDate(c.dataPublicacaoPncp ?? '')}</small>
-                      <strong>{formatBRL(c.valorTotalEstimado ?? null)}</strong>
-                    </footer>
-                  </a>
-                </article>
-              </li>
-            {/each}
-          </ul>
-        {/snippet}
-      </PaginatedList>
-    {/if}
+    {@render searchResultsUI()}
   {/if}
 </section>
+
+{#snippet searchResultsUI()}
+  <fieldset data-testid="busca-filters" class="grid">
+    <legend class="sr-only">Refinar resultados visíveis</legend>
+    <label>
+      UF
+      <select bind:value={selectedUf} aria-label="Filtrar por UF" data-testid="busca-filter-uf">
+        <option value="">Todas</option>
+        {#each ufOptions as uf (uf)}<option value={uf}>{uf}</option>{/each}
+      </select>
+    </label>
+    <label>
+      Modalidade
+      <select bind:value={selectedModality} aria-label="Filtrar por modalidade" data-testid="busca-filter-modality">
+        <option value="">Todas</option>
+        {#each modalityOptions as mod (mod)}<option value={mod}>{mod}</option>{/each}
+      </select>
+    </label>
+  </fieldset>
+
+  <div role="group" aria-label="Exportar resultados visíveis" class="actions">
+    <button type="button" class="outline" data-testid="busca-save-watch" onclick={saveWatch} aria-pressed={queryWatched} disabled={!watchKey || results.length === 0}>
+      {queryWatched ? '✓ Vigilância salva' : 'Salvar vigilância'}
+    </button>
+    <button type="button" class="outline" data-testid="busca-export-csv" onclick={exportCsv}>Exportar CSV</button>
+    <CopyButton text={markdown} variant="inline" label="Exportar Markdown" testid="busca-export-markdown" />
+    <ShareButton title="Busca Baliza" text={shareText} variant="inline" testid="busca-share" />
+  </div>
+
+  <article data-testid="busca-aggregates" aria-label="Resumo dos resultados visíveis">
+    <dl class="grid">
+      <div><dt><small>Contratos</small></dt><dd data-testid="busca-aggregate-count"><strong>{aggregates.count}</strong></dd></div>
+      <div><dt><small>Valor total</small></dt><dd data-testid="busca-aggregate-total"><strong>{formatBRL(aggregates.total)}</strong></dd></div>
+      <div><dt><small>Valor médio</small></dt><dd data-testid="busca-aggregate-average"><strong>{formatBRL(aggregates.average)}</strong></dd></div>
+    </dl>
+  </article>
+
+  {#if filteredResults.length === 0}
+    <EmptyState
+      title="Nenhum resultado para os filtros selecionados"
+      message="Ajuste a UF ou a modalidade para ver mais contratações."
+    />
+  {:else}
+    <PaginatedList items={filteredResults} pageSize={20} resetTrigger={`${submitted.q}${selectedUf}${selectedModality}`}>
+      {#snippet children(pageItems)}
+        <ul role="listbox" data-testid="busca-results">
+          {#each pageItems as c (c.numeroControlePNCP)}
+            <li role="option" aria-selected="false" data-testid="busca-result-item">
+              <article>
+                <a href={linkFor(c)}>
+                  <header>
+                    <strong>{c.orgaoEntidade?.razaoSocial ?? 'Órgão'}</strong>
+                    <small data-badge>{c.modalidadeNome ?? ''}</small>
+                  </header>
+                  <p title={c.objetoContratacao}>{truncate(c.objetoContratacao, 180)}</p>
+                  <footer>
+                    <small>{formatDate(c.dataPublicacaoPncp ?? '')}</small>
+                    <strong>{formatBRL(c.valorTotalEstimado ?? null)}</strong>
+                  </footer>
+                </a>
+              </article>
+            </li>
+          {/each}
+        </ul>
+      {/snippet}
+    </PaginatedList>
+  {/if}
+{/snippet}
 
