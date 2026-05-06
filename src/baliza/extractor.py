@@ -358,7 +358,10 @@ class PNCPExtractor:
                     pass
                 continue
 
-            entries = data.get("data", [])
+            # Use the resource's declared payload key (defaults to "data"
+            # for contratos / atas; resources that wrap rows under a
+            # different key set FetchSpec.response_data_key accordingly).
+            entries = data.get(spec.fetch.response_data_key) or []
             valid_rows = []
             flatten_fn = spec.canonical_tables[0].flatten_fn
 
