@@ -10,6 +10,7 @@
     searchMunicipalities,
     type SearchMatch,
   } from '../lib/geo';
+  import Icon from './Icon.svelte';
 
   interface Props {
     autofocus?: boolean;
@@ -147,7 +148,12 @@
       autocomplete="off"
     />
     <button type="button" class="outline" onclick={useMyLocation} disabled={geoStatus === 'locating'} aria-busy={geoStatus === 'locating'} aria-label="Usar minha localização atual">
-      {geoStatus === 'locating' ? 'Buscando…' : '📍 minha localização'}
+      {#if geoStatus === 'locating'}
+        Buscando…
+      {:else}
+        <Icon name="map-pin" />
+        minha localização
+      {/if}
     </button>
   </div>
 

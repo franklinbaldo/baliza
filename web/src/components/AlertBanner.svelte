@@ -1,4 +1,7 @@
 <script lang="ts">
+  import Icon from './Icon.svelte';
+  import type { IconName } from '../lib/icons';
+
   interface Props {
     title: string;
     message: string;
@@ -7,11 +10,11 @@
 
   let { title, message, level = 'info' }: Props = $props();
 
-  const levelEmoji: Record<NonNullable<Props['level']>, string> = {
-    info: 'ℹ️',
-    success: '✅',
-    warning: '⚠️',
-    error: '🚨',
+  const levelIcon: Record<NonNullable<Props['level']>, IconName> = {
+    info: 'info',
+    success: 'check-circle',
+    warning: 'warning',
+    error: 'x-circle',
   };
 </script>
 
@@ -21,7 +24,11 @@
   data-invalid={level === 'error' || level === 'warning' ? 'true' : undefined}
   data-level={level}
 >
-  <header><strong><span aria-hidden="true">{levelEmoji[level]}</span> {title}</strong></header>
+  <header>
+    <strong>
+      <Icon name={levelIcon[level]} />
+      {title}
+    </strong>
+  </header>
   <p>{message}</p>
 </article>
-

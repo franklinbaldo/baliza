@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Icon from './Icon.svelte';
+  import type { IconName } from '../lib/icons';
   type Tone = 'default' | 'success' | 'warning' | 'danger';
 
   let {
@@ -21,21 +23,21 @@
     warning: 'var(--color-warning)',
     danger:  'var(--color-error)',
   };
-  const toneEmoji: Record<Tone, string> = {
-    default: '🔢',
-    success: '✅',
-    warning: '⚠️',
-    danger:  '❌',
+  const toneIconName: Record<Tone, IconName> = {
+    default: 'hash',
+    success: 'check-circle',
+    warning: 'warning',
+    danger: 'x-circle',
   };
   const accent = $derived(accentVar[tone]);
-  const emoji = $derived(toneEmoji[tone]);
+  const iconName = $derived(toneIconName[tone]);
 </script>
 
 {#if href}
   <article>
     <a {href} role="button" class="contrast outline" style="--pico-primary:{accent}">
       <header>
-        <span aria-hidden="true">{emoji}</span>
+        <Icon name={iconName} />
         <h3>{title}</h3>
       </header>
       <p><strong>{value}</strong></p>
@@ -45,7 +47,7 @@
 {:else}
   <article style="--pico-primary:{accent}">
     <header>
-      <span aria-hidden="true">{emoji}</span>
+      <Icon name={iconName} />
       <h3>{title}</h3>
     </header>
     <p><strong>{value}</strong></p>

@@ -71,9 +71,10 @@
   <section aria-label={`Pulso de ${cityState.nome}`}>
     <div class="grid">
       {#if loading}
-        {#each [1, 2, 3, 4] as _, col (col)}
-          <Skeleton />
-        {/each}
+        <Skeleton label="Calculando contratações" messages={['Calculando contratações…', 'desde —']} />
+        <Skeleton label="Somando valores" messages={['Somando R$ executados…', ' ']} />
+        <Skeleton label="Procurando maior comprador" messages={['Procurando maior comprador…', ' ']} />
+        <Skeleton label="Snapshot do arquivo" messages={['Lendo Internet Archive…', ' ']} />
       {:else if data}
         <article>
           <a href={buscaHref} aria-label={`Ver os ${formatInteger(data.contratos)} contratos arquivados de ${cityState.nome}`}>

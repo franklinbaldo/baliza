@@ -5,12 +5,17 @@
   let {
     label = 'Carregando',
     rows = 2,
+    messages,
   }: {
     label?: string;
     rows?: number;
+    messages?: string[];
   } = $props();
+
+  const NBSP = ' ';
+  const lines = $derived(messages ?? Array.from({ length: rows }, () => NBSP));
 </script>
 
 <article aria-busy="true" class="is-skeleton" aria-label={label}>
-  {#each { length: rows } as _, i (i)}<p>&nbsp;</p>{/each}
+  {#each lines as line, i (i)}<p>{line}</p>{/each}
 </article>
