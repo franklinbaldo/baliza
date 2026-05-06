@@ -2,5 +2,13 @@
   "total_contracts": 4114772,
   "total_quarantine": 0,
   "days_on_ia": 1673,
-  "generated_at": "2026-05-06T23:15:48Z"
+  "generated_at": "2026-05-06T23:45:26Z",
+  "resources": {
+    "contratos": {
+      "row_count": 4114772,
+      "quarantine_count": 0,
+      "partition_count": 56,
+      "days_on_ia": 1673
+    }
+  }
 }
