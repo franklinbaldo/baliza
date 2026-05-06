@@ -1,6 +1,7 @@
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Any
 
 # Resource names land in filesystem paths, URL params, and DuckDB
@@ -66,6 +67,12 @@ class PNCPResource:
     # pull in heavy machinery for every CLI invocation). The extractor
     # asserts the type when it actually uses the field.
     entity_model: Any = field(default=None)
+    # First date on which PNCP exposed source data for this resource.
+    # Backfills clamp to this floor so workers don't probe months that
+    # cannot contain records. Living on the resource (instead of a
+    # parallel dict in constants.py) means registering a new resource
+    # is a single-file change.
+    data_start: date | None = field(default=None)
 
     def __post_init__(self) -> None:
         if not _RESOURCE_NAME_RE.match(self.resource_name):

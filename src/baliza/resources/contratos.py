@@ -1,3 +1,5 @@
+from datetime import date
+
 from ..models import RecuperarContratoDTO
 from ..transforms import _flatten_contrato
 from .specs import (
@@ -45,4 +47,8 @@ CONTRATOS = PNCPResource(
         )
     ],
     entity_model=RecuperarContratoDTO,
+    # PNCP launched in mid-2021; the contratos endpoint's first record
+    # is 2021-09-06. Backfill workers skip earlier months without ever
+    # hitting the API.
+    data_start=date(2021, 9, 6),
 )

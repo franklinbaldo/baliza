@@ -2,15 +2,19 @@ from __future__ import annotations
 
 from datetime import date
 
-from .resources import CONTRATOS
+from .resources import CONTRATOS, RESOURCES
 
 RESOURCE_CONTRATOS = CONTRATOS.name
 
-# PNCP's contratos endpoint has no data before 2021-09-06. Treat this as
-# immutable product-domain knowledge so backfills never waste runs probing
-# months that cannot contain source records.
+
+# Derived view of the registry: each registered resource that has set
+# ``data_start`` on its PNCPResource exposes that floor here. Adding a
+# new resource is single-file (resources/__init__.py + the resource
+# module) — no parallel edit in constants.py.
 PNCP_RESOURCE_DATA_STARTS: dict[str, date] = {
-    RESOURCE_CONTRATOS: date(2021, 9, 6),
+    name: spec.data_start
+    for name, spec in RESOURCES.items()
+    if spec.data_start is not None
 }
 
 
