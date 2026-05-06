@@ -56,13 +56,22 @@ def _requires_httpfs(paths_or_urls: list[str]) -> bool:
 
 
 def _parse_iso_mtime(value: str) -> datetime.datetime | None:
-    """Parse an ISO 8601 uploaded_at string. Returns None when unparseable."""
+    """Parse an ISO 8601 uploaded_at string. Returns None when unparseable.
+
+    Manifest writers historically used ``datetime.now().isoformat()`` (naive),
+    while the consolidator's IA-mtime helper produces UTC-aware datetimes
+    from unix timestamps. Comparing the two would raise ``TypeError``; treat
+    naive manifest timestamps as UTC so freshness math stays well-defined.
+    """
     if not value:
         return None
     try:
-        return datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=datetime.UTC)
+    return parsed
 
 
 def _current_year_is_fresh(
@@ -278,16 +287,19 @@ class IAConsolidator:
             if not _resource_has_uf_shards(resource):
                 consolidated_mtime = self._consolidated_mtime_on_ia(year, resource=resource)
                 if consolidated_mtime is not None:
-                    newest_canonical = max(
-                        (
-                            _parse_iso_mtime(row.get("uploaded_at") or "")
-                            for row in shared_manifest
-                            if row.get("table_name") == resource
-                            and (row.get("data_particao") or "").startswith(str(year))
-                            and row.get("file_type", "") in ("", "monthly_canonical")
-                        ),
-                        default=None,
-                    )
+                    # Filter out unparseable / missing uploaded_at values
+                    # (None) before max — a single bad row would otherwise
+                    # raise TypeError on the comparison.
+                    canonical_mtimes = [
+                        m
+                        for row in shared_manifest
+                        if row.get("table_name") == resource
+                        and (row.get("data_particao") or "").startswith(str(year))
+                        and row.get("file_type", "") in ("", "monthly_canonical")
+                        for m in (_parse_iso_mtime(row.get("uploaded_at") or ""),)
+                        if m is not None
+                    ]
+                    newest_canonical = max(canonical_mtimes) if canonical_mtimes else None
                     if newest_canonical is not None and consolidated_mtime >= newest_canonical:
                         console.print(
                             f"[dim]Skipping {resource}/{year}: consolidated annual file "
