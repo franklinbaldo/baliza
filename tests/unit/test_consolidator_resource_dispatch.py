@@ -16,28 +16,23 @@ from baliza.consolidator import _consolidated_file_name, _resource_has_uf_shards
 
 
 def test_resource_has_uf_shards_contratos():
-    """Contratos's canonical schema includes uf_sigla in sort columns
-    (today via the bloom filter set), so per-UF shards apply."""
-    # Sanity check on the gate. If the spec ever drops uf_sigla we
-    # want this test to fail loudly so the consolidator stops trying.
+    """Contratos's canonical row has uf_sigla. The spec must declare
+    partition_by_uf=True so consolidate_year keeps emitting monthly_uf
+    shards (the public Journey 6 contract relies on those URLs)."""
     from baliza.resources import CONTRATOS
 
-    spec_has = "uf_sigla" in (
-        set(CONTRATOS.canonical_tables[0].bloom_filter_columns)
-        | set(CONTRATOS.canonical_tables[0].sort_columns)
-    )
-    if spec_has:
-        assert _resource_has_uf_shards("contratos") is True
-    else:
-        # Document the gate: if the spec stops listing uf_sigla, atas
-        # and contratos converge on no-shard behavior — that's fine,
-        # just intentional product knowledge.
-        assert _resource_has_uf_shards("contratos") is False
+    assert CONTRATOS.canonical_tables[0].partition_by_uf is True
+    assert _resource_has_uf_shards("contratos") is True
 
 
 def test_resource_has_uf_shards_atas_skipped():
-    """Atas has no uf_sigla in its flatten output / canonical spec.
-    Consolidator must NOT try to build per-UF shards for atas."""
+    """Atas has no uf_sigla — partition_by_uf must stay False so the
+    consolidator skips _build_per_uf_shards (which would crash on the
+    SELECT DISTINCT uf_sigla query) and the manifest stays free of
+    bogus monthly_uf rows."""
+    from baliza.resources import ATAS
+
+    assert ATAS.canonical_tables[0].partition_by_uf is False
     assert _resource_has_uf_shards("atas") is False
 
 

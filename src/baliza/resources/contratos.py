@@ -49,6 +49,9 @@ CONTRATOS = PNCPResource(
             # depends on cnpj_orgao locality) stay byte-comparable
             # across this multi-resource refactor.
             order_by_sql="cnpj_orgao, data_publicacao DESC, numero_controle_pncp",
+            # Contratos has uf_sigla in every row (buyer's UF) and the
+            # consolidator emits per-state monthly_uf shards from it.
+            partition_by_uf=True,
         )
     ],
     entity_model=RecuperarContratoDTO,

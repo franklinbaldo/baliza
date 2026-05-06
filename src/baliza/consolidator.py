@@ -115,16 +115,15 @@ def _current_year_is_fresh(
 
 
 def _resource_has_uf_shards(resource: str) -> bool:
-    """A resource gets per-UF shards if its canonical schema carries uf_sigla.
+    """Whether the consolidator should emit per-UF monthly shards.
 
-    Detected by looking for ``uf_sigla`` in the resource's bloom-filter or
-    sort columns — both are populated only when the column is queried. Atas
-    has neither (no UF info in the API response), so it skips the shard step.
+    Reads the explicit ``CanonicalTableSpec.partition_by_uf`` flag —
+    inferring from sort/bloom column lists silently regressed contratos
+    (its canonical row carries ``uf_sigla`` even though the column isn't
+    in either list, so the heuristic returned False and skipped shard
+    publication; see Codex review on PR #555).
     """
-    spec = get_resource(resource)
-    table_spec = spec.canonical_tables[0]
-    columns = set(table_spec.bloom_filter_columns) | set(table_spec.sort_columns)
-    return "uf_sigla" in columns
+    return get_resource(resource).canonical_tables[0].partition_by_uf
 
 
 class IAConsolidator:
