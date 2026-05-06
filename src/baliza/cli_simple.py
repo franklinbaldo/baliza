@@ -1230,13 +1230,10 @@ def orphans(  # noqa: PLR0912, PLR0913, PLR0915
             console.print(f"[yellow]{item_id}: {len(orphan_files)} orphan(s)[/yellow]")
             for f in orphan_files:
                 console.print(f"  • {f}")
-            # Defense in depth: filter out anything that matches the
-            # allow-list (caught above already, but a regression here
-            # would otherwise delete a canonical parquet) before
-            # queuing for deletion.
-            safe_orphans = [f for f in orphan_files if f not in allowed]
-            if safe_orphans:
-                deletion_plan.append((item_id, safe_orphans))
+            # ``orphan_files`` was already filtered against ``allowed``
+            # above; the deletion plan reuses it directly. The unit test
+            # ``test_apply_deletes_only_orphans`` pins the contract.
+            deletion_plan.append((item_id, orphan_files))
 
     console.print(
         f"\n[bold]{total_orphans} orphan file(s) across "
@@ -1281,13 +1278,17 @@ def orphans(  # noqa: PLR0912, PLR0913, PLR0915
     for item_id, names in deletion_plan:
         for fname in names:
             try:
+                # ``ia.delete`` doesn't forward ``retries`` to
+                # ``File.delete`` — it only honours cascade_delete /
+                # access_key / secret_key / verbose / debug. Rely on
+                # the library default (2 retries on transient failures)
+                # instead of pretending to configure it here.
                 ia.delete(
                     item_id,
                     files=[fname],
                     access_key=ia_access_key,
                     secret_key=ia_secret_key,
                     cascade_delete=False,
-                    retries=3,
                 )
                 console.print(f"[green]✓ deleted {item_id}/{fname}[/green]")
                 deleted += 1
