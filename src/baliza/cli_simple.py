@@ -678,22 +678,6 @@ def mirror_cmd(  # noqa: PLR0912, PLR0913, PLR0915
         console.print(f"[red]✗ {e}[/red]")
         raise typer.Exit(1) from None
 
-    # IAUploader.upload_raw_zip writes 'raw-{month}.zip' (no resource
-    # prefix) and _upsert_manifest_row writes table_name='contratos'
-    # unconditionally. Mirroring a non-contratos resource today would
-    # therefore overwrite the contratos raw ZIP and corrupt the
-    # contratos manifest row for the same partition. Refuse at the
-    # CLI until those writers are generalized in a follow-up PR.
-    if resource != RESOURCE_CONTRATOS:
-        console.print(
-            f"[red]✗ mirror for resource={resource!r} is not supported yet.[/red]\n"
-            "[dim]IAUploader.upload_raw_zip + _upsert_manifest_row are still "
-            "resource-blind (raw-{month}.zip, table_name='contratos'); enabling "
-            "mirror for non-contratos before they're generalized would overwrite "
-            "the contratos raw ZIP for the same month. Track the follow-up PR.[/dim]"
-        )
-        raise typer.Exit(1)
-
     if force_month:
         batch = _forced_month_or_empty(resource, force_month)
     else:

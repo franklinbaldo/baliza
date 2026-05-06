@@ -17,7 +17,7 @@ from rich.console import Console
 
 from . import rss_feed
 from .engine import BalizaEngine
-from .resources import CONTRATOS
+from .resources import CONTRATOS, raw_zip_filename
 from .utils import DUCKDB_PARQUET_COPY_OPTIONS, PARQUET_ROW_GROUP_SIZE
 
 console = Console()
@@ -357,22 +357,28 @@ class IAUploader:
         fields: dict[str, Any],
         access_key: str,
         secret_key: str,
+        *,
+        resource: str = CONTRATOS.name,
     ) -> None:
-        """Read manifest, merge fields into the canonical row for month_str, write back.
+        """Read manifest, merge fields into the canonical row for (resource, month_str), write back.
 
-        If no canonical row exists for the month, creates one with safe defaults.
-        Existing fields not present in ``fields`` are preserved (merge, not replace).
-        Uses the strict reader — transient read failures abort rather than wipe the live manifest.
+        If no canonical row exists for the (resource, month) pair, creates
+        one with safe defaults. Existing fields not present in ``fields``
+        are preserved (merge, not replace). Uses the strict reader —
+        transient read failures abort rather than wipe the live manifest.
         """
         with _manifest_lock:
             manifest = read_manifest_from_ia()
             parquet_item_id = f"baliza-pncp-{month_str}"
+            raw_zip_url = (
+                f"https://archive.org/download/{RAW_ITEM_ID}/{raw_zip_filename(resource, month_str)}"
+            )
 
             existing_idx: int | None = None
             for i, row in enumerate(manifest):
                 if (
                     row.get("data_particao") == month_str
-                    and row.get("table_name") == CONTRATOS.name
+                    and row.get("table_name") == resource
                     and row.get("file_type", "") in ("", "monthly_canonical")
                 ):
                     existing_idx = i
@@ -384,11 +390,11 @@ class IAUploader:
             else:
                 new_row: dict[str, Any] = {
                     "data_particao": month_str,
-                    "table_name": CONTRATOS.name,
+                    "table_name": resource,
                     "row_count": 0,
                     "quarantine_count": 0,
                     "ia_item_id": parquet_item_id,
-                    "raw_zip_url": f"https://archive.org/download/{RAW_ITEM_ID}/raw-{month_str}.zip",
+                    "raw_zip_url": raw_zip_url,
                     "parquet_url": "",
                     "quarantine_url": "",
                     "uploaded_at": now,
@@ -410,30 +416,43 @@ class IAUploader:
 
             write_manifest_to_ia(manifest, access_key, secret_key)
 
-    def upload_raw_zip(
+    def upload_raw_zip(  # noqa: PLR0913
         self,
         start_date: date,
         raw_dir: Path,
         ia_access_key: str,
         ia_secret_key: str,
         keep_raw_dir: bool = False,
+        *,
+        resource: str = CONTRATOS.name,
     ) -> bool:
         """Zip raw JSON pages and upload to baliza-pncp-raw; update manifest mirror fields.
 
         Does NOT ingest or export Parquet. Cleans up raw_dir on success so the
         next run fetches fresh from IA (or GHA cache). Returns True on success.
+
+        Args:
+            resource: PNCP resource name. Determines the ZIP filename
+                (contratos keeps the legacy ``raw-{month}.zip`` shape;
+                other resources prefix with the resource name to avoid
+                colliding with contratos zips for the same partition)
+                and the manifest row's ``table_name`` so per-resource
+                mirror state stays separate.
         """
         month_str = start_date.strftime("%Y-%m")
+        zip_basename = raw_zip_filename(resource, month_str)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             temp_path = Path(tmp_dir)
-            zip_path = temp_path / f"raw-{month_str}.zip"
+            zip_path = temp_path / zip_basename
             shutil.make_archive(str(zip_path.with_suffix("")), "zip", raw_dir)
 
             raw_zip_sha256 = _sha256(zip_path)
             raw_zip_size = zip_path.stat().st_size
 
-            console.print(f"  Uploading raw ZIP for {month_str} to {RAW_ITEM_ID}...")
+            console.print(
+                f"  Uploading raw ZIP for {resource}/{month_str} to {RAW_ITEM_ID}..."
+            )
             ia.upload(
                 RAW_ITEM_ID,
                 files={zip_path.name: str(zip_path)},
@@ -443,7 +462,7 @@ class IAUploader:
                 retries=3,
             )
 
-        raw_zip_url = f"https://archive.org/download/{RAW_ITEM_ID}/raw-{month_str}.zip"
+        raw_zip_url = f"https://archive.org/download/{RAW_ITEM_ID}/{zip_basename}"
         now = datetime.now().isoformat()
         success = False
         try:
@@ -458,10 +477,11 @@ class IAUploader:
                 },
                 ia_access_key,
                 ia_secret_key,
+                resource=resource,
             )
             success = True
         except Exception as e:
-            console.print(f"[red]✗ Manifest update failed for {month_str}: {e}[/red]")
+            console.print(f"[red]✗ Manifest update failed for {resource}/{month_str}: {e}[/red]")
 
         if success and not keep_raw_dir and raw_dir.exists():
             shutil.rmtree(raw_dir)

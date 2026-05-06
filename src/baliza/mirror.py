@@ -230,6 +230,7 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
         ia_access_key,
         ia_secret_key,
         keep_raw_dir=is_current_month,
+        resource=resource,
     )
     result["uploaded"] = uploaded
 
