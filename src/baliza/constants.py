@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from datetime import date
 
-from .resources import CONTRATOS, RESOURCES
+from .resources import ATAS, CONTRATOS, RESOURCES
 
 RESOURCE_CONTRATOS = CONTRATOS.name
+RESOURCE_ATAS = ATAS.name
 
 
 # Derived view of the registry: each registered resource that has set

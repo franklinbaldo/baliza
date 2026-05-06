@@ -1,3 +1,4 @@
+from .atas import ATAS
 from .contratos import CONTRATOS
 from .specs import (
     CanonicalTableSpec,
@@ -9,11 +10,11 @@ from .specs import (
 
 # Registry of every PNCP resource the pipeline knows how to ingest. Code
 # paths that need to look up a resource by its CLI name read from here
-# instead of importing CONTRATOS directly. Adding a new resource (e.g.
-# atas) only requires registering it here and defining its module under
-# resources/.
+# instead of importing CONTRATOS directly. Adding a new resource only
+# requires registering it here and defining its module under resources/.
 RESOURCES: dict[str, PNCPResource] = {
     CONTRATOS.name: CONTRATOS,
+    ATAS.name: ATAS,
 }
 
 
@@ -49,6 +50,7 @@ __all__ = [
     "EntitySpec",
     "CanonicalTableSpec",
     "CONTRATOS",
+    "ATAS",
     "RESOURCES",
     "get_resource",
     "page_filename",

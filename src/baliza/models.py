@@ -8,7 +8,7 @@ from datetime import date
 from datetime import datetime as AwareDatetime
 from enum import StrEnum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class RespostaErroValidacaoDTO(BaseModel):
@@ -339,6 +339,42 @@ class PaginaRetornoRecuperarCompraPublicacaoDTO(BaseModel):
     numeroPagina: int | None = None
     paginasRestantes: int | None = None
     empty: bool | None = None
+
+
+class RecuperarAtaDTO(BaseModel):
+    """A single ata-de-registro-de-preço entry from /v1/atas.
+
+    Mirrors AtaRegistroPrecoPeriodoDTO from the PNCP OpenAPI spec.
+    All fields are optional because the PNCP API has historically
+    returned partial responses during incidents — let validation
+    succeed and let the consolidator's NULL handling deal with gaps.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    numeroControlePNCPAta: str | None = None
+    numeroAtaRegistroPreco: str | None = None
+    anoAta: int | None = None
+    numeroControlePNCPCompra: str | None = None
+    cancelado: bool | None = None
+    dataCancelamento: str | None = None
+    dataAssinatura: str | None = None
+    vigenciaInicio: str | None = None
+    vigenciaFim: str | None = None
+    dataPublicacaoPncp: str | None = None
+    dataInclusao: str | None = None
+    dataAtualizacao: str | None = None
+    dataAtualizacaoGlobal: str | None = None
+    usuario: str | None = None
+    objetoContratacao: str | None = None
+    cnpjOrgao: str | None = None
+    nomeOrgao: str | None = None
+    cnpjOrgaoSubrogado: str | None = None
+    nomeOrgaoSubrogado: str | None = None
+    codigoUnidadeOrgao: str | None = None
+    nomeUnidadeOrgao: str | None = None
+    codigoUnidadeOrgaoSubrogado: str | None = None
+    nomeUnidadeOrgaoSubrogado: str | None = None
 
 
 class PaginaRetornoPlanoContratacaoComItensDoUsuarioDTO(BaseModel):
