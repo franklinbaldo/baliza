@@ -4,9 +4,10 @@ import json
 import subprocess
 import threading
 import time
+from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 import httpx
 import structlog
@@ -364,7 +365,6 @@ class PNCPExtractor:
             raise RuntimeError(
                 f"resource {resource!r} has no entity_model; cannot validate"
             )
-        entity_model = spec.entity_model
 
         month_str = start_date.strftime("%Y-%m")
         raw_dir = Path("data/raw") / month_str
