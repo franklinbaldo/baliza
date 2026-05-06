@@ -211,6 +211,35 @@ Current state: not yet served. None of the alerting infrastructure exists.
 
 Feature file: [`web/features/journeys/07_auditor_watchdog.feature`](web/features/journeys/07_auditor_watchdog.feature)
 
+### The PNCP Resource Atlas
+
+Baliza is not a contracts search page; it is a temporal procurement
+intelligence system. To honour that framing the pipeline must mirror the
+several PNCP endpoints that, taken together, describe the full life cycle
+of a public purchase. The conceptual spine — from intent to fact — is:
+
+| Layer       | PNCP resource     | What it answers                              | Status         |
+|-------------|-------------------|----------------------------------------------|----------------|
+| Intended    | **PCA**           | What does this agency *plan* to buy?         | Planned        |
+| Open        | **Publicações**   | What is open for bidding *right now*?        | Planned        |
+| Reusable    | **Atas**          | Which framework agreements can I ride on?    | Registered     |
+| Final       | **Contratos**     | What was actually contracted, for how much?  | Registered     |
+| Comparable  | **Itens**         | Item-level prices across buyers and time     | Future         |
+
+Each row is a first-class Baliza resource: it owns a typed `FetchSpec`,
+a raw mirror filename strategy that cannot collide with peers, a
+canonical table with an explicit `schema_version` and primary key, and
+its own Pydantic validation model. The architectural contract is
+specified in [`web/features/pncp-resource-atlas.feature`](web/features/pncp-resource-atlas.feature)
+and is enforced by `tests/unit/test_resource_atlas.py`.
+
+Today `RESOURCES` (in `src/baliza/resources/__init__.py`) holds the two
+registered resources, `contratos` and `atas`. `PLANNED_RESOURCES` holds
+`publicacoes` and `pca` with documented TODO markers naming the exact
+facts that block promotion. Nothing about the active pipeline depends on
+the planned set, so registering a new resource is a single-line change
+and a closed-out TODO list — not a refactor.
+
 ### What Baliza is NOT (non-goals)
 
 - Not a replacement for PNCP. It is an analytical and archival layer on top
