@@ -642,7 +642,7 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
 
 
 @app.command("mirror")
-def mirror_cmd(  # noqa: PLR0913, PLR0915
+def mirror_cmd(  # noqa: PLR0912, PLR0913, PLR0915
     batch_size: int | None = typer.Option(
         None, "--batch-size", "-n", help="Max months to mirror (None for all)"
     ),
@@ -796,20 +796,6 @@ def build_cmd(  # noqa: PLR0912, PLR0913, PLR0915
         console.print(f"[red]✗ {e}[/red]")
         raise typer.Exit(1) from None
 
-    # The build path's MonthlyExporter / IAUploader.upload_parquet still
-    # hard-code the contratos table and 'contratos-{month}.parquet'
-    # filename. Generalizing them is a separate PR; until that lands,
-    # refuse non-contratos resources at the CLI with a clear message
-    # rather than letting the run fail later inside DuckDB.
-    if resource != RESOURCE_CONTRATOS:
-        console.print(
-            f"[red]✗ build for resource={resource!r} is not supported yet.[/red]\n"
-            "[dim]Mirror works (raw JSON pages land on IA), but the canonical "
-            "Parquet export still hard-codes contratos. Track the follow-up "
-            "PR that generalizes MonthlyExporter / IAUploader.upload_parquet.[/dim]"
-        )
-        raise typer.Exit(1)
-
     # Fetch manifest once — reused by _pending_build_months and each build_month call
     # to avoid one network round-trip per month when building in batch.
     try:
@@ -916,8 +902,12 @@ def verify(
         uploader = IAUploader(engine)
         with console.status("[bold green]Checking remote manifest...[/bold green]"):
             raw_manifest = uploader._read_manifest_from_ia()
+            # Scope by table_name so 'verify --resource atas' doesn't
+            # report false-green coverage based on contratos rows.
             uploaded_months = {
-                row["data_particao"] for row in raw_manifest if row.get("data_particao")
+                row["data_particao"]
+                for row in raw_manifest
+                if row.get("data_particao") and row.get("table_name") == resource
             }
 
         gaps = []
