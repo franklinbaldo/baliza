@@ -19,6 +19,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 import httpx
+import internetarchive as ia
 import structlog
 import typer
 from rich.console import Console
@@ -1135,18 +1136,43 @@ def doctor(  # noqa: PLR0912, PLR0915
 
 
 @app.command("orphans")
-def orphans(
+def orphans(  # noqa: PLR0912, PLR0913, PLR0915
     resource: str = typer.Option(RESOURCE_CONTRATOS, "--resource", "-r", help="Resource to check"),
     months: int = typer.Option(3, "--months", help="How many recent months to inspect"),
+    apply: bool = typer.Option(
+        False,
+        "--apply",
+        help="Actually delete the orphan files from IA (default: dry-run).",
+    ),
+    max_deletions: int = typer.Option(
+        50,
+        "--max-deletions",
+        help="Refuse to delete more than this many files in a single run "
+        "(safety cap; raise it deliberately for known cleanups).",
+    ),
 ) -> None:
-    """List files inside per-month IA items that aren't in the manifest.
+    """List (or delete) files inside per-month IA items that aren't in the manifest.
 
-    Read-only. Surfaces legacy daily/per-supplier parquets left over by
-    older pipeline shapes (the live audit found ~28 stale files per
-    month in baliza-pncp-{YYYY-MM}). Garbage collection is intentionally
-    a separate, destructive command — do not add it here without a
-    --apply flag and explicit IA credentials.
+    Default: read-only listing. Use ``--apply`` to actually delete.
+
+    Surfaces legacy daily/per-supplier parquets left over by older
+    pipeline shapes (the live audit found ~28 stale files per month in
+    ``baliza-pncp-{YYYY-MM}``). Deletion targets only files that are
+    NOT in the allowed per-item allow-list AND NOT IA-managed sidecars
+    — so a regression in the allow-list can't nuke a canonical Parquet
+    or raw ZIP.
     """
+    if apply:
+        ia_access_key = os.environ.get("IA_ACCESS_KEY") or os.environ.get("IAS3_ACCESS_KEY")
+        ia_secret_key = os.environ.get("IA_SECRET_KEY") or os.environ.get("IAS3_SECRET_KEY")
+        if not ia_access_key or not ia_secret_key:
+            console.print(
+                "[red]✗ --apply requires IA_ACCESS_KEY + IA_SECRET_KEY in env.[/red]"
+            )
+            raise typer.Exit(1)
+    else:
+        ia_access_key = ia_secret_key = None
+
     try:
         rows = read_manifest_from_ia()
     except Exception as exc:
@@ -1173,6 +1199,7 @@ def orphans(
     }
 
     total_orphans = 0
+    deletion_plan: list[tuple[str, list[str]]] = []
     fetch_failures = 0
     transport = httpx.HTTPTransport(retries=3)
     with httpx.Client(timeout=30.0, transport=transport) as client:
@@ -1203,6 +1230,13 @@ def orphans(
             console.print(f"[yellow]{item_id}: {len(orphan_files)} orphan(s)[/yellow]")
             for f in orphan_files:
                 console.print(f"  • {f}")
+            # Defense in depth: filter out anything that matches the
+            # allow-list (caught above already, but a regression here
+            # would otherwise delete a canonical parquet) before
+            # queuing for deletion.
+            safe_orphans = [f for f in orphan_files if f not in allowed]
+            if safe_orphans:
+                deletion_plan.append((item_id, safe_orphans))
 
     console.print(
         f"\n[bold]{total_orphans} orphan file(s) across "
@@ -1214,7 +1248,55 @@ def orphans(
             f"[red]✗ {fetch_failures} month(s) could not be inspected; "
             "result is partial.[/red]"
         )
-    # Treat fetch failures as orphan-like: a partial scan must not look
-    # green because callers (CI) cannot tell it apart from a true clean.
-    if total_orphans or fetch_failures:
+
+    if not apply:
+        # Dry-run: existing semantics. Treat fetch failures as orphan-like
+        # so a partial scan never looks green.
+        if total_orphans or fetch_failures:
+            raise typer.Exit(1)
+        return
+
+    # --apply path. Refuse to operate when the scan was partial — we
+    # don't want a transient IA outage to leave half a month uninspected
+    # while we delete from the others.
+    if fetch_failures:
+        console.print(
+            "[red]✗ refusing to --apply: partial scan would leave some months "
+            "uninspected. Re-run without --apply to confirm coverage first.[/red]"
+        )
+        raise typer.Exit(1)
+    if total_orphans > max_deletions:
+        console.print(
+            f"[red]✗ refusing to delete {total_orphans} files (cap "
+            f"{max_deletions}). Re-run with --max-deletions={total_orphans} "
+            "if this is intentional.[/red]"
+        )
+        raise typer.Exit(1)
+    if total_orphans == 0:
+        console.print("[green]nothing to delete.[/green]")
+        return
+
+    deleted = 0
+    failed = 0
+    for item_id, names in deletion_plan:
+        for fname in names:
+            try:
+                ia.delete(
+                    item_id,
+                    files=[fname],
+                    access_key=ia_access_key,
+                    secret_key=ia_secret_key,
+                    cascade_delete=False,
+                    retries=3,
+                )
+                console.print(f"[green]✓ deleted {item_id}/{fname}[/green]")
+                deleted += 1
+            except Exception as exc:
+                console.print(f"[red]✗ {item_id}/{fname}: {exc}[/red]")
+                failed += 1
+
+    console.print(
+        f"\n[bold]Deleted {deleted} file(s); {failed} failure(s).[/bold]"
+    )
+    if failed:
         raise typer.Exit(1)
