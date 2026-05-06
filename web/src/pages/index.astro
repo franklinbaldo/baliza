@@ -103,6 +103,7 @@ const TOOLS: Array<{
           <p>{tool.blurb}</p>
           <a
             href={tool.href}
+            aria-label={`Abrir ${tool.label}${tool.external ? ' (em nova aba)' : ''}`}
             rel={tool.external ? 'noopener' : undefined}
             target={tool.external ? '_blank' : undefined}
           >
