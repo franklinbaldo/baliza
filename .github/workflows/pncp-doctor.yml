@@ -1,0 +1,90 @@
+name: PNCP Doctor
+
+# Weekly read-only check on the live IA manifest. Runs `baliza doctor`
+# with --head-check so deleted IA files surface, and opens (or appends
+# to) a single rolling tracking issue if anything is wrong. Mirrors the
+# tracker pattern used by PNCP Sync to avoid issue-spam.
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # Mondays 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: pncp-doctor
+  cancel-in-progress: false
+
+jobs:
+  doctor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v4
+      - run: uv run baliza doctor --resource contratos --head-check
+
+  report-failure:
+    name: Open or update tracking issue
+    if: ${{ failure() && github.ref_name == github.event.repository.default_branch }}
+    needs: doctor
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v9
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const runUrl = `${context.payload.repository.html_url}/actions/runs/${context.runId}`;
+            const TITLE = '🩺 PNCP Doctor found backup integrity issues';
+            const open = await github.rest.issues.listForRepo({
+              owner, repo, state: 'open', labels: 'ci-failure', per_page: 100,
+            });
+            const existing = open.data.find((i) => i.title === TITLE);
+            if (!existing) {
+              await github.rest.issues.create({
+                owner, repo,
+                title: TITLE,
+                body: [
+                  `Latest finding: [run #${context.runNumber}](${runUrl})`,
+                  '',
+                  'Comments below track every subsequent failed run. The',
+                  'issue is auto-closed by the next clean doctor run.',
+                ].join('\n'),
+                labels: ['ci-failure'],
+              });
+              return;
+            }
+            await github.rest.issues.createComment({
+              owner, repo, issue_number: existing.number,
+              body: `Recurred: [run #${context.runNumber}](${runUrl})`,
+            });
+
+  report-recovery:
+    name: Auto-close on clean run
+    if: ${{ success() && github.ref_name == github.event.repository.default_branch }}
+    needs: doctor
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v9
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const TITLE = '🩺 PNCP Doctor found backup integrity issues';
+            const open = await github.rest.issues.listForRepo({
+              owner, repo, state: 'open', labels: 'ci-failure', per_page: 100,
+            });
+            const existing = open.data.find((i) => i.title === TITLE);
+            if (!existing) return;
+            const runUrl = `${context.payload.repository.html_url}/actions/runs/${context.runId}`;
+            await github.rest.issues.createComment({
+              owner, repo, issue_number: existing.number,
+              body: `Doctor clean: [run #${context.runNumber}](${runUrl}). Closing.`,
+            });
+            await github.rest.issues.update({
+              owner, repo, issue_number: existing.number, state: 'closed',
+            });

@@ -9,11 +9,14 @@ from __future__ import annotations
 import concurrent.futures
 import json
 import os
+import re
 import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
+import httpx
 import structlog
 import typer
 from rich.console import Console
@@ -931,3 +934,223 @@ def consolidate_cmd(
     except Exception as e:
         console.print(f"[red]✗ Consolidation failed: {e}")
         raise typer.Exit(1) from e
+
+
+@app.command("doctor")
+def doctor(  # noqa: PLR0912, PLR0915
+    resource: str = typer.Option(RESOURCE_CONTRATOS, "--resource", "-r", help="Resource to check"),
+    start: str = typer.Option("2021-01-01", "--start", help="Earliest month to check (YYYY-MM-DD)"),
+    head_check: bool = typer.Option(
+        False,
+        "--head-check/--no-head-check",
+        help="HTTP HEAD every parquet_url and raw_zip_url. Slower but catches deleted IA files.",
+    ),
+) -> None:
+    """Read-only health check on the live IA manifest.
+
+    Reports any of: missing months, malformed manifest rows, broken URLs,
+    invalid sha256, table_name mismatch with --resource. Exits 1 on any
+    finding so it can drive a CI alert.
+    """
+    try:
+        _validate_resource(resource)
+        effective_start = clamp_to_known_data_start_month(
+            resource, datetime.strptime(start, "%Y-%m-%d").date()
+        )
+    except ValueError as exc:
+        console.print(f"[red]✗ {exc}[/red]")
+        raise typer.Exit(1) from None
+
+    try:
+        rows = read_manifest_from_ia()
+    except Exception as exc:
+        console.print(f"[red]✗ Could not read manifest: {exc}[/red]")
+        raise typer.Exit(1) from None
+
+    findings: list[str] = []
+    canonical = [
+        r for r in rows
+        if r.get("table_name") == resource
+        and (r.get("file_type") or "monthly_canonical") == "monthly_canonical"
+    ]
+    months_present = {r["data_particao"] for r in canonical if r.get("data_particao")}
+
+    # Gap check (same window as `verify`).
+    today = date.today()
+    last_month_end = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
+    curr = effective_start.replace(day=1)
+    expected: list[str] = []
+    while curr <= last_month_end:
+        expected.append(curr.strftime("%Y-%m"))
+        curr = curr.replace(year=curr.year + 1, month=1) if curr.month == 12 else curr.replace(month=curr.month + 1)
+    gaps = [m for m in expected if m not in months_present]
+    if gaps:
+        findings.append(f"missing canonical months for {resource}: {len(gaps)} (e.g. {gaps[:5]})")
+
+    # Per-row schema sanity.
+    sha_re = re.compile(r"^[0-9a-f]{64}$")
+    for r in canonical:
+        rid = f"{r.get('table_name','?')}/{r.get('data_particao','?')}"
+        sha = r.get("sha256") or ""
+        if not sha:
+            findings.append(f"{rid}: missing sha256")
+        elif not sha_re.match(sha):
+            findings.append(f"{rid}: sha256 not 64-hex ({sha!r})")
+        for url_col in ("parquet_url", "raw_zip_url"):
+            u = r.get(url_col) or ""
+            if not u:
+                continue
+            host = urlparse(u).netloc
+            # Require an exact archive.org host or a true subdomain so
+            # 'evilarchive.org' doesn't pass the integrity check.
+            on_ia = u.startswith("https://") and (
+                host == "archive.org" or host.endswith(".archive.org")
+            )
+            if not on_ia:
+                findings.append(f"{rid}: {url_col} not on archive.org ({u!r})")
+        if not r.get("parquet_url"):
+            findings.append(f"{rid}: missing parquet_url")
+        if not r.get("raw_zip_url"):
+            findings.append(f"{rid}: missing raw_zip_url")
+        # uf_sigla must be empty on canonical rows.
+        if r.get("uf_sigla"):
+            findings.append(f"{rid}: canonical row has uf_sigla={r['uf_sigla']!r}")
+
+    # Optional: probe URLs with HEAD to catch deleted IA files.
+    if head_check:
+        # Retry transient HEAD failures so a 1s IA blip doesn't cry wolf.
+        # 3 attempts. A genuine deletion is still surfaced because IA
+        # returns 4xx, not a transport error.
+        transport = httpx.HTTPTransport(retries=3)
+        with httpx.Client(
+            follow_redirects=True, timeout=15.0, transport=transport
+        ) as client:
+            for r in canonical:
+                rid = f"{r.get('table_name','?')}/{r.get('data_particao','?')}"
+                for url_col in ("parquet_url", "raw_zip_url"):
+                    u = r.get(url_col) or ""
+                    if not u:
+                        continue
+                    # Defense in depth: never let doctor make outbound
+                    # requests to a host the manifest validator already
+                    # rejected. A malicious/accidental external URL
+                    # would otherwise turn the scheduled cron into an
+                    # SSRF probe from the GHA runner.
+                    host = urlparse(u).netloc
+                    if not (
+                        u.startswith("https://")
+                        and (host == "archive.org" or host.endswith(".archive.org"))
+                    ):
+                        continue
+                    try:
+                        resp = client.head(u)
+                    except Exception as exc:
+                        findings.append(f"{rid}: {url_col} HEAD failed ({exc})")
+                        continue
+                    if resp.status_code >= 400:
+                        findings.append(f"{rid}: {url_col} HEAD {resp.status_code}")
+
+    if not findings:
+        console.print(
+            f"[green]✓ {resource}: {len(canonical)} canonical month(s), "
+            f"{effective_start.strftime('%Y-%m')} .. {last_month_end.strftime('%Y-%m')}, "
+            f"no findings.[/green]"
+        )
+        return
+
+    shown = min(len(findings), 50)
+    console.print(
+        f"[red]✗ {resource}: {len(findings)} finding(s) "
+        f"(showing first {shown})[/red]"
+    )
+    for f in findings[:50]:
+        console.print(f"  • {f}")
+    if len(findings) > 50:
+        console.print(f"  ... and {len(findings) - 50} more.")
+    raise typer.Exit(1)
+
+
+@app.command("orphans")
+def orphans(
+    resource: str = typer.Option(RESOURCE_CONTRATOS, "--resource", "-r", help="Resource to check"),
+    months: int = typer.Option(3, "--months", help="How many recent months to inspect"),
+) -> None:
+    """List files inside per-month IA items that aren't in the manifest.
+
+    Read-only. Surfaces legacy daily/per-supplier parquets left over by
+    older pipeline shapes (the live audit found ~28 stale files per
+    month in baliza-pncp-{YYYY-MM}). Garbage collection is intentionally
+    a separate, destructive command — do not add it here without a
+    --apply flag and explicit IA credentials.
+    """
+    try:
+        rows = read_manifest_from_ia()
+    except Exception as exc:
+        console.print(f"[red]✗ Could not read manifest: {exc}[/red]")
+        raise typer.Exit(1) from None
+
+    canonical = [
+        r for r in rows
+        if r.get("table_name") == resource
+        and (r.get("file_type") or "monthly_canonical") == "monthly_canonical"
+    ]
+    canonical.sort(key=lambda r: r.get("data_particao", ""), reverse=True)
+    canonical = canonical[:months]
+    if not canonical:
+        console.print(f"[yellow]No canonical rows for {resource}.[/yellow]")
+        raise typer.Exit(1)
+
+    expected_per_item = {
+        # Files the current pipeline is allowed to produce per IA monthly
+        # item — see IAUploader.upload_month in src/baliza/ia_uploader.py.
+        "{resource}-{month}.parquet",
+        "quarentena-{month}.csv",
+        "raw-{month}.zip",
+    }
+
+    total_orphans = 0
+    fetch_failures = 0
+    transport = httpx.HTTPTransport(retries=3)
+    with httpx.Client(timeout=30.0, transport=transport) as client:
+        for r in canonical:
+            month = r["data_particao"]
+            item_id = r.get("ia_item_id") or f"baliza-pncp-{month}"
+            try:
+                meta = client.get(f"https://archive.org/metadata/{item_id}").json()
+            except Exception as exc:
+                console.print(f"[red]{item_id}: metadata fetch failed: {exc}[/red]")
+                fetch_failures += 1
+                continue
+            allowed = {
+                t.format(resource=resource, month=month) for t in expected_per_item
+            } | {
+                # IA-managed sidecars never count as orphans.
+                f"{item_id}_archive.torrent",
+                f"{item_id}_files.xml",
+                f"{item_id}_meta.sqlite",
+                f"{item_id}_meta.xml",
+            }
+            files = [f["name"] for f in meta.get("files", [])]
+            orphan_files = [f for f in files if f not in allowed]
+            if not orphan_files:
+                console.print(f"[green]{item_id}: clean ({len(files)} files)[/green]")
+                continue
+            total_orphans += len(orphan_files)
+            console.print(f"[yellow]{item_id}: {len(orphan_files)} orphan(s)[/yellow]")
+            for f in orphan_files:
+                console.print(f"  • {f}")
+
+    console.print(
+        f"\n[bold]{total_orphans} orphan file(s) across "
+        f"{len(canonical) - fetch_failures}/{len(canonical)} month(s) "
+        f"inspected.[/bold]"
+    )
+    if fetch_failures:
+        console.print(
+            f"[red]✗ {fetch_failures} month(s) could not be inspected; "
+            "result is partial.[/red]"
+        )
+    # Treat fetch failures as orphan-like: a partial scan must not look
+    # green because callers (CI) cannot tell it apart from a true clean.
+    if total_orphans or fetch_failures:
+        raise typer.Exit(1)
