@@ -17,6 +17,7 @@ from rich.console import Console
 
 from . import rss_feed
 from .engine import BalizaEngine
+from .extractor import FETCHED_SENTINEL
 from .resources import CONTRATOS, get_resource, raw_zip_filename
 from .utils import DUCKDB_PARQUET_COPY_OPTIONS, PARQUET_ROW_GROUP_SIZE
 
@@ -479,6 +480,13 @@ class IAUploader:
             with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
                 for page_path in page_files:
                     zf.write(page_path, page_path.name)
+                # Preserve the .fetched sentinel so a future
+                # restore_from_raw_zip can skip probe_range. Sentinel
+                # is content-free so it doesn't carry per-resource
+                # state — see process_month_full's restore comments.
+                sentinel = raw_dir / FETCHED_SENTINEL
+                if sentinel.exists():
+                    zf.write(sentinel, sentinel.name)
 
             raw_zip_sha256 = _sha256(zip_path)
             raw_zip_size = zip_path.stat().st_size
@@ -746,6 +754,16 @@ class IAUploader:
                     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
                         for page_path in page_files:
                             zf.write(page_path, page_path.name)
+                        # Preserve the .fetched sentinel inside the zip
+                        # so a restore_from_raw_zip can skip probe_range
+                        # entirely. Without it, every restored month
+                        # re-probes PNCP — defeating the resilience
+                        # process_month_full's restore path is meant to
+                        # provide. The sentinel is content-free so it
+                        # doesn't carry resource-specific state.
+                        sentinel = raw_dir / FETCHED_SENTINEL
+                        if sentinel.exists():
+                            zf.write(sentinel, sentinel.name)
                 else:
                     zip_path = None
 
