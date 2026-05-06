@@ -23,6 +23,8 @@ on:
         required: false
         type: choice
         default: contratos
+        # Keep this list in sync with the active RESOURCES dict in
+        # src/baliza/resources/__init__.py — see pncp-sync.yml.
         options:
           - contratos
           - atas

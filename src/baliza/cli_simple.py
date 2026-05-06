@@ -407,6 +407,10 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
     ia_secret_key = os.environ.get("IA_SECRET_KEY") or os.environ.get("IAS3_SECRET_KEY")
 
     # 0. VALIDATE RESOURCE early
+    # extractor.fetch_page re-validates per call, but doing it here gives
+    # the operator a fast, top-level error on a typo (e.g. --resource=ata)
+    # before we open IA connections, ThreadPoolExecutor, or the manifest
+    # — failure path is the load-bearing reason this stays.
     try:
         _validate_resource(resource)
     except ValueError as e:

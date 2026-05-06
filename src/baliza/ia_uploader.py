@@ -273,6 +273,36 @@ def register_monthly_uf_shards(
         write_manifest_to_ia(manifest, access_key, secret_key)
 
 
+def _pack_resource_pages_zip(
+    raw_dir: Path,
+    zip_path: Path,
+    *,
+    resource: str,
+) -> bool:
+    """Pack only ``{resource}_p*.json`` pages and the FETCHED_SENTINEL into ``zip_path``.
+
+    Returns True when at least one page was written. The sentinel is
+    content-free so it doesn't carry resource-specific state, but
+    including it lets ``restore_from_raw_zip`` skip ``probe_range`` on
+    the build/sync side.
+
+    Both upload paths (``upload_raw_zip`` and ``upload_month``) call
+    this so the published ``raw_zip_sha256`` represents exactly the
+    same set of files in either flow.
+    """
+    page_glob = f"{resource}_p*.json"
+    page_files = sorted(raw_dir.glob(page_glob))
+    if not page_files:
+        return False
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        for page_path in page_files:
+            zf.write(page_path, page_path.name)
+        sentinel = raw_dir / FETCHED_SENTINEL
+        if sentinel.exists():
+            zf.write(sentinel, sentinel.name)
+    return True
+
+
 def _sha256(path: Path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -468,25 +498,11 @@ class IAUploader:
             temp_path = Path(tmp_dir)
             zip_path = temp_path / zip_basename
 
-            # Per-resource scoping: pack only this resource's pages
-            # (matching ``{resource}_p*.json``) so a sequential
-            # ``mirror --resource contratos`` followed by
+            # Per-resource scoping: pack only this resource's pages so a
+            # sequential ``mirror --resource contratos`` followed by
             # ``mirror --resource atas`` doesn't end up with one
-            # resource's zip containing the other's cached pages —
-            # which would make the published raw_zip_sha256
-            # misrepresent the artifact.
-            page_glob = f"{resource}_p*.json"
-            page_files = sorted(raw_dir.glob(page_glob))
-            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-                for page_path in page_files:
-                    zf.write(page_path, page_path.name)
-                # Preserve the .fetched sentinel so a future
-                # restore_from_raw_zip can skip probe_range. Sentinel
-                # is content-free so it doesn't carry per-resource
-                # state — see process_month_full's restore comments.
-                sentinel = raw_dir / FETCHED_SENTINEL
-                if sentinel.exists():
-                    zf.write(sentinel, sentinel.name)
+            # resource's zip containing the other's cached pages.
+            _pack_resource_pages_zip(raw_dir, zip_path, resource=resource)
 
             raw_zip_sha256 = _sha256(zip_path)
             raw_zip_size = zip_path.stat().st_size
@@ -747,25 +763,9 @@ class IAUploader:
             raw_dir = Path("data/raw") / month_str
             zip_path = None
             if raw_dir.exists():
-                zip_path = temp_path / zip_basename
-                page_glob = f"{resource}_p*.json"
-                page_files = sorted(raw_dir.glob(page_glob))
-                if page_files:
-                    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-                        for page_path in page_files:
-                            zf.write(page_path, page_path.name)
-                        # Preserve the .fetched sentinel inside the zip
-                        # so a restore_from_raw_zip can skip probe_range
-                        # entirely. Without it, every restored month
-                        # re-probes PNCP — defeating the resilience
-                        # process_month_full's restore path is meant to
-                        # provide. The sentinel is content-free so it
-                        # doesn't carry resource-specific state.
-                        sentinel = raw_dir / FETCHED_SENTINEL
-                        if sentinel.exists():
-                            zf.write(sentinel, sentinel.name)
-                else:
-                    zip_path = None
+                candidate = temp_path / zip_basename
+                if _pack_resource_pages_zip(raw_dir, candidate, resource=resource):
+                    zip_path = candidate
 
             # 3. Preparation for upload
             files_to_upload = {}

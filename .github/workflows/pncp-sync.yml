@@ -20,6 +20,10 @@ on:
         required: false
         type: choice
         default: contratos
+        # Keep this list in sync with the active RESOURCES dict in
+        # src/baliza/resources/__init__.py — a typo here just produces
+        # a friendly CLI error, but the dropdown is the only UX the
+        # operator sees from the Actions page.
         options:
           - contratos
           - atas
