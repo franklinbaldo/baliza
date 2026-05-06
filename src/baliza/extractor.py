@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 import subprocess
 import threading
 import time
@@ -17,7 +16,7 @@ from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponen
 
 from .engine import BalizaEngine
 from .models import RecuperarContratoDTO as Contrato
-from .resources import CONTRATOS
+from .resources import CONTRATOS, get_resource
 from .utils import validate_url
 
 logger = structlog.get_logger()
@@ -51,9 +50,14 @@ def _is_retryable_error(exception: BaseException) -> bool:
     return False
 
 def _validate_resource(resource: str):
-    """Prevent path traversal and injection by validating resource name."""
-    if not re.match(r"^[a-zA-Z0-9_]+$", resource):
-        raise ValueError(f"Invalid resource path: {resource}")
+    """Confirm the resource is registered.
+
+    Looks the name up in the resources registry instead of just regex-
+    matching it. Path-traversal is still rejected because get_resource
+    raises ValueError on any name not in RESOURCES (and registered
+    names are validated at import time by the dataclass).
+    """
+    get_resource(resource)
 
 
 class RetryablePayloadError(Exception):

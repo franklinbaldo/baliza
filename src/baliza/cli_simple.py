@@ -45,6 +45,7 @@ from .extractor import FETCHED_SENTINEL, PNCPExtractor, _validate_resource
 from .ia_uploader import IAUploader, read_manifest_from_ia, restore_from_raw_zip
 from .logging import configure_logging
 from .mirror import _pending_mirror_months, mirror_month
+from .resources import first_page_filename, page_filename
 
 logger = structlog.get_logger()
 
@@ -291,7 +292,7 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                         # cache here and unlink anything broken so
                         # fetch_page sees a clean refetch.
                         def _page_is_cached(p: int) -> bool:
-                            path = raw_month_dir / f"contratos_p{p}.json"
+                            path = raw_month_dir / page_filename(RESOURCE_CONTRATOS, p)
                             if not path.exists() or path.stat().st_size == 0:
                                 return False
                             try:
@@ -358,7 +359,7 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                         # instead of silently uploading an incomplete month.
                         total_pages: int | None = None
                         if sentinel.exists():
-                            p1 = raw_month_dir / "contratos_p1.json"
+                            p1 = raw_month_dir / first_page_filename(RESOURCE_CONTRATOS)
                             regression_reason: str | None = None
                             if not p1.exists() or p1.stat().st_size == 0:
                                 regression_reason = "page1_missing"
