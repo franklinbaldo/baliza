@@ -954,7 +954,7 @@ def doctor(  # noqa: PLR0912, PLR0915
     """
     try:
         _validate_resource(resource)
-        start_date = clamp_to_known_data_start_month(
+        effective_start = clamp_to_known_data_start_month(
             resource, datetime.strptime(start, "%Y-%m-%d").date()
         )
     except ValueError as exc:
@@ -978,7 +978,7 @@ def doctor(  # noqa: PLR0912, PLR0915
     # Gap check (same window as `verify`).
     today = date.today()
     last_month_end = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
-    curr = start_date.replace(day=1)
+    curr = effective_start.replace(day=1)
     expected: list[str] = []
     while curr <= last_month_end:
         expected.append(curr.strftime("%Y-%m"))
@@ -992,7 +992,9 @@ def doctor(  # noqa: PLR0912, PLR0915
     for r in canonical:
         rid = f"{r.get('table_name','?')}/{r.get('data_particao','?')}"
         sha = r.get("sha256") or ""
-        if sha and not sha_re.match(sha):
+        if not sha:
+            findings.append(f"{rid}: missing sha256")
+        elif not sha_re.match(sha):
             findings.append(f"{rid}: sha256 not 64-hex ({sha!r})")
         for url_col in ("parquet_url", "raw_zip_url"):
             u = r.get(url_col) or ""
@@ -1008,7 +1010,13 @@ def doctor(  # noqa: PLR0912, PLR0915
 
     # Optional: probe URLs with HEAD to catch deleted IA files.
     if head_check:
-        with httpx.Client(follow_redirects=True, timeout=15.0) as client:
+        # Retry transient HEAD failures so a 1s IA blip doesn't cry wolf.
+        # 3 attempts, exponential backoff 1s/2s/4s. A genuine deletion
+        # is still surfaced because IA returns 4xx, not a transport error.
+        transport = httpx.HTTPTransport(retries=3)
+        with httpx.Client(
+            follow_redirects=True, timeout=15.0, transport=transport
+        ) as client:
             for r in canonical:
                 rid = f"{r.get('table_name','?')}/{r.get('data_particao','?')}"
                 for url_col in ("parquet_url", "raw_zip_url"):
@@ -1026,12 +1034,16 @@ def doctor(  # noqa: PLR0912, PLR0915
     if not findings:
         console.print(
             f"[green]✓ {resource}: {len(canonical)} canonical month(s), "
-            f"{start_date.strftime('%Y-%m')} .. {last_month_end.strftime('%Y-%m')}, "
+            f"{effective_start.strftime('%Y-%m')} .. {last_month_end.strftime('%Y-%m')}, "
             f"no findings.[/green]"
         )
         return
 
-    console.print(f"[red]✗ {resource}: {len(findings)} finding(s)[/red]")
+    shown = min(len(findings), 50)
+    console.print(
+        f"[red]✗ {resource}: {len(findings)} finding(s) "
+        f"(showing first {shown})[/red]"
+    )
     for f in findings[:50]:
         console.print(f"  • {f}")
     if len(findings) > 50:
@@ -1070,9 +1082,11 @@ def orphans(
         raise typer.Exit(1)
 
     expected_per_item = {
-        # Files the current pipeline is allowed to produce per IA monthly item.
+        # Files the current pipeline is allowed to produce per IA monthly
+        # item — see IAUploader.upload_month in src/baliza/ia_uploader.py.
         "{resource}-{month}.parquet",
         "quarentena-{month}.csv",
+        "raw-{month}.zip",
     }
 
     total_orphans = 0

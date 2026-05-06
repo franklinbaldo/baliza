@@ -42,6 +42,10 @@ jobs:
           START_YEAR: ${{ inputs.start_year || '2023' }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
         run: |
+          if [[ ! "$START_YEAR" =~ ^[0-9]{4}$ ]]; then
+            echo "::error::start_year must be a 4-digit year, got: $START_YEAR"
+            exit 1
+          fi
           extra=()
           if [[ "$DRY_RUN" == "true" ]]; then
             extra+=(--dry-run)
