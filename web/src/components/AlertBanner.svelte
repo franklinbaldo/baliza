@@ -11,10 +11,10 @@
 <article
   role={level === 'error' || level === 'warning' ? 'alert' : 'status'}
   aria-live={level === 'error' || level === 'warning' ? 'assertive' : 'polite'}
-  aria-invalid={level === 'error' || level === 'warning' ? 'true' : undefined}
+  data-invalid={level === 'error' || level === 'warning' ? 'true' : undefined}
   data-level={level}
 >
-  <strong>{title}</strong>
+  <header><strong>{title}</strong></header>
   <p>{message}</p>
 </article>
 

@@ -57,24 +57,23 @@
   const defaultErrorTitle = $derived(`${entityType.charAt(0).toUpperCase() + entityType.slice(1)} não encontrado`);
 </script>
 
-<article>
-  {#if !id}
-    <EntityNotFound id="ausente" type={entityType} />
-  {:else if !idValid}
-    <EntityNotFound id={id} type={entityType} error={idFormatError} />
-  {:else if loading}
-    <article aria-busy="true" class="is-skeleton" aria-label={`Carregando dados do ${entityType}`}>
-      <p>&nbsp;</p>
-      <p>&nbsp;</p>
-      {#if hasStatSkeleton}<p>&nbsp;</p>{/if}
-      {#each [1, 2, 3] as _, i (i)}<p>&nbsp;</p>{/each}
-    </article>
-  {:else if error}
-    <article data-invalid="true">
-      <AlertBanner title={errorTitle || defaultErrorTitle} message={error.message} level="error" />
-      <footer><a href={resolve('')} role="button" class="outline">Voltar à busca</a></footer>
-    </article>
-  {:else if dataReady}
+{#if !id}
+  <EntityNotFound id="ausente" type={entityType} />
+{:else if !idValid}
+  <EntityNotFound id={id} type={entityType} error={idFormatError} />
+{:else if loading}
+  <article aria-busy="true" class="is-skeleton" aria-label={`Carregando dados do ${entityType}`}>
+    <p>&nbsp;</p>
+    <p>&nbsp;</p>
+    {#if hasStatSkeleton}<p>&nbsp;</p>{/if}
+    {#each [1, 2, 3] as _, i (i)}<p>&nbsp;</p>{/each}
+  </article>
+{:else if error}
+  <article data-invalid="true">
+    <AlertBanner title={errorTitle || defaultErrorTitle} message={error.message} level="error" />
+    <footer><a href={resolve('')} role="button" class="outline">Voltar à busca</a></footer>
+  </article>
+{:else if dataReady}
     {#if archivedParticao && archiveMessage}
       <AlertBanner title="Dados arquivados" message={archiveMessage} level="info" />
     {/if}
@@ -92,6 +91,5 @@
     </header>
 
     {#if children}{@render children()}{/if}
-  {/if}
-</article>
+{/if}
 

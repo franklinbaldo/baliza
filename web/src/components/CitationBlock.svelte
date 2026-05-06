@@ -62,11 +62,15 @@
 </script>
 
 <section aria-labelledby="citation-title">
-  <h2 id="citation-title">Como citar academicamente</h2>
-  <p>
-    Gere um bloco BibTeX ancorado no snapshot Parquet mais recente do Internet Archive.
-    O URL do item permanece estável mesmo quando novas partições são adicionadas.
-  </p>
+  <header>
+    <hgroup>
+      <h2 id="citation-title">Como citar academicamente</h2>
+      <p>
+        Gere um bloco BibTeX ancorado no snapshot Parquet mais recente do Internet Archive.
+        O URL do item permanece estável mesmo quando novas partições são adicionadas.
+      </p>
+    </hgroup>
+  </header>
 
   {#if !visible}
     <button

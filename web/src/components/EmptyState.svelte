@@ -10,7 +10,7 @@
 </script>
 
 <article role="status" aria-live="polite">
-  <h3>{title}</h3>
+  <header><h3>{title}</h3></header>
   <p>{message}</p>
   {#if actionHref && actionLabel}
     <footer>
