@@ -642,7 +642,7 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
 
 
 @app.command("mirror")
-def mirror_cmd(  # noqa: PLR0913
+def mirror_cmd(  # noqa: PLR0912, PLR0913, PLR0915
     batch_size: int | None = typer.Option(
         None, "--batch-size", "-n", help="Max months to mirror (None for all)"
     ),
@@ -656,6 +656,9 @@ def mirror_cmd(  # noqa: PLR0913
     workers: int = typer.Option(4, "--workers", "-w", help="Parallel workers"),
     no_curl: bool = typer.Option(False, "--no-curl", help="Opt-out of system cURL"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Fetch only, skip upload"),
+    resource: str = typer.Option(
+        RESOURCE_CONTRATOS, "--resource", "-r", help="PNCP resource to mirror"
+    ),
 ) -> None:
     """Fetch PNCP JSON pages and upload monthly ZIPs to IA (no DuckDB, no Parquet).
 
@@ -669,17 +672,23 @@ def mirror_cmd(  # noqa: PLR0913
         console.print("[red]✗ Missing IA keys in environment.[/red]")
         raise typer.Exit(1)
 
+    try:
+        _validate_resource(resource)
+    except ValueError as e:
+        console.print(f"[red]✗ {e}[/red]")
+        raise typer.Exit(1) from None
+
     if force_month:
-        batch = _forced_month_or_empty(RESOURCE_CONTRATOS, force_month)
+        batch = _forced_month_or_empty(resource, force_month)
     else:
         start = clamp_to_known_data_start_month(
-            RESOURCE_CONTRATOS, datetime.strptime(start_date, "%Y-%m-%d").date()
+            resource, datetime.strptime(start_date, "%Y-%m-%d").date()
         )
         try:
             with console.status(
                 "[bold green]Checking IA manifest for pending months...[/bold green]"
             ):
-                batch = _pending_mirror_months(start, batch_size, resource=RESOURCE_CONTRATOS)
+                batch = _pending_mirror_months(start, batch_size, resource=resource)
         except Exception as e:
             console.print(f"[red]✗ Cannot read IA manifest: {e}[/red]")
             raise typer.Exit(1) from None
@@ -730,6 +739,7 @@ def mirror_cmd(  # noqa: PLR0913
                 dry_run=dry_run,
                 log_fn=lambda msg: console.log(f"[dim]{msg}[/dim]"),
                 is_current_month=(target_month == current_month),
+                resource=resource,
             )
             futures[f] = target_month
         concurrent.futures.wait(futures.keys())
@@ -745,7 +755,7 @@ def mirror_cmd(  # noqa: PLR0913
 
 
 @app.command("build")
-def build_cmd(  # noqa: PLR0913, PLR0915
+def build_cmd(  # noqa: PLR0912, PLR0913, PLR0915
     batch_size: int | None = typer.Option(
         None, "--batch-size", "-n", help="Max months to build (None for all)"
     ),
@@ -763,6 +773,9 @@ def build_cmd(  # noqa: PLR0913, PLR0915
     backfill: bool = typer.Option(
         False, "--backfill", help="Rebuild all months with outdated schema version"
     ),
+    resource: str = typer.Option(
+        RESOURCE_CONTRATOS, "--resource", "-r", help="PNCP resource to build"
+    ),
 ) -> None:
     """Download raw ZIPs from IA, ingest, and upload Parquet (Phase 2 of two-phase pipeline).
 
@@ -777,6 +790,12 @@ def build_cmd(  # noqa: PLR0913, PLR0915
         console.print("[red]✗ Missing IA keys in environment.[/red]")
         raise typer.Exit(1)
 
+    try:
+        _validate_resource(resource)
+    except ValueError as e:
+        console.print(f"[red]✗ {e}[/red]")
+        raise typer.Exit(1) from None
+
     # Fetch manifest once — reused by _pending_build_months and each build_month call
     # to avoid one network round-trip per month when building in batch.
     try:
@@ -787,15 +806,15 @@ def build_cmd(  # noqa: PLR0913, PLR0915
         raise typer.Exit(1) from None
 
     if force_month:
-        batch = _forced_month_or_empty(RESOURCE_CONTRATOS, force_month)
+        batch = _forced_month_or_empty(resource, force_month)
     else:
         start = clamp_to_known_data_start_month(
-            RESOURCE_CONTRATOS, datetime.strptime(start_date, "%Y-%m-%d").date()
+            resource, datetime.strptime(start_date, "%Y-%m-%d").date()
         )
         batch = _pending_build_months(
             start,
             batch_size,
-            resource=RESOURCE_CONTRATOS,
+            resource=resource,
             backfill=backfill,
             manifest=build_manifest,
         )
@@ -847,6 +866,7 @@ def build_cmd(  # noqa: PLR0913, PLR0915
                 dry_run=dry_run,
                 log_fn=lambda msg: console.log(f"[dim]{msg}[/dim]"),
                 manifest=build_manifest,
+                resource=resource,
             )
             futures[f] = target_month
         concurrent.futures.wait(futures.keys())
@@ -882,8 +902,12 @@ def verify(
         uploader = IAUploader(engine)
         with console.status("[bold green]Checking remote manifest...[/bold green]"):
             raw_manifest = uploader._read_manifest_from_ia()
+            # Scope by table_name so 'verify --resource atas' doesn't
+            # report false-green coverage based on contratos rows.
             uploaded_months = {
-                row["data_particao"] for row in raw_manifest if row.get("data_particao")
+                row["data_particao"]
+                for row in raw_manifest
+                if row.get("data_particao") and row.get("table_name") == resource
             }
 
         gaps = []

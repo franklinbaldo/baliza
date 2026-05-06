@@ -1,3 +1,4 @@
+from .atas import ATAS
 from .contratos import CONTRATOS
 from .specs import (
     CanonicalTableSpec,
@@ -9,11 +10,11 @@ from .specs import (
 
 # Registry of every PNCP resource the pipeline knows how to ingest. Code
 # paths that need to look up a resource by its CLI name read from here
-# instead of importing CONTRATOS directly. Adding a new resource (e.g.
-# atas) only requires registering it here and defining its module under
-# resources/.
+# instead of importing CONTRATOS directly. Adding a new resource only
+# requires registering it here and defining its module under resources/.
 RESOURCES: dict[str, PNCPResource] = {
     CONTRATOS.name: CONTRATOS,
+    ATAS.name: ATAS,
 }
 
 
@@ -42,6 +43,18 @@ def first_page_filename(resource_name: str) -> str:
     return page_filename(resource_name, 1)
 
 
+def raw_zip_filename(resource_name: str, month_str: str) -> str:
+    """Per-month raw ZIP filename used in the baliza-pncp-raw IA item.
+
+    Contratos kept the legacy `raw-{month}.zip` shape so existing IA
+    items don't need a rename. Other resources prefix the resource
+    name to avoid colliding with contratos zips for the same partition.
+    """
+    if resource_name == CONTRATOS.name:
+        return f"raw-{month_str}.zip"
+    return f"raw-{resource_name}-{month_str}.zip"
+
+
 __all__ = [
     "PNCPResource",
     "FetchSpec",
@@ -49,8 +62,10 @@ __all__ = [
     "EntitySpec",
     "CanonicalTableSpec",
     "CONTRATOS",
+    "ATAS",
     "RESOURCES",
     "get_resource",
     "page_filename",
     "first_page_filename",
+    "raw_zip_filename",
 ]

@@ -33,11 +33,15 @@ def _pending_mirror_months(
     The current month is always included — its ZIP grows daily as new pages arrive.
     """
     raw_manifest = read_manifest_from_ia()  # strict: raises ManifestReadError on failure
-    # A past month is "done" when it has a non-empty raw_zip_url.
+    # A past month is "done" when it has a non-empty raw_zip_url for the
+    # selected resource. Without the table_name filter, contratos rows
+    # would mark months as mirrored and skip the atas backfill entirely.
     mirrored: set[str] = {
         row["data_particao"]
         for row in raw_manifest
-        if row.get("data_particao") and row.get("raw_zip_url")
+        if row.get("data_particao")
+        and row.get("raw_zip_url")
+        and row.get("table_name") == resource
     }
 
     today = date.today()
@@ -73,6 +77,7 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
     dry_run: bool = False,
     log_fn: object = None,
     is_current_month: bool | None = None,
+    resource: str = RESOURCE_CONTRATOS,
 ) -> dict[str, object]:
     """Fetch all PNCP JSON pages for a month, zip them, and upload to IA.
 
@@ -87,13 +92,15 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
             tomorrow's run only fetches new pages) and removes the sentinel so
             the next run re-probes totalPaginas from the API. Auto-detected
             when None (default).
+        resource: PNCP resource name (default 'contratos'). Determines the
+            per-page raw filename and which API endpoint is queried.
 
     Returns:
         Dict with keys: ``month``, ``pages_fetched``, ``pages_cached``, ``uploaded``.
     """
     if is_current_month is None:
         is_current_month = start_of_month == date.today().replace(day=1)
-    _validate_resource(RESOURCE_CONTRATOS)
+    _validate_resource(resource)
 
     month_str = start_of_month.strftime("%Y-%m")
     if start_of_month.month == 12:
@@ -123,7 +130,7 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
     with PNCPExtractor(engine=None, use_curl=use_curl) as extractor:
 
         def _page_is_cached(p: int) -> bool:
-            path = raw_month_dir / page_filename(RESOURCE_CONTRATOS, p)
+            path = raw_month_dir / page_filename(resource, p)
             if not path.exists() or path.stat().st_size == 0:
                 return False
             try:
@@ -152,7 +159,7 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
         # Determine total pages (probe or sentinel shortcut)
         total_pages: int | None = None
         if sentinel.exists():
-            p1 = raw_month_dir / first_page_filename(RESOURCE_CONTRATOS)
+            p1 = raw_month_dir / first_page_filename(resource)
             if p1.exists() and p1.stat().st_size > 0:
                 try:
                     with open(p1) as fh:
@@ -169,7 +176,7 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
                     pass
 
         if total_pages is None:
-            res = extractor.probe_range(RESOURCE_CONTRATOS, month_start_dt, month_end_dt)
+            res = extractor.probe_range(resource, month_start_dt, month_end_dt)
             total_pages = res["total_pages"]
 
         # For the current month, the last cached page may be incomplete —
@@ -180,7 +187,7 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
             cached_page_nums = [p for p in range(1, total_pages + 1) if _page_is_cached(p)]
             if cached_page_nums:
                 last_cached = max(cached_page_nums)
-                last_cached_path = raw_month_dir / page_filename(RESOURCE_CONTRATOS, last_cached)
+                last_cached_path = raw_month_dir / page_filename(resource, last_cached)
                 try:
                     last_cached_path.unlink()
                     logger.info(
@@ -208,7 +215,7 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
                 pass
 
         for p in missing_pages:
-            extractor.fetch_page(RESOURCE_CONTRATOS, month_start_dt, month_end_dt, p)
+            extractor.fetch_page(resource, month_start_dt, month_end_dt, p)
             result["pages_fetched"] = int(result["pages_fetched"]) + 1
             _emit(f"{month_str} page {p}/{total_pages}")
 
@@ -227,6 +234,7 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
         ia_access_key,
         ia_secret_key,
         keep_raw_dir=is_current_month,
+        resource=resource,
     )
     result["uploaded"] = uploaded
 

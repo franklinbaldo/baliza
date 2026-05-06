@@ -17,7 +17,7 @@ from rich.console import Console
 
 from . import rss_feed
 from .engine import BalizaEngine
-from .resources import CONTRATOS
+from .resources import CONTRATOS, get_resource, raw_zip_filename
 from .utils import DUCKDB_PARQUET_COPY_OPTIONS, PARQUET_ROW_GROUP_SIZE
 
 console = Console()
@@ -286,21 +286,42 @@ class MonthlyExporter:
     def __init__(self, engine: BalizaEngine):
         self.engine = engine
 
-    def export_month(self, start_date: date, output_dir: Path) -> dict[str, Path]:
-        """Export all tables for a given month to Parquet in output_dir.
+    def export_month(
+        self,
+        start_date: date,
+        output_dir: Path,
+        *,
+        resource: str = CONTRATOS.name,
+    ) -> dict[str, Path]:
+        """Export the resource's monthly Parquet to output_dir.
 
         Uses DuckDB ``COPY ... TO`` (via Ibis' underlying connection) so the
         output gets the same WASM-optimized options as the daily and
         consolidated files: 8192-row groups, ZSTD L9, bloom filters on
         dict-encoded columns, and the journey-aware sort order.
+
+        ORDER BY: the resource's ``CanonicalTableSpec.order_by_sql`` is
+        used when set (preserves contratos' historical shape); otherwise
+        we derive ``sort_columns + pk`` so a new resource gets a
+        deterministic ordering by default.
         """
         output_dir.mkdir(parents=True, exist_ok=True)
         files: dict[str, Path] = {}
 
+        spec = get_resource(resource)
+        table_spec = spec.canonical_tables[0]
+        table_name = table_spec.table_name
         month_str = start_date.strftime("%Y-%m")
-        table_name = CONTRATOS.name
         filename = f"{table_name}-{month_str}.parquet"
         out_path = output_dir / filename
+
+        if table_spec.order_by_sql:
+            order_by = table_spec.order_by_sql
+        else:
+            pk_cols = (
+                [table_spec.pk] if isinstance(table_spec.pk, str) else list(table_spec.pk)
+            )
+            order_by = ", ".join(table_spec.sort_columns + pk_cols)
 
         try:
             self.engine.con.raw_sql(
@@ -308,7 +329,7 @@ class MonthlyExporter:
                 COPY (
                     SELECT *
                     FROM main.{table_name}
-                    ORDER BY cnpj_orgao, data_publicacao DESC, numero_controle_pncp
+                    ORDER BY {order_by}
                 ) TO '{out_path}'
                 ({DUCKDB_PARQUET_COPY_OPTIONS})
                 """
@@ -357,22 +378,28 @@ class IAUploader:
         fields: dict[str, Any],
         access_key: str,
         secret_key: str,
+        *,
+        resource: str = CONTRATOS.name,
     ) -> None:
-        """Read manifest, merge fields into the canonical row for month_str, write back.
+        """Read manifest, merge fields into the canonical row for (resource, month_str), write back.
 
-        If no canonical row exists for the month, creates one with safe defaults.
-        Existing fields not present in ``fields`` are preserved (merge, not replace).
-        Uses the strict reader — transient read failures abort rather than wipe the live manifest.
+        If no canonical row exists for the (resource, month) pair, creates
+        one with safe defaults. Existing fields not present in ``fields``
+        are preserved (merge, not replace). Uses the strict reader —
+        transient read failures abort rather than wipe the live manifest.
         """
         with _manifest_lock:
             manifest = read_manifest_from_ia()
             parquet_item_id = f"baliza-pncp-{month_str}"
+            raw_zip_url = (
+                f"https://archive.org/download/{RAW_ITEM_ID}/{raw_zip_filename(resource, month_str)}"
+            )
 
             existing_idx: int | None = None
             for i, row in enumerate(manifest):
                 if (
                     row.get("data_particao") == month_str
-                    and row.get("table_name") == CONTRATOS.name
+                    and row.get("table_name") == resource
                     and row.get("file_type", "") in ("", "monthly_canonical")
                 ):
                     existing_idx = i
@@ -384,11 +411,11 @@ class IAUploader:
             else:
                 new_row: dict[str, Any] = {
                     "data_particao": month_str,
-                    "table_name": CONTRATOS.name,
+                    "table_name": resource,
                     "row_count": 0,
                     "quarantine_count": 0,
                     "ia_item_id": parquet_item_id,
-                    "raw_zip_url": f"https://archive.org/download/{RAW_ITEM_ID}/raw-{month_str}.zip",
+                    "raw_zip_url": raw_zip_url,
                     "parquet_url": "",
                     "quarantine_url": "",
                     "uploaded_at": now,
@@ -410,30 +437,55 @@ class IAUploader:
 
             write_manifest_to_ia(manifest, access_key, secret_key)
 
-    def upload_raw_zip(
+    def upload_raw_zip(  # noqa: PLR0913
         self,
         start_date: date,
         raw_dir: Path,
         ia_access_key: str,
         ia_secret_key: str,
         keep_raw_dir: bool = False,
+        *,
+        resource: str = CONTRATOS.name,
     ) -> bool:
         """Zip raw JSON pages and upload to baliza-pncp-raw; update manifest mirror fields.
 
         Does NOT ingest or export Parquet. Cleans up raw_dir on success so the
         next run fetches fresh from IA (or GHA cache). Returns True on success.
+
+        Args:
+            resource: PNCP resource name. Determines the ZIP filename
+                (contratos keeps the legacy ``raw-{month}.zip`` shape;
+                other resources prefix with the resource name to avoid
+                colliding with contratos zips for the same partition)
+                and the manifest row's ``table_name`` so per-resource
+                mirror state stays separate.
         """
         month_str = start_date.strftime("%Y-%m")
+        zip_basename = raw_zip_filename(resource, month_str)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             temp_path = Path(tmp_dir)
-            zip_path = temp_path / f"raw-{month_str}.zip"
-            shutil.make_archive(str(zip_path.with_suffix("")), "zip", raw_dir)
+            zip_path = temp_path / zip_basename
+
+            # Per-resource scoping: pack only this resource's pages
+            # (matching ``{resource}_p*.json``) so a sequential
+            # ``mirror --resource contratos`` followed by
+            # ``mirror --resource atas`` doesn't end up with one
+            # resource's zip containing the other's cached pages —
+            # which would make the published raw_zip_sha256
+            # misrepresent the artifact.
+            page_glob = f"{resource}_p*.json"
+            page_files = sorted(raw_dir.glob(page_glob))
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+                for page_path in page_files:
+                    zf.write(page_path, page_path.name)
 
             raw_zip_sha256 = _sha256(zip_path)
             raw_zip_size = zip_path.stat().st_size
 
-            console.print(f"  Uploading raw ZIP for {month_str} to {RAW_ITEM_ID}...")
+            console.print(
+                f"  Uploading raw ZIP for {resource}/{month_str} to {RAW_ITEM_ID}..."
+            )
             ia.upload(
                 RAW_ITEM_ID,
                 files={zip_path.name: str(zip_path)},
@@ -443,7 +495,7 @@ class IAUploader:
                 retries=3,
             )
 
-        raw_zip_url = f"https://archive.org/download/{RAW_ITEM_ID}/raw-{month_str}.zip"
+        raw_zip_url = f"https://archive.org/download/{RAW_ITEM_ID}/{zip_basename}"
         now = datetime.now().isoformat()
         success = False
         try:
@@ -458,10 +510,11 @@ class IAUploader:
                 },
                 ia_access_key,
                 ia_secret_key,
+                resource=resource,
             )
             success = True
         except Exception as e:
-            console.print(f"[red]✗ Manifest update failed for {month_str}: {e}[/red]")
+            console.print(f"[red]✗ Manifest update failed for {resource}/{month_str}: {e}[/red]")
 
         if success and not keep_raw_dir and raw_dir.exists():
             shutil.rmtree(raw_dir)
@@ -484,23 +537,35 @@ class IAUploader:
         quarantine_stats: dict[str, int] | None = None,
         quarantine_csv: Path | None = None,
         schema_version: str = "",
+        *,
+        resource: str = CONTRATOS.name,
     ) -> bool:
         """Export Parquet from engine and upload to the monthly IA item; update manifest.
 
         Requires engine to be set. Does NOT touch raw JSON pages.
         Returns True on success.
+
+        Args:
+            resource: PNCP resource name. Routes the export through the
+                resource's canonical table and produces ``{table_name}-
+                {month}.parquet`` so contratos and atas write distinct
+                files in the same monthly IA item.
         """
         if self.engine is None or self.exporter is None:
             raise RuntimeError(
                 "upload_parquet requires an engine — construct IAUploader(engine=...)"
             )
 
+        spec = get_resource(resource)
+        table_name = spec.canonical_tables[0].table_name
         month_str = start_date.strftime("%Y-%m")
         item_id = f"baliza-pncp-{month_str}"
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             temp_path = Path(tmp_dir)
-            exported_files = self.exporter.export_month(start_date, temp_path)
+            exported_files = self.exporter.export_month(
+                start_date, temp_path, resource=resource
+            )
 
             files_to_upload: dict[str, str] = {}
             if quarantine_csv and quarantine_csv.exists():
@@ -508,7 +573,7 @@ class IAUploader:
             for _table, path in exported_files.items():
                 files_to_upload[path.name] = str(path)
 
-            parquet_filename = f"contratos-{month_str}.parquet"
+            parquet_filename = f"{table_name}-{month_str}.parquet"
             if parquet_filename not in files_to_upload:
                 # No Parquet produced (zero valid rows) — don't write a broken parquet_url
                 # to the manifest. The quarantine CSV can still be uploaded independently.
@@ -562,6 +627,7 @@ class IAUploader:
                 },
                 ia_access_key,
                 ia_secret_key,
+                resource=resource,
             )
             success = True
         except Exception as e:
