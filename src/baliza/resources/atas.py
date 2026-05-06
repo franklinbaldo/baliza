@@ -1,3 +1,5 @@
+from datetime import date
+
 from ..models import RecuperarAtaDTO
 from ..transforms import _flatten_ata
 from .specs import (
@@ -49,4 +51,7 @@ ATAS = PNCPResource(
         )
     ],
     entity_model=RecuperarAtaDTO,
+    # PNCP launched in mid-2021 and atas were available from GA;
+    # use the contratos floor until we observe an empty earlier month.
+    data_start=date(2021, 9, 6),
 )

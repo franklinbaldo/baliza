@@ -345,14 +345,17 @@ class RecuperarAtaDTO(BaseModel):
     """A single ata-de-registro-de-preço entry from /v1/atas.
 
     Mirrors AtaRegistroPrecoPeriodoDTO from the PNCP OpenAPI spec.
-    All fields are optional because the PNCP API has historically
-    returned partial responses during incidents — let validation
-    succeed and let the consolidator's NULL handling deal with gaps.
+    Most fields are optional to tolerate upstream partial responses,
+    but ``numeroControlePNCPAta`` is REQUIRED because it's the
+    canonical primary key. Without that guard, a mis-routed contratos
+    page would validate (extra='allow' would absorb the rest) and
+    flatten to a row with NULL PK, which the upsert would then use
+    to overwrite live atas rows.
     """
 
     model_config = ConfigDict(extra="allow")
 
-    numeroControlePNCPAta: str | None = None
+    numeroControlePNCPAta: str
     numeroAtaRegistroPreco: str | None = None
     anoAta: int | None = None
     numeroControlePNCPCompra: str | None = None
