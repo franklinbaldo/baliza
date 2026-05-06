@@ -7,20 +7,23 @@
   import { resolve } from '../lib/baseUrl';
   import { onMount } from 'svelte';
 
-  let stats = $state<SyncStats | null>(null);
+  let { initialStats }: { initialStats?: SyncStats } = $props();
+
+  let stats = $state<SyncStats | null>(initialStats ?? null);
   let error = $state<string | null>(null);
-  let loading = $state(true);
+  let loading = $state(!initialStats);
 
   async function loadStats() {
-    loading = true;
     error = null;
+    if (!stats) loading = true;
     try {
       const res = await fetch(resolve('data/sync_stats.json'));
       if (!res.ok) throw new Error('Falha ao obter os dados pré-compilados pelo DuckDB.');
       const raw = await res.json();
       stats = SyncStatsSchema.parse(raw);
     } catch (e) {
-      error = (e as Error).message;
+      // Keep the SSR'd initialStats visible if the refresh fetch fails.
+      if (!stats) error = (e as Error).message;
     } finally {
       loading = false;
     }

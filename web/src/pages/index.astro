@@ -9,6 +9,13 @@ import OrnamentBand from '../components/OrnamentBand.astro';
 import Dashboard from '../components/Dashboard.svelte';
 import WatchList from '../components/WatchList.svelte';
 import { IA_MANIFEST_URL } from '../lib/ia-manifest';
+import { SyncStatsSchema } from '../schema';
+import syncStatsRaw from '../../public/data/sync_stats.json';
+
+// Read at build time so the "Sinal do arquivo" tiles paint with real
+// numbers on first render. The Svelte island still refreshes on mount
+// so a stale build doesn't pin the user to old totals.
+const initialSyncStats = SyncStatsSchema.parse(syncStatsRaw);
 
 const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
 const resolve = (href: string) => `${BASE}${href.replace(/^\//, '')}`;
@@ -77,10 +84,10 @@ const TOOLS: Array<{
   <!-- 5. Sinal do arquivo: preservation signal backed by sync_stats.json. -->
   <HomeSection
     id="signal-title"
-    kicker="📦 Sinal do arquivo"
+    kicker="Sinal do arquivo"
     title="O que Baliza já preservou"
   >
-    <Dashboard client:visible />
+    <Dashboard client:visible initialStats={initialSyncStats} />
   </HomeSection>
 
   <!-- 6. Watchlist: the "Acompanhar" buttons on detail views save to

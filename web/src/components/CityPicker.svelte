@@ -147,7 +147,12 @@
       autocomplete="off"
     />
     <button type="button" class="outline" onclick={useMyLocation} disabled={geoStatus === 'locating'} aria-busy={geoStatus === 'locating'} aria-label="Usar minha localização atual">
-      {geoStatus === 'locating' ? 'Buscando…' : '📍 minha localização'}
+      {#if geoStatus === 'locating'}
+        Buscando…
+      {:else}
+        <svg data-icon aria-hidden="true" viewBox="0 0 24 24"><path d="M12 22s7-7.5 7-13a7 7 0 1 0-14 0c0 5.5 7 13 7 13Z"></path><circle cx="12" cy="9" r="2.5"></circle></svg>
+        minha localização
+      {/if}
     </button>
   </div>
 

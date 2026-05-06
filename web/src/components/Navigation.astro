@@ -24,7 +24,17 @@ const isCityActive = cleanPath === cityPrefix;
     </li>
   </ul>
   <ul>
-    <li><CityNavLink client:load isActive={isCityActive} /></li>
+    <li>
+      <details role="list">
+        <summary aria-haspopup="listbox" aria-current={isCityActive ? 'page' : undefined}>
+          <CityNavLink client:load isActive={isCityActive} asLabel={true} />
+        </summary>
+        <ul role="listbox">
+          <li><a href={BASE}>Trocar cidade</a></li>
+          <li><a href={BASE + 'busca'}>Buscar contratações</a></li>
+        </ul>
+      </details>
+    </li>
     <li><a href={BASE + 'atas'} aria-current={isActive(BASE + 'atas') ? 'page' : undefined}>Atas</a></li>
     <li>
       <details role="list" dir="rtl">
@@ -38,8 +48,8 @@ const isCityActive = cleanPath === cityPrefix;
     </li>
     <li><a href={BASE + 'sobre'} aria-current={isActive(BASE + 'sobre') ? 'page' : undefined}>Sobre</a></li>
     <li>
-      <a href={BASE + 'busca'} role="button" class="outline" aria-label="Buscar">
-        <span aria-hidden="true">🔍</span>
+      <a href={BASE + 'busca'} class="contrast" aria-label="Buscar">
+        <svg data-icon aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
         <span class="sr-only">Buscar</span>
       </a>
     </li>

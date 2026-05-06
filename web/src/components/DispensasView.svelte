@@ -71,7 +71,7 @@
 </script>
 
 <section>
-  <HubHeader kicker="⚖️ Dispensas" title="Dispensas — Bases Legais">
+  <HubHeader kicker="Dispensas" title="Dispensas — Bases Legais">
     {#snippet lede()}
       <p>Quais artigos da lei são mais citados em dispensas similares. Fonte: API PNCP, modalidade 8 (Dispensa).</p>
     {/snippet}

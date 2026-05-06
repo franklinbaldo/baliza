@@ -2,7 +2,7 @@
   import { cityState, hydrateCityContext } from '../lib/cityContext.svelte';
   import { resolve } from '../lib/baseUrl';
 
-  let { isActive = false } = $props();
+  let { isActive = false, asLabel = false } = $props();
 
   hydrateCityContext();
 
@@ -14,7 +14,11 @@
   );
 </script>
 
-<a {href} aria-label={`Painel do município de ${cityState.nome}`} aria-current={isActive ? 'page' : undefined}>
-  {label}
-</a>
+{#if asLabel}
+  <span aria-label={`Painel do município de ${cityState.nome}`}>{label}</span>
+{:else}
+  <a {href} aria-label={`Painel do município de ${cityState.nome}`} aria-current={isActive ? 'page' : undefined}>
+    {label}
+  </a>
+{/if}
 

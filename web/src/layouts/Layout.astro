@@ -64,13 +64,16 @@ const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
     </main>
 
     <footer class="container">
-      <p>🇧🇷 Baliza: Arquivo público das contratações nacionais.</p>
       <nav aria-label="Rodapé">
         <ul>
-          <li><a href="https://github.com/franklinbaldo" target="_blank" rel="noopener">👨‍💻 Codificado por Franklin Baldo</a></li>
-          <li><small>📚 Fonte: PNCP & Internet Archive</small></li>
-          <li><a href={BASE + 'explorador'}>🔬 Explorador SQL (Beta)</a></li>
-          <li><a href={BASE + 'status'}>📡 Status</a></li>
+          <li><strong>Baliza</strong></li>
+          <li><small>Arquivo público das contratações nacionais.</small></li>
+          <li><small>Fonte: PNCP &amp; Internet Archive</small></li>
+        </ul>
+        <ul>
+          <li><a href="https://github.com/franklinbaldo" target="_blank" rel="noopener">Codificado por Franklin Baldo</a></li>
+          <li><a href={BASE + 'explorador'}>Explorador SQL</a></li>
+          <li><a href={BASE + 'status'}>Status</a></li>
         </ul>
       </nav>
     </footer>

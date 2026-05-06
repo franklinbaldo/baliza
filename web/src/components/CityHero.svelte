@@ -86,19 +86,28 @@
     </div>
   </form>
 
-  <div role="group" class="actions">
+  <div role="group">
     <a href={dashboardHref} role="button">Ver painel de {cityState.nome}</a>
 
     {#if geoStatus !== 'ready'}
-      <button type="button" class="outline" onclick={handleFindLocal} disabled={geoStatus === 'locating'} aria-busy={geoStatus === 'locating'}>
-        {geoStatus === 'locating' ? 'Localizando...' : '📍 Usar minha localização'}
+      <button type="button" class="outline contrast" onclick={handleFindLocal} disabled={geoStatus === 'locating'} aria-busy={geoStatus === 'locating'}>
+        <svg data-icon aria-hidden="true" viewBox="0 0 24 24"><path d="M12 22s7-7.5 7-13a7 7 0 1 0-14 0c0 5.5 7 13 7 13Z"></path><circle cx="12" cy="9" r="2.5"></circle></svg>
+        {geoStatus === 'locating' ? 'Localizando…' : 'Usar minha localização'}
       </button>
     {/if}
-
-    <button type="button" class="outline secondary" aria-expanded={pickerOpen} aria-controls="city-hero-picker" onclick={() => (pickerOpen = !pickerOpen)}>
-      {pickerOpen ? 'Fechar seletor' : 'Buscar outra cidade'}
-    </button>
   </div>
+
+  <p>
+    <a
+      href="#city-hero-picker"
+      class="contrast"
+      aria-expanded={pickerOpen}
+      aria-controls="city-hero-picker"
+      onclick={(e) => { e.preventDefault(); pickerOpen = !pickerOpen; }}
+    >
+      {pickerOpen ? 'Fechar seletor' : 'Buscar outra cidade'}
+    </a>
+  </p>
 
   {#if geoStatus === 'denied'}
     <small role="alert" aria-live="polite">Acesso à localização negado. Use o seletor manual.</small>
