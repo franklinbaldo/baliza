@@ -1,5 +1,12 @@
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
+
+# Resource names land in filesystem paths, URL params, and DuckDB
+# table names. Enforcing the charset at registration time means the
+# whole codebase can trust that any name in the registry is safe to
+# concatenate, without re-validating at every call site.
+_RESOURCE_NAME_RE = re.compile(r"^[a-zA-Z0-9_]+$")
 
 
 @dataclass
@@ -52,6 +59,12 @@ class PNCPResource:
     raw_dataset: RawDatasetSpec
     entities: list[EntitySpec]
     canonical_tables: list[CanonicalTableSpec]
+
+    def __post_init__(self) -> None:
+        if not _RESOURCE_NAME_RE.match(self.resource_name):
+            raise ValueError(
+                f"Invalid resource_name {self.resource_name!r}: must match {_RESOURCE_NAME_RE.pattern}"
+            )
 
     @property
     def name(self) -> str:
