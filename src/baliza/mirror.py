@@ -126,7 +126,7 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
     with PNCPExtractor(engine=None, use_curl=use_curl) as extractor:
 
         def _page_is_cached(p: int) -> bool:
-            path = raw_month_dir / page_filename(resource,p)
+            path = raw_month_dir / page_filename(resource, p)
             if not path.exists() or path.stat().st_size == 0:
                 return False
             try:
@@ -183,7 +183,7 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
             cached_page_nums = [p for p in range(1, total_pages + 1) if _page_is_cached(p)]
             if cached_page_nums:
                 last_cached = max(cached_page_nums)
-                last_cached_path = raw_month_dir / page_filename(resource,last_cached)
+                last_cached_path = raw_month_dir / page_filename(resource, last_cached)
                 try:
                     last_cached_path.unlink()
                     logger.info(
