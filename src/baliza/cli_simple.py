@@ -932,8 +932,12 @@ def verify(
         uploader = IAUploader(engine)
         with console.status("[bold green]Checking remote manifest...[/bold green]"):
             raw_manifest = uploader._read_manifest_from_ia()
+            # Scope by table_name so 'verify --resource atas' doesn't
+            # report false-green coverage based on contratos rows.
             uploaded_months = {
-                row["data_particao"] for row in raw_manifest if row.get("data_particao")
+                row["data_particao"]
+                for row in raw_manifest
+                if row.get("data_particao") and row.get("table_name") == resource
             }
 
         gaps = []
