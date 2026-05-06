@@ -339,7 +339,12 @@ class PNCPExtractor:
         if resource == CONTRATOS.name:
             self._archive_legacy_contratos_table()
 
-        for json_file in raw_dir.glob("*.json"):
+        # Scope the glob to the resource's own per-page files (mirror
+        # writes them as `{resource}_p{page}.json`). Without this filter
+        # a mixed-resource raw zip would feed contratos pages through
+        # the atas entity_model, inflating quarantine and producing
+        # empty atas output.
+        for json_file in sorted(raw_dir.glob(f"{resource}_p*.json")):
             try:
                 with open(json_file) as f:
                     data = json.load(f)

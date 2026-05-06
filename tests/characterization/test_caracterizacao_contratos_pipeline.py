@@ -53,7 +53,10 @@ def test_pipeline_contratos_snapshot(tmp_path: Path, monkeypatch: pytest.MonkeyP
     monkeypatch.chdir(tmp_path)
 
     fixture_path = Path(__file__).parent.parent / "fixtures" / "snapshot_contratos_2024-01.json"
-    dest_path = raw_dir / "page_001.json"
+    # Canonical per-page filename so ingest_range's resource-scoped
+    # glob (``{resource}_p*.json``) picks the fixture up. The old
+    # ``page_001.json`` shape predated mirror's filename helper.
+    dest_path = raw_dir / "contratos_p1.json"
     shutil.copy(fixture_path, dest_path)
 
     # 2. Ingest Phase (PNCPExtractor)
