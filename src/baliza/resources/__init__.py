@@ -1,5 +1,7 @@
 from .atas import ATAS
 from .contratos import CONTRATOS
+from .pca import PCA
+from .publicacoes import PUBLICACOES
 from .specs import (
     CanonicalTableSpec,
     EntitySpec,
@@ -15,6 +17,22 @@ from .specs import (
 RESOURCES: dict[str, PNCPResource] = {
     CONTRATOS.name: CONTRATOS,
     ATAS.name: ATAS,
+}
+
+# Resources that have been declared in code with their fetch/canonical
+# shape but are intentionally NOT yet part of ``RESOURCES`` because they
+# still carry TODO markers (modalidade fan-out for publicações; annual
+# partitioning + flatten for PCA). They live here so:
+#
+#   * tests can assert their shape today (filename safety, name regex,
+#     non-collision with the active registry);
+#   * the frontend resource catalog can list them as "planejado" without
+#     the backend pipeline trying to ingest them;
+#   * promoting one to ``RESOURCES`` is a single-line move plus the
+#     missing TODOs being closed in their respective modules.
+PLANNED_RESOURCES: dict[str, PNCPResource] = {
+    PUBLICACOES.name: PUBLICACOES,
+    PCA.name: PCA,
 }
 
 
@@ -63,7 +81,10 @@ __all__ = [
     "CanonicalTableSpec",
     "CONTRATOS",
     "ATAS",
+    "PUBLICACOES",
+    "PCA",
     "RESOURCES",
+    "PLANNED_RESOURCES",
     "get_resource",
     "page_filename",
     "first_page_filename",
