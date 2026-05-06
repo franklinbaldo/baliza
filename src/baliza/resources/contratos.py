@@ -1,3 +1,6 @@
+from datetime import date
+
+from ..models import RecuperarContratoDTO
 from ..transforms import _flatten_contrato
 from .specs import (
     CanonicalTableSpec,
@@ -41,6 +44,16 @@ CONTRATOS = PNCPResource(
             source_entity="contrato",
             sort_columns=["cnpj_orgao", "data_publicacao_pncp"],
             bloom_filter_columns=["cnpj_orgao"],
+            # Preserve the historical ORDER BY shape so existing
+            # parquet files (and the bloom filter prefiltering that
+            # depends on cnpj_orgao locality) stay byte-comparable
+            # across this multi-resource refactor.
+            order_by_sql="cnpj_orgao, data_publicacao DESC, numero_controle_pncp",
         )
-    ]
+    ],
+    entity_model=RecuperarContratoDTO,
+    # PNCP launched in mid-2021; the contratos endpoint's first record
+    # is 2021-09-06. Backfill workers skip earlier months without ever
+    # hitting the API.
+    data_start=date(2021, 9, 6),
 )

@@ -1,5 +1,14 @@
+import re
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import date
+from typing import Any
+
+# Resource names land in filesystem paths, URL params, and DuckDB
+# table names. Enforcing the charset at registration time means the
+# whole codebase can trust that any name in the registry is safe to
+# concatenate, without re-validating at every call site.
+_RESOURCE_NAME_RE = re.compile(r"^[a-zA-Z0-9_]+$")
 
 
 @dataclass
@@ -44,6 +53,13 @@ class CanonicalTableSpec:
     source_entity: str             # EntitySpec.name que origina esta tabela
     sort_columns: list[str]
     bloom_filter_columns: list[str]
+    # Optional override for the ORDER BY clause used when exporting the
+    # monthly Parquet. When None, callers derive a default from
+    # sort_columns + pk (preserving determinism). Contratos sets this
+    # explicitly because it carries a `data_publicacao DESC` shape that
+    # downstream consumers depend on; new resources should leave it
+    # blank to get the derived ordering.
+    order_by_sql: str | None = None
 
 @dataclass
 class PNCPResource:
@@ -52,6 +68,24 @@ class PNCPResource:
     raw_dataset: RawDatasetSpec
     entities: list[EntitySpec]
     canonical_tables: list[CanonicalTableSpec]
+    # Pydantic class used to validate raw API entries before flattening.
+    # Stored as Any to avoid a hard pydantic import at the spec layer
+    # (specs.py is imported very early and importing pydantic would
+    # pull in heavy machinery for every CLI invocation). The extractor
+    # asserts the type when it actually uses the field.
+    entity_model: Any = field(default=None)
+    # First date on which PNCP exposed source data for this resource.
+    # Backfills clamp to this floor so workers don't probe months that
+    # cannot contain records. Living on the resource (instead of a
+    # parallel dict in constants.py) means registering a new resource
+    # is a single-file change.
+    data_start: date | None = field(default=None)
+
+    def __post_init__(self) -> None:
+        if not _RESOURCE_NAME_RE.match(self.resource_name):
+            raise ValueError(
+                f"Invalid resource_name {self.resource_name!r}: must match {_RESOURCE_NAME_RE.pattern}"
+            )
 
     @property
     def name(self) -> str:
