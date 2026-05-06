@@ -68,6 +68,29 @@ describe('ShareButton', () => {
     );
   });
 
+  it('falls back to clipboard when share rejects with non-abort error', async () => {
+    const writeText = stubClipboard();
+    const shareSpy = vi
+      .fn()
+      .mockRejectedValue(new DOMException('not allowed', 'NotAllowedError'));
+    Object.defineProperty(navigator, 'share', { configurable: true, value: shareSpy });
+    render(ShareButton, { props: { url: 'https://example.test/z' } });
+    await fireEvent.click(screen.getByRole('button'));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('https://example.test/z'));
+  });
+
+  it('stays idle when share rejects with AbortError', async () => {
+    stubClipboard();
+    const shareSpy = vi
+      .fn()
+      .mockRejectedValue(new DOMException('cancelled', 'AbortError'));
+    Object.defineProperty(navigator, 'share', { configurable: true, value: shareSpy });
+    render(ShareButton, { props: { url: 'https://example.test/q' } });
+    await fireEvent.click(screen.getByRole('button'));
+    await waitFor(() => expect(shareSpy).toHaveBeenCalled());
+    expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
+  });
+
   it('falls back to clipboard when share is undefined', async () => {
     const writeText = stubClipboard();
     Object.defineProperty(navigator, 'share', { configurable: true, value: undefined });

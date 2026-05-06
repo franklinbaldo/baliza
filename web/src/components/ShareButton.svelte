@@ -65,7 +65,15 @@
         status = 'idle';
         return;
       }
-      status = 'error';
+      // Other share failures (policy restrictions, unsupported payload,
+      // platform quirks) shouldn't strand the user — copy the URL so the
+      // share intent still completes.
+      try {
+        await navigator.clipboard.writeText(target);
+        status = 'copied';
+      } catch {
+        status = 'error';
+      }
     }
     if (timer !== null) clearTimeout(timer);
     timer = setTimeout(() => {
