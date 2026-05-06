@@ -69,14 +69,17 @@ def main() -> int:
         print("manifest is empty; leaving existing sync_stats.json", file=sys.stderr)
         return 1
 
-    # Restrict to canonical monthly partitions so non-canonical shards
-    # (e.g. monthly_uf splits introduced by consolidation) don't
-    # double-count rows already present in the canonical monthly file.
-    # Empty file_type is treated as canonical for backward compatibility
-    # with manifest entries written before the column was added.
+    # Restrict to canonical monthly contratos partitions:
+    #   - file_type='monthly_canonical' (or empty for backward compat
+    #     with rows written before the column existed) so non-canonical
+    #     shards like monthly_uf don't double-count.
+    #   - table_name='contratos' so when the manifest grows to carry
+    #     atas / dispensas / itens, those rows don't inflate the
+    #     "Contratos citáveis" total or skew the partition span.
     canonical = [
         r for r in rows
         if (r.get("file_type") or "monthly_canonical") == "monthly_canonical"
+        and r.get("table_name") == "contratos"
     ]
 
     total_contracts = sum(_to_int(r.get("row_count"), field="row_count") for r in canonical)
