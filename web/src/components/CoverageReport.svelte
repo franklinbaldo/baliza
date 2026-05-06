@@ -5,6 +5,7 @@
   import { resolve } from '../lib/baseUrl';
   import { formatInteger, formatParticao } from '../lib/format';
   import { queryPublishingCnpjRaizes } from '../lib/parquetFallback';
+  import Skeleton from './Skeleton.svelte';
 
   setQueryClientContext(getQueryClient());
 
@@ -158,7 +159,7 @@
       </p>
     </article>
   {:else if loading && !stats}
-    <article aria-busy="true" class="is-skeleton"><p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p></article>
+    <Skeleton rows={3} />
   {:else if stats}
     <article>
       <hgroup>

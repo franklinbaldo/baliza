@@ -101,7 +101,7 @@
         <article>
           <header>
             <time>{entry.date}</time>
-            <small><mark>{kindLabel[entry.kind]}</mark></small>
+            <small data-badge>{kindLabel[entry.kind]}</small>
             <small><code>{entry.table}</code></small>
           </header>
           <p><code>{entry.column}</code></p>

@@ -34,7 +34,7 @@
   <section aria-labelledby="watch-title">
     <header>
       <hgroup>
-        <small><mark>🔔 Você está acompanhando</mark></small>
+        <p class="eyebrow">🔔 Você está acompanhando</p>
         <h2 id="watch-title">
           {entries.length === 1 ? '1 item salvo' : `${entries.length} itens salvos`}
         </h2>
@@ -49,7 +49,7 @@
       {#each entries as entry (entry.id)}
         <article>
           <header>
-            <small><mark>{labelForType(entry.type)}</mark></small>
+            <small data-badge>{labelForType(entry.type)}</small>
             <code>{entry.filter}</code>
           </header>
           <p><strong>{entry.label}</strong></p>

@@ -12,6 +12,8 @@
   import { resolve } from '../lib/baseUrl';
   import AlertBanner from './AlertBanner.svelte';
   import EmptyState from './EmptyState.svelte';
+  import HubHeader from './HubHeader.svelte';
+  import Skeleton from './Skeleton.svelte';
 
   setQueryClientContext(getQueryClient());
 
@@ -83,15 +85,11 @@
 </script>
 
 <section>
-  <header>
-    <hgroup>
-      <small><mark>📒 ATAS VIGENTES</mark></small>
-      <h1>Atas de Registro de Preços</h1>
-      <p>
-        Busca contratos vigentes cujo objeto corresponde ao termo pesquisado. Fonte: arquivo Parquet (IA).
-      </p>
-    </hgroup>
-  </header>
+  <HubHeader kicker="📒 Atas vigentes" title="Atas de Registro de Preços">
+    {#snippet lede()}
+      <p>Busca contratos vigentes cujo objeto corresponde ao termo pesquisado. Fonte: arquivo Parquet (IA).</p>
+    {/snippet}
+  </HubHeader>
 
   <form role="search" onsubmit={handleSubmit}>
     <label for="atas-objeto-input" class="sr-only">Objeto a pesquisar</label>
@@ -111,9 +109,7 @@
       message="Use ao menos 3 caracteres para buscar atas vigentes pelo objeto contratado."
     />
   {:else if loading}
-    <article aria-busy="true" class="is-skeleton" aria-label="Buscando atas vigentes">
-      <p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p>
-    </article>
+    <Skeleton label="Buscando atas vigentes" rows={3} />
   {:else if error}
     <AlertBanner title="Não foi possível buscar as atas" message={error.message} level="error" />
   {:else if rows.length === 0}

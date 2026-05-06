@@ -186,7 +186,7 @@
   {#snippet metaRow()}
     {#if data}
       <small>CNPJ: <code>{data.cnpj}</code></small>
-      <small>Fonte: <mark>Arquivo Parquet (IA)</mark></small>
+      <small>Fonte: <span data-badge>Arquivo Parquet (IA)</span></small>
     {/if}
   {/snippet}
 

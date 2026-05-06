@@ -190,7 +190,7 @@
         </div>
       </details>
 
-      <fieldset data-editor-zone>
+      <div data-editor-zone role="group" aria-label="Editor de consulta">
         <label>
           <span class="sr-only">Consulta SQL</span>
           <textarea bind:value={query} spellcheck="false" aria-label="Consulta SQL" rows="6"></textarea>
@@ -203,7 +203,7 @@
         <button onclick={runQuery} disabled={loading || hasUnresolvedUrl} aria-busy={loading}>
           {loading ? "Executando..." : "Explorar Dados"}
         </button>
-      </fieldset>
+      </div>
 
       {#if error}
         <AlertBanner title="Erro SQL" message={error} level="error" />

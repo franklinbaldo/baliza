@@ -118,7 +118,7 @@
   {#snippet metaRow()}
     {#if data}
       <small>Cód. IBGE: <code>{data.ibge}</code></small>
-      <small>Fonte: <mark>{data.archived ? 'Arquivo Parquet (IA)' : 'PNCP V1'}</mark></small>
+      <small>Fonte: <span data-badge>{data.archived ? 'Arquivo Parquet (IA)' : 'PNCP V1'}</span></small>
     {/if}
   {/snippet}
 

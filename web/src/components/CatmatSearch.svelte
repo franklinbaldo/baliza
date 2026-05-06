@@ -51,7 +51,7 @@
       {#each results as entry (entry.type + ':' + entry.code)}
         <li data-testid="catmat-result-item" role="option" aria-selected="false">
           <code>{entry.code}</code>
-          <small><mark>{entry.type}</mark></small>
+          <small data-badge>{entry.type}</small>
           <p>{entry.description}</p>
         </li>
       {/each}

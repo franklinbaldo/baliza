@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import AlertBanner from './AlertBanner.svelte';
   import StatCard from './StatCard.svelte';
+  import Skeleton from './Skeleton.svelte';
   import { fetchRawArchiveStatus, type RawArchiveStatus } from '../lib/ia-raw-status';
   import { formatInteger, formatRelativeTime } from '../lib/format';
 
@@ -54,7 +55,7 @@
 {:else if loading}
   <div class="grid" aria-busy="true" aria-label="Carregando metadados do Internet Archive">
     {#each [1, 2, 3, 4] as _, i (i)}
-      <article aria-busy="true" class="is-skeleton"><p>&nbsp;</p><p>&nbsp;</p></article>
+      <Skeleton />
     {/each}
   </div>
 {:else if status}

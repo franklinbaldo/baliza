@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { fetchManifestRows, IA_MANIFEST_URL, type ManifestRow } from '../lib/ia-manifest';
   import AlertBanner from './AlertBanner.svelte';
+  import Skeleton from './Skeleton.svelte';
 
   // Cap so the table stays scannable; the full CSV is one click away.
   const ROW_LIMIT = 24;
@@ -34,7 +35,7 @@
 
 <figure>
   {#if loading}
-    <article aria-busy="true" class="is-skeleton" aria-label="Carregando manifesto"><p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p></article>
+    <Skeleton label="Carregando manifesto" rows={3} />
   {:else if failed}
     <AlertBanner
       title="Manifesto indisponível"

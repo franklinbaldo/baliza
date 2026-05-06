@@ -118,7 +118,7 @@
       <small>Publicação: {formatDate(data.dataPublicacaoPncp)}</small>
       {#if effectiveSnapshot}
         <small data-testid="snapshot-date">
-          Snapshot: <mark><time datetime={effectiveSnapshot}>{formatParticao(effectiveSnapshot)}</time></mark>
+          Snapshot: <time datetime={effectiveSnapshot} data-badge>{formatParticao(effectiveSnapshot)}</time>
         </small>
       {/if}
     {/if}
