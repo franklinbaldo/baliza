@@ -23,7 +23,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'schedule' }}
 
 permissions:
-  contents: read
+  contents: write
   issues: write
 
 jobs:
@@ -59,37 +59,98 @@ jobs:
 
           uv run baliza sync "${sync_args[@]}"
 
+      - name: Refresh sync_stats.json from live IA manifest
+        run: uv run python scripts/build_sync_stats.py
+
+      - name: Commit sync_stats.json if it changed
+        run: |
+          set -e
+          if git diff --quiet -- web/public/data/sync_stats.json; then
+            echo "sync_stats.json unchanged; skipping commit"
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/public/data/sync_stats.json
+          git commit -m "chore(stats): refresh sync_stats.json from manifest [skip ci]"
+          # Avoid clobbering any human commit that landed in parallel.
+          for i in 1 2 3 4 5; do
+            if git push origin HEAD:${GITHUB_REF_NAME}; then
+              exit 0
+            fi
+            git pull --rebase origin "${GITHUB_REF_NAME}" || true
+          done
+          echo "could not push refreshed sync_stats.json after retries" >&2
+          exit 1
+
   report-failure:
     name: Report workflow failure
     if: ${{ failure() }}
     needs: sync
     runs-on: ubuntu-latest
     steps:
-      - name: Open issue for failure
+      - name: Open or update single tracking issue for sync failures
         uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            // Single rolling tracking issue. The previous behavior filed a
+            // fresh issue per failed run, which produced 67 open duplicates
+            // in a single bad week. Now we keep one open issue and append
+            // a comment per recurrence, so triagers see the failure cadence
+            // without drowning in stacked tickets.
             const { owner, repo } = context.repo;
             const runId = context.runId;
             const runUrl = `${context.payload.repository.html_url}/actions/runs/${runId}`;
-            const identifier = `run_id:${runId}`;
+            const TRACKING_TITLE = '🚨 PNCP Sync workflow is failing';
 
-            const search = await github.rest.search.issuesAndPullRequests({
-              q: `repo:${owner}/${repo} "${identifier}" state:open type:issue`
+            const open = await github.rest.issues.listForRepo({
+              owner, repo, state: 'open', labels: 'ci-failure', per_page: 100,
             });
-            if (search.data.total_count > 0) return;
+            const existing = open.data.find((i) => i.title === TRACKING_TITLE);
+            const body = [
+              `Latest failure: [run #${context.runNumber}](${runUrl})`,
+              '',
+              'Comments below track every subsequent failed run. The issue',
+              'is auto-closed by the next successful run.',
+            ].join('\n');
 
-            await github.rest.issues.create({
-              owner,
-              repo,
-              title: `🚨 Falha no workflow "PNCP Sync" (run #${context.runNumber})`,
-              body: [
-                '@codex há uma falha automática no workflow de sync.',
-                '',
-                `- **Workflow**: PNCP Sync`,
-                `- **Execução**: [#${context.runNumber}](${runUrl})`,
-                `- **Identificador**: ${identifier}`,
-              ].join('\n'),
-              labels: ['ci-failure']
+            if (!existing) {
+              await github.rest.issues.create({
+                owner, repo,
+                title: TRACKING_TITLE,
+                body,
+                labels: ['ci-failure'],
+              });
+              return;
+            }
+            await github.rest.issues.createComment({
+              owner, repo, issue_number: existing.number,
+              body: `Failure recurred: [run #${context.runNumber}](${runUrl})`,
+            });
+
+  report-recovery:
+    name: Auto-close tracking issue on green run
+    if: ${{ success() }}
+    needs: sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v9
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const TRACKING_TITLE = '🚨 PNCP Sync workflow is failing';
+            const open = await github.rest.issues.listForRepo({
+              owner, repo, state: 'open', labels: 'ci-failure', per_page: 100,
+            });
+            const existing = open.data.find((i) => i.title === TRACKING_TITLE);
+            if (!existing) return;
+            const runUrl = `${context.payload.repository.html_url}/actions/runs/${context.runId}`;
+            await github.rest.issues.createComment({
+              owner, repo, issue_number: existing.number,
+              body: `Sync recovered: [run #${context.runNumber}](${runUrl}). Closing.`,
+            });
+            await github.rest.issues.update({
+              owner, repo, issue_number: existing.number, state: 'closed',
             });

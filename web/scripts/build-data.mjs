@@ -100,6 +100,16 @@ async function build() {
   console.log("Generating frontend config...");
   execSync('python3 scripts/build_frontend_config.py', { stdio: 'inherit', cwd: '..' });
 
+  // Refresh public/data/sync_stats.json from the live IA manifest so the
+  // homepage's "Sinal do arquivo" tile reflects real numbers. Tolerate
+  // failure (offline build, IA outage) — the existing JSON stays put.
+  console.log("Refreshing sync_stats.json from IA manifest...");
+  try {
+    execSync('python3 scripts/build_sync_stats.py', { stdio: 'inherit', cwd: '..' });
+  } catch (err) {
+    console.warn(`sync_stats.json refresh skipped: ${err.message}`);
+  }
+
   if (!fs.existsSync(QUERIES_DIR)) fs.mkdirSync(QUERIES_DIR, { recursive: true });
   await loadManifest();
   await ensureHttpfs();
