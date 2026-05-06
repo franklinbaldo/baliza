@@ -15,6 +15,14 @@ on:
         required: false
         type: boolean
         default: false
+      resource:
+        description: 'PNCP resource to sync (cron always uses contratos)'
+        required: false
+        type: choice
+        default: contratos
+        options:
+          - contratos
+          - atas
 
 concurrency:
   # Policy: cron runs share one group so stale queued/in-flight ticks are canceled.
@@ -52,9 +60,14 @@ jobs:
       - env:
           IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
           IA_SECRET_KEY: ${{ secrets.IA_SECRET_KEY }}
+          # The cron path defaults to contratos so the production cadence
+          # stays unchanged. workflow_dispatch can override via the
+          # `resource` input to backfill atas (or any future resource).
+          RESOURCE: ${{ inputs.resource || 'contratos' }}
         run: |
           sync_args=(
             --limit-minutes 280
+            --resource "$RESOURCE"
           )
           if [[ -n "${{ inputs.start_date }}" ]]; then
             sync_args+=(--start-date "${{ inputs.start_date }}")

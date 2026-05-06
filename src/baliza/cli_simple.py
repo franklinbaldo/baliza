@@ -85,11 +85,12 @@ class SyncContext:
     ia_access_key: str | None = None
     ia_secret_key: str | None = None
     manifest_by_month: dict[str, dict] | None = None
+    resource: str = RESOURCE_CONTRATOS
 
 
-def _page_is_cached(raw_month_dir: Path, p: int) -> bool:
+def _page_is_cached(raw_month_dir: Path, p: int, resource: str = RESOURCE_CONTRATOS) -> bool:
     """Validate a cached page on disk."""
-    path = raw_month_dir / page_filename(RESOURCE_CONTRATOS, p)
+    path = raw_month_dir / page_filename(resource, p)
     if not path.exists() or path.stat().st_size == 0:
         return False
     try:
@@ -159,7 +160,7 @@ def process_month_full(start_of_month: date, ctx: SyncContext):  # noqa: PLR0912
             raw_zip_url = manifest_row.get("raw_zip_url", "")
 
             # A full cache miss can be approximated by lacking page 1
-            is_full_miss = not _page_is_cached(raw_month_dir, 1)
+            is_full_miss = not _page_is_cached(raw_month_dir, 1, ctx.resource)
 
             if raw_zip_url and start_of_month < today_month and is_full_miss:
                 ctx.progress.update(
@@ -180,7 +181,7 @@ def process_month_full(start_of_month: date, ctx: SyncContext):  # noqa: PLR0912
             # instead of silently uploading an incomplete month.
             total_pages: int | None = None
             if sentinel.exists():
-                p1 = raw_month_dir / first_page_filename(RESOURCE_CONTRATOS)
+                p1 = raw_month_dir / first_page_filename(ctx.resource)
                 regression_reason: str | None = None
                 if not p1.exists() or p1.stat().st_size == 0:
                     regression_reason = "page1_missing"
@@ -212,11 +213,13 @@ def process_month_full(start_of_month: date, ctx: SyncContext):  # noqa: PLR0912
                         pass
 
             if total_pages is None:
-                res = extractor.probe_range(RESOURCE_CONTRATOS, month_start_dt, month_end_dt)
+                res = extractor.probe_range(ctx.resource, month_start_dt, month_end_dt)
                 total_pages = res["total_pages"]
 
             missing_pages = [
-                p for p in range(1, total_pages + 1) if not _page_is_cached(raw_month_dir, p)
+                p
+                for p in range(1, total_pages + 1)
+                if not _page_is_cached(raw_month_dir, p, ctx.resource)
             ]
             cached_pages = total_pages - len(missing_pages)
 
@@ -269,7 +272,7 @@ def process_month_full(start_of_month: date, ctx: SyncContext):  # noqa: PLR0912
                             tid,
                             description=f"Month {month_str} [Pages {i}/{len(missing_pages)}]",
                         )
-                        extractor.fetch_page(RESOURCE_CONTRATOS, month_start_dt, month_end_dt, p)
+                        extractor.fetch_page(ctx.resource, month_start_dt, month_end_dt, p)
                         ctx.progress.update(tid, advance=1)
 
             # All expected pages are now on disk — write the
@@ -291,6 +294,7 @@ def process_month_full(start_of_month: date, ctx: SyncContext):  # noqa: PLR0912
                         ctx.ia_access_key,
                         ctx.ia_secret_key,
                         keep_raw_dir=True,
+                        resource=ctx.resource,
                     )
                 except Exception as e:
                     ctx.progress.console.log(
@@ -299,7 +303,7 @@ def process_month_full(start_of_month: date, ctx: SyncContext):  # noqa: PLR0912
 
             # 4. Ingest
             ctx.progress.update(tid, description=f"Month {month_str} [Ingesting]")
-            stats = extractor.ingest_range(month_start_dt)
+            stats = extractor.ingest_range(month_start_dt, resource=ctx.resource)
             with ctx.lock:
                 ctx.total_records += stats.get("valid", 0)
                 ctx.quarantine_count += stats.get("quarantine", 0)
@@ -322,6 +326,7 @@ def process_month_full(start_of_month: date, ctx: SyncContext):  # noqa: PLR0912
                         ctx.ia_secret_key,
                         quarantine_stats=stats,
                         quarantine_csv=q_csv if has_q else None,
+                        resource=ctx.resource,
                     )
             else:
                 ctx.progress.console.log(
@@ -392,6 +397,9 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
     consolidate_start_year: int = typer.Option(
         2021, "--consolidate-start-year", help="First year to consider for consolidation"
     ),
+    resource: str = typer.Option(
+        RESOURCE_CONTRATOS, "--resource", "-r", help="PNCP resource to sync"
+    ),
 ) -> None:
     """Unified sync: extracts missing dates, uploads to IA, and consolidates (stateless, backwards sweep)."""
     start_time_exec = datetime.now()
@@ -400,9 +408,7 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
 
     # 0. VALIDATE RESOURCE early
     try:
-        # Default resource for sync is 'contratos' inside PNCPExtractor
-        # But we check it here if needed.
-        _validate_resource(RESOURCE_CONTRATOS)
+        _validate_resource(resource)
     except ValueError as e:
         print(str(e))
         sys.stdout.flush()
@@ -421,26 +427,32 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
     raw_manifest: list[dict] = []
     manifest_by_month: dict[str, dict] = {}
     if force_month:
-        batch = _forced_month_or_empty(RESOURCE_CONTRATOS, force_month)
+        batch = _forced_month_or_empty(resource, force_month)
         uploaded: set[str] = set()
     else:
         with console.status("[bold green]Checking IA manifest for pending months...[/bold green]"):
             try:
                 # manifest dates in monthly strategy are strings "YYYY-MM"
                 raw_manifest = uploader._read_manifest_from_ia()
-                # A month is "done" only when its Parquet is on IA AND we have a sha256
-                # to prove the upload was confirmed. parquet_url alone is not sufficient:
-                # old manifest-recovery runs wrote the expected URL before the file existed,
-                # leaving entries that 404 and cause the consolidator to skip the whole year.
+                # A month is "done" for THIS resource only when its
+                # Parquet is on IA AND sha256 is set. Other resources'
+                # rows must not mark our months as done (otherwise atas
+                # would be skipped wherever contratos is already
+                # complete). Likewise the manifest_by_month lookup that
+                # drives raw-ZIP restore must be filtered by table_name
+                # so an atas worker never reads the contratos zip URL.
                 uploaded = {
                     row["data_particao"]
                     for row in raw_manifest
-                    if row.get("data_particao") and row.get("parquet_url") and row.get("sha256")
+                    if row.get("data_particao")
+                    and row.get("parquet_url")
+                    and row.get("sha256")
+                    and row.get("table_name") == resource
                 }
-                # Lookup for raw_zip_url by month — used to skip PNCP fetch
-                # when we already have the ZIP on IA for a past month.
                 manifest_by_month: dict[str, dict] = {
-                    row["data_particao"]: row for row in raw_manifest if row.get("data_particao")
+                    row["data_particao"]: row
+                    for row in raw_manifest
+                    if row.get("data_particao") and row.get("table_name") == resource
                 }
             except Exception as e:
                 console.print(
@@ -450,7 +462,7 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                 manifest_by_month = {}
 
             start = clamp_to_known_data_start_month(
-                RESOURCE_CONTRATOS, datetime.strptime(start_date, "%Y-%m-%d").date()
+                resource, datetime.strptime(start_date, "%Y-%m-%d").date()
             )
 
             today = date.today()
@@ -535,6 +547,7 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
             ia_access_key=ia_access_key,
             ia_secret_key=ia_secret_key,
             manifest_by_month=manifest_by_month,
+            resource=resource,
         )
 
         # Use pool for parallel scraping
