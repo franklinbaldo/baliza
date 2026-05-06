@@ -92,24 +92,23 @@ const TOOLS: Array<{
        grid — no second hero. The single search input lives in section 2b. -->
   <section aria-labelledby="tools-title">
     <hgroup>
-      <small>Utilidades avançadas</small>
+      <p class="eyebrow">Utilidades avançadas</p>
       <h2 id="tools-title">Outras entradas no arquivo</h2>
       <p>Para quem já sabe o que procurar: análise, dados brutos e metodologia.</p>
     </hgroup>
     <div class="grid">
       {TOOLS.map((tool) => (
         <article>
+          <h3>{tool.label}</h3>
+          <p>{tool.blurb}</p>
           <a
             href={tool.href}
+            aria-label={`Abrir ${tool.label}${tool.external ? ' (em nova aba)' : ''}`}
             rel={tool.external ? 'noopener' : undefined}
             target={tool.external ? '_blank' : undefined}
           >
-            <strong>
-              {tool.label}
-              {tool.external && <span aria-hidden="true"> ↗</span>}
-            </strong>
+            Abrir{tool.external ? ' ↗' : ' →'}
           </a>
-          <p>{tool.blurb}</p>
         </article>
       ))}
     </div>

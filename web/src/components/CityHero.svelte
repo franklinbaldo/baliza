@@ -61,7 +61,7 @@
     <hgroup>
       <p class="eyebrow">Painel cívico · O que é o Baliza?</p>
       <h1 id="city-hero-title">
-        O que <em>{cityState.nome}{cityState.uf ? ` / ${cityState.uf}` : ''}</em> está comprando?
+        O que <mark>{cityState.nome}{cityState.uf ? ` / ${cityState.uf}` : ''}</mark> está comprando?
       </h1>
       <p>
         <strong>B</strong>ackup <strong>A</strong>berto de <strong>Li</strong>citações <strong>Z</strong>elando pelo <strong>A</strong>cesso.
