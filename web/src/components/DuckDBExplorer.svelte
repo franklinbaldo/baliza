@@ -6,6 +6,8 @@
   import { SCHEMA_MAP } from '../lib/explorerSchema';
   import { ARCHIVED_TABLES, type ArchivedTable } from '../lib/archive/schema';
   import AlertBanner from './AlertBanner.svelte';
+  import CopyButton from './CopyButton.svelte';
+  import ShareButton from './ShareButton.svelte';
 
   function readInitialQuery(): string {
     if (typeof window === 'undefined') return 'SELECT * FROM contracts LIMIT 10';
@@ -200,9 +202,13 @@
             ⚠️ Substitua <code>'IA_URL'</code> pela URL real do arquivo Parquet no Internet Archive antes de executar.
           </small>
         {/if}
-        <button onclick={runQuery} disabled={loading || hasUnresolvedUrl} aria-busy={loading}>
-          {loading ? "Executando..." : "Explorar Dados"}
-        </button>
+        <div role="group" class="actions">
+          <button onclick={runQuery} disabled={loading || hasUnresolvedUrl} aria-busy={loading}>
+            {loading ? "Executando..." : "Explorar Dados"}
+          </button>
+          <CopyButton text={query} variant="inline" label="Copiar SQL" />
+          <ShareButton title="Consulta SQL Baliza" variant="inline" />
+        </div>
       </div>
 
       {#if error}

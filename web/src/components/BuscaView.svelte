@@ -23,7 +23,10 @@
   import HubHeader from './HubHeader.svelte';
   import Skeleton from './Skeleton.svelte';
   import PaginatedList from './PaginatedList.svelte';
+  import CopyButton from './CopyButton.svelte';
+  import ShareButton from './ShareButton.svelte';
   import { addWatch, isWatched, hydrateWatches } from '../lib/watchStore.svelte';
+  import { replaceUrlParams } from '../lib/urlState';
 
   setQueryClientContext(getQueryClient());
 
@@ -52,7 +55,20 @@
     return { input: rawQ, submitted: { q: parsed.term, filters } };
   }
 
+  // Post-fetch (visible) filters — distinct from FILTERS server-side keys.
+  // `ufFiltro` lives in FILTERS as the PNCP-side filter, leaving `uf` free
+  // to mean "narrow what's already on screen".
+  function readPostFilters(): { uf: string; modalidade: string } {
+    if (typeof window === 'undefined') return { uf: '', modalidade: '' };
+    const params = new URLSearchParams(window.location.search);
+    return {
+      uf: params.get('uf') ?? '',
+      modalidade: params.get('modalidade') ?? '',
+    };
+  }
+
   const initial = readUrl();
+  const initialPost = readPostFilters();
 
   // searchInput is what's bound to the visible <input>. We never rewrite
   // it during submit — that previously caused a "snap" as the field was
@@ -75,8 +91,8 @@
   );
   const draftHasAny = $derived(Object.values(drafts).some((v) => !!v));
 
-  let selectedUf = $state('');
-  let selectedModality = $state('');
+  let selectedUf = $state(initialPost.uf);
+  let selectedModality = $state(initialPost.modalidade);
 
   const redirecting = $derived(!!submitted.q && isPncpId(submitted.q));
 
@@ -196,17 +212,22 @@
   // filter — `?q=merenda&ibge=1100205&uf=RO`. Semantic separation makes
   // links easier to share/debug and lets applySuggestion() mutate just
   // `q` without nuking the structured filters.
-  function syncUrl(q: string, filters: FilterValues): void {
-    if (typeof window === 'undefined') return;
+  function syncUrl(q: string, filters: FilterValues, post?: { uf: string; modalidade: string }): void {
     const entries: Record<string, string> = { ...toUrlEntries(filters) };
     if (q) entries.q = q;
-    const qs = new URLSearchParams(entries).toString();
-    window.history.replaceState(
-      {},
-      '',
-      qs ? `${window.location.pathname}?${qs}` : window.location.pathname,
-    );
+    if (post?.uf) entries.uf = post.uf;
+    if (post?.modalidade) entries.modalidade = post.modalidade;
+    replaceUrlParams(entries, { merge: false });
   }
+
+  // Track post-fetch filter changes back into the URL so a deep link
+  // restores exactly what the user last saw — including UF/modalidade
+  // narrowing applied after the PNCP fetch.
+  $effect(() => {
+    const uf = selectedUf;
+    const mod = selectedModality;
+    syncUrl(submitted.q, submitted.filters, { uf, modalidade: mod });
+  });
 
   function applySuggestion(): void {
     if (!suggestion) return;
@@ -267,40 +288,17 @@
 
   // The export buttons act on what the user sees — i.e. filteredResults,
   // not the raw fetch — so the file matches the on-screen aggregate strip.
-  let copyStatus = $state<'idle' | 'copied' | 'error'>('idle');
-  let copyTimer: ReturnType<typeof setTimeout> | null = null;
-
-  // Clear any pending status reset when the component unmounts so the
-  // timer cannot fire a state assignment after destroy.
-  $effect(() => {
-    return () => {
-      if (copyTimer !== null) {
-        clearTimeout(copyTimer);
-        copyTimer = null;
-      }
-    };
-  });
-
   function exportCsv(): void {
     const slug = (submitted.q || 'busca').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'busca';
     exporters.downloadTextFile(`baliza-${slug}.csv`, exporters.toCsv(filteredResults), 'text/csv');
   }
 
-  async function exportMarkdown(): Promise<void> {
-    const md = exporters.toMarkdown(filteredResults);
-    try {
-      await navigator.clipboard.writeText(md);
-      copyStatus = 'copied';
-    } catch {
-      copyStatus = 'error';
-    }
-    // Cancel any pending reset so rapid clicks do not stack timers.
-    if (copyTimer !== null) clearTimeout(copyTimer);
-    copyTimer = setTimeout(() => {
-      copyStatus = 'idle';
-      copyTimer = null;
-    }, 2000);
-  }
+  const markdown = $derived(exporters.toMarkdown(filteredResults));
+  const shareText = $derived(
+    submitted.q
+      ? `Busca "${submitted.q}" no Baliza — ${aggregates.count} contratações`
+      : `Busca no Baliza — ${aggregates.count} contratações`,
+  );
 </script>
 
 <section>
@@ -389,12 +387,8 @@
         {queryWatched ? '✓ Vigilância salva' : 'Salvar vigilância'}
       </button>
       <button type="button" class="outline" data-testid="busca-export-csv" onclick={exportCsv}>Exportar CSV</button>
-      <button type="button" class="outline" data-testid="busca-export-markdown" onclick={exportMarkdown}>Exportar Markdown</button>
-      {#if copyStatus !== 'idle'}
-        <small role="status" aria-live="polite" data-testid="busca-export-status">
-          {copyStatus === 'copied' ? 'Copiado!' : 'Falha ao copiar'}
-        </small>
-      {/if}
+      <CopyButton text={markdown} variant="inline" label="Exportar Markdown" testid="busca-export-markdown" />
+      <ShareButton title="Busca Baliza" text={shareText} variant="inline" testid="busca-share" />
     </div>
 
     <article data-testid="busca-aggregates" aria-label="Resumo dos resultados visíveis">

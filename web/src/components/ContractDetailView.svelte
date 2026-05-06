@@ -18,6 +18,9 @@
   import { resolve } from '../lib/baseUrl';
   import EntityDetailLayout from './EntityDetailLayout.svelte';
   import Glossary from './Glossary.svelte';
+  import CopyButton from './CopyButton.svelte';
+  import ShareButton from './ShareButton.svelte';
+  import { setPageMeta } from '../lib/pageMeta';
 
   setQueryClientContext(getQueryClient());
 
@@ -97,6 +100,16 @@
     data?.archived?.dataParticao ?? snapshotDate,
   );
 
+  $effect(() => {
+    if (!data) return;
+    const objeto = data.objetoContratacao || `Contratação ${id}`;
+    setPageMeta({
+      title: `${objeto} — ${id}`,
+      description: data.orgaoEntidade?.razaoSocial
+        ? `${data.orgaoEntidade.razaoSocial}: ${objeto}`
+        : objeto,
+    });
+  });
 </script>
 
 <EntityDetailLayout
@@ -114,7 +127,11 @@
 >
   {#snippet metaRow()}
     {#if data}
-      <small>ID: <code>{data.numeroControlePNCP || id}</code></small>
+      <small>
+        ID: <code>{data.numeroControlePNCP || id}</code>
+        <CopyButton text={data.numeroControlePNCP || id} label="Copiar ID PNCP" />
+        <ShareButton text={`PNCP ${data.numeroControlePNCP || id}`} />
+      </small>
       <small>Publicação: {formatDate(data.dataPublicacaoPncp)}</small>
       {#if effectiveSnapshot}
         <small data-testid="snapshot-date">
@@ -188,7 +205,7 @@
               {/if}
             </dd>
           </div>
-          <div role="listitem"><dt>CNPJ</dt><dd>{data.orgaoEntidade?.cnpj || '—'}</dd></div>
+          <div role="listitem"><dt>CNPJ</dt><dd>{data.orgaoEntidade?.cnpj || '—'}{#if data.orgaoEntidade?.cnpj} <CopyButton text={data.orgaoEntidade.cnpj} label="Copiar CNPJ" />{/if}</dd></div>
           <div role="listitem"><dt>Unidade</dt><dd>{data.unidadeOrgao?.nomeUnidade || '—'}</dd></div>
           <div role="listitem">
             <dt>Município</dt>

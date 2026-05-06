@@ -16,7 +16,10 @@
   import EmptyState from './EmptyState.svelte';
   import ContractCard from './ContractCard.svelte';
   import PaginatedList from './PaginatedList.svelte';
+  import CopyButton from './CopyButton.svelte';
+  import ShareButton from './ShareButton.svelte';
   import { addWatch, isWatched, hydrateWatches } from '../lib/watchStore.svelte';
+  import { setPageMeta } from '../lib/pageMeta';
 
   setQueryClientContext(getQueryClient());
 
@@ -168,6 +171,14 @@
   }));
 
   const competitors = $derived(peerQuery.data ?? []);
+
+  $effect(() => {
+    if (!data) return;
+    setPageMeta({
+      title: `${data.name} — Fornecedor ${data.cnpj}`,
+      description: `Histórico de contratos arquivados para o fornecedor ${data.name}.`,
+    });
+  });
 </script>
 
 <EntityDetailLayout
@@ -185,7 +196,10 @@
 >
   {#snippet metaRow()}
     {#if data}
-      <small>CNPJ: <code>{data.cnpj}</code></small>
+      <small>
+        CNPJ: <code>{data.cnpj}</code>
+        <CopyButton text={data.cnpj} label="Copiar CNPJ" />
+      </small>
       <small>Fonte: <span data-badge>Arquivo Parquet (IA)</span></small>
     {/if}
   {/snippet}
@@ -203,6 +217,7 @@
         <button class="outline" onclick={() => addWatch('supplier', data.cnpj, data.name)} disabled={isWatched('supplier', data.cnpj)} aria-pressed={isWatched('supplier', data.cnpj)}>
           {isWatched('supplier', data.cnpj) ? '✓ Acompanhando' : 'Acompanhar fornecedor'}
         </button>
+        <ShareButton title={`${data.name} — Fornecedor`} text={`Fornecedor ${data.cnpj}`} variant="inline" />
       </div>
 
       <section class="grid">
@@ -223,6 +238,7 @@
                   <small>#{i + 1}</small>
                   <a href={resolve(`fornecedor?cnpj=${c.cnpj}`)} title={c.name}>{c.name}</a>
                   <code>{c.cnpj}</code>
+                  <CopyButton text={c.cnpj} label="Copiar CNPJ" />
                   <small>{c.count}</small>
                 </li>
               {/each}

@@ -10,6 +10,9 @@
   import { formatBRL, formatDate } from '../lib/format';
   import EmptyState from './EmptyState.svelte';
   import AlertBanner from './AlertBanner.svelte';
+  import CopyButton from './CopyButton.svelte';
+  import ShareButton from './ShareButton.svelte';
+  import { setPageMeta } from '../lib/pageMeta';
   import {
     hydrateWatches,
     markVisited,
@@ -129,6 +132,14 @@
   function linkFor(c: PNCPContract): string {
     return resolve(`contratacao?id=${c.numeroControlePNCP ?? ''}`);
   }
+
+  $effect(() => {
+    if (!entry) return;
+    setPageMeta({
+      title: `Vigilância: ${entry.label}`,
+      description: `Acompanhamento das novidades para "${entry.label}".`,
+    });
+  });
 </script>
 
 <section>
@@ -142,7 +153,11 @@
       <hgroup>
         <p class="eyebrow">🔔 Vigilância</p>
         <h1>{entry.label}</h1>
-        <p><code>{entry.filter}</code></p>
+        <p>
+          <code>{entry.filter}</code>
+          <CopyButton text={entry.filter} label="Copiar filtro" />
+          <ShareButton title={`Vigilância: ${entry.label}`} text={entry.filter} />
+        </p>
       </hgroup>
     </header>
 

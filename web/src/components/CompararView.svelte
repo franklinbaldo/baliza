@@ -8,6 +8,7 @@
   import EmptyState from './EmptyState.svelte';
   import HubHeader from './HubHeader.svelte';
   import Skeleton from './Skeleton.svelte';
+  import { replaceUrlParams } from '../lib/urlState';
 
   setQueryClientContext(getQueryClient());
 
@@ -79,15 +80,7 @@
     const objeto = searchObjeto.trim();
     submittedIbge = ibge;
     submittedObjeto = objeto;
-    if (typeof window === 'undefined') return;
-    // eslint-disable-next-line svelte/prefer-svelte-reactivity
-    const params = new URLSearchParams(window.location.search);
-    if (ibge) params.set('ibge', ibge);
-    else params.delete('ibge');
-    if (objeto) params.set('objeto', objeto);
-    else params.delete('objeto');
-    const qs = params.toString();
-    window.history.replaceState({}, '', qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
+    replaceUrlParams({ ibge, objeto });
   }
 </script>
 

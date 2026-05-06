@@ -12,11 +12,15 @@
   import type { ArchivedContrato } from '../lib/archive/schema';
   import EntityDetailLayout from './EntityDetailLayout.svelte';
   import EmptyState from './EmptyState.svelte';
+  import CopyButton from './CopyButton.svelte';
+  import ShareButton from './ShareButton.svelte';
+  import { setPageMeta } from '../lib/pageMeta';
   import LookbackWindow from './LookbackWindow.svelte';
   import ContractCard from './ContractCard.svelte';
   import PaginatedList from './PaginatedList.svelte';
   import { DEFAULT_SINCE_DAYS } from '../lib/pncpPublicacao';
   import { addWatch, isWatched, hydrateWatches } from '../lib/watchStore.svelte';
+  import { replaceUrlParams } from '../lib/urlState';
 
   setQueryClientContext(getQueryClient());
 
@@ -44,10 +48,7 @@
 
   function updateDias(next: number) {
     dias = next;
-    if (typeof window === 'undefined') return;
-    const entries = Object.fromEntries(new URLSearchParams(window.location.search));
-    const params = new URLSearchParams({ ...entries, dias: String(next) });
-    window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
+    replaceUrlParams({ dias: next });
   }
 
   $effect(() => {
@@ -185,6 +186,14 @@
   const maxMonthly = $derived(
     data ? Math.max(1, ...data.monthly.map((m) => m.count)) : 1,
   );
+
+  $effect(() => {
+    if (!data) return;
+    setPageMeta({
+      title: `${data.name} — Órgão ${data.cnpj}`,
+      description: `Histórico de contratações públicas registradas pelo órgão ${data.name} no PNCP.`,
+    });
+  });
 </script>
 
 <EntityDetailLayout
@@ -202,7 +211,10 @@
 >
   {#snippet metaRow()}
     {#if data}
-      <small>CNPJ: <code>{data.cnpj}</code></small>
+      <small>
+        CNPJ: <code>{data.cnpj}</code>
+        <CopyButton text={data.cnpj} label="Copiar CNPJ" />
+      </small>
       <small>Fonte: <span data-badge>{data.archived ? 'Arquivo Parquet (IA)' : 'PNCP V1'}</span></small>
     {/if}
   {/snippet}
@@ -217,6 +229,7 @@
       >
         {isAgencyWatched ? '✓ Acompanhando' : 'Receber alertas deste órgão'}
       </button>
+      <ShareButton title={`${data.name} — Órgão`} text={`Órgão ${data.cnpj}`} variant="inline" />
     {/if}
   {/snippet}
 

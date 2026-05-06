@@ -8,6 +8,7 @@
   import EmptyState from './EmptyState.svelte';
   import HubHeader from './HubHeader.svelte';
   import Skeleton from './Skeleton.svelte';
+  import { replaceUrlParams } from '../lib/urlState';
 
   setQueryClientContext(getQueryClient());
 
@@ -60,13 +61,7 @@
     ev.preventDefault();
     const term = searchInput.trim();
     submittedObjeto = term;
-    if (typeof window === 'undefined') return;
-    // eslint-disable-next-line svelte/prefer-svelte-reactivity
-    const params = new URLSearchParams(window.location.search);
-    if (term) params.set('objeto', term);
-    else params.delete('objeto');
-    const qs = params.toString();
-    window.history.replaceState({}, '', qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
+    replaceUrlParams({ objeto: term });
   }
 </script>
 

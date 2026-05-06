@@ -1,12 +1,12 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { getLatestParquetUrl, getLatestParquetInfo } from '../lib/ia-manifest';
+  import CopyButton from './CopyButton.svelte';
 
   let snapshotDate = $state<string | null>(null);
   let archiveUrl = $state<string | null>(null);
   let loading = $state(true);
   let visible = $state(false);
-  let copied = $state(false);
 
   onMount(async () => {
     try {
@@ -46,19 +46,6 @@
   }
 
   const bibtex = $derived(buildBibtex());
-
-  async function copyBibtex() {
-    try {
-      await navigator.clipboard.writeText(bibtex);
-      copied = true;
-      setTimeout(() => {
-        copied = false;
-      }, 2500);
-    } catch {
-      // Clipboard blocked — the pre block is already visible; user can
-      // manually select and copy.
-    }
-  }
 </script>
 
 <section aria-labelledby="citation-title">
@@ -98,9 +85,7 @@
       </small>
       <pre data-testid="bibtex-block"><code>{bibtex}</code></pre>
       <footer>
-        <button type="button" class="outline" data-testid="copy-bibtex" onclick={copyBibtex}>
-          {copied ? 'Copiado ✓' : 'Copiar BibTeX'}
-        </button>
+        <CopyButton text={bibtex} variant="inline" label="Copiar BibTeX" testid="copy-bibtex" />
       </footer>
     </blockquote>
   {/if}

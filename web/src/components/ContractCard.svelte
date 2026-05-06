@@ -1,6 +1,7 @@
 <script lang="ts">
   import { resolve } from '../lib/baseUrl';
   import { formatBRL, formatDate, truncate } from '../lib/format';
+  import CopyButton from './CopyButton.svelte';
 
   interface Props {
     id: string;
@@ -14,11 +15,12 @@
 </script>
 
 <article>
+  <header>
+    <code>{id}</code>
+    <CopyButton text={id} label="Copiar ID PNCP" />
+    <small>{date ? formatDate(date) : ''}</small>
+  </header>
   <a href={resolve(`contratacao?id=${id}`)}>
-    <header>
-      <code>{id}</code>
-      <small>{date ? formatDate(date) : ''}</small>
-    </header>
     <p>{truncate(obj, 150)}</p>
     <footer>
       {#if buyer}<strong>{buyer}</strong>{/if}
