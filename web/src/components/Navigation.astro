@@ -28,27 +28,36 @@ const isCityActive = cleanPath === cityPrefix;
     <li>
       <details role="list">
         <summary aria-haspopup="listbox" aria-current={isCityActive ? 'page' : undefined}>
+          <Icon name="building" />
           <CityNavLink client:load isActive={isCityActive} asLabel={true} />
         </summary>
         <ul role="listbox">
-          <li><CityNavLink client:load isActive={isCityActive} /></li>
-          <li><a href={BASE}>Trocar cidade</a></li>
-          <li><a href={BASE + 'busca'}>Buscar contratações</a></li>
+          <li><Icon name="building" /> <CityNavLink client:load isActive={isCityActive} /></li>
+          <li><a href={BASE}><Icon name="swap" /> Trocar cidade</a></li>
+          <li><a href={BASE + 'busca'}><Icon name="search" /> Buscar contratações</a></li>
         </ul>
       </details>
     </li>
-    <li><a href={BASE + 'atas'} aria-current={isActive(BASE + 'atas') ? 'page' : undefined}>Atas</a></li>
+    <li>
+      <a href={BASE + 'atas'} aria-current={isActive(BASE + 'atas') ? 'page' : undefined}>
+        <Icon name="document" /> Atas
+      </a>
+    </li>
     <li>
       <details role="list" dir="rtl">
-        <summary aria-haspopup="listbox">Dados Abertos</summary>
+        <summary aria-haspopup="listbox"><Icon name="database" /> Dados Abertos</summary>
         <ul role="listbox">
-          <li><a href={BASE + 'explorador'}>Explorador SQL</a></li>
-          <li><a href={BASE + 'desenvolvedores'}>Devs & API</a></li>
-          <li><a href={BASE + 'status'}>Status do Arquivo</a></li>
+          <li><a href={BASE + 'explorador'}><Icon name="code" /> Explorador SQL</a></li>
+          <li><a href={BASE + 'desenvolvedores'}><Icon name="code" /> Devs & API</a></li>
+          <li><a href={BASE + 'status'}><Icon name="signal" /> Status do Arquivo</a></li>
         </ul>
       </details>
     </li>
-    <li><a href={BASE + 'sobre'} aria-current={isActive(BASE + 'sobre') ? 'page' : undefined}>Sobre</a></li>
+    <li>
+      <a href={BASE + 'sobre'} aria-current={isActive(BASE + 'sobre') ? 'page' : undefined}>
+        <Icon name="info" /> Sobre
+      </a>
+    </li>
     <li>
       <a href={BASE + 'busca'} class="contrast" aria-label="Buscar">
         <Icon name="search" />
