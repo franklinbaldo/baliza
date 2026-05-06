@@ -160,10 +160,14 @@ article[data-invalid="true"],
 }
 
 /* WHY: the embed flag (<html data-embed="true">) hides chrome for
-   third-party iframes. Native HTML has no equivalent. */
+   third-party iframes. Native HTML has no equivalent. The page-level
+   <hgroup> right under <main> is also chrome (it duplicates context the
+   embedding partner already provides), so it is hidden too. */
 [data-embed="true"] > body > nav,
 [data-embed="true"] > body > footer,
-[data-embed="true"] > body > a[href="#main-content"] {
+[data-embed="true"] > body > a[href="#main-content"],
+[data-embed="true"] main > hgroup,
+[data-embed="true"] main > header {
   display: none;
 }
 
