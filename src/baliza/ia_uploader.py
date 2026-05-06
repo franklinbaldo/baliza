@@ -445,7 +445,19 @@ class IAUploader:
         with tempfile.TemporaryDirectory() as tmp_dir:
             temp_path = Path(tmp_dir)
             zip_path = temp_path / zip_basename
-            shutil.make_archive(str(zip_path.with_suffix("")), "zip", raw_dir)
+
+            # Per-resource scoping: pack only this resource's pages
+            # (matching ``{resource}_p*.json``) so a sequential
+            # ``mirror --resource contratos`` followed by
+            # ``mirror --resource atas`` doesn't end up with one
+            # resource's zip containing the other's cached pages —
+            # which would make the published raw_zip_sha256
+            # misrepresent the artifact.
+            page_glob = f"{resource}_p*.json"
+            page_files = sorted(raw_dir.glob(page_glob))
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+                for page_path in page_files:
+                    zf.write(page_path, page_path.name)
 
             raw_zip_sha256 = _sha256(zip_path)
             raw_zip_size = zip_path.stat().st_size
