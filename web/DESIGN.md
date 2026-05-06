@@ -38,6 +38,25 @@ Astro generates static shells. Svelte is reserved for interactive data islands.
 **10. Truthful metrics over vanity.**
 Show successful syncs, quarantine counts, timestamps, and source links without hiding failure modes.
 
+## Pico CSS Primitives Mapping
+
+Baliza's design language is executed through Pico primitives plus a thin `global.css` extension layer.
+
+- Cards and panels: use `<article>`.
+- Page and section headers: use `<header><hgroup><h2>...</h2><p>...</p></hgroup></header>`.
+- Navigation: use `<nav>`, lists, and semantic links.
+- Disclosure and filters: use `<details>` and `<summary>` when appropriate.
+- Loading states: use `aria-busy="true"`; use `.is-skeleton` only for skeleton placeholders already defined in `global.css`.
+- Error and alert messages: use `<article role="alert" data-invalid="true">`.
+- Neutral async/status messages: use `[role="status"]`.
+- Buttons: use `<button>`, `<button class="outline">`, `<button class="secondary">`, or `<a role="button">` when the element is truly navigational.
+- Actions layout: use the global `.actions` utility.
+- Badges and compact metadata: use `[data-badge]`.
+- Icons or icon-leading labels: use `[data-icon]`.
+- Horizontal tables: wrap `<table>` in `.table-scroll`.
+
+*Note: Baliza does not create a parallel component styling system. Pico is the primitive layer; `global.css` is the civic design-system layer; Svelte/Astro components provide behavior and composition, not local visual law.*
+
 ## Practical Defaults
 
 - Use `Fraunces` for display hierarchy, `Manrope` for UI text, and `JetBrains Mono` for metrics and identifiers.
