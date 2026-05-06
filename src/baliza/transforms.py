@@ -76,3 +76,39 @@ def _flatten_contrato(dumped: dict[str, Any]) -> dict[str, Any]:
         "url_cipi": dumped.get("urlCipi"),
         "usuario_nome": dumped.get("usuarioNome"),
     }
+
+
+def _flatten_ata(dumped: dict[str, Any]) -> dict[str, Any]:
+    """Flatten a Pydantic-dumped RecuperarAtaDTO into a snake_case scalar shape.
+
+    The atas endpoint's payload is already flat (no nested orgaoEntidade /
+    unidadeOrgao structs unlike contratos), so this is mostly a rename pass.
+    Kept as a separate function so the canonical column names live in one
+    place and the schema is easy to extend if the PNCP API ever adds nested
+    structs (mirrors the contratos pattern).
+    """
+    return {
+        "numero_controle_pncp_ata": dumped.get("numeroControlePNCPAta"),
+        "numero_ata_registro_preco": dumped.get("numeroAtaRegistroPreco"),
+        "ano_ata": dumped.get("anoAta"),
+        "numero_controle_pncp_compra": dumped.get("numeroControlePNCPCompra"),
+        "cancelado": dumped.get("cancelado"),
+        "data_cancelamento": dumped.get("dataCancelamento"),
+        "data_assinatura": dumped.get("dataAssinatura"),
+        "vigencia_inicio": dumped.get("vigenciaInicio"),
+        "vigencia_fim": dumped.get("vigenciaFim"),
+        "data_publicacao_pncp": dumped.get("dataPublicacaoPncp"),
+        "data_inclusao": dumped.get("dataInclusao"),
+        "data_atualizacao": dumped.get("dataAtualizacao"),
+        "data_atualizacao_global": dumped.get("dataAtualizacaoGlobal"),
+        "usuario": dumped.get("usuario"),
+        "objeto_contratacao": dumped.get("objetoContratacao"),
+        "cnpj_orgao": dumped.get("cnpjOrgao"),
+        "nome_orgao": dumped.get("nomeOrgao"),
+        "cnpj_orgao_subrogado": dumped.get("cnpjOrgaoSubrogado"),
+        "nome_orgao_subrogado": dumped.get("nomeOrgaoSubrogado"),
+        "codigo_unidade_orgao": dumped.get("codigoUnidadeOrgao"),
+        "nome_unidade_orgao": dumped.get("nomeUnidadeOrgao"),
+        "codigo_unidade_orgao_subrogado": dumped.get("codigoUnidadeOrgaoSubrogado"),
+        "nome_unidade_orgao_subrogado": dumped.get("nomeUnidadeOrgaoSubrogado"),
+    }

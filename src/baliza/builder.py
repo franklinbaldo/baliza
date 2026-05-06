@@ -51,6 +51,11 @@ def _pending_build_months(
 
     pending_set: set[date] = set()
     for row in raw_manifest:
+        # Per-resource scoping: ignore rows that belong to a different
+        # canonical table so contratos rows don't trigger atas rebuilds
+        # (and vice versa) once the manifest carries multiple resources.
+        if row.get("table_name") != resource:
+            continue
         part = row.get("data_particao") or ""
         if not part:
             continue
@@ -97,6 +102,7 @@ def build_month(  # noqa: PLR0913, PLR0915
     dry_run: bool = False,
     log_fn: object = None,
     manifest: list[dict] | None = None,
+    resource: str = RESOURCE_CONTRATOS,
 ) -> dict[str, object]:
     """Download the raw ZIP from IA, ingest into DuckDB, export and upload Parquet.
 
@@ -109,6 +115,9 @@ def build_month(  # noqa: PLR0913, PLR0915
         manifest: Pre-fetched manifest rows. When None, fetches from IA.
             Pass this when building multiple months to avoid one network
             call per month.
+        resource: PNCP resource name (default 'contratos'). Routes the
+            ingestion through the resource's entity_model and canonical
+            tables — see PNCPResource.
 
     Returns:
         Dict with keys: ``month``, ``valid``, ``quarantine``, ``uploaded``.
@@ -128,9 +137,17 @@ def build_month(  # noqa: PLR0913, PLR0915
 
     # Resolve raw_zip_url from manifest — decoupled from item naming so it
     # works whether the ZIP lives in baliza-pncp-raw or a per-month item.
+    # Scope by table_name so atas rows don't feed contratos builds (and
+    # vice versa) once the manifest carries multiple resources.
     rows = manifest if manifest is not None else read_manifest_from_ia()
     manifest_row = next(
-        (r for r in rows if r.get("data_particao") == month_str and r.get("raw_zip_url")),
+        (
+            r
+            for r in rows
+            if r.get("data_particao") == month_str
+            and r.get("table_name") == resource
+            and r.get("raw_zip_url")
+        ),
         None,
     )
     if not manifest_row:
@@ -178,7 +195,7 @@ def build_month(  # noqa: PLR0913, PLR0915
 
             month_start_dt = datetime.combine(start_of_month, datetime.min.time())
             with PNCPExtractor(engine=engine) as extractor:
-                stats = extractor.ingest_range(month_start_dt)
+                stats = extractor.ingest_range(month_start_dt, resource=resource)
                 result["valid"] = stats.get("valid", 0)
                 result["quarantine"] = stats.get("quarantine", 0)
 
@@ -201,6 +218,7 @@ def build_month(  # noqa: PLR0913, PLR0915
                 quarantine_stats=stats,
                 quarantine_csv=q_csv if has_q else None,
                 schema_version=SCHEMA_VERSION,
+                resource=resource,
             )
             result["uploaded"] = uploaded
 

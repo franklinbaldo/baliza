@@ -18,18 +18,21 @@ def test_builder_parses_month_partition():
         {
             "data_particao": "2024-01",
             "raw_zip_url": "url1",
+            "table_name": "contratos",
             "mirror_uploaded_at": "123",
             "parquet_uploaded_at": "",
         },
         {
             "data_particao": "2024-02",
             "raw_zip_url": "url2",
+            "table_name": "contratos",
             "mirror_uploaded_at": "123",
             "parquet_uploaded_at": "",
         },
         {
             "data_particao": "invalid-format",
             "raw_zip_url": "url3",
+            "table_name": "contratos",
             "mirror_uploaded_at": "123",
             "parquet_uploaded_at": "",
         },
@@ -52,6 +55,7 @@ def test_builder_parses_month_partition():
         {
             "data_particao": "2024-03-01",
             "raw_zip_url": "url4",
+            "table_name": "contratos",
             "mirror_uploaded_at": "123",
             "parquet_uploaded_at": "",
         }
