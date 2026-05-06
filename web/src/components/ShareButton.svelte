@@ -46,35 +46,44 @@
   async function handleClick(event: MouseEvent) {
     event.preventDefault();
     event.stopPropagation();
+    event.stopImmediatePropagation();
     const target = resolvedUrl();
     if (!target) return;
     const payload: ShareData = { url: target, title: resolvedTitle() };
     if (text) payload.text = text;
-    try {
-      if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+
+    // Try native share first when available. AbortError from
+    // navigator.share specifically means the user dismissed the
+    // share-sheet — silently return to idle without falling through to
+    // clipboard. Other share failures (policy, unsupported payload,
+    // platform quirks) fall through so the share intent still completes
+    // via clipboard.
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      try {
         await navigator.share(payload);
         status = 'shared';
-      } else {
-        await navigator.clipboard.writeText(target);
-        status = 'copied';
-      }
-    } catch (err) {
-      // The Web Share API rejects with AbortError when the user dismisses
-      // the share-sheet. That's not a failure — silently return to idle.
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        status = 'idle';
+        scheduleReset();
         return;
-      }
-      // Other share failures (policy restrictions, unsupported payload,
-      // platform quirks) shouldn't strand the user — copy the URL so the
-      // share intent still completes.
-      try {
-        await navigator.clipboard.writeText(target);
-        status = 'copied';
-      } catch {
-        status = 'error';
+      } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          status = 'idle';
+          return;
+        }
+        // fall through to clipboard
       }
     }
+
+    try {
+      await navigator.clipboard.writeText(target);
+      status = 'copied';
+    } catch {
+      status = 'error';
+    }
+    scheduleReset();
+    return;
+  }
+
+  function scheduleReset() {
     if (timer !== null) clearTimeout(timer);
     timer = setTimeout(() => {
       status = 'idle';
