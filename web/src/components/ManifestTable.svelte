@@ -32,13 +32,9 @@
   });
 </script>
 
-<div>
+<figure>
   {#if loading}
-    <div aria-busy="true" aria-label="Carregando manifesto">
-      {#each [1, 2, 3] as _, i (i)}
-        <div></div>
-      {/each}
-    </div>
+    <article aria-busy="true" class="is-skeleton" aria-label="Carregando manifesto"><p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p></article>
   {:else if failed}
     <AlertBanner
       title="Manifesto indisponível"
@@ -46,7 +42,7 @@
       level="warning"
     />
   {:else}
-    <div>
+    <div class="table-scroll">
       <table data-testid="manifest-table">
         <thead>
           <tr>
@@ -65,18 +61,21 @@
                   {row.parquet_url.split('/').slice(-2).join('/')}
                 </a>
               </td>
-              <td>{row.table_name}</td>
+              <td><code>{row.table_name}</code></td>
               <td>{row.data_particao}</td>
-              <td title={row.sha256 ?? ''}>{shortHash(row.sha256)}</td>
+              <td title={row.sha256 ?? ''}><code>{shortHash(row.sha256)}</code></td>
               <td>{row.row_group_size ?? '—'}</td>
             </tr>
           {/each}
         </tbody>
       </table>
     </div>
-    <p>
-      Mostrando {rows.length} de {rows.length === ROW_LIMIT ? `≥${ROW_LIMIT}` : rows.length} linhas. <a href={IA_MANIFEST_URL} target="_blank" rel="noopener">Ver manifesto completo</a>.
-    </p>
+    <figcaption>
+      <small>
+        Mostrando {rows.length} de {rows.length === ROW_LIMIT ? `≥${ROW_LIMIT}` : rows.length} linhas.
+        <a href={IA_MANIFEST_URL} target="_blank" rel="noopener">Ver manifesto completo</a>.
+      </small>
+    </figcaption>
   {/if}
-</div>
+</figure>
 

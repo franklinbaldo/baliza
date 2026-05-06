@@ -171,7 +171,8 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       expect(chart).toBeTruthy();
       // Twelve buckets even when some are empty — the rolling axis is part
       // of the contract so journalists do not misread a gap as a pause.
-      const rows = chart.querySelectorAll('.monthly-chart li');
+      // Pico migration: chart is <figure data-testid="monthly-chart"><ul><li>.
+      const rows = chart.querySelectorAll('ul li');
       expect(rows.length).toBe(12);
     });
   });

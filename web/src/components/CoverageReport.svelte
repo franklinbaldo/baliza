@@ -137,7 +137,7 @@
   </header>
 
   {#if referenceError && referenceError.message.includes('404')}
-    <div role="status">
+    <article role="status">
       <p>
         <strong>Cadastro de referência ainda não publicado.</strong>
         O dataset <code>cnpj-orgaos-publicos.json</code> é gerado pela
@@ -145,34 +145,30 @@
         primeira execução agendada (dia 15 de cada mês) ou dispare
         manualmente no Actions tab para popular esta seção.
       </p>
-    </div>
+    </article>
   {:else if referenceError}
-    <div role="alert">
+    <article role="alert" data-invalid="true">
       <p>Falha ao carregar o cadastro de referência: {referenceError.message}.</p>
-    </div>
+    </article>
   {:else if publishingError}
-    <div role="alert">
+    <article role="alert" data-invalid="true">
       <p>
         Falha ao consultar o parquet de contratos: {publishingError.message}.
         O numerador (CNPJs publicadores) não pôde ser computado agora.
       </p>
-    </div>
+    </article>
   {:else if loading && !stats}
-    <div aria-busy="true">
-      <div></div>
-      <div></div>
-      <div></div>
-    </div>
+    <article aria-busy="true" class="is-skeleton"><p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p></article>
   {:else if stats}
-    <div>
-      <span>{formatInteger(stats.totalPublished)}</span>
-      <span>de</span>
-      <span>{formatInteger(stats.totalReference)}</span>
-      <span>órgãos públicos publicaram no PNCP</span>
-      <span>
-        {stats.coveragePct.toFixed(1)}%
-      </span>
-    </div>
+    <article>
+      <hgroup>
+        <strong>{formatInteger(stats.totalPublished)}</strong> <small>de</small>
+        <strong>{formatInteger(stats.totalReference)}</strong>
+        <p><small>órgãos públicos publicaram no PNCP</small></p>
+      </hgroup>
+      <progress value={stats.coveragePct} max="100"></progress>
+      <p><strong>{stats.coveragePct.toFixed(1)}%</strong></p>
+    </article>
 
     <table>
       <thead>
@@ -200,9 +196,9 @@
         <ul>
           {#each absences as a (a.raiz)}
             <li>
-              <span>{fmtCnpjRaiz(a.raiz)}</span>
-              <span>{a.nome}</span>
-              <span>nat. {a.natureza}</span>
+              <code>{fmtCnpjRaiz(a.raiz)}</code>
+              <strong>{a.nome}</strong>
+              <small>nat. {a.natureza}</small>
             </li>
           {/each}
         </ul>
@@ -210,9 +206,9 @@
     {/if}
 
     {#if dataParticao}
-      <p>
-        Dados a partir do snapshot Parquet de {formatParticao(dataParticao)} no Internet Archive.
-      </p>
+      <footer>
+        <small>Dados a partir do snapshot Parquet de {formatParticao(dataParticao)} no Internet Archive.</small>
+      </footer>
     {/if}
   {/if}
 </section>

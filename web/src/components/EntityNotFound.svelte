@@ -16,19 +16,16 @@
   const headingSuffix = $derived(type === 'contratação' ? 'não encontrada' : 'não encontrado');
 </script>
 
-<div in:fade>
-  <div>
-    <div>
-      <div>🔍</div>
-      <h2>{type.toUpperCase()} {headingSuffix}</h2>
-      <p>Identificador: <code>{id}</code></p>
-      <p>{error}</p>
-      
-      <div>
-        <a href={resolve('')}>Voltar para a Busca</a>
-        <a href={resolve('sobre')}>Metodologia e Dados</a>
-      </div>
-    </div>
-  </div>
-</div>
+<article in:fade data-invalid="true">
+  <hgroup>
+    <small>🔍</small>
+    <h2>{type.toUpperCase()} {headingSuffix}</h2>
+  </hgroup>
+  <p>Identificador: <code>{id}</code></p>
+  <p>{error}</p>
+  <footer class="actions">
+    <a href={resolve('')} role="button">Voltar para a Busca</a>
+    <a href={resolve('sobre')} role="button" class="outline">Metodologia e Dados</a>
+  </footer>
+</article>
 

@@ -41,24 +41,24 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     });
     And('the user can expand a table to see column names and types', async () => {
       const sidebar = screen.getByTestId('schema-sidebar');
-      // The `contratos` table is expanded by default; confirm at least one
-      // column row renders both the column name and its declared type.
-      const cols = sidebar.querySelectorAll('.schema-columns .schema-column');
+      // Pico migration: per-table sections are <details><summary>, columns
+      // are nested <ul><li><button> with <code> + <small> for name/type.
+      const openDetails = Array.from(sidebar.querySelectorAll<HTMLDetailsElement>('details[open]'));
+      expect(openDetails.length).toBeGreaterThan(0);
+      const cols = openDetails[0].querySelectorAll('li button');
       expect(cols.length).toBeGreaterThan(0);
       const first = cols[0];
-      expect(first.querySelector('.schema-column-name')?.textContent?.length).toBeGreaterThan(0);
-      expect(first.querySelector('.schema-column-type')?.textContent?.length).toBeGreaterThan(0);
+      expect(first.querySelector('code')?.textContent?.length).toBeGreaterThan(0);
+      expect(first.querySelector('small')?.textContent?.length).toBeGreaterThan(0);
 
       // Clicking a second table (orgaos) must expand it to reveal its columns.
-      const toggles = sidebar.querySelectorAll('.schema-table-toggle');
-      const orgaosToggle = Array.from(toggles).find(
-        (b) => b.textContent?.includes('orgaos'),
-      ) as HTMLButtonElement | undefined;
+      const summaries = sidebar.querySelectorAll<HTMLElement>('summary');
+      const orgaosToggle = Array.from(summaries).find((s) => s.textContent?.includes('orgaos'));
       expect(orgaosToggle).toBeTruthy();
       await fireEvent.click(orgaosToggle!);
       await tick();
-      const expandedCols = sidebar.querySelectorAll('.schema-columns');
-      expect(expandedCols.length).toBeGreaterThanOrEqual(2);
+      const expanded = sidebar.querySelectorAll('details[open]');
+      expect(expanded.length).toBeGreaterThanOrEqual(2);
     });
   });
 
@@ -162,7 +162,8 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
 
       Then('the user sees the same manifest entry hashes used by the explorer', async () => {
         await waitFor(() => expect(screen.getByTestId('manifest-table')).toBeTruthy(), { timeout: 2000 });
-        const hashCell = document.querySelector('.hash-cell') as HTMLElement | null;
+        // Pico migration: ManifestTable renders <td title=sha256><code>short</code></td>.
+const hashCell = document.querySelector('table tbody tr td[title]') as HTMLElement | null;
         expect(hashCell?.getAttribute('title')).toBe(SHARED_SHA256);
       });
     },

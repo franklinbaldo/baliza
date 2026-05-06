@@ -73,7 +73,7 @@
     {#if cityState.source !== 'default'}
       <input type="hidden" name="ibge" value={cityState.ibge} />
     {/if}
-    <fieldset role="group">
+    <fieldset>
       <input
         type="search"
         name="q"

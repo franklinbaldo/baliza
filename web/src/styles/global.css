@@ -118,6 +118,16 @@ h1, h2, hgroup > h1, hgroup > h2 {
   max-width: 56rem;
 }
 
+/* WHY: Pico's aria-invalid styles only apply to form elements; we
+   need an "error card" treatment on <article role=alert> too. Using a
+   data-attribute (instead of aria-invalid) keeps the markup valid:
+   <article> has implicit role=article, on which aria-invalid is not
+   a supported attribute per WAI-ARIA. */
+article[data-invalid="true"],
+[role="alert"][data-invalid="true"] {
+  border-color: var(--pico-del-color, #d93526);
+}
+
 /* WHY: Pico's aria-busy=true draws a per-element spinner but does
    not provide skeleton placeholders. These keep the loading-state
    dimensions stable so the layout doesn't jump. */

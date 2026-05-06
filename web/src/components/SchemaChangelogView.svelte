@@ -87,22 +87,28 @@
   };
 </script>
 
-<div>
+<section>
   <header>
-    <h1>Schema changelog</h1>
-    <p>Adições, remoções e renomeações de colunas nas tabelas do Baliza, em ordem cronológica inversa.</p>
+    <hgroup>
+      <h1>Schema changelog</h1>
+      <p>Adições, remoções e renomeações de colunas nas tabelas do Baliza, em ordem cronológica inversa.</p>
+    </hgroup>
   </header>
 
   <ol data-testid="schema-changelog-list">
     {#each ENTRIES as entry (entry.date + entry.column)}
       <li data-testid="schema-changelog-entry" data-kind={entry.kind}>
-        <time>{entry.date}</time>
-        <span>{kindLabel[entry.kind]}</span>
-        <span>{entry.table}</span>
-        <code>{entry.column}</code>
-        <p>{entry.note}</p>
+        <article>
+          <header>
+            <time>{entry.date}</time>
+            <small><mark>{kindLabel[entry.kind]}</mark></small>
+            <small><code>{entry.table}</code></small>
+          </header>
+          <p><code>{entry.column}</code></p>
+          <footer><small>{entry.note}</small></footer>
+        </article>
       </li>
     {/each}
   </ol>
-</div>
+</section>
 

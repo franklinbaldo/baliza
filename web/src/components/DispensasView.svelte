@@ -79,7 +79,7 @@
 
   <form role="search" onsubmit={handleSubmit}>
     <label for="dispensas-objeto-input" class="sr-only">Objeto a pesquisar</label>
-    <fieldset role="group">
+    <fieldset>
       <input id="dispensas-objeto-input" type="search" bind:value={searchInput} placeholder="Ex.: papel A4, manutenção de veículos..." aria-label="Objeto a pesquisar" />
       <button type="submit">Buscar</button>
     </fieldset>

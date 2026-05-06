@@ -75,92 +75,76 @@
   }
 </script>
 
-<section>
-  <div>
-    <div>
-      <div>📍</div>
-      <div>
-        <h3>Radar Local</h3>
-        <p>Encontre oportunidades perto de você usando geolocalização.</p>
-      </div>
-    </div>
+<article>
+  <header>
+    <hgroup>
+      <small>📍</small>
+      <h3>Radar Local</h3>
+      <p>Encontre oportunidades perto de você usando geolocalização.</p>
+    </hgroup>
+  </header>
 
-    {#if geoStatus === 'idle'}
-      <button onclick={handleFindLocal}>
-        Ativar Localizador
-      </button>
+  {#if geoStatus === 'idle'}
+    <button onclick={handleFindLocal}>Ativar Localizador</button>
+  {:else if geoStatus === 'locating'}
+    <p aria-busy="true">Buscando sua posição no mapa...</p>
+  {:else if geoStatus === 'denied'}
+    <EmptyState
+      title="Acesso à localização negado"
+      message="Para usar o Radar Local, permita o acesso à localização nas configurações do navegador."
+      actionHref={resolve('')}
+      actionLabel="Buscar manualmente"
+    />
+  {:else if geoStatus === 'error'}
+    <EmptyState
+      title="Falha na localização"
+      message="Não conseguimos determinar sua localização ou o município não foi encontrado."
+    />
+  {:else if geoStatus === 'ready'}
+    {#if loadingData}
+      <article aria-busy="true" class="is-skeleton" aria-label={`Consultando PNCP para ${cityInfo?.name ?? 'seu município'}`}>
+        <p>&nbsp;</p>
+        {#each [1, 2, 3] as _, i (i)}<p>&nbsp;</p>{/each}
+      </article>
+    {:else if data}
+      {#if data.archived}
+        <AlertBanner
+          title="Dados arquivados"
+          message={`PNCP indisponível — exibindo dados arquivados (última consolidação: ${formatParticao(data.archived.dataParticao)}).`}
+          level="info"
+        />
+      {/if}
 
-    {:else if geoStatus === 'locating'}
-      <div aria-busy="true">
-        <div aria-hidden="true"></div>
-        <p>Buscando sua posição no mapa...</p>
-      </div>
+      <header><h4>Visto recentemente em <strong>{cityInfo?.name}</strong></h4></header>
 
-    {:else if geoStatus === 'denied'}
-      <EmptyState
-        title="Acesso à localização negado"
-        message="Para usar o Radar Local, permita o acesso à localização nas configurações do navegador."
-        actionHref={resolve('')}
-        actionLabel="Buscar manualmente"
-      />
-
-    {:else if geoStatus === 'error'}
-      <EmptyState
-        title="Falha na localização"
-        message="Não conseguimos determinar sua localização ou o município não foi encontrado."
-      />
-
-    {:else if geoStatus === 'ready'}
-      {#if loadingData}
-        <div
-          aria-busy="true"
-          aria-label={`Consultando PNCP para ${cityInfo?.name ?? 'seu município'}`}
-        >
-          <div></div>
-          {#each [1, 2, 3] as _, i (i)}
-            <div></div>
-          {/each}
-        </div>
-      {:else if data}
-        {#if data.archived}
-          <AlertBanner
-            title="Dados arquivados"
-            message={`PNCP indisponível — exibindo dados arquivados (última consolidação: ${formatParticao(data.archived.dataParticao)}).`}
-            level="info"
-          />
-        {/if}
-
-        <div>
-          <div>
-            <h4>Visto recentemente em <strong>{cityInfo?.name}</strong></h4>
-          </div>
-
-          {#if data.contracts.length === 0}
-            <EmptyState
-              title="Nenhuma contratação recente"
-              message="O PNCP não retornou contratações recentes para este município."
-            />
-          {:else}
-            <div>
-              {#each data.contracts as bid (bid.numeroControlePNCP)}
-                <a href={resolve(`contratacao?id=${bid.numeroControlePNCP}`)}>
-                  <div>
-                    <span>#{bid.numeroControlePNCP}</span>
-                    <span>{formatDate(bid.dataPublicacaoPncp)}</span>
-                  </div>
-                  <p>{truncate(bid.objetoContratacao, 100)}</p>
-                </a>
-              {/each}
-            </div>
-          {/if}
-        </div>
-      {:else if bidsQuery.error}
+      {#if data.contracts.length === 0}
         <EmptyState
           title="Nenhuma contratação recente"
           message="O PNCP não retornou contratações recentes para este município."
         />
+      {:else}
+        <ul>
+          {#each data.contracts as bid (bid.numeroControlePNCP)}
+            <li>
+              <article>
+                <a href={resolve(`contratacao?id=${bid.numeroControlePNCP}`)}>
+                  <header>
+                    <code>#{bid.numeroControlePNCP}</code>
+                    <small>{formatDate(bid.dataPublicacaoPncp)}</small>
+                  </header>
+                  <p>{truncate(bid.objetoContratacao, 100)}</p>
+                </a>
+              </article>
+            </li>
+          {/each}
+        </ul>
       {/if}
+    {:else if bidsQuery.error}
+      <EmptyState
+        title="Nenhuma contratação recente"
+        message="O PNCP não retornou contratações recentes para este município."
+      />
     {/if}
-  </div>
-</section>
+  {/if}
+</article>
 

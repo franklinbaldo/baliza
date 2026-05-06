@@ -119,127 +119,114 @@
     // resolve into textarea state.
     if (typeof window !== 'undefined') {
       window.setTimeout(() => {
-        const ta = document.querySelector('.editor-zone textarea') as HTMLTextAreaElement | null;
+        // Selector hook moved from .editor-zone (CSS class, removed in
+        // the styling refactor) to a dedicated data-attribute so JS
+        // wiring no longer depends on styling concerns.
+        const ta = document.querySelector('[data-editor-zone] textarea') as HTMLTextAreaElement | null;
         if (ta) ta.focus();
       }, 0);
     }
   }
 </script>
 
-<div>
-  <div>
-    <div>🔍</div>
-    <div>
+<article>
+  <header>
+    <hgroup>
+      <small>🔍</small>
       <h3>SQL Explorer (Beta)</h3>
       <p>Consulte a base de contratos local usando SQL padrão.</p>
-    </div>
+    </hgroup>
     <button
       type="button"
+      class="outline"
       onclick={() => (schemaOpen = !schemaOpen)}
       aria-expanded={schemaOpen}
       aria-controls="schema-sidebar"
     >
       {schemaOpen ? 'Ocultar esquema' : 'Mostrar esquema'}
     </button>
-  </div>
+  </header>
 
-  <div>
+  <div class="grid">
     {#if schemaOpen}
-      <aside
-        id="schema-sidebar"
-        data-testid="schema-sidebar"
-        aria-label="Esquema das tabelas disponíveis"
-      >
+      <aside id="schema-sidebar" data-testid="schema-sidebar" aria-label="Esquema das tabelas disponíveis">
         <h4>Tabelas disponíveis</h4>
         <ul>
           {#each ARCHIVED_TABLES as table (table)}
             <li>
-              <button
-                type="button"
-                aria-expanded={!!expanded[table]}
-                onclick={() => toggle(table)}
-              >
-                <span>{table}</span>
-                <span aria-hidden="true">{expanded[table] ? '▾' : '▸'}</span>
-              </button>
-              {#if expanded[table]}
+              <details open={!!expanded[table]}>
+                <summary onclick={(e) => { e.preventDefault(); toggle(table); }}>
+                  <strong>{table}</strong>
+                </summary>
                 <ul>
                   {#each SCHEMA_MAP[table] as col (col.name)}
                     <li>
                       <button
                         type="button"
+                        class="outline"
                         onclick={() => insertFromColumn(table, col.name)}
                         title={`Inserir SELECT ${col.name}`}
                       >
-                        <span>{col.name}</span>
-                        <span>{col.type}</span>
+                        <code>{col.name}</code>
+                        <small>{col.type}</small>
                       </button>
                     </li>
                   {/each}
                 </ul>
-              {/if}
+              </details>
             </li>
           {/each}
         </ul>
       </aside>
     {/if}
 
-    <div>
-      <div role="group" aria-label="Consultas prontas">
-        <span>Consultas prontas:</span>
-        {#each featuredQueries as fq (fq.label)}
-          <button onclick={() => (query = fq.sql)}>
-            {fq.label}
-          </button>
-        {/each}
-      </div>
+    <section>
+      <details open>
+        <summary>Consultas prontas</summary>
+        <div role="group" aria-label="Consultas prontas">
+          {#each featuredQueries as fq (fq.label)}
+            <button class="outline" onclick={() => (query = fq.sql)}>{fq.label}</button>
+          {/each}
+        </div>
+      </details>
 
-      <div>
-        <textarea bind:value={query} spellcheck="false" aria-label="Consulta SQL"></textarea>
+      <fieldset data-editor-zone>
+        <label>
+          <span class="sr-only">Consulta SQL</span>
+          <textarea bind:value={query} spellcheck="false" aria-label="Consulta SQL" rows="6"></textarea>
+        </label>
         {#if hasUnresolvedUrl}
-          <div role="note">
+          <small role="note">
             ⚠️ Substitua <code>'IA_URL'</code> pela URL real do arquivo Parquet no Internet Archive antes de executar.
-          </div>
+          </small>
         {/if}
-        <button onclick={runQuery} disabled={loading || hasUnresolvedUrl}>
+        <button onclick={runQuery} disabled={loading || hasUnresolvedUrl} aria-busy={loading}>
           {loading ? "Executando..." : "Explorar Dados"}
         </button>
-      </div>
+      </fieldset>
 
       {#if error}
-        <div>
-          <AlertBanner title="Erro SQL" message={error} level="error" />
-        </div>
+        <AlertBanner title="Erro SQL" message={error} level="error" />
       {/if}
 
       {#if results.length > 0}
-        <div>
-          <div>
-            <span>{results.length} linhas retornadas</span>
-          </div>
-          <div>
+        <figure>
+          <figcaption><small>{results.length} linhas retornadas</small></figcaption>
+          <div class="table-scroll">
             <table>
               <thead>
-                <tr>
-                  {#each Object.keys(results[0]) as col (col)}
-                    <th>{col}</th>
-                  {/each}
-                </tr>
+                <tr>{#each Object.keys(results[0]) as col (col)}<th>{col}</th>{/each}</tr>
               </thead>
               <tbody>
                 {#each results as row, i (i)}
-                  <tr>
-                    {#each Object.values(row) as val, j (`${i}-${j}`)}
-                      <td>{val}</td>
-                    {/each}
-                  </tr>
+                  <tr>{#each Object.values(row) as val, j (`${i}-${j}`)}<td>{val}</td>{/each}</tr>
                 {/each}
               </tbody>
             </table>
           </div>
-        </div>
+        </figure>
       {/if}
-    </div>
+    </section>
   </div>
-</div>
+</article>
 

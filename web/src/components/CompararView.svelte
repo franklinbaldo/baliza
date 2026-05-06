@@ -99,7 +99,7 @@
   </header>
 
   <form role="search" onsubmit={handleSubmit}>
-    <fieldset role="group">
+    <fieldset>
       <input type="text" bind:value={searchIbge} placeholder="Código IBGE (ex: 3550308)" aria-label="Código IBGE" />
       <input type="text" bind:value={searchObjeto} placeholder="Objeto (ex: merenda)" aria-label="Objeto" />
       <button type="submit">Comparar</button>

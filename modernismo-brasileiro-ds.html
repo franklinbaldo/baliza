@@ -6,7 +6,9 @@
 <title>Modernismo Brasileiro · Design System</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-
+<!-- Standalone showcase: Pico from CDN since this page is not built
+     by the Astro pipeline (it lives at the repo root, not under web/). -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
 </head>
 <body data-palette="concretista">
 
@@ -196,13 +198,13 @@
 
   <div id="picker">
     <span>Paleta ativa</span>
-    <button data-palette-button="tarsila" title="Tarsila"></button>
-    <button data-palette-button="burle" title="Burle Marx"></button>
-    <button data-palette-button="concretista" title="Concretista"></button>
-    <button data-palette-button="tropicalista" title="Tropicalista"></button>
+    <button class="swatch" data-palette-button="tarsila" title="Tarsila"></button>
+    <button class="swatch" data-palette-button="burle" title="Burle Marx"></button>
+    <button class="swatch" data-palette-button="concretista" title="Concretista"></button>
+    <button class="swatch" data-palette-button="tropicalista" title="Tropicalista"></button>
   </div>
 
-  <ol>
+  <ol class="nav-list">
     <li><a href="#cover">Abertura</a></li>
     <li><a href="#manifesto">Manifesto</a></li>
     <li><a href="#cores">Cores</a></li>
@@ -1169,7 +1171,7 @@ function setPalette(p) {
   picker.querySelectorAll('.swatch').forEach(s => {
     s.dataset.active = (s.dataset.paletteButton === p) ? 'true' : 'false';
   });
-  document.querySelectorAll('.tile-grid[data-mode="random"]').forEach(populateGrid);
+  document.querySelectorAll('[data-tile][data-mode="random"]').forEach(populateGrid);
 }
 
 picker.querySelectorAll('.swatch').forEach(btn => {
@@ -1198,7 +1200,7 @@ function populateGrid(el) {
     el.appendChild(div);
   }
 }
-document.querySelectorAll('.tile-grid[data-tile]').forEach(populateGrid);
+document.querySelectorAll('[data-tile]').forEach(populateGrid);
 
 // ============================================================
 // Scroll spy: destaca seção ativa na nav
@@ -1222,7 +1224,7 @@ sections.forEach(s => { if (s) observer.observe(s); });
 // ============================================================
 // Copy buttons
 // ============================================================
-document.querySelectorAll('.copy-btn').forEach(btn => {
+document.querySelectorAll('button[data-copy]').forEach(btn => {
   btn.addEventListener('click', () => {
     const target = document.getElementById(btn.dataset.copy);
     if (!target) return;

@@ -30,20 +30,17 @@
 
 {#if error}
   <AlertBanner title="Erro de Leitura" message={error} level="error" />
-  <div>
-    <button onclick={loadStats}>Tentar novamente</button>
+  <div class="actions">
+    <button class="outline" onclick={loadStats}>Tentar novamente</button>
   </div>
 {:else if loading}
-  <div aria-busy="true" aria-label="Carregando estatísticas">
+  <div class="grid" aria-busy="true" aria-label="Carregando estatísticas">
     {#each [1, 2, 3] as _, i (i)}
-      <div>
-        <div></div>
-        <div></div>
-      </div>
+      <article aria-busy="true" class="is-skeleton"><p>&nbsp;</p><p>&nbsp;</p></article>
     {/each}
   </div>
 {:else if stats}
-  <div>
+  <div class="grid">
     <StatCard
       title="Contratos citáveis"
       value={formatInteger(stats.total_contracts)}

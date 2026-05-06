@@ -78,7 +78,9 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     When('the dashboard has finished loading', () => {});
 
     Then('the "Em quarentena" card should link to "/baliza/sobre#quarentena"', () => {
-      const link = screen.getByRole('link', { name: /em quarentena/i });
+      // Pico migration: StatCard wraps the link as <a role="button">, so
+      // the AT role is "button". Match by accessible name (any role).
+      const link = screen.getByRole('button', { name: /em quarentena/i });
       expect(link.getAttribute('href')).toBe('/baliza/sobre#quarentena');
     });
   });

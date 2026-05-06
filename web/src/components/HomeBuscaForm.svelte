@@ -6,15 +6,17 @@
   const action = resolve('busca');
 </script>
 
-<form method="get" action={action}>
-  <label for="home-busca-input">Buscar no PNCP</label>
-  <input
-    id="home-busca-input"
-    type="search"
-    name="q"
-    placeholder="Buscar por objeto (ex.: hospital municipal) ou número de controle PNCP…"
-    aria-label="Buscar no PNCP"
-  />
-  <button type="submit">Buscar</button>
+<form role="search" method="get" action={action}>
+  <label for="home-busca-input" class="sr-only">Buscar no PNCP</label>
+  <fieldset>
+    <input
+      id="home-busca-input"
+      type="search"
+      name="q"
+      placeholder="Buscar por objeto (ex.: hospital municipal) ou número de controle PNCP…"
+      aria-label="Buscar no PNCP"
+    />
+    <button type="submit">Buscar</button>
+  </fieldset>
 </form>
 

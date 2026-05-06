@@ -32,9 +32,9 @@
 
 {#if entries.length > 0}
   <section aria-labelledby="watch-title">
-    <div>
-      <header>
-        <span>Você está acompanhando</span>
+    <header>
+      <hgroup>
+        <small>Você está acompanhando</small>
         <h2 id="watch-title">
           {entries.length === 1 ? '1 item salvo' : `${entries.length} itens salvos`}
         </h2>
@@ -42,29 +42,28 @@
           Salvos neste navegador. Baliza não envia alertas por e-mail — abra esta página
           quando quiser revisitar os órgãos e fornecedores que você marcou.
         </p>
-      </header>
+      </hgroup>
+    </header>
 
-      <ul>
-        {#each entries as entry (entry.id)}
-          <li>
-            <div>
-              <span>{labelForType(entry.type)}</span>
-              <span>{entry.filter}</span>
-            </div>
-            <p>{entry.label}</p>
-            <div>
-              <a href={linkFor(entry)}>Abrir painel →</a>
-              <button
-                type="button"
-                onclick={() => removeWatch(entry.id)}
-                aria-label={`Remover ${entry.label} da lista`}
-              >
-                Remover
-              </button>
-            </div>
-          </li>
-        {/each}
-      </ul>
+    <div class="grid">
+      {#each entries as entry (entry.id)}
+        <article>
+          <header>
+            <small><mark>{labelForType(entry.type)}</mark></small>
+            <code>{entry.filter}</code>
+          </header>
+          <p><strong>{entry.label}</strong></p>
+          <footer class="actions">
+            <a href={linkFor(entry)} role="button">Abrir painel →</a>
+            <button
+              type="button"
+              class="outline secondary"
+              onclick={() => removeWatch(entry.id)}
+              aria-label={`Remover ${entry.label} da lista`}
+            >Remover</button>
+          </footer>
+        </article>
+      {/each}
     </div>
   </section>
 {/if}

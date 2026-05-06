@@ -12,11 +12,10 @@
   } from '../lib/geo';
 
   interface Props {
-    compact?: boolean;
     autofocus?: boolean;
     onselect?: (city: { ibge: string; nome: string; uf: string }) => void;
   }
-  let { compact = false, autofocus = false, onselect }: Props = $props();
+  let { autofocus = false, onselect }: Props = $props();
 
   let query = $state('');
   let results = $state<SearchMatch[]>([]);
@@ -131,7 +130,7 @@
     {/if}
   </header>
 
-  <fieldset role="group">
+  <fieldset>
     <input
       type="search"
       role="combobox"

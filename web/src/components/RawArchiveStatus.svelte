@@ -48,30 +48,27 @@
 
 {#if error}
   <AlertBanner title="Internet Archive indisponível" message={error} level="error" />
-  <div>
-    <button onclick={loadStatus}>Tentar novamente</button>
+  <div class="actions">
+    <button class="outline" onclick={loadStatus}>Tentar novamente</button>
   </div>
 {:else if loading}
-  <div aria-busy="true" aria-label="Carregando metadados do Internet Archive">
+  <div class="grid" aria-busy="true" aria-label="Carregando metadados do Internet Archive">
     {#each [1, 2, 3, 4] as _, i (i)}
-      <div>
-        <div></div>
-        <div></div>
-      </div>
+      <article aria-busy="true" class="is-skeleton"><p>&nbsp;</p><p>&nbsp;</p></article>
     {/each}
   </div>
 {:else if status}
-  <div>
-    <div>
-      <span>Fonte viva</span>
-      <strong>{status.downloadUrl}</strong>
-    </div>
-    <a href={status.metadataUrl} target="_blank" rel="noopener">
+  <header>
+    <hgroup>
+      <small>Fonte viva</small>
+      <p><strong>{status.downloadUrl}</strong></p>
+    </hgroup>
+    <a href={status.metadataUrl} target="_blank" rel="noopener" role="button" class="outline secondary">
       Ver metadata JSON
     </a>
-  </div>
+  </header>
 
-  <div>
+  <div class="grid">
     <StatCard
       title="Arquivos brutos (ZIP)"
       value={formatInteger(status.rawZipCount)}

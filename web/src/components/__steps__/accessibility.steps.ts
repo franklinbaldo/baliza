@@ -81,21 +81,24 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     });
 
     Then('the ".btn" button receives focus', async () => {
+      // Pico migration: empty-state action is rendered as <a role=button>,
+      // styled by Pico via the role rather than a .btn class.
       const btn = screen.getByText('Voltar').closest('a');
       expect(btn).toBeTruthy();
 
       (btn as HTMLElement).focus();
       expect(btn).toHaveFocus();
-      expect(btn).toHaveClass('btn');
+      expect(btn?.getAttribute('role')).toBe('button');
     });
 
     And('the ".bid-link-card" element receives focus', async () => {
+       // Pico migration: contract card is a wrapping <a> inside an <article>.
        const card = screen.getByText(/Test Bid/i).closest('a');
        expect(card).toBeTruthy();
 
        (card as HTMLElement).focus();
        expect(card).toHaveFocus();
-       expect(card).toHaveClass('bid-link-card');
+       expect(card?.closest('article')).toBeTruthy();
     });
   });
 });

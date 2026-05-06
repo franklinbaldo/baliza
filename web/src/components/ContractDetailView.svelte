@@ -115,18 +115,18 @@
 >
   {#snippet metaRow()}
     {#if data}
-      <span>ID: {data.numeroControlePNCP || id}</span>
-      <span>Publicação: {formatDate(data.dataPublicacaoPncp)}</span>
+      <small>ID: <code>{data.numeroControlePNCP || id}</code></small>
+      <small>Publicação: {formatDate(data.dataPublicacaoPncp)}</small>
       {#if effectiveSnapshot}
-        <span data-testid="snapshot-date">
-          Snapshot: <time datetime={effectiveSnapshot}>{formatParticao(effectiveSnapshot)}</time>
-        </span>
+        <small data-testid="snapshot-date">
+          Snapshot: <mark><time datetime={effectiveSnapshot}>{formatParticao(effectiveSnapshot)}</time></mark>
+        </small>
       {/if}
     {/if}
   {/snippet}
 
   {#if data}
-    <div>
+    <blockquote>
       <p data-testid="plain-language-summary">
         {#if data.orgaoEntidade?.razaoSocial}
           <strong>{data.orgaoEntidade.razaoSocial}</strong>
@@ -147,16 +147,20 @@
         para <strong>{data.objetoContratacao || 'um objeto não descrito'}</strong>{data.modalidadeNome ? `, via ${data.modalidadeNome}` : ''}.
       </p>
       {#if data.supplierCnpj}
-        <button
-          onclick={() => addWatch('supplier', data.supplierCnpj!, data.supplierName ?? data.supplierCnpj!)}
-          disabled={isSupplierWatched}
-        >
-          {isSupplierWatched ? '✓ Acompanhando' : 'Acompanhar este fornecedor'}
-        </button>
+        <footer>
+          <button
+            class="outline"
+            onclick={() => addWatch('supplier', data.supplierCnpj!, data.supplierName ?? data.supplierCnpj!)}
+            disabled={isSupplierWatched}
+            aria-pressed={isSupplierWatched}
+          >
+            {isSupplierWatched ? '✓ Acompanhando' : 'Acompanhar este fornecedor'}
+          </button>
+        </footer>
       {/if}
-    </div>
+    </blockquote>
 
-    <div>
+    <div class="grid">
       <section>
         <h3>Detalhes da Contratação</h3>
         <dl>

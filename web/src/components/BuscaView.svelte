@@ -315,7 +315,7 @@
   </header>
 
   <form role="search" onsubmit={handleSubmit}>
-    <fieldset role="group">
+    <fieldset>
       <label for="busca-input" class="sr-only">Termo a pesquisar</label>
       <input
         id="busca-input"

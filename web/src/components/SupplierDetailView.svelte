@@ -186,8 +186,8 @@
 >
   {#snippet metaRow()}
     {#if data}
-      <span>CNPJ: {data.cnpj}</span>
-      <span>Fonte: Arquivo Parquet (IA)</span>
+      <small>CNPJ: <code>{data.cnpj}</code></small>
+      <small>Fonte: <mark>Arquivo Parquet (IA)</mark></small>
     {/if}
   {/snippet}
 
@@ -200,36 +200,31 @@
         actionLabel="Voltar à busca"
       />
     {:else}
-      <div>
-        <button
-          onclick={() => addWatch('supplier', data.cnpj, data.name)}
-          disabled={isWatched('supplier', data.cnpj)}
-        >
+      <div role="group" class="actions">
+        <button class="outline" onclick={() => addWatch('supplier', data.cnpj, data.name)} disabled={isWatched('supplier', data.cnpj)} aria-pressed={isWatched('supplier', data.cnpj)}>
           {isWatched('supplier', data.cnpj) ? '✓ Acompanhando' : 'Acompanhar fornecedor'}
         </button>
       </div>
 
-      <section>
+      <section class="grid">
         <article data-testid="avg-ticket">
           <h3>Ticket médio</h3>
-          <p>{formatBRL(data.avgTicket)}</p>
-          <p>Média dos valores globais dos últimos 50 contratos no arquivo.</p>
+          <p><strong>{formatBRL(data.avgTicket)}</strong></p>
+          <footer><small>Média dos valores globais dos últimos 50 contratos no arquivo.</small></footer>
         </article>
 
         <article data-testid="competing-suppliers">
           <h3>Fornecedores concorrentes</h3>
           {#if competitors.length === 0}
-            <p>
-              Sem dados suficientes para listar concorrentes no órgão com mais contratações deste fornecedor.
-            </p>
+            <p><small>Sem dados suficientes para listar concorrentes no órgão com mais contratações deste fornecedor.</small></p>
           {:else}
             <ol>
               {#each competitors as c, i (`${c.cnpj}-${i}`)}
                 <li>
-                  <span>#{i + 1}</span>
+                  <small>#{i + 1}</small>
                   <a href={resolve(`fornecedor?cnpj=${c.cnpj}`)} title={c.name}>{c.name}</a>
-                  <span>{c.cnpj}</span>
-                  <span>{c.count}</span>
+                  <code>{c.cnpj}</code>
+                  <small>{c.count}</small>
                 </li>
               {/each}
             </ol>
@@ -238,9 +233,7 @@
       </section>
 
       <section data-testid="contract-history">
-        <div>
-          <h3>Histórico de contratações (últimos 50 do arquivo)</h3>
-        </div>
+        <header><h3>Histórico de contratações (últimos 50 do arquivo)</h3></header>
         <PaginatedList items={data.contracts} pageSize={10}>
           {#snippet children(pageItems)}
             {#each pageItems as item (item.numeroControlePNCP)}

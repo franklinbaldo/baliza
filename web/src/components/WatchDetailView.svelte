@@ -139,9 +139,11 @@
     />
   {:else if entry}
     <header>
-      <span>Vigilância</span>
-      <h1>{entry.label}</h1>
-      <p>{entry.filter}</p>
+      <hgroup>
+        <small><mark>Vigilância</mark></small>
+        <h1>{entry.label}</h1>
+        <p><code>{entry.filter}</code></p>
+      </hgroup>
     </header>
 
     {#if previousVisited}
@@ -151,19 +153,15 @@
       >
         <h2 id="watch-diff-title">Novidades desde sua última visita</h2>
         {#if newSinceVisit.length === 0}
-          <p>
-            Nenhuma novidade desde {formatDate(previousVisited)}.
-          </p>
+          <p><small>Nenhuma novidade desde {formatDate(previousVisited)}.</small></p>
         {:else}
           <ul>
             {#each newSinceVisit as c (c.numeroControlePNCP)}
               <li data-testid="watch-diff-item">
                 <a href={linkFor(c)}>
-                  <span>{c.objetoContratacao}</span>
-                  <span>
-                    <span>{formatDate(c.dataPublicacaoPncp ?? '')}</span>
-                    <span>{formatBRL(c.valorTotalEstimado ?? null)}</span>
-                  </span>
+                  <strong>{c.objetoContratacao}</strong>
+                  <small>{formatDate(c.dataPublicacaoPncp ?? '')}</small>
+                  <strong>{formatBRL(c.valorTotalEstimado ?? null)}</strong>
                 </a>
               </li>
             {/each}
@@ -175,7 +173,7 @@
     <section aria-labelledby="watch-all-title">
       <h2 id="watch-all-title">Todos os resultados</h2>
       {#if loading}
-        <p>Buscando…</p>
+        <p aria-busy="true">Buscando…</p>
       {:else if error}
         <AlertBanner title="Não foi possível buscar" message={error.message} level="error" />
       {:else if results.length === 0}
@@ -185,8 +183,8 @@
           {#each results as c (c.numeroControlePNCP)}
             <li>
               <a href={linkFor(c)}>
-                <span>{c.objetoContratacao}</span>
-                <span>{formatDate(c.dataPublicacaoPncp ?? '')}</span>
+                <strong>{c.objetoContratacao}</strong>
+                <small>{formatDate(c.dataPublicacaoPncp ?? '')}</small>
               </a>
             </li>
           {/each}

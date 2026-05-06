@@ -203,16 +203,18 @@
 >
   {#snippet metaRow()}
     {#if data}
-      <span>CNPJ: {data.cnpj}</span>
-      <span>Fonte: {data.archived ? 'Arquivo Parquet (IA)' : 'PNCP V1'}</span>
+      <small>CNPJ: <code>{data.cnpj}</code></small>
+      <small>Fonte: <mark>{data.archived ? 'Arquivo Parquet (IA)' : 'PNCP V1'}</mark></small>
     {/if}
   {/snippet}
 
   {#snippet headerActions()}
     {#if data}
       <button
+        class="outline"
         onclick={() => addWatch('agency', data.cnpj, data.name)}
         disabled={isAgencyWatched}
+        aria-pressed={isAgencyWatched}
       >
         {isAgencyWatched ? '✓ Acompanhando' : 'Receber alertas deste órgão'}
       </button>
@@ -228,48 +230,46 @@
         actionLabel="Voltar à busca"
       />
     {:else}
-      <section>
+      <section class="grid">
         <article data-testid="top-suppliers">
           <h3>Top 5 fornecedores</h3>
           {#if data.topSuppliers.length === 0}
-            <p>
+            <p><small>
               Dados de fornecedor disponíveis apenas no snapshot Parquet.
               Alterne a janela para consultar o arquivo.
-            </p>
+            </small></p>
           {:else}
             <ol>
               {#each data.topSuppliers as s, i (`${s.cnpj || s.name}-${i}`)}
                 <li>
-                  <span>#{i + 1}</span>
-                  <span>{s.name}</span>
-                  <span>{s.count}</span>
+                  <small>#{i + 1}</small>
+                  <strong>{s.name}</strong>
+                  <small>{s.count}</small>
                 </li>
               {/each}
             </ol>
           {/if}
         </article>
 
-        <article data-testid="monthly-chart">
-          <h3>Contratos por mês (12 meses)</h3>
+        <figure data-testid="monthly-chart">
+          <figcaption>Contratos por mês (12 meses)</figcaption>
           <ul aria-label="Contratos por mês">
             {#each data.monthly as m (m.month)}
               <li>
-                <span>{m.label}</span>
-                <span
-                  aria-hidden="true"
-                ></span>
-                <span>{m.count}</span>
+                <small>{m.label}</small>
+                <progress value={m.count} max={maxMonthly} aria-hidden="true"></progress>
+                <small>{m.count}</small>
               </li>
             {/each}
           </ul>
-        </article>
+        </figure>
       </section>
 
       <section>
-        <div>
+        <header>
           <h3>Portfólio de Contratações Recentes</h3>
           <LookbackWindow value={dias} onchange={updateDias} />
-        </div>
+        </header>
         <PaginatedList items={data.contracts} pageSize={10} resetTrigger={dias}>
           {#snippet children(pageItems)}
             {#each pageItems as item (item.numeroControlePNCP)}

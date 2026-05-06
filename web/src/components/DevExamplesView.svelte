@@ -1,4 +1,4 @@
-<div>
+<div class="grid">
   <section data-testid="dev-example-python">
     <h2>Python (pandas + pyarrow)</h2>
     <pre><code>{`import pandas as pd

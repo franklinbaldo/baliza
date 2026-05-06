@@ -34,26 +34,28 @@
   });
 </script>
 
-<div>
-  <label for="catmat-input">Descrição do item para busca CATMAT</label>
-  <input
-    id="catmat-input"
-    type="search"
-    bind:value={searchInput}
-    placeholder="Ex.: papel sulfite A4 75g, caneta esferográfica..."
-  />
+<search>
+  <label for="catmat-input">
+    Descrição do item para busca CATMAT
+    <input
+      id="catmat-input"
+      type="search"
+      bind:value={searchInput}
+      placeholder="Ex.: papel sulfite A4 75g, caneta esferográfica..."
+    />
+  </label>
   {#if error}
-    <p role="alert">Não foi possível carregar o catálogo: {error}</p>
+    <small role="alert">Não foi possível carregar o catálogo: {error}</small>
   {:else if results.length > 0}
-    <ul data-testid="catmat-results">
+    <ul data-testid="catmat-results" role="listbox">
       {#each results as entry (entry.type + ':' + entry.code)}
-        <li data-testid="catmat-result-item">
-          <span>{entry.code}</span>
-          <span>{entry.type}</span>
-          <span>{entry.description}</span>
+        <li data-testid="catmat-result-item" role="option" aria-selected="false">
+          <code>{entry.code}</code>
+          <small><mark>{entry.type}</mark></small>
+          <p>{entry.description}</p>
         </li>
       {/each}
     </ul>
   {/if}
-</div>
+</search>
 

@@ -114,19 +114,18 @@
   kicker="🏙️ MUNICÍPIO"
   iconId="t3"
   title={data ? `${data.name} / ${data.uf}` : ""}
-  headerStyle="margin-bottom: var(--space-xl);"
   metaTestId="city-meta"
   hasStatSkeleton={true}
 >
   {#snippet metaRow()}
     {#if data}
-      <span>Cód. IBGE: {data.ibge}</span>
-      <span>Fonte: {data.archived ? 'Arquivo Parquet (IA)' : 'PNCP V1'}</span>
+      <small>Cód. IBGE: <code>{data.ibge}</code></small>
+      <small>Fonte: <mark>{data.archived ? 'Arquivo Parquet (IA)' : 'PNCP V1'}</mark></small>
     {/if}
   {/snippet}
 
   {#if data}
-    <div>
+    <div class="grid">
       <StatCard title="Contratações Recentes" value={stats.count} hint="Últimos 30 dias (máx. 50)" />
       <StatCard title="Valor Estimado (Amostra)" value={formatBRL(stats.totalValue)} tone="success" hint="Soma das contratações listadas" />
     </div>

@@ -100,7 +100,7 @@
 
   <form role="search" onsubmit={handleSubmit}>
     <label for="mercado-objeto-input" class="sr-only">Objeto a pesquisar</label>
-    <fieldset role="group">
+    <fieldset>
       <input id="mercado-objeto-input" type="search" bind:value={searchInput} placeholder="Ex.: merenda escolar..." aria-label="Objeto a pesquisar" />
       <button type="submit">Buscar</button>
     </fieldset>

@@ -21,7 +21,6 @@
     kicker: string;
     iconId: string;
     title: string;
-    headerStyle?: string;
     metaTestId?: string;
 
     hasStatSkeleton?: boolean;
@@ -48,7 +47,6 @@
     kicker,
     iconId,
     title,
-    headerStyle = "",
     metaTestId,
 
     hasStatSkeleton = false,
@@ -61,64 +59,44 @@
   const defaultErrorTitle = $derived(`${entityType.charAt(0).toUpperCase() + entityType.slice(1)} não encontrado`);
 </script>
 
-<div>
+<article>
   {#if !id}
     <EntityNotFound id="ausente" type={entityType} />
   {:else if !idValid}
-    <EntityNotFound
-      id={id}
-      type={entityType}
-      error={idFormatError}
-    />
+    <EntityNotFound id={id} type={entityType} error={idFormatError} />
   {:else if loading}
-    <div aria-busy="true" aria-label={`Carregando dados do ${entityType}`}>
-      <div></div>
-      <div></div>
-      {#if hasStatSkeleton}
-        <div></div>
-      {/if}
-      {#each [1, 2, 3] as _, i (i)}
-        <div></div>
-      {/each}
-    </div>
+    <article aria-busy="true" class="is-skeleton" aria-label={`Carregando dados do ${entityType}`}>
+      <p>&nbsp;</p>
+      <p>&nbsp;</p>
+      {#if hasStatSkeleton}<p>&nbsp;</p>{/if}
+      {#each [1, 2, 3] as _, i (i)}<p>&nbsp;</p>{/each}
+    </article>
   {:else if error}
-    <div>
+    <article data-invalid="true">
       <AlertBanner title={errorTitle || defaultErrorTitle} message={error.message} level="error" />
-      <div>
-        <a href={resolve('')}>Voltar à busca</a>
-      </div>
-    </div>
+      <footer><a href={resolve('')} role="button" class="outline">Voltar à busca</a></footer>
+    </article>
   {:else if dataReady}
     {#if archivedParticao && archiveMessage}
-      <AlertBanner
-        title="Dados arquivados"
-        message={archiveMessage}
-        level="info"
-      />
+      <AlertBanner title="Dados arquivados" message={archiveMessage} level="info" />
     {/if}
     <header>
-      <div>
-        <div>
-          <span>{kicker}</span>
-          <div>
-            <svg width="32" height="32" aria-hidden="true"><use href={`#${iconId}`}/></svg>
-            <h1>{title}</h1>
-          </div>
-          {#if metaRow}
-            <div data-testid={metaTestId}>
-              {@render metaRow()}
-            </div>
-          {/if}
-        </div>
-        {#if headerActions}
-          {@render headerActions()}
+      <hgroup>
+        <small><mark>{kicker}</mark></small>
+        <h1>
+          <svg width="32" height="32" aria-hidden="true"><use href={`#${iconId}`}/></svg>
+          {title}
+        </h1>
+        {#if metaRow}
+          <p data-testid={metaTestId}>{@render metaRow()}</p>
         {/if}
-      </div>
+      </hgroup>
+      {#if headerActions}
+        <div class="actions">{@render headerActions()}</div>
+      {/if}
     </header>
 
-    {#if children}
-      {@render children()}
-    {/if}
+    {#if children}{@render children()}{/if}
   {/if}
-</div>
+</article>
 

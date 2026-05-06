@@ -74,7 +74,9 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     });
 
     And('I should see a link to search manually', () => {
-      expect(screen.getByRole('link', { name: /Buscar manualmente/i })).toBeTruthy();
+      // Pico migration: EmptyState action is <a role="button">, so the AT
+      // role is "button" even though the element is an <a>.
+      expect(screen.getByRole('button', { name: /Buscar manualmente/i })).toBeTruthy();
     });
   });
 
@@ -157,7 +159,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     Then('I should see 1 bid card', async () => {
       await waitFor(
         () => {
-          const cards = document.querySelectorAll('a.bid-card');
+          const cards = document.querySelectorAll('article a[href*="contratacao"]');
           expect(cards.length).toBe(1);
         },
         { timeout: 3000 },
@@ -211,7 +213,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     });
 
     And('I should see 1 bid card', async () => {
-      const cards = document.querySelectorAll('a.bid-card');
+      const cards = document.querySelectorAll('article a[href*="contratacao"]');
       expect(cards.length).toBe(1);
     });
   });
@@ -235,7 +237,8 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
         () => {
           const busy = document.querySelector('[aria-busy="true"]');
           expect(busy).toBeTruthy();
-          expect(busy?.querySelector('.skeleton')).toBeTruthy();
+          // Pico migration: aria-busy=true is itself the skeleton signal.
+          expect(busy?.classList.contains('is-skeleton')).toBe(true);
         },
         { timeout: 3000 },
       );
