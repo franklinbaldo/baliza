@@ -24,8 +24,8 @@
   <p>Identificador: <code>{id}</code></p>
   <p>{error}</p>
   <footer class="actions">
-    <a href={resolve('')} role="button">Voltar para a Busca</a>
-    <a href={resolve('sobre')} role="button" class="outline">Metodologia e Dados</a>
+    <a href={resolve('')} role="button">← Voltar para a Busca</a>
+    <a href={resolve('sobre')} role="button" class="outline">📚 Metodologia e Dados</a>
   </footer>
 </article>
 

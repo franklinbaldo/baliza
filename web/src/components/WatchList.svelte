@@ -34,7 +34,7 @@
   <section aria-labelledby="watch-title">
     <header>
       <hgroup>
-        <small>Você está acompanhando</small>
+        <small><mark>🔔 Você está acompanhando</mark></small>
         <h2 id="watch-title">
           {entries.length === 1 ? '1 item salvo' : `${entries.length} itens salvos`}
         </h2>

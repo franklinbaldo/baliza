@@ -6,6 +6,13 @@
   }
 
   let { title, message, level = 'info' }: Props = $props();
+
+  const levelEmoji: Record<NonNullable<Props['level']>, string> = {
+    info: 'ℹ️',
+    success: '✅',
+    warning: '⚠️',
+    error: '🚨',
+  };
 </script>
 
 <article
@@ -14,7 +21,7 @@
   data-invalid={level === 'error' || level === 'warning' ? 'true' : undefined}
   data-level={level}
 >
-  <header><strong>{title}</strong></header>
+  <header><strong><span aria-hidden="true">{levelEmoji[level]}</span> {title}</strong></header>
   <p>{message}</p>
 </article>
 

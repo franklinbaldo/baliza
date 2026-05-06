@@ -81,16 +81,16 @@
   ];
 
   const kindLabel: Record<ChangeEntry['kind'], string> = {
-    addition: 'adição',
-    removal: 'remoção',
-    rename: 'renomeação',
+    addition: '➕ adição',
+    removal: '➖ remoção',
+    rename: '✏️ renomeação',
   };
 </script>
 
 <section>
   <header>
     <hgroup>
-      <h1>Schema changelog</h1>
+      <h1>📝 Schema changelog</h1>
       <p>Adições, remoções e renomeações de colunas nas tabelas do Baliza, em ordem cronológica inversa.</p>
     </hgroup>
   </header>

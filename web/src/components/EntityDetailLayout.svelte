@@ -71,7 +71,7 @@
 {:else if error}
   <article data-invalid="true">
     <AlertBanner title={errorTitle || defaultErrorTitle} message={error.message} level="error" />
-    <footer><a href={resolve('')} role="button" class="outline">Voltar à busca</a></footer>
+    <footer><a href={resolve('')} role="button" class="outline">← Voltar à busca</a></footer>
   </article>
 {:else if dataReady}
     {#if archivedParticao && archiveMessage}
