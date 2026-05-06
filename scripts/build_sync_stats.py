@@ -18,7 +18,10 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from baliza.ia_uploader import try_read_manifest_from_ia  # noqa: E402
+from baliza.ia_uploader import (  # noqa: E402
+    ManifestReadError,
+    read_manifest_from_ia,
+)
 
 
 def _to_int(raw: object) -> int:
@@ -40,7 +43,22 @@ def _partition_to_date(p: str) -> datetime | None:
 
 
 def main() -> int:
-    rows = try_read_manifest_from_ia()
+    # Use the strict reader so a transient IA outage raises and we exit
+    # with a clear error. Otherwise we'd write zeros and overwrite the
+    # last good snapshot — see Codex review on PR #541.
+    try:
+        rows = read_manifest_from_ia()
+    except ManifestReadError as exc:
+        print(f"manifest unreachable; leaving existing sync_stats.json: {exc}", file=sys.stderr)
+        return 1
+
+    if not rows:
+        # Empty manifest is genuine only on a brand-new IA item that has
+        # never published. In any project with real partitions this means
+        # something is wrong; refuse to publish zeros.
+        print("manifest is empty; leaving existing sync_stats.json", file=sys.stderr)
+        return 1
+
     total_contracts = sum(_to_int(r.get("row_count")) for r in rows)
     total_quarantine = sum(_to_int(r.get("quarantine_count")) for r in rows)
 

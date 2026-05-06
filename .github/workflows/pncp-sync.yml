@@ -60,6 +60,11 @@ jobs:
           uv run baliza sync "${sync_args[@]}"
 
       - name: Refresh sync_stats.json from live IA manifest
+        # Transient IA outage shouldn't mark the sync run failed —
+        # the script exits non-zero rather than overwriting last-known
+        # numbers with zeros, so we tolerate it here and let the next
+        # cron tick refresh the file.
+        continue-on-error: true
         run: uv run python scripts/build_sync_stats.py
 
       - name: Commit sync_stats.json if it changed
