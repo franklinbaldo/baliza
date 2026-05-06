@@ -97,6 +97,7 @@ def build_month(  # noqa: PLR0913, PLR0915
     dry_run: bool = False,
     log_fn: object = None,
     manifest: list[dict] | None = None,
+    resource: str = RESOURCE_CONTRATOS,
 ) -> dict[str, object]:
     """Download the raw ZIP from IA, ingest into DuckDB, export and upload Parquet.
 
@@ -109,6 +110,9 @@ def build_month(  # noqa: PLR0913, PLR0915
         manifest: Pre-fetched manifest rows. When None, fetches from IA.
             Pass this when building multiple months to avoid one network
             call per month.
+        resource: PNCP resource name (default 'contratos'). Routes the
+            ingestion through the resource's entity_model and canonical
+            tables — see PNCPResource.
 
     Returns:
         Dict with keys: ``month``, ``valid``, ``quarantine``, ``uploaded``.
@@ -178,7 +182,7 @@ def build_month(  # noqa: PLR0913, PLR0915
 
             month_start_dt = datetime.combine(start_of_month, datetime.min.time())
             with PNCPExtractor(engine=engine) as extractor:
-                stats = extractor.ingest_range(month_start_dt)
+                stats = extractor.ingest_range(month_start_dt, resource=resource)
                 result["valid"] = stats.get("valid", 0)
                 result["quarantine"] = stats.get("quarantine", 0)
 

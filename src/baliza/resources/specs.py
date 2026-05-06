@@ -1,6 +1,7 @@
 import re
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 # Resource names land in filesystem paths, URL params, and DuckDB
 # table names. Enforcing the charset at registration time means the
@@ -59,6 +60,12 @@ class PNCPResource:
     raw_dataset: RawDatasetSpec
     entities: list[EntitySpec]
     canonical_tables: list[CanonicalTableSpec]
+    # Pydantic class used to validate raw API entries before flattening.
+    # Stored as Any to avoid a hard pydantic import at the spec layer
+    # (specs.py is imported very early and importing pydantic would
+    # pull in heavy machinery for every CLI invocation). The extractor
+    # asserts the type when it actually uses the field.
+    entity_model: Any = field(default=None)
 
     def __post_init__(self) -> None:
         if not _RESOURCE_NAME_RE.match(self.resource_name):

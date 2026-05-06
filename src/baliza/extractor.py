@@ -15,7 +15,6 @@ from rich.console import Console
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from .engine import BalizaEngine
-from .models import RecuperarContratoDTO as Contrato
 from .resources import CONTRATOS, get_resource
 from .utils import validate_url
 
@@ -297,12 +296,34 @@ class PNCPExtractor:
             return False
         return "numeroControlePNCP" in columns and "numero_controle_pncp" not in columns
 
-    def ingest_range(self, start_date: datetime) -> dict[str, int]:
-        """Validate and ingest all raw JSON files for a specific month/range into the shared engine."""
+    def ingest_range(  # noqa: PLR0912
+        self,
+        start_date: datetime,
+        *,
+        resource: str = CONTRATOS.name,
+    ) -> dict[str, int]:
+        """Validate and ingest all raw JSON files for a specific month/range into the shared engine.
+
+        Args:
+            start_date: First day of the month being ingested.
+            resource: Registered resource name. Determines the Pydantic
+                entity model used for validation, the canonical tables
+                to upsert into, and the quarantine bucket. Adding a new
+                resource only needs ``entity_model`` set on its
+                ``PNCPResource`` and a ``flatten_fn`` on its canonical
+                table spec — no extractor changes.
+        """
         if self.engine is None:
             raise RuntimeError(
                 "ingest_range requires an engine — construct PNCPExtractor(engine=...)"
             )
+
+        spec = get_resource(resource)
+        if spec.entity_model is None:
+            raise RuntimeError(
+                f"resource {resource!r} has no entity_model; cannot validate"
+            )
+        entity_model = spec.entity_model
 
         month_str = start_date.strftime("%Y-%m")
         raw_dir = Path("data/raw") / month_str
@@ -312,7 +333,11 @@ class PNCPExtractor:
         if not raw_dir.exists():
             return stats
 
-        self._archive_legacy_contratos_table()
+        # Legacy archive step is contratos-specific by definition (it
+        # migrates a pre-snake-case table named 'contratos' that never
+        # existed for any other resource).
+        if resource == CONTRATOS.name:
+            self._archive_legacy_contratos_table()
 
         for json_file in raw_dir.glob("*.json"):
             try:
@@ -330,13 +355,14 @@ class PNCPExtractor:
 
             entries = data.get("data", [])
             valid_rows = []
+            flatten_fn = spec.canonical_tables[0].flatten_fn
 
             for entry in entries:
                 try:
-                    # Validate with Pydantic, then flatten to the snake_case
-                    # schema the monthly/daily exporters and consolidator share.
-                    validated = Contrato.model_validate(entry)
-                    flatten_fn = CONTRATOS.canonical_tables[0].flatten_fn
+                    # Validate with the resource's Pydantic model, then
+                    # flatten to the snake_case schema the monthly/daily
+                    # exporters and consolidator share.
+                    validated = entity_model.model_validate(entry)
                     if flatten_fn:
                         valid_rows.append(flatten_fn(validated.model_dump()))
                     else:
@@ -345,12 +371,12 @@ class PNCPExtractor:
                 except ValidationError as e:
                     stats["quarantine"] += 1
                     logger.warning("validation_failed", error=str(e), entry_id=entry.get("id"))
-                    self.engine.quarantine_record(CONTRATOS.name, start_date, str(e), entry)
+                    self.engine.quarantine_record(spec.name, start_date, str(e), entry)
 
             # Ingest valid rows into Ibis (shared engine) via UPSERT
             if valid_rows:
                 # Direct memory ingestion (Idempotent)
-                for table_spec in CONTRATOS.canonical_tables:
+                for table_spec in spec.canonical_tables:
                     self.engine.upsert_rows(
                         valid_rows, table_spec.table_name, schema="main", pk=table_spec.pk
                     )

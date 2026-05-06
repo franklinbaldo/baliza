@@ -1,3 +1,4 @@
+from ..models import RecuperarContratoDTO
 from ..transforms import _flatten_contrato
 from .specs import (
     CanonicalTableSpec,
@@ -42,5 +43,6 @@ CONTRATOS = PNCPResource(
             sort_columns=["cnpj_orgao", "data_publicacao_pncp"],
             bloom_filter_columns=["cnpj_orgao"],
         )
-    ]
+    ],
+    entity_model=RecuperarContratoDTO,
 )

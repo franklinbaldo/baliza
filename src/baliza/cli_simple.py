@@ -773,6 +773,9 @@ def build_cmd(  # noqa: PLR0913, PLR0915
     backfill: bool = typer.Option(
         False, "--backfill", help="Rebuild all months with outdated schema version"
     ),
+    resource: str = typer.Option(
+        RESOURCE_CONTRATOS, "--resource", "-r", help="PNCP resource to build"
+    ),
 ) -> None:
     """Download raw ZIPs from IA, ingest, and upload Parquet (Phase 2 of two-phase pipeline).
 
@@ -787,6 +790,12 @@ def build_cmd(  # noqa: PLR0913, PLR0915
         console.print("[red]✗ Missing IA keys in environment.[/red]")
         raise typer.Exit(1)
 
+    try:
+        _validate_resource(resource)
+    except ValueError as e:
+        console.print(f"[red]✗ {e}[/red]")
+        raise typer.Exit(1) from None
+
     # Fetch manifest once — reused by _pending_build_months and each build_month call
     # to avoid one network round-trip per month when building in batch.
     try:
@@ -797,15 +806,15 @@ def build_cmd(  # noqa: PLR0913, PLR0915
         raise typer.Exit(1) from None
 
     if force_month:
-        batch = _forced_month_or_empty(RESOURCE_CONTRATOS, force_month)
+        batch = _forced_month_or_empty(resource, force_month)
     else:
         start = clamp_to_known_data_start_month(
-            RESOURCE_CONTRATOS, datetime.strptime(start_date, "%Y-%m-%d").date()
+            resource, datetime.strptime(start_date, "%Y-%m-%d").date()
         )
         batch = _pending_build_months(
             start,
             batch_size,
-            resource=RESOURCE_CONTRATOS,
+            resource=resource,
             backfill=backfill,
             manifest=build_manifest,
         )
@@ -857,6 +866,7 @@ def build_cmd(  # noqa: PLR0913, PLR0915
                 dry_run=dry_run,
                 log_fn=lambda msg: console.log(f"[dim]{msg}[/dim]"),
                 manifest=build_manifest,
+                resource=resource,
             )
             futures[f] = target_month
         concurrent.futures.wait(futures.keys())
