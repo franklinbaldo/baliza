@@ -4,21 +4,12 @@ interface Props {
   kicker?: string;
   title: string;
   titleHidden?: boolean;
-  tone?: 'surface' | 'bg' | 'sunk';
-  divider?: 'top' | 'bottom' | 'both' | 'none';
 }
 
-const {
-  id,
-  kicker,
-  title,
-  titleHidden = false,
-  tone = 'surface',
-  divider = 'bottom',
-} = Astro.props;
+const { id, kicker, title, titleHidden = false } = Astro.props;
 ---
 
-<section aria-labelledby={id} data-tone={tone} data-divider={divider}>
+<section aria-labelledby={id}>
   {titleHidden ? (
     <h2 id={id} class="sr-only">{title}</h2>
   ) : (
