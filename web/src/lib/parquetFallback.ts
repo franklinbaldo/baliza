@@ -499,7 +499,7 @@ export async function queryPublishingCnpjRaizes(
         const obj = (typeof anyRow.toJSON === 'function' ? anyRow.toJSON() : r) as { raiz: string };
         return obj.raiz;
       })
-      .filter((s) => typeof s === 'string' && /^\d{8}$/.test(s));
+      .filter((s: string) => typeof s === 'string' && /^\d{8}$/.test(s));
 
     if (raizes.length === 0) {
       logFallbackFailed(CITY_AGGREGATES_TABLE, 'cnpj_orgao', 'empty');
