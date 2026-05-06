@@ -1,3 +1,5 @@
+import type { AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
+import type * as arrow from 'apache-arrow';
 import { getDuckDB } from './duckdb';
 import { getLatestParquetInfo, getParquetShardsForFilter } from './ia-manifest';
 import {
@@ -43,10 +45,10 @@ function isArchivedTable(name: string): name is ArchivedTable {
  * Executes a DuckDB query with a timeout and automatic cancellation.
  */
 async function withDuckDBTimeout(
-  conn: any,
+  conn: AsyncDuckDBConnection,
   sql: string,
   timeoutMs: number,
-): Promise<any | '__timeout__'> {
+): Promise<arrow.Table | '__timeout__'> {
   let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
   const queryPromise = conn.query(sql);
   queryPromise.catch(() => null); // Swallow late rejections
@@ -464,6 +466,7 @@ export async function queryCityAggregates(
 export async function queryPublishingCnpjRaizes(
   opts: { timeoutMs?: number } = {},
 ): Promise<ArchiveResult<string>> {
+  const { timeoutMs = DEFAULT_QUERY_TIMEOUT_MS } = opts;
   const info = await getLatestParquetInfo(CITY_AGGREGATES_TABLE);
   if (!info) {
     logFallbackFailed(CITY_AGGREGATES_TABLE, 'cnpj_orgao', 'no_manifest');

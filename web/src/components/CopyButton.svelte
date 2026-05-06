@@ -36,7 +36,7 @@
   // reads the "Copiado!" feedback.
   async function handleClick(event: MouseEvent) {
     event.preventDefault();
-    event.stopPropagation();
+    event.stopImmediatePropagation();
     if (disabled) return;
     try {
       await navigator.clipboard.writeText(text);
