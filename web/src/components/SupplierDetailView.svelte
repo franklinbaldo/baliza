@@ -181,7 +181,6 @@
   archivedParticao={data?.archived?.dataParticao}
   archiveMessage={`PNCP não expõe histórico por fornecedor — exibindo snapshot Parquet (última consolidação: ${data?.archived?.dataParticao ? formatParticao(data.archived.dataParticao) : ''}).`}
   kicker="🏢 FORNECEDOR"
-  iconId="t2"
   title={data?.name || ""}
 >
   {#snippet metaRow()}

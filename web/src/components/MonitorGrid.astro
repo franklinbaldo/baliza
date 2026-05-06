@@ -18,37 +18,37 @@ const ITEMS = [
     title: 'Contratos recentes',
     question: 'O que a prefeitura está comprando esta semana?',
     href: DEFAULT_CITY_HREF,
-    tile: 't1',
+    icon: '🛒',
   },
   {
     title: 'Concentração de fornecedores',
     question: 'Um CNPJ reaparece com frequência em diferentes órgãos?',
     href: 'explorador',
-    tile: 't3',
+    icon: '🏢',
   },
   {
     title: 'Novas contratações por órgão',
     question: 'Qual secretaria publicou mais no mês corrente?',
     href: DEFAULT_CITY_HREF,
-    tile: 't2',
+    icon: '🏛️',
   },
   {
     title: 'Atas de registro de preços',
     question: 'Quais compromissos vigentes a cidade mantém com fornecedores?',
     href: 'atas',
-    tile: 't4',
+    icon: '📒',
   },
   {
     title: 'Dispensas e inexigibilidades',
     question: 'Houve pico de contratação sem concorrência?',
     href: 'explorador',
-    tile: 't3',
+    icon: '⚖️',
   },
   {
     title: 'Variações atípicas no valor',
     question: 'Um fornecedor cobra muito mais caro que a média do mercado?',
     href: 'explorador',
-    tile: 't1',
+    icon: '📈',
   },
 ];
 ---
@@ -67,11 +67,7 @@ const ITEMS = [
     {ITEMS.map((item) => (
       <article>
         <a href={resolve(item.href)}>
-          <figure aria-hidden="true">
-            <svg viewBox="0 0 100 100" preserveAspectRatio="none" width="64" height="64">
-              <use href={`#${item.tile}`} />
-            </svg>
-          </figure>
+          <figure aria-hidden="true" style="font-size: 2.5rem; margin: 0">{item.icon}</figure>
           <strong>{item.title}</strong>
           <p><small>{item.question}</small></p>
         </a>

@@ -110,7 +110,6 @@
   archivedParticao={data?.archived?.dataParticao}
   archiveMessage={`PNCP indisponível — exibindo dados arquivados (última consolidação: ${data?.archived?.dataParticao ? formatParticao(data.archived.dataParticao) : ''}).`}
   kicker="CONTRATAÇÃO PÚBLICA"
-  iconId="t1"
   title={data?.objetoContratacao || ""}
 >
   {#snippet metaRow()}

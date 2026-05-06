@@ -198,7 +198,6 @@
   archivedParticao={data?.archived?.dataParticao}
   archiveMessage={`PNCP indisponível — exibindo dados arquivados (última consolidação: ${data?.archived?.dataParticao ? formatParticao(data.archived.dataParticao) : ''}).`}
   kicker="🏛️ ÓRGÃO / ENTIDADE"
-  iconId="t4"
   title={data?.name || ""}
 >
   {#snippet metaRow()}

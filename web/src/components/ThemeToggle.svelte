@@ -1,6 +1,4 @@
 <script lang="ts">
-  import { Sun, Moon } from 'lucide-svelte';
-
   // Read the data-theme attribute already applied by the FOUC-prevention inline
   // script in Layout.astro. Initialized synchronously at render time.
   let isDark = $state(
@@ -29,10 +27,6 @@
   aria-pressed={isDark}
   data-testid="theme-toggle"
 >
-  {#if isDark}
-    <Sun size={18} aria-hidden="true" />
-  {:else}
-    <Moon size={18} aria-hidden="true" />
-  {/if}
+  <span aria-hidden="true">{isDark ? '☀️' : '🌙'}</span>
 </button>
 

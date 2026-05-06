@@ -21,14 +21,21 @@
     warning: 'var(--color-warning)',
     danger:  'var(--color-error)',
   };
+  const toneEmoji: Record<Tone, string> = {
+    default: '🔢',
+    success: '✅',
+    warning: '⚠️',
+    danger:  '❌',
+  };
   const accent = $derived(accentVar[tone]);
+  const emoji = $derived(toneEmoji[tone]);
 </script>
 
 {#if href}
   <article>
     <a {href} role="button" class="contrast outline" style="--pico-primary:{accent}">
       <header>
-        <svg width="20" height="20" aria-hidden="true"><use href="#t2"/></svg>
+        <span aria-hidden="true">{emoji}</span>
         <h3>{title}</h3>
       </header>
       <p><strong>{value}</strong></p>
@@ -38,7 +45,7 @@
 {:else}
   <article style="--pico-primary:{accent}">
     <header>
-      <svg width="20" height="20" aria-hidden="true"><use href="#t1"/></svg>
+      <span aria-hidden="true">{emoji}</span>
       <h3>{title}</h3>
     </header>
     <p><strong>{value}</strong></p>

@@ -19,7 +19,6 @@
     archiveMessage?: string;
 
     kicker: string;
-    iconId: string;
     title: string;
     metaTestId?: string;
 
@@ -45,7 +44,6 @@
     archiveMessage,
 
     kicker,
-    iconId,
     title,
     metaTestId,
 
@@ -83,10 +81,7 @@
     <header>
       <hgroup>
         <small><mark>{kicker}</mark></small>
-        <h1>
-          <svg width="32" height="32" aria-hidden="true"><use href={`#${iconId}`}/></svg>
-          {title}
-        </h1>
+        <h1>{title}</h1>
         {#if metaRow}
           <p data-testid={metaTestId}>{@render metaRow()}</p>
         {/if}
