@@ -1,0 +1,210 @@
+name: Baliza Backup Completeness Audit (diagnostic)
+
+# Diagnostic-only. Probes the live PNCP API and a recent IA monthly
+# item to surface what we actually back up vs. what PNCP exposes.
+# Posts the report as a PR comment, then fails so the result is
+# also visible in the check view.
+
+on:
+  push:
+    branches:
+      - 'claude/baliza-audit/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Init log
+        run: |
+          mkdir -p /tmp/audit
+          echo "# Baliza backup completeness audit — $(date -u +%FT%TZ)" > /tmp/audit/log.md
+
+      - name: 1. Manifest tables and partitions
+        run: |
+          set +e
+          {
+            echo ''
+            echo '## 1. Manifest — table_name × partition coverage'
+            echo '```'
+            curl -fsSL --max-time 30 -o /tmp/audit/manifest.csv \
+              "https://archive.org/download/baliza-pncp-manifest/manifest.csv" 2>&1
+            python3 - <<'PY'
+          import csv, collections
+          rows = list(csv.DictReader(open('/tmp/audit/manifest.csv')))
+          print(f'TOTAL ROWS: {len(rows)}')
+          by_table_ftype = collections.Counter(
+              (r.get('table_name','?'), r.get('file_type','?'))
+              for r in rows
+          )
+          print('\nBY (table_name, file_type):')
+          for (t, f), v in by_table_ftype.most_common():
+              print(f'  {t} / {f!r}: {v}')
+          print('\nDISTINCT table_name:', sorted({r.get('table_name','?') for r in rows}))
+          months = sorted({r['data_particao'] for r in rows if r.get('data_particao')})
+          print(f'\nMONTHS covered: {len(months)}  ({months[0]} .. {months[-1]})')
+          # Find missing months in the span
+          from datetime import date
+          oldest = date.fromisoformat(months[0] + '-01')
+          newest = date.fromisoformat(months[-1] + '-01')
+          y, m = oldest.year, oldest.month
+          expected = []
+          while (y, m) <= (newest.year, newest.month):
+              expected.append(f'{y:04d}-{m:02d}')
+              m += 1
+              if m == 13: y += 1; m = 1
+          present = {p for p in months}
+          missing = [p for p in expected if p not in present]
+          print(f'EXPECTED months: {len(expected)}, MISSING: {len(missing)}')
+          if missing:
+              print('  missing:', missing[:30], '...' if len(missing) > 30 else '')
+          PY
+            echo '```'
+          } >> /tmp/audit/log.md
+
+      - name: 2. PNCP endpoint reachability (consulta v1)
+        run: |
+          set +e
+          {
+            echo ''
+            echo '## 2. PNCP /api/consulta/v1 endpoints — reachability + sample size'
+            echo '```'
+            BASE="https://pncp.gov.br/api/consulta/v1"
+            # Small probe window: a single recent date.
+            FROM="20260301"
+            TO="20260301"
+            for path in \
+              "contratos/publicacao?dataInicial=$FROM&dataFinal=$TO&pagina=1" \
+              "contratos/atualizacao?dataInicial=$FROM&dataFinal=$TO&pagina=1" \
+              "contratacoes/publicacao?dataInicial=$FROM&dataFinal=$TO&codigoModalidadeContratacao=6&pagina=1" \
+              "contratacoes/atualizacao?dataInicial=$FROM&dataFinal=$TO&codigoModalidadeContratacao=6&pagina=1" \
+              "contratacoes/proposta?dataFinal=$TO&codigoModalidadeContratacao=6&pagina=1" \
+              "atas?dataInicial=$FROM&dataFinal=$TO&pagina=1" \
+              "atas/atualizacao?dataInicial=$FROM&dataFinal=$TO&pagina=1" \
+              "pca/usuario?anoPca=2026&idUsuario=1&pagina=1" \
+              "pca/atualizacao?dataInicial=$FROM&dataFinal=$TO&codigoClassificacaoSuperior=1&pagina=1" \
+              "instrumentoscobranca/inclusao?dataInicial=$FROM&dataFinal=$TO&pagina=1" \
+              "orgaos/00000000000191/contratos?ano=2026&pagina=1" \
+              "orgaos?codigoEsfera=F&pagina=1"
+            do
+              code=$(curl -s -o /tmp/audit/probe.json -w "%{http_code}" --max-time 20 "$BASE/$path")
+              size=$(stat -c%s /tmp/audit/probe.json 2>/dev/null || echo 0)
+              total=$(jq -r '(.totalRegistros // .totalElements // .total // empty)' /tmp/audit/probe.json 2>/dev/null)
+              printf '%-3s %8s bytes  total=%-12s %s\n' "$code" "$size" "${total:-?}" "$path"
+            done
+            echo '```'
+          } >> /tmp/audit/log.md
+
+      - name: 3. Inspect a recent IA monthly item
+        run: |
+          set +e
+          {
+            echo ''
+            echo '## 3. IA item baliza-pncp-2026-04 — files'
+            echo '```json'
+            curl -fsSL --max-time 30 \
+              "https://archive.org/metadata/baliza-pncp-2026-04" \
+              | jq '{files: [.files[] | {name, size, format, mtime}], item_size, files_count}' \
+              2>&1 | head -200
+            echo '```'
+            echo ''
+            echo '### raw zip head — what JSON pages does it contain?'
+            echo '```'
+            # Use HTTP Range to avoid downloading the whole zip.
+            curl -fsSL --max-time 60 \
+              -H 'Range: bytes=0-1048575' \
+              -o /tmp/audit/raw.zip \
+              "https://archive.org/download/baliza-pncp-2026-04/raw-2026-04.zip" \
+              2>&1
+            ls -lh /tmp/audit/raw.zip 2>&1 || true
+            unzip -l /tmp/audit/raw.zip 2>&1 | head -30 || true
+            echo '... (zip is a Range slice — listing may be partial)'
+            echo ''
+            echo '### parquet head schema (DuckDB describe)'
+            python3 - <<'PY' 2>&1
+          import urllib.request, sys
+          # DuckDB-via-pandas to peek schema without huge install
+          try:
+              import duckdb  # noqa
+          except Exception:
+              print('duckdb not available, skipping schema peek')
+              sys.exit(0)
+          import duckdb
+          con = duckdb.connect()
+          url = 'https://archive.org/download/baliza-pncp-2026-04/contratos-2026-04.parquet'
+          desc = con.execute(f"DESCRIBE SELECT * FROM read_parquet('{url}') LIMIT 0").fetchall()
+          print(f'columns ({len(desc)}):')
+          for col in desc:
+              print(f'  {col[0]}: {col[1]}')
+          n = con.execute(f"SELECT count(*) FROM read_parquet('{url}')").fetchone()[0]
+          print(f'\nrow_count: {n:,}')
+          PY
+            echo '```'
+          } >> /tmp/audit/log.md
+
+      - name: 4. PNCP code lookup endpoints (modalidades, instrumento, etc.)
+        run: |
+          set +e
+          {
+            echo ''
+            echo '## 4. PNCP code-table endpoints (smoke)'
+            echo '```'
+            BASE="https://pncp.gov.br/api"
+            for url in \
+              "/consulta/v1/orgaos?codigoEsfera=F&pagina=1" \
+              "/pncp/v1/instrumentoCobranca/tipos" \
+              "/pncp/v1/categoriaItem" \
+              "/pncp/v1/situacaoCompra" \
+              "/pncp/v1/situacaoContratacao"
+            do
+              code=$(curl -s -o /tmp/audit/probe.json -w "%{http_code}" --max-time 15 "$BASE$url")
+              printf '%-3s  %s\n' "$code" "$url"
+            done
+            echo '```'
+          } >> /tmp/audit/log.md
+
+      - name: 5. Resources defined in the codebase
+        run: |
+          {
+            echo ''
+            echo '## 5. PNCPResource catalog declared in src/baliza/pncp_resources.py'
+            echo '```python'
+            grep -n "^[A-Z_]* = PNCPResource\|^[A-Z_]* = PNCPResource(" src/baliza/pncp_resources.py 2>&1 || echo '(no matches)'
+            echo ''
+            echo '--- per-resource files in src/baliza/resources/ ---'
+            ls -1 src/baliza/resources/*.py 2>&1 || true
+            echo '```'
+          } >> /tmp/audit/log.md
+
+      - name: Post log as PR comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          head -c 60000 /tmp/audit/log.md > /tmp/audit/comment.md
+          echo '' >> /tmp/audit/comment.md
+          echo "_Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}_" >> /tmp/audit/comment.md
+          if [[ -n "${{ github.event.pull_request.number }}" ]]; then
+            gh pr comment ${{ github.event.pull_request.number }} \
+              --repo "${{ github.repository }}" --body-file /tmp/audit/comment.md
+          else
+            pr=$(gh pr list --repo "${{ github.repository }}" \
+              --head "${{ github.ref_name }}" --json number --jq '.[0].number')
+            if [[ -n "$pr" && "$pr" != "null" ]]; then
+              gh pr comment "$pr" --repo "${{ github.repository }}" --body-file /tmp/audit/comment.md
+            else
+              cat /tmp/audit/log.md
+            fi
+          fi
+
+      - name: Force red so logs are also surfaced via the check view
+        run: |
+          echo "Audit complete — see PR comment for the captured report."
+          exit 1
