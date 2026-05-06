@@ -114,7 +114,6 @@
   kicker="🏙️ MUNICÍPIO"
   title={data ? `${data.name} / ${data.uf}` : ""}
   metaTestId="city-meta"
-  hasStatSkeleton={true}
 >
   {#snippet metaRow()}
     {#if data}

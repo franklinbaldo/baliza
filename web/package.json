@@ -24,7 +24,6 @@
     "@astrojs/sitemap": "^3.7.2",
     "@astrojs/svelte": "^8.1.0",
     "@duckdb/duckdb-wasm": "^1.33.1-dev45.0",
-    "@observablehq/plot": "^0.6.0",
     "@picocss/pico": "^2.1.1",
     "@tanstack/svelte-query": "^6.1.27",
     "astro": "^6.2.1",

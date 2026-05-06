@@ -22,8 +22,6 @@
     title: string;
     metaTestId?: string;
 
-    hasStatSkeleton?: boolean;
-
     metaRow?: Snippet;
     headerActions?: Snippet;
     children?: Snippet;
@@ -47,8 +45,6 @@
     title,
     metaTestId,
 
-    hasStatSkeleton = false,
-
     metaRow,
     headerActions,
     children
@@ -63,10 +59,7 @@
   <EntityNotFound id={id} type={entityType} error={idFormatError} />
 {:else if loading}
   <article aria-busy="true" class="is-skeleton" aria-label={`Carregando dados do ${entityType}`}>
-    <p>&nbsp;</p>
-    <p>&nbsp;</p>
-    {#if hasStatSkeleton}<p>&nbsp;</p>{/if}
-    {#each [1, 2, 3] as _, i (i)}<p>&nbsp;</p>{/each}
+    {#each [1, 2, 3, 4, 5] as _, i (i)}<p>&nbsp;</p>{/each}
   </article>
 {:else if error}
   <article data-invalid="true">
