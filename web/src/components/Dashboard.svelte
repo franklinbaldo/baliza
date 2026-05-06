@@ -1,6 +1,7 @@
 <script lang="ts">
   import StatCard from './StatCard.svelte';
   import AlertBanner from './AlertBanner.svelte';
+  import Skeleton from './Skeleton.svelte';
   import { SyncStatsSchema, type SyncStats } from '../schema';
   import { formatInteger, formatRelativeTime } from '../lib/format';
   import { resolve } from '../lib/baseUrl';
@@ -36,7 +37,7 @@
 {:else if loading}
   <div class="grid" aria-busy="true" aria-label="Carregando estatísticas">
     {#each [1, 2, 3] as _, i (i)}
-      <article aria-busy="true" class="is-skeleton"><p>&nbsp;</p><p>&nbsp;</p></article>
+      <Skeleton />
     {/each}
   </div>
 {:else if stats}

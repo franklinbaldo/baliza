@@ -140,7 +140,7 @@
   {:else if entry}
     <header>
       <hgroup>
-        <small><mark>Vigilância</mark></small>
+        <p class="eyebrow">🔔 Vigilância</p>
         <h1>{entry.label}</h1>
         <p><code>{entry.filter}</code></p>
       </hgroup>

@@ -10,6 +10,7 @@
     prefetchArchive,
     type CityArchiveAggregates,
   } from '../lib/parquetFallback';
+  import Skeleton from './Skeleton.svelte';
 
   setQueryClientContext(getQueryClient());
   hydrateCityContext();
@@ -71,7 +72,7 @@
     <div class="grid">
       {#if loading}
         {#each [1, 2, 3, 4] as _, col (col)}
-          <article aria-busy="true" class="is-skeleton"><p>&nbsp;</p><p>&nbsp;</p></article>
+          <Skeleton />
         {/each}
       {:else if data}
         <article>

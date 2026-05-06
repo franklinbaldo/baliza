@@ -6,6 +6,8 @@
   import type { PNCPContract } from '../lib/pncp';
   import AlertBanner from './AlertBanner.svelte';
   import EmptyState from './EmptyState.svelte';
+  import HubHeader from './HubHeader.svelte';
+  import Skeleton from './Skeleton.svelte';
 
   setQueryClientContext(getQueryClient());
 
@@ -69,26 +71,24 @@
 </script>
 
 <section>
-  <header>
-    <hgroup>
-      <small><mark>⚖️ DISPENSAS</mark></small>
-      <h1>Dispensas — Bases Legais</h1>
+  <HubHeader kicker="⚖️ Dispensas" title="Dispensas — Bases Legais">
+    {#snippet lede()}
       <p>Quais artigos da lei são mais citados em dispensas similares. Fonte: API PNCP, modalidade 8 (Dispensa).</p>
-    </hgroup>
-  </header>
+    {/snippet}
+  </HubHeader>
 
   <form role="search" onsubmit={handleSubmit}>
     <label for="dispensas-objeto-input" class="sr-only">Objeto a pesquisar</label>
-    <fieldset>
+    <div role="group" aria-label="Buscar dispensas">
       <input id="dispensas-objeto-input" type="search" bind:value={searchInput} placeholder="Ex.: papel A4, manutenção de veículos..." aria-label="Objeto a pesquisar" />
       <button type="submit">Buscar</button>
-    </fieldset>
+    </div>
   </form>
 
   {#if !submittedObjeto || submittedObjeto.length < 3}
     <EmptyState title="Digite o objeto da dispensa" message="Use ao menos 3 caracteres para ver os artigos legais mais citados em dispensas similares." />
   {:else if loading}
-    <article aria-busy="true" class="is-skeleton" aria-label="Buscando dispensas"><p>&nbsp;</p><p>&nbsp;</p></article>
+    <Skeleton label="Buscando dispensas" />
   {:else if error}
     <AlertBanner title="Não foi possível buscar dispensas" message={error.message} level="error" />
   {:else if citations.length === 0}
@@ -98,7 +98,7 @@
       {#each citations as cit (cit.article)}
         <article data-testid="dispensas-legal-item">
           <header>
-            <small><mark>{cit.count} contrato{cit.count > 1 ? 's' : ''}</mark></small>
+            <small data-badge>{cit.count} contrato{cit.count > 1 ? 's' : ''}</small>
             <h2><code>{cit.article}</code></h2>
           </header>
           <ul>

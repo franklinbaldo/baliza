@@ -12,6 +12,7 @@
   import { resolve } from '../lib/baseUrl';
   import AlertBanner from './AlertBanner.svelte';
   import EmptyState from './EmptyState.svelte';
+  import Skeleton from './Skeleton.svelte';
 
   setQueryClientContext(getQueryClient());
 
@@ -102,10 +103,7 @@
     />
   {:else if geoStatus === 'ready'}
     {#if loadingData}
-      <article aria-busy="true" class="is-skeleton" aria-label={`Consultando PNCP para ${cityInfo?.name ?? 'seu município'}`}>
-        <p>&nbsp;</p>
-        {#each [1, 2, 3] as _, i (i)}<p>&nbsp;</p>{/each}
-      </article>
+      <Skeleton label={`Consultando PNCP para ${cityInfo?.name ?? 'seu município'}`} rows={4} />
     {:else if data}
       {#if data.archived}
         <AlertBanner

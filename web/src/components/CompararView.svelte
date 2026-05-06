@@ -6,6 +6,8 @@
 
   import AlertBanner from './AlertBanner.svelte';
   import EmptyState from './EmptyState.svelte';
+  import HubHeader from './HubHeader.svelte';
+  import Skeleton from './Skeleton.svelte';
 
   setQueryClientContext(getQueryClient());
 
@@ -90,26 +92,24 @@
 </script>
 
 <section>
-  <header>
-    <hgroup>
-      <small><mark>🌍 COMPARAR</mark></small>
-      <h1>Comparação de Municípios</h1>
+  <HubHeader kicker="🌍 Comparar" title="Comparação de Municípios">
+    {#snippet lede()}
       <p>Gastos per-capita e comparação com municípios do mesmo porte.</p>
-    </hgroup>
-  </header>
+    {/snippet}
+  </HubHeader>
 
   <form role="search" onsubmit={handleSubmit}>
-    <fieldset>
+    <div role="group" aria-label="Comparar municípios">
       <input type="text" bind:value={searchIbge} placeholder="Código IBGE (ex: 3550308)" aria-label="Código IBGE" />
       <input type="text" bind:value={searchObjeto} placeholder="Objeto (ex: merenda)" aria-label="Objeto" />
       <button type="submit">Comparar</button>
-    </fieldset>
+    </div>
   </form>
 
   {#if (!submittedIbge || submittedIbge.length !== 7) || (!submittedObjeto || submittedObjeto.length < 3)}
     <EmptyState title="Preencha os campos" message="Informe o IBGE (7 dígitos) e o objeto para comparar." />
   {:else if loading}
-    <article aria-busy="true" class="is-skeleton" aria-label="Buscando dados"><p>&nbsp;</p></article>
+    <Skeleton label="Buscando dados" rows={1} />
   {:else if error}
     <AlertBanner title="Não foi possível buscar dados" message={error.message} level="error" />
   {:else}

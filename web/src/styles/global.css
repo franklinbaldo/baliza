@@ -119,6 +119,42 @@ h1, h2, hgroup > h1, hgroup > h2 {
   max-width: 56rem;
 }
 
+/* WHY: pre-heading "eyebrow" / kicker line above an h1/h2. Using
+   <small> for this is wrong (small is fine-print/asides), and
+   wrapping in <mark> for color was a stretch (mark is for
+   highlighting relevance in surrounding prose). A <p class="eyebrow">
+   inside <hgroup> is the semantically correct slot per the latest
+   HTML spec. */
+.eyebrow {
+  margin-bottom: 0;
+  font-size: 0.85em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pico-muted-color);
+}
+
+/* WHY: small "pill" tags for status / modality / type labels next to
+   list items. Previously rendered as <small><mark>...</mark></small>,
+   but <mark> is for highlighting relevance in prose, not decoration.
+   <small data-badge> is honest (it really is fine print) and lets us
+   keep the visual pill via this dedicated hook. */
+[data-badge] {
+  display: inline-block;
+  padding: 0.1em 0.5em;
+  border: 1px solid var(--pico-muted-border-color);
+  border-radius: 999px;
+  background: var(--pico-card-sectioning-background-color);
+  color: var(--pico-color);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+[data-badge][data-tone="success"] {
+  border-color: var(--baliza-verde, currentcolor);
+  color: var(--baliza-verde);
+}
+
 /* WHY: Pico's aria-invalid styles only apply to form elements; we
    need an "error card" treatment on <article role=alert> too. Using a
    data-attribute (instead of aria-invalid) keeps the markup valid:

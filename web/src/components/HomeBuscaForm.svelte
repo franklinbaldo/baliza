@@ -8,7 +8,7 @@
 
 <form role="search" method="get" action={action}>
   <label for="home-busca-input" class="sr-only">Buscar no PNCP</label>
-  <fieldset>
+  <div role="group">
     <input
       id="home-busca-input"
       type="search"
@@ -17,6 +17,6 @@
       aria-label="Buscar no PNCP"
     />
     <button type="submit">Buscar</button>
-  </fieldset>
+  </div>
 </form>
 

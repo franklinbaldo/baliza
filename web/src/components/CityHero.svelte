@@ -59,7 +59,7 @@
 <section aria-labelledby="city-hero-title">
   <header>
     <hgroup>
-      <small><mark>Painel cívico · O que é o Baliza?</mark></small>
+      <p class="eyebrow">Painel cívico · O que é o Baliza?</p>
       <h1 id="city-hero-title">
         O que <em>{cityState.nome}{cityState.uf ? ` / ${cityState.uf}` : ''}</em> está comprando?
       </h1>
@@ -73,7 +73,7 @@
     {#if cityState.source !== 'default'}
       <input type="hidden" name="ibge" value={cityState.ibge} />
     {/if}
-    <fieldset>
+    <div role="group">
       <input
         type="search"
         name="q"
@@ -83,7 +83,7 @@
         aria-label="Buscar no PNCP"
       />
       <button type="submit">Buscar</button>
-    </fieldset>
+    </div>
   </form>
 
   <div role="group" class="actions">

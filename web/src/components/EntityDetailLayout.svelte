@@ -3,6 +3,7 @@
   import { resolve } from '../lib/baseUrl';
   import EntityNotFound from './EntityNotFound.svelte';
   import AlertBanner from './AlertBanner.svelte';
+  import Skeleton from './Skeleton.svelte';
 
   interface Props {
     id?: string;
@@ -58,9 +59,7 @@
 {:else if !idValid}
   <EntityNotFound id={id} type={entityType} error={idFormatError} />
 {:else if loading}
-  <article aria-busy="true" class="is-skeleton" aria-label={`Carregando dados do ${entityType}`}>
-    {#each [1, 2, 3, 4, 5] as _, i (i)}<p>&nbsp;</p>{/each}
-  </article>
+  <Skeleton label={`Carregando dados do ${entityType}`} rows={5} />
 {:else if error}
   <article data-invalid="true">
     <AlertBanner title={errorTitle || defaultErrorTitle} message={error.message} level="error" />
@@ -72,7 +71,7 @@
     {/if}
     <header>
       <hgroup>
-        <small><mark>{kicker}</mark></small>
+        <p class="eyebrow">{kicker}</p>
         <h1>{title}</h1>
         {#if metaRow}
           <p data-testid={metaTestId}>{@render metaRow()}</p>

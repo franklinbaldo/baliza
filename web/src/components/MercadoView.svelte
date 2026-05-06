@@ -6,6 +6,8 @@
 
   import AlertBanner from './AlertBanner.svelte';
   import EmptyState from './EmptyState.svelte';
+  import HubHeader from './HubHeader.svelte';
+  import Skeleton from './Skeleton.svelte';
   import { resolve } from '../lib/baseUrl';
 
   setQueryClientContext(getQueryClient());
@@ -90,26 +92,24 @@
 </script>
 
 <section>
-  <header>
-    <hgroup>
-      <small><mark>📊 MERCADO</mark></small>
-      <h1>Análise de Mercado</h1>
+  <HubHeader kicker="📊 Mercado" title="Análise de Mercado">
+    {#snippet lede()}
       <p>Top compradores, fornecedores e faixa de preço. Fonte: API PNCP.</p>
-    </hgroup>
-  </header>
+    {/snippet}
+  </HubHeader>
 
   <form role="search" onsubmit={handleSubmit}>
     <label for="mercado-objeto-input" class="sr-only">Objeto a pesquisar</label>
-    <fieldset>
+    <div role="group" aria-label="Buscar mercado">
       <input id="mercado-objeto-input" type="search" bind:value={searchInput} placeholder="Ex.: merenda escolar..." aria-label="Objeto a pesquisar" />
       <button type="submit">Buscar</button>
-    </fieldset>
+    </div>
   </form>
 
   {#if !submittedObjeto || submittedObjeto.length < 3}
     <EmptyState title="Digite o objeto a pesquisar" message="Use ao menos 3 caracteres para ver o panorama do mercado." />
   {:else if loading}
-    <article aria-busy="true" class="is-skeleton" aria-label="Buscando mercado"><p>&nbsp;</p><p>&nbsp;</p></article>
+    <Skeleton label="Buscando mercado" />
   {:else if error}
     <AlertBanner title="Não foi possível buscar mercado" message={error.message} level="error" />
   {:else if contracts.length === 0}

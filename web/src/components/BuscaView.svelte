@@ -20,6 +20,8 @@
   } from '../lib/searchFilters';
   import AlertBanner from './AlertBanner.svelte';
   import EmptyState from './EmptyState.svelte';
+  import HubHeader from './HubHeader.svelte';
+  import Skeleton from './Skeleton.svelte';
   import PaginatedList from './PaginatedList.svelte';
   import { addWatch, isWatched, hydrateWatches } from '../lib/watchStore.svelte';
 
@@ -302,21 +304,19 @@
 </script>
 
 <section>
-  <header>
-    <hgroup>
-      <small><mark>🔎 BUSCA LIVRE</mark></small>
-      <h1>Busca livre no PNCP</h1>
+  <HubHeader kicker="🔎 Busca livre" title="Busca livre no PNCP">
+    {#snippet lede()}
       <p>
         Busca texto-livre nas contratações publicadas no PNCP nos últimos 365 dias.
         Informe também um número de controle PNCP (<code>cnpj-tipo-sequencial/ano</code>)
         para ir direto ao contrato.
       </p>
-    </hgroup>
-  </header>
+    {/snippet}
+  </HubHeader>
 
   <form role="search" onsubmit={handleSubmit}>
-    <fieldset>
-      <label for="busca-input" class="sr-only">Termo a pesquisar</label>
+    <label for="busca-input" class="sr-only">Termo a pesquisar</label>
+    <div role="group" aria-label="Buscar contratações">
       <input
         id="busca-input"
         type="search"
@@ -325,11 +325,12 @@
         aria-label="Termo a pesquisar"
       />
       <button type="submit">Buscar</button>
-    </fieldset>
+    </div>
 
     <details open={draftHasAny}>
       <summary>Filtros Avançados (API do PNCP)</summary>
       <fieldset class="grid">
+        <legend class="sr-only">Filtros avançados de busca no PNCP</legend>
         {#each Object.values(FILTERS) as def (def.key)}
           <label>
             {def.label}
@@ -346,9 +347,7 @@
       message="Use ao menos 3 caracteres no termo ou preencha um filtro avançado para buscar."
     />
   {:else if loading}
-    <article aria-busy="true" class="is-skeleton" aria-label="Buscando contratações">
-      <p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p>
-    </article>
+    <Skeleton label="Buscando contratações" rows={4} />
   {:else if error}
     <AlertBanner title="Não foi possível buscar" message={error.message} level="error" />
   {:else if results.length === 0}
@@ -368,6 +367,7 @@
     {/if}
   {:else}
     <fieldset data-testid="busca-filters" class="grid">
+      <legend class="sr-only">Refinar resultados visíveis</legend>
       <label>
         UF
         <select bind:value={selectedUf} aria-label="Filtrar por UF" data-testid="busca-filter-uf">
@@ -420,7 +420,7 @@
                   <a href={linkFor(c)}>
                     <header>
                       <strong>{c.orgaoEntidade?.razaoSocial ?? 'Órgão'}</strong>
-                      <small><mark>{c.modalidadeNome ?? ''}</mark></small>
+                      <small data-badge>{c.modalidadeNome ?? ''}</small>
                     </header>
                     <p title={c.objetoContratacao}>{truncate(c.objetoContratacao, 180)}</p>
                     <footer>

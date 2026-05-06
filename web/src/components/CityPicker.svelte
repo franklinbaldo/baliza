@@ -130,7 +130,7 @@
     {/if}
   </header>
 
-  <fieldset>
+  <div role="group" aria-label="Buscar município">
     <input
       type="search"
       role="combobox"
@@ -149,7 +149,7 @@
     <button type="button" class="outline" onclick={useMyLocation} disabled={geoStatus === 'locating'} aria-busy={geoStatus === 'locating'} aria-label="Usar minha localização atual">
       {geoStatus === 'locating' ? 'Buscando…' : '📍 minha localização'}
     </button>
-  </fieldset>
+  </div>
 
   {#if loading}
     <small aria-live="polite" aria-busy="true">Buscando municípios…</small>
