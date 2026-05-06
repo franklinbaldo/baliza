@@ -9,6 +9,7 @@
   import { setCity } from '../lib/cityContext.svelte';
   import { archivedContratoToInternalContract, type PNCPContract } from '../lib/pncp';
   import { formatDate, formatParticao, truncate } from '../lib/format';
+  import Icon from './Icon.svelte';
   import { resolve } from '../lib/baseUrl';
   import AlertBanner from './AlertBanner.svelte';
   import EmptyState from './EmptyState.svelte';
@@ -79,7 +80,7 @@
 <article>
   <header>
     <hgroup>
-      <small><svg data-icon aria-hidden="true" viewBox="0 0 24 24"><path d="M12 22s7-7.5 7-13a7 7 0 1 0-14 0c0 5.5 7 13 7 13Z"></path><circle cx="12" cy="9" r="2.5"></circle></svg></small>
+      <small><Icon name="map-pin" /></small>
       <h3>Radar Local</h3>
       <p>Encontre oportunidades perto de você usando geolocalização.</p>
     </hgroup>
