@@ -75,6 +75,25 @@ def test_parse_iso_mtime_preserves_aware_offset():
     assert parsed.tzinfo.utcoffset(parsed) == _dt.timedelta(0)
 
 
+def test_parse_iso_mtime_does_not_corrupt_non_utc_offset():
+    """Pins the safety property Kilo's CRITICAL on PR #557 worried about:
+    for an aware timestamp with a non-UTC offset, the parser MUST
+    preserve the absolute moment — not silently relabel it as UTC while
+    keeping the wall-clock time. The function only mutates tzinfo when
+    the input was naive (the ``if parsed.tzinfo is None`` gate)."""
+    parsed = _parse_iso_mtime("2024-04-01T12:34:56+02:00")
+    assert parsed is not None
+    assert (parsed.year, parsed.month, parsed.day) == (2024, 4, 1)
+    assert (parsed.hour, parsed.minute, parsed.second) == (12, 34, 56)
+    # Crucially, the absolute moment is +02:00 — must NOT have been
+    # silently relabelled as UTC (which would shift the moment by 2h).
+    assert parsed.utcoffset() == _dt.timedelta(hours=2)
+    # Convert to UTC and check the absolute instant matches what +02:00
+    # implies (12:34:56 +02:00 == 10:34:56 UTC).
+    in_utc = parsed.astimezone(_dt.UTC)
+    assert (in_utc.hour, in_utc.minute) == (10, 34)
+
+
 def test_parse_iso_mtime_returns_none_on_garbage():
     assert _parse_iso_mtime("") is None
     assert _parse_iso_mtime("not-a-date") is None

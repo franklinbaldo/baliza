@@ -70,6 +70,13 @@ def _parse_iso_mtime(value: str) -> datetime.datetime | None:
     except ValueError:
         return None
     if parsed.tzinfo is None:
+        # Naive only: declare the assumed zone. We deliberately use
+        # `replace(tzinfo=UTC)` (not `astimezone(UTC)`) because the
+        # input has no source offset — `astimezone` on a naive datetime
+        # would assume the runtime local zone and silently shift the
+        # moment, which is exactly the bug Kilo's roast describes.
+        # Aware datetimes (offset already known) skip this branch and
+        # round-trip unchanged; their absolute moment is preserved.
         parsed = parsed.replace(tzinfo=datetime.UTC)
     return parsed
 
