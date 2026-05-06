@@ -232,9 +232,12 @@ hr[data-ornament="wave"] {
   background: linear-gradient(
     180deg,
     var(--baliza-bg) 0 50%,
-    var(--baliza-accent) 50% 100%
+    var(--baliza-azul) 50% 100%
   );
-  mask: radial-gradient(circle at 50% 0, transparent 12px, #000 13px) 0 0 / 24px 100%;
+  -webkit-mask: radial-gradient(circle at 50% 0, transparent 12px, #000 13px) 0 0 / 24px 100% repeat-x;
+  mask: radial-gradient(circle at 50% 0, transparent 12px, #000 13px) 0 0 / 24px 100% repeat-x;
+  mask-repeat: repeat-x;
+  -webkit-mask-repeat: repeat-x;
 }
 
 hr[data-ornament="volpi"] {
