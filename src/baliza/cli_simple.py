@@ -998,7 +998,15 @@ def doctor(  # noqa: PLR0912, PLR0915
             findings.append(f"{rid}: sha256 not 64-hex ({sha!r})")
         for url_col in ("parquet_url", "raw_zip_url"):
             u = r.get(url_col) or ""
-            if u and not (u.startswith("https://") and urlparse(u).netloc.endswith("archive.org")):
+            if not u:
+                continue
+            host = urlparse(u).netloc
+            # Require an exact archive.org host or a true subdomain so
+            # 'evilarchive.org' doesn't pass the integrity check.
+            on_ia = u.startswith("https://") and (
+                host == "archive.org" or host.endswith(".archive.org")
+            )
+            if not on_ia:
                 findings.append(f"{rid}: {url_col} not on archive.org ({u!r})")
         if not r.get("parquet_url"):
             findings.append(f"{rid}: missing parquet_url")
@@ -1090,7 +1098,9 @@ def orphans(
     }
 
     total_orphans = 0
-    with httpx.Client(timeout=30.0) as client:
+    fetch_failures = 0
+    transport = httpx.HTTPTransport(retries=3)
+    with httpx.Client(timeout=30.0, transport=transport) as client:
         for r in canonical:
             month = r["data_particao"]
             item_id = r.get("ia_item_id") or f"baliza-pncp-{month}"
@@ -1098,6 +1108,7 @@ def orphans(
                 meta = client.get(f"https://archive.org/metadata/{item_id}").json()
             except Exception as exc:
                 console.print(f"[red]{item_id}: metadata fetch failed: {exc}[/red]")
+                fetch_failures += 1
                 continue
             allowed = {
                 t.format(resource=resource, month=month) for t in expected_per_item
@@ -1118,6 +1129,17 @@ def orphans(
             for f in orphan_files:
                 console.print(f"  • {f}")
 
-    console.print(f"\n[bold]{total_orphans} orphan file(s) across {len(canonical)} month(s).[/bold]")
-    if total_orphans:
+    console.print(
+        f"\n[bold]{total_orphans} orphan file(s) across "
+        f"{len(canonical) - fetch_failures}/{len(canonical)} month(s) "
+        f"inspected.[/bold]"
+    )
+    if fetch_failures:
+        console.print(
+            f"[red]✗ {fetch_failures} month(s) could not be inspected; "
+            "result is partial.[/red]"
+        )
+    # Treat fetch failures as orphan-like: a partial scan must not look
+    # green because callers (CI) cannot tell it apart from a true clean.
+    if total_orphans or fetch_failures:
         raise typer.Exit(1)
