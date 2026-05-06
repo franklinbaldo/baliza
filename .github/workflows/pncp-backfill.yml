@@ -1,6 +1,12 @@
 name: PNCP Backfill
 
 on:
+  # First of each month at 04:00 UTC. Picks up any historical month
+  # that the cron sync missed (e.g. transient PNCP outage during the
+  # original window). The workflow is idempotent — already-uploaded
+  # months are skipped via the manifest check.
+  schedule:
+    - cron: '0 4 1 * *'
   workflow_dispatch:
     inputs:
       start_year:
@@ -31,9 +37,17 @@ jobs:
       - env:
           IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
           IA_SECRET_KEY: ${{ secrets.IA_SECRET_KEY }}
+          # Cron runs have empty `inputs.*`; default to the same window
+          # the manual dispatch uses so the substitution stays valid.
+          START_YEAR: ${{ inputs.start_year || '2023' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
         run: |
+          extra=()
+          if [[ "$DRY_RUN" == "true" ]]; then
+            extra+=(--dry-run)
+          fi
           uv run baliza build \
             --backfill \
-            --start-date "${{ inputs.start_year }}-01-01" \
+            --start-date "${START_YEAR}-01-01" \
             --workers 2 \
-            ${{ inputs.dry_run && '--dry-run' || '' }}
+            "${extra[@]}"
