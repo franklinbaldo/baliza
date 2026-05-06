@@ -1,8 +1,8 @@
 name: Baliza Backfill Audit (diagnostic)
 
-# Diagnostic-only. Runs on push to claude/baliza-audit/** and on
-# manual dispatch. Always fails on the last step so logs are surfaced
-# in the PR check view — there is nothing to "fix" here.
+# Diagnostic-only. Captures every step's output to a single log,
+# posts it as a PR comment, then fails so the result is also surfaced
+# in the PR check view.
 
 on:
   push:
@@ -13,6 +13,7 @@ on:
 permissions:
   contents: read
   actions: read
+  pull-requests: write
 
 jobs:
   audit:
@@ -21,27 +22,64 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: astral-sh/setup-uv@v4
+      - name: Init log
+        run: |
+          mkdir -p /tmp/audit
+          echo "# Baliza backfill audit — $(date -u +%FT%TZ)" > /tmp/audit/log.md
+          echo '' >> /tmp/audit/log.md
 
       - name: Fetch live IA manifest
         run: |
-          set -eux
-          curl -fsSL --retry 3 --retry-delay 5 -o /tmp/manifest.csv \
-            "https://archive.org/download/baliza-pncp-manifest/manifest.csv"
-          ls -lh /tmp/manifest.csv
-          echo '--- header + first 3 rows ---'
-          head -4 /tmp/manifest.csv
-          echo '--- row count ---'
-          wc -l /tmp/manifest.csv
+          set +e
+          {
+            echo '## 1. IA manifest fetch'
+            echo '```'
+            for url in \
+              "https://archive.org/download/baliza-pncp-manifest/manifest.csv" \
+              "https://archive.org/metadata/baliza-pncp-manifest"
+            do
+              echo "--- GET $url"
+              curl -sS -L --max-time 30 -o /tmp/audit/$(basename "$url") \
+                -w "  HTTP=%{http_code} SIZE=%{size_download} TIME=%{time_total}s\n" \
+                "$url" 2>&1
+            done
+            echo '```'
+            echo ''
+            echo '### manifest.csv head + counts'
+            echo '```'
+            ls -lh /tmp/audit/manifest.csv 2>&1 || true
+            head -4 /tmp/audit/manifest.csv 2>&1 || true
+            echo "row count (incl header):"
+            wc -l /tmp/audit/manifest.csv 2>&1 || true
+            echo '```'
+            echo ''
+            echo '### IA item metadata (truncated)'
+            echo '```json'
+            head -c 4000 /tmp/audit/baliza-pncp-manifest 2>&1 || true
+            echo ''
+            echo '```'
+          } >> /tmp/audit/log.md
 
       - name: Aggregate manifest contents
         run: |
-          python3 - <<'PY'
-          import csv, collections, datetime
-          rows = list(csv.DictReader(open('/tmp/manifest.csv')))
+          set +e
+          {
+            echo ''
+            echo '## 2. Manifest aggregates'
+            echo '```'
+            python3 - <<'PY' 2>&1
+          import csv, collections, datetime, sys
+          try:
+              rows = list(csv.DictReader(open('/tmp/audit/manifest.csv')))
+          except Exception as e:
+              print(f'could not parse manifest: {e}'); sys.exit(0)
           print(f'TOTAL ROWS: {len(rows)}')
 
-          by_table = collections.Counter(r['table_name'] for r in rows)
+          if not rows:
+              print('manifest is empty / header-only — nothing else to report')
+              sys.exit(0)
+
+          by_table = collections.Counter(r.get('table_name','?') for r in rows)
           print('\nROWS BY table_name:')
           for k, v in by_table.most_common():
               print(f'  {k}: {v}')
@@ -63,61 +101,98 @@ jobs:
           quar = sum(int(r.get('quarantine_count') or 0) for r in rows)
           print(f'sum(quarantine_count): {quar:,}')
 
-          # Coverage gaps: how many distinct months between oldest and
-          # newest, vs how many we actually have.
           if partitions:
               try:
                   oldest = datetime.date.fromisoformat(partitions[0])
                   newest = datetime.date.fromisoformat(partitions[-1])
                   expected_months = (newest.year - oldest.year) * 12 + (newest.month - oldest.month) + 1
+                  months_present = {p[:7] for p in partitions}
                   print(f'\nCOVERAGE WINDOW: {oldest} .. {newest}')
                   print(f'  expected months: {expected_months}')
-                  months_present = {p[:7] for p in partitions}
                   print(f'  distinct months present: {len(months_present)}')
                   print(f'  missing months: {expected_months - len(months_present)}')
               except ValueError:
                   print('  (data_particao is not date-formatted)')
 
-          last_uploads = sorted(
-              {r.get('uploaded_at', '') for r in rows if r.get('uploaded_at')}
-          )[-5:]
-          print(f'\nLAST 5 distinct uploaded_at:\n  ' + '\n  '.join(last_uploads))
+          last_uploads = sorted({r.get('uploaded_at','') for r in rows if r.get('uploaded_at')})[-5:]
+          print(f'\nLAST 5 distinct uploaded_at:')
+          for u in last_uploads:
+              print(f'  {u}')
           PY
+            echo '```'
+          } >> /tmp/audit/log.md
 
       - name: Recent PNCP Sync workflow runs
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          set -eux
-          gh run list \
-            --repo "${{ github.repository }}" \
-            --workflow pncp-sync.yml \
-            --limit 25 \
-            --json databaseId,number,status,conclusion,createdAt,event,displayTitle \
-            > runs.json
-          echo '--- summary ---'
-          jq -r '.[] | "\(.number)\t\(.conclusion // .status)\t\(.createdAt)\t\(.event)"' runs.json
-          echo '--- failure count in last 25 ---'
-          jq '[.[] | select(.conclusion=="failure")] | length' runs.json
-          echo '--- success count in last 25 ---'
-          jq '[.[] | select(.conclusion=="success")] | length' runs.json
+          set +e
+          {
+            echo ''
+            echo '## 3. Last 25 PNCP Sync runs'
+            echo '```'
+            gh run list \
+              --repo "${{ github.repository }}" \
+              --workflow pncp-sync.yml \
+              --limit 25 \
+              --json databaseId,number,status,conclusion,createdAt,event,displayTitle \
+              > /tmp/audit/runs.json 2>&1
+            jq -r '.[] | "#\(.number)\t\(.conclusion // .status)\t\(.createdAt)\t\(.event)"' /tmp/audit/runs.json 2>&1
+            echo ''
+            echo "failures in last 25: $(jq '[.[] | select(.conclusion=="failure")] | length' /tmp/audit/runs.json 2>&1)"
+            echo "successes in last 25: $(jq '[.[] | select(.conclusion=="success")] | length' /tmp/audit/runs.json 2>&1)"
+            echo '```'
+          } >> /tmp/audit/log.md
 
-      - name: Tail logs of most recent failed run
+      - name: Tail logs of most recent failed sync
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          set -eux
-          run_id=$(jq -r '[.[] | select(.conclusion=="failure")][0].databaseId' runs.json)
-          if [[ "$run_id" == "null" || -z "$run_id" ]]; then
-            echo 'No failed runs in the last 25.'
-            exit 0
-          fi
-          echo "Inspecting failed run $run_id"
-          gh run view "$run_id" --repo "${{ github.repository }}" || true
-          echo '--- failed-step log tail (last 300 lines) ---'
-          gh run view "$run_id" --repo "${{ github.repository }}" --log-failed 2>&1 | tail -300 || true
+          set +e
+          {
+            echo ''
+            echo '## 4. Tail of most recent failed PNCP Sync log'
+            echo '```'
+            run_id=$(jq -r '[.[] | select(.conclusion=="failure")][0].databaseId' /tmp/audit/runs.json 2>/dev/null)
+            echo "run id: $run_id"
+            if [[ -n "$run_id" && "$run_id" != "null" ]]; then
+              gh run view "$run_id" --repo "${{ github.repository }}" 2>&1 | head -40
+              echo '--- failed-step log tail (last 200 lines) ---'
+              gh run view "$run_id" --repo "${{ github.repository }}" --log-failed 2>&1 | tail -200
+            else
+              echo 'no failed run id available'
+            fi
+            echo '```'
+          } >> /tmp/audit/log.md
 
-      - name: Force red so logs are surfaced
+      - name: Post log as PR comment
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Audit complete — failing the job intentionally so the logs above are visible in the PR check view."
+          set +e
+          # Truncate to a comment-safe size (GitHub PR comment cap is 65 KB).
+          head -c 60000 /tmp/audit/log.md > /tmp/audit/comment.md
+          echo '' >> /tmp/audit/comment.md
+          echo "_Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}_" >> /tmp/audit/comment.md
+          if [[ -n "${{ github.event.pull_request.number }}" ]]; then
+            gh pr comment ${{ github.event.pull_request.number }} \
+              --repo "${{ github.repository }}" \
+              --body-file /tmp/audit/comment.md
+          else
+            # No PR context (workflow_dispatch / branch push without PR).
+            # Find an open PR for this branch and comment there.
+            pr=$(gh pr list --repo "${{ github.repository }}" \
+              --head "${{ github.ref_name }}" --json number --jq '.[0].number')
+            if [[ -n "$pr" && "$pr" != "null" ]]; then
+              gh pr comment "$pr" --repo "${{ github.repository }}" \
+                --body-file /tmp/audit/comment.md
+            else
+              echo 'no PR to comment on; printing log to stdout instead'
+              cat /tmp/audit/log.md
+            fi
+          fi
+
+      - name: Force red so logs are also surfaced via the check view
+        run: |
+          echo "Audit complete — see PR comment for the captured report."
           exit 1
