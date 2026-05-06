@@ -119,9 +119,11 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     Then('the user sees a tooltip explaining what a "Dispensa" is in plain language', () => {
       const wrap = screen.getByTestId('glossary-term');
       expect(wrap.textContent).toContain('Dispensa');
-      const tooltip = wrap.querySelector('[role="tooltip"]') as HTMLElement | null;
+      // Pico migration: tooltip moved from a child [role="tooltip"] span to
+      // Pico's data-tooltip attribute on the term wrapper itself.
+      const tooltip = wrap.getAttribute('data-tooltip');
       expect(tooltip).not.toBeNull();
-      expect(tooltip!.textContent?.toLowerCase()).toMatch(/sem licitação|compra direta/);
+      expect(tooltip!.toLowerCase()).toMatch(/sem licitação|compra direta/);
     });
   });
 

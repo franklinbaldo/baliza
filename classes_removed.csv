@@ -1,0 +1,52 @@
+file,classes
+modernismo-brasileiro-ds.html,layout nav nav-brand sub palette-picker label swatch nav-list parabola eyebrow reveal manifesto credits ds section-head section-num section-title section-lead principles principle num sub-head lineages antimodels palette-block desc swatch-grid swatch-card chip info role hex token type-specimen meta display-show body-show type-scale row size sample variable-axes axis-card axis-name axis-sample axis-desc space-scale space-row val bar grid-demo tiles-grid tile-card tile-num tile-preview tile-cell tile-grid tile-ref icons-grid icon-cell icon-name glyphs-grid glyph-cell shapes-grid shape-cell shape-desc shape-label emoji-section emoji-list unicode-geo font-options font-opt opt-pick opt-name opt-desc component-block comp-preview btn btn-primary btn-secondary btn-tertiary code copy-btn com sel prop comp-info comp-meta card-modernist card-bulcao card-body card-title card-desc tag attr str input-label input-modernist badge badge-volpi badge-outline header-pilotis brand divisor-burle modal-demo modal-overlay modal-content application app-shapes app-hero app-eyebrow app-lead app-columns app-column app-footer tokens-code end
+scratch/design.html,layout nav nav-brand sub palette-picker label swatch nav-list parabola eyebrow reveal manifesto credits ds section-head section-num section-title section-lead principles principle num sub-head lineages antimodels palette-block desc swatch-grid swatch-card chip info role hex token type-specimen meta display-show body-show type-scale row size sample variable-axes axis-card axis-name axis-sample axis-desc space-scale space-row val bar grid-demo tiles-grid tile-card tile-num tile-preview tile-cell tile-grid tile-ref icons-grid icon-cell icon-name glyphs-grid glyph-cell shapes-grid shape-cell shape-desc shape-label emoji-section emoji-list unicode-geo font-options font-opt opt-pick opt-name opt-desc component-block comp-preview btn btn-primary btn-secondary btn-tertiary code copy-btn com sel prop comp-info comp-meta card-modernist card-bulcao card-body card-title card-desc tag attr str input-label input-modernist badge badge-volpi badge-outline header-pilotis brand divisor-burle modal-demo modal-overlay modal-content application app-shapes app-hero app-eyebrow app-lead app-columns app-column app-footer tokens-code end
+web/src/components/AgencyDetailView.svelte,btn btn-outline rollup-grid rollup-card muted supplier-list supplier-rank supplier-name supplier-count monthly-chart month-label month-bar month-count recent-list recent-header
+web/src/components/AlertBanner.svelte,alert level- alert-message
+web/src/components/AtasView.svelte,atas container hub-header type-badge meta-row search-form sr-only btn btn-primary skeleton-wrap skeleton skeleton-bid atas-list ata-card ata-header agency cnpj objeto ata-footer vigencia valor
+web/src/components/BuscaView.svelte,busca container hub-header type-badge meta-row search-form search-main sr-only btn btn-primary advanced-filters advanced-grid skeleton-wrap skeleton skeleton-bid suggestion-row suggestion-link filters filter export-actions btn-secondary copy-status aggregates agg-cell busca-results result-card result-head agency modality objeto result-foot date valor
+web/src/components/CatmatSearch.svelte,catmat-search catmat-error catmat-code catmat-type catmat-desc
+web/src/components/CitationBlock.svelte,citation btn btn-outline citation-meta sep ia-link bibtex btn-sm
+web/src/components/CityDetailView.svelte,stats-row recent-list
+web/src/components/CityHero.svelte,city-hero container hero-grid hero-copy kicker hero-city city-token hero-lead hero-search btn btn-primary btn-search hero-actions btn-lg btn-secondary geo-btn spinner btn-outline hero-error hero-source picker-wrap
+web/src/components/CityNavLink.svelte,city-nav-link
+web/src/components/CityPicker.svelte,city-picker active-line kicker link field sr-only input-modernist geo-btn status warn listbox opt-nome opt-uf opt-ibge compact active
+web/src/components/CityWowStrip.svelte,wow-strip container wow-grid wow-tile wow-tile--loading skeleton skel-num skel-label wow-num wow-label wow-foot wow-num--text wow-tile--meta wow-num--em wow-num--small wow-cta wow-empty
+web/src/components/CompararView.svelte,comparar container hub-header type-badge meta-row search-form btn btn-primary skeleton-wrap skeleton skeleton-bid spend-summary peers-section peer-list peer-card
+web/src/components/ContractCard.svelte,bid-link-card bid-header bid-id bid-date bid-obj bid-footer buyer valor
+web/src/components/ContractDetailView.svelte,meta-item snapshot-badge summary-wrap plain-summary btn btn-outline grid-details card data-list inline-link item-list item-row item-header item-seq item-desc item-meta item-valor muted meta-card
+web/src/components/CoverageReport.svelte,coverage banner banner--info banner--warn skeleton-row skeleton skel-num skel-line headline big of big--ref label pct esferas absences cnpj nome natureza footnote pct--low low
+web/src/components/Dashboard.svelte,retry-row btn btn-outline dashboard-grid card skeleton-card skeleton skeleton-label skeleton-value
+web/src/components/DevExamplesView.svelte,dev-examples
+web/src/components/DispensasView.svelte,dispensas container hub-header type-badge meta-row search-form sr-only btn btn-primary skeleton-wrap skeleton skeleton-bid legal-list legal-card legal-head legal-count legal-article samples agency objeto
+web/src/components/DuckDBExplorer.svelte,explorer-card card explorer-header icon text schema-toggle explorer-body schema-sidebar schema-tables schema-table-toggle schema-table-name schema-chevron schema-columns schema-column schema-column-name schema-column-type editor-column featured-queries featured-label fq-chip editor-zone template-hint btn btn-primary error-wrap results-container results-meta results-table-wrapper with-sidebar
+web/src/components/EmptyState.svelte,card empty-state action btn btn-primary
+web/src/components/EntityDetailLayout.svelte,entity-detail container skeleton-wrap skeleton skeleton-title skeleton-meta skeleton-stat skeleton-bid error-wrap back-row btn btn-outline hub-header kicker meta-row
+web/src/components/EntityNotFound.svelte,not-found-container container error-card icon id-display message actions btn btn-primary btn-outline
+web/src/components/Glossary.svelte,glossary-wrap glossary-tooltip
+web/src/components/HomeBuscaForm.svelte,home-busca sr-only btn btn-primary
+web/src/components/HomeSection.astro,home-section container sr-only home-section-head title-col kicker aside-col home-section-body
+web/src/components/LocalBids.svelte,local-bids container card modernist-card card-header icon-bulb title-group btn btn-primary status-msg spinner skeleton-wrap skeleton skeleton-heading skeleton-bid results results-header bids-list bid-card bid-meta bid-id bid-date bid-obj
+web/src/components/LookbackWindow.svelte,lookback-window lookback-label lookback-select
+web/src/components/ManifestTable.svelte,manifest-wrapper manifest-skeleton skeleton-row table-scroll parquet-link hash-cell manifest-foot
+web/src/components/MercadoView.svelte,mercado container hub-header type-badge meta-row search-form sr-only btn btn-primary skeleton-wrap skeleton skeleton-bid summary-stats stat-card stat-label stat-value market-lists market-list-section actions btn-outline
+web/src/components/MonitorGrid.astro,monitor-section container monitor-head kicker monitor-sub monitor-grid monitor-card tile card-body card-title card-q
+web/src/components/Navigation.astro,nav container nav-content logo brand-mark logo-accent nav-toggle-checkbox sr-only nav-toggle-label line-mid line-top line-bot nav-menu nav-links active-wrap atas active dropdown-container dropdown-trigger chevron dropdown-menu sobre nav-actions icon-btn search-btn search-label sr-only-desktop
+web/src/components/OrnamentBand.astro,ornament-band volpi
+web/src/components/PaginatedList.svelte,pagination-controls btn btn-outline page-info
+web/src/components/RawArchiveStatus.svelte,retry-row btn btn-outline status-grid card skeleton-card skeleton skeleton-label skeleton-value source-bar source-kicker btn-sm archive-facts
+web/src/components/SchemaChangelogView.svelte,changelog changelog-header lead changelog-list changelog-entry entry-date entry-badge entry-badge-- entry-table entry-column entry-note
+web/src/components/StatCard.svelte,card card-link card-title-bar stat-label stat-value stat-hint
+web/src/components/SupplierDetailView.svelte,actions-bar btn btn-outline rollup-grid rollup-card big-figure muted competitor-list competitor-rank competitor-name inline-link competitor-cnpj competitor-count recent-list recent-header
+web/src/components/ThemeToggle.svelte,theme-btn
+web/src/components/TrustStrip.astro,trust-strip container trust-head kicker trust-grid trust-card trust-kicker trust-link
+web/src/components/WatchDetailView.svelte,watch-detail container head kicker meta diff diff-empty diff-list diff-title diff-meta all muted all-list
+web/src/components/WatchList.svelte,watch-list container watch-head kicker watch-sub watch-grid watch-card watch-meta watch-type watch-cnpj watch-label watch-actions watch-open watch-remove
+web/src/layouts/Layout.astro,sr-only page-content portal-footer container footer-content footer-links
+web/src/pages/404.astro,not-found-container container modernist-glitch actions btn btn-primary
+web/src/pages/desenvolvedores.astro,container container--narrow page-header lead method-box code-row manifest-link
+web/src/pages/explorador.astro,container page-header
+web/src/pages/index.astro,tools-strip container tools-head kicker tools-sub tools-grid tool-card tool-label tool-blurb
+web/src/pages/schema/changelog.astro,container container--narrow
+web/src/pages/sobre.astro,container container--narrow page-header lead prose method-box
+web/src/pages/status.astro,status-section container status-header header-with-badge section-title badge operational section-desc status-content status-content--coverage

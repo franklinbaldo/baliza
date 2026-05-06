@@ -64,7 +64,8 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
 
     Then('I should see 4 skeleton tiles', async () => {
       await waitFor(() => {
-        const tiles = document.querySelectorAll('.wow-tile--loading');
+        // Pico migration: skeleton tiles are <article aria-busy=true> in CityWowStrip.svelte.
+        const tiles = document.querySelectorAll('article[aria-busy="true"]');
         expect(tiles.length).toBe(4);
       });
     });
@@ -105,7 +106,9 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     });
 
     And('the contracts tile should link to "/busca?ibge=1100205"', () => {
-      const links = Array.from(document.querySelectorAll('a.wow-tile')) as HTMLAnchorElement[];
+      // Pico migration: each tile is an <article><a> rather than a flat
+      // <a class="wow-tile">. Match anchors that wrap the rendered count.
+      const links = Array.from(document.querySelectorAll('article a')) as HTMLAnchorElement[];
       const contractsTile = links.find((a) => a.textContent?.includes('12.847'));
       expect(contractsTile).toBeDefined();
       expect(contractsTile?.getAttribute('href')).toMatch(/busca\?ibge=1100205$/);
@@ -196,7 +199,8 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       // Wait long enough for the query to settle and the error path to render.
       await waitFor(
         () => {
-          expect(document.querySelector('.wow-strip')).toBeNull();
+          // Pico migration: wrapper is now <section aria-label="Pulso de…">.
+          expect(document.querySelector('section[aria-label^="Pulso"]')).toBeNull();
         },
         { timeout: 2000 },
       );

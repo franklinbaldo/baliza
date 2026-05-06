@@ -198,22 +198,22 @@
   archivedParticao={data?.archived?.dataParticao}
   archiveMessage={`PNCP indisponível — exibindo dados arquivados (última consolidação: ${data?.archived?.dataParticao ? formatParticao(data.archived.dataParticao) : ''}).`}
   kicker="🏛️ ÓRGÃO / ENTIDADE"
-  iconId="t4"
   title={data?.name || ""}
 >
   {#snippet metaRow()}
     {#if data}
-      <span>CNPJ: {data.cnpj}</span>
-      <span>Fonte: {data.archived ? 'Arquivo Parquet (IA)' : 'PNCP V1'}</span>
+      <small>CNPJ: <code>{data.cnpj}</code></small>
+      <small>Fonte: <mark>{data.archived ? 'Arquivo Parquet (IA)' : 'PNCP V1'}</mark></small>
     {/if}
   {/snippet}
 
   {#snippet headerActions()}
     {#if data}
       <button
-        class="btn btn-outline"
+        class="outline"
         onclick={() => addWatch('agency', data.cnpj, data.name)}
         disabled={isAgencyWatched}
+        aria-pressed={isAgencyWatched}
       >
         {isAgencyWatched ? '✓ Acompanhando' : 'Receber alertas deste órgão'}
       </button>
@@ -229,50 +229,46 @@
         actionLabel="Voltar à busca"
       />
     {:else}
-      <section class="rollup-grid">
-        <article class="rollup-card" data-testid="top-suppliers">
+      <section class="grid">
+        <article data-testid="top-suppliers">
           <h3>Top 5 fornecedores</h3>
           {#if data.topSuppliers.length === 0}
-            <p class="muted">
+            <p><small>
               Dados de fornecedor disponíveis apenas no snapshot Parquet.
               Alterne a janela para consultar o arquivo.
-            </p>
+            </small></p>
           {:else}
-            <ol class="supplier-list">
+            <ol>
               {#each data.topSuppliers as s, i (`${s.cnpj || s.name}-${i}`)}
                 <li>
-                  <span class="supplier-rank">#{i + 1}</span>
-                  <span class="supplier-name">{s.name}</span>
-                  <span class="supplier-count">{s.count}</span>
+                  <small>#{i + 1}</small>
+                  <strong>{s.name}</strong>
+                  <small>{s.count}</small>
                 </li>
               {/each}
             </ol>
           {/if}
         </article>
 
-        <article class="rollup-card" data-testid="monthly-chart">
-          <h3>Contratos por mês (12 meses)</h3>
-          <ul class="monthly-chart" aria-label="Contratos por mês">
+        <figure data-testid="monthly-chart">
+          <figcaption>Contratos por mês (12 meses)</figcaption>
+          <ul aria-label="Contratos por mês">
             {#each data.monthly as m (m.month)}
               <li>
-                <span class="month-label">{m.label}</span>
-                <span
-                  class="month-bar"
-                  style={`width: ${(m.count / maxMonthly) * 100}%`}
-                  aria-hidden="true"
-                ></span>
-                <span class="month-count">{m.count}</span>
+                <small>{m.label}</small>
+                <progress value={m.count} max={maxMonthly} aria-hidden="true"></progress>
+                <small>{m.count}</small>
               </li>
             {/each}
           </ul>
-        </article>
+        </figure>
       </section>
 
-      <section class="recent-list">
-        <div class="recent-header">
+      <section>
+        <header>
           <h3>Portfólio de Contratações Recentes</h3>
           <LookbackWindow value={dias} onchange={updateDias} />
-        </div>
+        </header>
         <PaginatedList items={data.contracts} pageSize={10} resetTrigger={dias}>
           {#snippet children(pageItems)}
             {#each pageItems as item (item.numeroControlePNCP)}
@@ -290,58 +286,3 @@
   {/if}
 </EntityDetailLayout>
 
-<style>
-
-  .rollup-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: var(--space-lg);
-    margin-bottom: var(--space-2xl);
-  }
-
-  .rollup-card {
-    background: var(--color-base-100);
-    border: 1px solid var(--color-base-300);
-    border-radius: var(--radius-sm);
-    padding: var(--space-md);
-  }
-  .rollup-card h3 { margin: 0 0 var(--space-sm); font-size: var(--font-size-md); }
-  .rollup-card .muted { color: var(--color-secondary); font-size: var(--font-size-sm); margin: 0; }
-
-  .supplier-list { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-xs); }
-  .supplier-list li {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    gap: var(--space-sm);
-    align-items: baseline;
-    font-size: var(--font-size-sm);
-    padding: 4px 0;
-    border-bottom: 1px solid var(--color-base-200);
-  }
-  .supplier-list li:last-child { border-bottom: none; }
-  .supplier-rank { font-family: var(--font-mono); font-weight: 700; color: var(--color-secondary); }
-  .supplier-name { overflow-wrap: anywhere; }
-  .supplier-count { font-family: var(--font-mono); color: var(--color-primary); font-weight: 700; }
-
-  .monthly-chart { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
-  .monthly-chart li {
-    display: grid;
-    grid-template-columns: 3rem 1fr auto;
-    gap: var(--space-xs);
-    align-items: center;
-    font-size: var(--font-size-xs);
-  }
-  .month-label { font-family: var(--font-mono); color: var(--color-secondary); }
-  .month-bar {
-    display: block;
-    height: 0.6rem;
-    min-width: 2px;
-    background: var(--color-primary);
-    border-radius: 2px;
-    min-height: 0.6rem;
-  }
-  .month-count { font-family: var(--font-mono); color: var(--color-primary); font-weight: 700; }
-
-  .recent-list { display: grid; gap: var(--space-md); }
-  .recent-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-sm); }
-</style>

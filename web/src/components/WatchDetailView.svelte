@@ -131,40 +131,37 @@
   }
 </script>
 
-<section class="watch-detail container">
+<section>
   {#if mounted && !entry}
     <EmptyState
       title="Vigilância não encontrada"
       message="Esta vigilância não está salva neste navegador."
     />
   {:else if entry}
-    <header class="head">
-      <span class="kicker">Vigilância</span>
-      <h1>{entry.label}</h1>
-      <p class="meta">{entry.filter}</p>
+    <header>
+      <hgroup>
+        <small><mark>Vigilância</mark></small>
+        <h1>{entry.label}</h1>
+        <p><code>{entry.filter}</code></p>
+      </hgroup>
     </header>
 
     {#if previousVisited}
       <section
-        class="diff"
         data-testid="watch-diff-section"
         aria-labelledby="watch-diff-title"
       >
         <h2 id="watch-diff-title">Novidades desde sua última visita</h2>
         {#if newSinceVisit.length === 0}
-          <p class="diff-empty">
-            Nenhuma novidade desde {formatDate(previousVisited)}.
-          </p>
+          <p><small>Nenhuma novidade desde {formatDate(previousVisited)}.</small></p>
         {:else}
-          <ul class="diff-list">
+          <ul>
             {#each newSinceVisit as c (c.numeroControlePNCP)}
               <li data-testid="watch-diff-item">
                 <a href={linkFor(c)}>
-                  <span class="diff-title">{c.objetoContratacao}</span>
-                  <span class="diff-meta">
-                    <span>{formatDate(c.dataPublicacaoPncp ?? '')}</span>
-                    <span>{formatBRL(c.valorTotalEstimado ?? null)}</span>
-                  </span>
+                  <strong>{c.objetoContratacao}</strong>
+                  <small>{formatDate(c.dataPublicacaoPncp ?? '')}</small>
+                  <strong>{formatBRL(c.valorTotalEstimado ?? null)}</strong>
                 </a>
               </li>
             {/each}
@@ -173,21 +170,21 @@
       </section>
     {/if}
 
-    <section class="all" aria-labelledby="watch-all-title">
+    <section aria-labelledby="watch-all-title">
       <h2 id="watch-all-title">Todos os resultados</h2>
       {#if loading}
-        <p class="muted">Buscando…</p>
+        <p aria-busy="true">Buscando…</p>
       {:else if error}
         <AlertBanner title="Não foi possível buscar" message={error.message} level="error" />
       {:else if results.length === 0}
         <EmptyState title="Sem resultados" message="A vigilância ainda não tem correspondências." />
       {:else}
-        <ul class="all-list" data-testid="watch-all-results">
+        <ul data-testid="watch-all-results">
           {#each results as c (c.numeroControlePNCP)}
             <li>
               <a href={linkFor(c)}>
-                <span>{c.objetoContratacao}</span>
-                <span class="muted">{formatDate(c.dataPublicacaoPncp ?? '')}</span>
+                <strong>{c.objetoContratacao}</strong>
+                <small>{formatDate(c.dataPublicacaoPncp ?? '')}</small>
               </a>
             </li>
           {/each}
@@ -197,32 +194,3 @@
   {/if}
 </section>
 
-<style>
-  .watch-detail { padding: var(--space-2xl) 0; display: grid; gap: var(--space-lg); }
-  .head { border-bottom: 2px solid var(--color-base-300); padding-bottom: var(--space-md); }
-  .kicker {
-    font-family: var(--font-mono);
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--color-secondary);
-  }
-  h1 { font-size: var(--font-size-2xl); margin: 4px 0 0; }
-  .meta { font-family: var(--font-mono); font-size: var(--font-size-sm); color: var(--color-secondary); margin: 4px 0 0; }
-  .diff { padding: var(--space-md); border: 1px solid var(--color-primary); border-radius: var(--radius-sm); background: var(--color-base-100); }
-  .diff h2 { font-size: var(--font-size-lg); margin: 0 0 var(--space-sm); }
-  .diff-empty { color: var(--color-secondary); margin: 0; }
-  .diff-list, .all-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-sm); }
-  .diff-list a, .all-list a {
-    display: grid;
-    gap: 4px;
-    padding: var(--space-sm);
-    border: 1px solid var(--color-base-300);
-    text-decoration: none;
-    color: inherit;
-  }
-  .diff-meta { display: flex; justify-content: space-between; font-size: var(--font-size-sm); color: var(--color-secondary); font-family: var(--font-mono); }
-  .diff-title { font-weight: 600; }
-  .all h2 { font-size: var(--font-size-lg); margin: 0 0 var(--space-sm); }
-  .muted { color: var(--color-secondary); }
-</style>

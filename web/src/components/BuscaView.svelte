@@ -301,20 +301,22 @@
   }
 </script>
 
-<div class="busca container">
-  <header class="hub-header">
-    <span class="type-badge">🔎 BUSCA LIVRE</span>
-    <h1>Busca livre no PNCP</h1>
-    <p class="meta-row">
-      Busca texto-livre nas contratações publicadas no PNCP nos últimos 365 dias.
-      Informe também um número de controle PNCP (<code>cnpj-tipo-sequencial/ano</code>)
-      para ir direto ao contrato.
-    </p>
+<section>
+  <header>
+    <hgroup>
+      <small><mark>🔎 BUSCA LIVRE</mark></small>
+      <h1>Busca livre no PNCP</h1>
+      <p>
+        Busca texto-livre nas contratações publicadas no PNCP nos últimos 365 dias.
+        Informe também um número de controle PNCP (<code>cnpj-tipo-sequencial/ano</code>)
+        para ir direto ao contrato.
+      </p>
+    </hgroup>
   </header>
 
-  <form class="search-form" onsubmit={handleSubmit}>
-    <div class="search-main">
-      <label class="sr-only" for="busca-input">Termo a pesquisar</label>
+  <form role="search" onsubmit={handleSubmit}>
+    <fieldset>
+      <label for="busca-input" class="sr-only">Termo a pesquisar</label>
       <input
         id="busca-input"
         type="search"
@@ -322,19 +324,19 @@
         placeholder="Ex.: hospital municipal, merenda escolar, 00000000000191-1-000001/2024…"
         aria-label="Termo a pesquisar"
       />
-      <button type="submit" class="btn btn-primary">Buscar</button>
-    </div>
-    
-    <details class="advanced-filters" open={draftHasAny}>
+      <button type="submit">Buscar</button>
+    </fieldset>
+
+    <details open={draftHasAny}>
       <summary>Filtros Avançados (API do PNCP)</summary>
-      <div class="advanced-grid">
+      <fieldset class="grid">
         {#each Object.values(FILTERS) as def (def.key)}
           <label>
-            <span>{def.label}</span>
+            {def.label}
             <input type="text" bind:value={drafts[def.key]} placeholder={def.placeholder} />
           </label>
         {/each}
-      </div>
+      </fieldset>
     </details>
   </form>
 
@@ -344,12 +346,9 @@
       message="Use ao menos 3 caracteres no termo ou preencha um filtro avançado para buscar."
     />
   {:else if loading}
-    <div class="skeleton-wrap" aria-busy="true" aria-label="Buscando contratações">
-      <div class="skeleton skeleton-bid"></div>
-      <div class="skeleton skeleton-bid"></div>
-      <div class="skeleton skeleton-bid"></div>
-      <div class="skeleton skeleton-bid"></div>
-    </div>
+    <article aria-busy="true" class="is-skeleton" aria-label="Buscando contratações">
+      <p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p>
+    </article>
   {:else if error}
     <AlertBanner title="Não foi possível buscar" message={error.message} level="error" />
   {:else if results.length === 0}
@@ -358,90 +357,53 @@
       message="Nenhuma publicação recente do PNCP corresponde ao termo pesquisado."
     />
     {#if suggestion}
-      <p class="suggestion-row">
+      <p>
         Você quis dizer:
         <button
           type="button"
-          class="suggestion-link"
           data-testid="busca-suggestion"
           onclick={applySuggestion}
         >{suggestion}</button>?
       </p>
     {/if}
   {:else}
-    <div class="filters" data-testid="busca-filters">
-      <label class="filter">
-        <span>UF</span>
-        <select
-          bind:value={selectedUf}
-          aria-label="Filtrar por UF"
-          data-testid="busca-filter-uf"
-        >
+    <fieldset data-testid="busca-filters" class="grid">
+      <label>
+        UF
+        <select bind:value={selectedUf} aria-label="Filtrar por UF" data-testid="busca-filter-uf">
           <option value="">Todas</option>
-          {#each ufOptions as uf (uf)}
-            <option value={uf}>{uf}</option>
-          {/each}
+          {#each ufOptions as uf (uf)}<option value={uf}>{uf}</option>{/each}
         </select>
       </label>
-      <label class="filter">
-        <span>Modalidade</span>
-        <select
-          bind:value={selectedModality}
-          aria-label="Filtrar por modalidade"
-          data-testid="busca-filter-modality"
-        >
+      <label>
+        Modalidade
+        <select bind:value={selectedModality} aria-label="Filtrar por modalidade" data-testid="busca-filter-modality">
           <option value="">Todas</option>
-          {#each modalityOptions as mod (mod)}
-            <option value={mod}>{mod}</option>
-          {/each}
+          {#each modalityOptions as mod (mod)}<option value={mod}>{mod}</option>{/each}
         </select>
       </label>
-      <div class="export-actions" role="group" aria-label="Exportar resultados visíveis">
-        <button
-          type="button"
-          class="btn btn-secondary"
-          data-testid="busca-save-watch"
-          onclick={saveWatch}
-          aria-pressed={queryWatched}
-          disabled={!watchKey || results.length === 0}
-        >{queryWatched ? '✓ Vigilância salva' : 'Salvar vigilância'}</button>
-        <button
-          type="button"
-          class="btn btn-secondary"
-          data-testid="busca-export-csv"
-          onclick={exportCsv}
-        >Exportar CSV</button>
-        <button
-          type="button"
-          class="btn btn-secondary"
-          data-testid="busca-export-markdown"
-          onclick={exportMarkdown}
-        >Exportar Markdown</button>
-        {#if copyStatus !== 'idle'}
-          <span
-            class="copy-status"
-            role="status"
-            aria-live="polite"
-            data-testid="busca-export-status"
-          >{copyStatus === 'copied' ? 'Copiado!' : 'Falha ao copiar'}</span>
-        {/if}
-      </div>
+    </fieldset>
+
+    <div role="group" aria-label="Exportar resultados visíveis" class="actions">
+      <button type="button" class="outline" data-testid="busca-save-watch" onclick={saveWatch} aria-pressed={queryWatched} disabled={!watchKey || results.length === 0}>
+        {queryWatched ? '✓ Vigilância salva' : 'Salvar vigilância'}
+      </button>
+      <button type="button" class="outline" data-testid="busca-export-csv" onclick={exportCsv}>Exportar CSV</button>
+      <button type="button" class="outline" data-testid="busca-export-markdown" onclick={exportMarkdown}>Exportar Markdown</button>
+      {#if copyStatus !== 'idle'}
+        <small role="status" aria-live="polite" data-testid="busca-export-status">
+          {copyStatus === 'copied' ? 'Copiado!' : 'Falha ao copiar'}
+        </small>
+      {/if}
     </div>
 
-    <dl class="aggregates" data-testid="busca-aggregates" aria-label="Resumo dos resultados visíveis">
-      <div class="agg-cell">
-        <dt>Contratos</dt>
-        <dd data-testid="busca-aggregate-count">{aggregates.count}</dd>
-      </div>
-      <div class="agg-cell">
-        <dt>Valor total</dt>
-        <dd data-testid="busca-aggregate-total">{formatBRL(aggregates.total)}</dd>
-      </div>
-      <div class="agg-cell">
-        <dt>Valor médio</dt>
-        <dd data-testid="busca-aggregate-average">{formatBRL(aggregates.average)}</dd>
-      </div>
-    </dl>
+    <article data-testid="busca-aggregates" aria-label="Resumo dos resultados visíveis">
+      <dl class="grid">
+        <div><dt><small>Contratos</small></dt><dd data-testid="busca-aggregate-count"><strong>{aggregates.count}</strong></dd></div>
+        <div><dt><small>Valor total</small></dt><dd data-testid="busca-aggregate-total"><strong>{formatBRL(aggregates.total)}</strong></dd></div>
+        <div><dt><small>Valor médio</small></dt><dd data-testid="busca-aggregate-average"><strong>{formatBRL(aggregates.average)}</strong></dd></div>
+      </dl>
+    </article>
 
     {#if filteredResults.length === 0}
       <EmptyState
@@ -451,20 +413,22 @@
     {:else}
       <PaginatedList items={filteredResults} pageSize={20} resetTrigger={`${submitted.q}${selectedUf}${selectedModality}`}>
         {#snippet children(pageItems)}
-          <ul role="listbox" class="busca-results" data-testid="busca-results">
+          <ul role="listbox" data-testid="busca-results">
             {#each pageItems as c (c.numeroControlePNCP)}
               <li role="option" aria-selected="false" data-testid="busca-result-item">
-                <a href={linkFor(c)} class="result-card">
-                  <div class="result-head">
-                    <span class="agency">{c.orgaoEntidade?.razaoSocial ?? 'Órgão'}</span>
-                    <span class="modality">{c.modalidadeNome ?? ''}</span>
-                  </div>
-                  <p class="objeto" title={c.objetoContratacao}>{truncate(c.objetoContratacao, 180)}</p>
-                  <div class="result-foot">
-                    <span class="date">{formatDate(c.dataPublicacaoPncp ?? '')}</span>
-                    <span class="valor">{formatBRL(c.valorTotalEstimado ?? null)}</span>
-                  </div>
-                </a>
+                <article>
+                  <a href={linkFor(c)}>
+                    <header>
+                      <strong>{c.orgaoEntidade?.razaoSocial ?? 'Órgão'}</strong>
+                      <small><mark>{c.modalidadeNome ?? ''}</mark></small>
+                    </header>
+                    <p title={c.objetoContratacao}>{truncate(c.objetoContratacao, 180)}</p>
+                    <footer>
+                      <small>{formatDate(c.dataPublicacaoPncp ?? '')}</small>
+                      <strong>{formatBRL(c.valorTotalEstimado ?? null)}</strong>
+                    </footer>
+                  </a>
+                </article>
               </li>
             {/each}
           </ul>
@@ -472,137 +436,5 @@
       </PaginatedList>
     {/if}
   {/if}
-</div>
+</section>
 
-<style>
-  .busca { padding: var(--space-2xl) 0; }
-  .hub-header { margin-bottom: var(--space-lg); border-bottom: 2px solid var(--color-base-300); padding-bottom: var(--space-md); }
-  .type-badge { font-family: var(--font-mono); font-size: 0.7rem; background: var(--color-primary); color: white; padding: 2px 8px; border-radius: 4px; }
-  h1 { font-size: var(--font-size-2xl); margin-top: var(--space-sm); }
-  .meta-row { color: var(--color-secondary); font-size: var(--font-size-sm); margin: 4px 0 0; }
-  .meta-row code { font-family: var(--font-mono); font-size: 0.85em; }
-
-  .search-form { display: grid; gap: var(--space-sm); margin-bottom: var(--space-lg); }
-  .search-main { display: flex; gap: var(--space-sm); }
-  .search-main input {
-    flex: 1;
-    padding: var(--space-sm) var(--space-md);
-    border: 1px solid var(--color-base-300);
-    border-radius: var(--radius-sm);
-    font-size: var(--font-size-md);
-  }
-  .advanced-filters {
-    font-size: var(--font-size-sm);
-    color: var(--color-secondary);
-  }
-  .advanced-filters summary {
-    cursor: pointer;
-    user-select: none;
-    margin-bottom: var(--space-sm);
-    display: inline-block;
-  }
-  .advanced-filters summary:hover { color: var(--color-primary); }
-  .advanced-grid {
-    display: flex;
-    gap: var(--space-md);
-    flex-wrap: wrap;
-    background: var(--color-base-100);
-    padding: var(--space-md);
-    border: 1px solid var(--color-base-300);
-    border-radius: var(--radius-sm);
-    margin-top: var(--space-xs);
-  }
-  .advanced-grid label { display: grid; gap: 6px; flex: 1; min-width: 200px; }
-  .advanced-grid input {
-    padding: 8px 10px;
-    border: 1px solid var(--color-base-300);
-    border-radius: var(--radius-sm);
-    font-size: var(--font-size-sm);
-  }
-  .sr-only {
-    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
-  }
-
-  .filters {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-md);
-    margin-bottom: var(--space-md);
-  }
-  .filter { display: grid; gap: 4px; font-size: var(--font-size-xs); color: var(--color-secondary); }
-  .filter select {
-    padding: 6px 8px;
-    border: 1px solid var(--color-base-300);
-    border-radius: var(--radius-sm);
-    background: var(--color-base-100);
-    font-size: var(--font-size-sm);
-  }
-  .export-actions {
-    margin-left: auto;
-    display: flex;
-    align-items: end;
-    gap: var(--space-sm);
-  }
-  .copy-status {
-    font-size: var(--font-size-xs);
-    color: var(--color-secondary);
-    align-self: center;
-  }
-
-  .aggregates {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: var(--space-md);
-    margin: 0 0 var(--space-lg);
-    padding: var(--space-md);
-    background: var(--color-base-100);
-    border: 1px solid var(--color-base-300);
-    border-radius: var(--radius-sm);
-  }
-  .agg-cell dt {
-    font-size: var(--font-size-xs);
-    color: var(--color-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-  .agg-cell dd { margin: 4px 0 0; font-weight: 700; font-size: var(--font-size-md); }
-
-  .suggestion-row { margin-top: var(--space-md); font-size: var(--font-size-sm); }
-  .suggestion-link {
-    background: none;
-    border: 0;
-    padding: 0;
-    color: var(--color-primary);
-    font: inherit;
-    cursor: pointer;
-    text-decoration: underline;
-  }
-  .suggestion-link:hover, .suggestion-link:focus-visible { text-decoration: none; }
-
-  .skeleton-wrap { display: grid; gap: var(--space-md); }
-  .skeleton-bid { height: 5rem; border-radius: var(--radius-sm); }
-
-  .busca-results { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-md); }
-  .result-card {
-    display: block;
-    text-decoration: none;
-    color: inherit;
-    background: var(--color-base-100);
-    padding: var(--space-md);
-    border: 1px solid var(--color-base-300);
-    transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
-  }
-  .result-card:hover, .result-card:focus-visible {
-    transform: translate(-2px, -2px);
-    border-color: var(--color-primary);
-    box-shadow: 4px 4px 0 var(--color-primary);
-  }
-  .result-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-sm); font-size: var(--font-size-sm); margin-bottom: var(--space-sm); }
-  .agency { font-weight: 700; }
-  .modality { color: var(--color-secondary); font-size: var(--font-size-xs); }
-  .objeto { font-size: var(--font-size-sm); line-height: 1.5; margin-bottom: var(--space-sm); }
-  .result-foot { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-sm); font-size: var(--font-size-sm); }
-  .date { font-family: var(--font-mono); color: var(--color-secondary); }
-  .valor { font-weight: 800; color: var(--color-primary); }
-</style>

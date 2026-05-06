@@ -65,7 +65,8 @@ describeFeature(feature, ({ Scenario }) => {
       expect(rendered).toContain('contratos-2025-01.parquet');
       expect(rendered).toContain('2025-01');
       // Hash is rendered abbreviated; the full hash sits in the cell title.
-      const hashCell = table.querySelector('.hash-cell') as HTMLElement | null;
+      // Pico migration: SHA cell is <td title=…><code>shortHash</code></td>.
+      const hashCell = table.querySelector('tbody tr td[title]') as HTMLElement | null;
       expect(hashCell?.getAttribute('title')).toBe(SAMPLE_MANIFEST_ROWS[1].sha256);
     });
   });

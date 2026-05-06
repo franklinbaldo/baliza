@@ -1,4 +1,4 @@
-<div class="dev-examples">
+<div class="grid">
   <section data-testid="dev-example-python">
     <h2>Python (pandas + pyarrow)</h2>
     <pre><code>{`import pandas as pd
@@ -42,17 +42,3 @@ console.log(res.toArray());`}</code></pre>
   </section>
 </div>
 
-<style>
-  .dev-examples { display: grid; gap: var(--space-xl); }
-  h2 { font-size: var(--font-size-xl); margin-bottom: var(--space-sm); }
-  pre {
-    background: var(--color-base-200);
-    border: 1px solid var(--color-base-300);
-    border-radius: var(--radius-box);
-    padding: var(--space-md);
-    overflow-x: auto;
-    font-size: var(--font-size-sm);
-    line-height: 1.5;
-  }
-  code { font-family: var(--font-mono, ui-monospace, monospace); }
-</style>

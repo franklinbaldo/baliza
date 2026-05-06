@@ -119,278 +119,114 @@
     // resolve into textarea state.
     if (typeof window !== 'undefined') {
       window.setTimeout(() => {
-        const ta = document.querySelector('.editor-zone textarea') as HTMLTextAreaElement | null;
+        // Selector hook moved from .editor-zone (CSS class, removed in
+        // the styling refactor) to a dedicated data-attribute so JS
+        // wiring no longer depends on styling concerns.
+        const ta = document.querySelector('[data-editor-zone] textarea') as HTMLTextAreaElement | null;
         if (ta) ta.focus();
       }, 0);
     }
   }
 </script>
 
-<div class="explorer-card card">
-  <div class="explorer-header">
-    <div class="icon">🔍</div>
-    <div class="text">
+<article>
+  <header>
+    <hgroup>
+      <small>🔍</small>
       <h3>SQL Explorer (Beta)</h3>
       <p>Consulte a base de contratos local usando SQL padrão.</p>
-    </div>
+    </hgroup>
     <button
       type="button"
-      class="schema-toggle"
+      class="outline"
       onclick={() => (schemaOpen = !schemaOpen)}
       aria-expanded={schemaOpen}
       aria-controls="schema-sidebar"
     >
       {schemaOpen ? 'Ocultar esquema' : 'Mostrar esquema'}
     </button>
-  </div>
+  </header>
 
-  <div class="explorer-body" class:with-sidebar={schemaOpen}>
+  <div class="grid">
     {#if schemaOpen}
-      <aside
-        class="schema-sidebar"
-        id="schema-sidebar"
-        data-testid="schema-sidebar"
-        aria-label="Esquema das tabelas disponíveis"
-      >
+      <aside id="schema-sidebar" data-testid="schema-sidebar" aria-label="Esquema das tabelas disponíveis">
         <h4>Tabelas disponíveis</h4>
-        <ul class="schema-tables">
+        <ul>
           {#each ARCHIVED_TABLES as table (table)}
             <li>
-              <button
-                type="button"
-                class="schema-table-toggle"
-                aria-expanded={!!expanded[table]}
-                onclick={() => toggle(table)}
-              >
-                <span class="schema-table-name">{table}</span>
-                <span class="schema-chevron" aria-hidden="true">{expanded[table] ? '▾' : '▸'}</span>
-              </button>
-              {#if expanded[table]}
-                <ul class="schema-columns">
+              <details open={!!expanded[table]}>
+                <summary onclick={(e) => { e.preventDefault(); toggle(table); }}>
+                  <strong>{table}</strong>
+                </summary>
+                <ul>
                   {#each SCHEMA_MAP[table] as col (col.name)}
                     <li>
                       <button
                         type="button"
-                        class="schema-column"
+                        class="outline"
                         onclick={() => insertFromColumn(table, col.name)}
                         title={`Inserir SELECT ${col.name}`}
                       >
-                        <span class="schema-column-name">{col.name}</span>
-                        <span class="schema-column-type">{col.type}</span>
+                        <code>{col.name}</code>
+                        <small>{col.type}</small>
                       </button>
                     </li>
                   {/each}
                 </ul>
-              {/if}
+              </details>
             </li>
           {/each}
         </ul>
       </aside>
     {/if}
 
-    <div class="editor-column">
-      <div class="featured-queries" role="group" aria-label="Consultas prontas">
-        <span class="featured-label">Consultas prontas:</span>
-        {#each featuredQueries as fq (fq.label)}
-          <button class="fq-chip" onclick={() => (query = fq.sql)}>
-            {fq.label}
-          </button>
-        {/each}
-      </div>
+    <section>
+      <details open>
+        <summary>Consultas prontas</summary>
+        <div role="group" aria-label="Consultas prontas">
+          {#each featuredQueries as fq (fq.label)}
+            <button class="outline" onclick={() => (query = fq.sql)}>{fq.label}</button>
+          {/each}
+        </div>
+      </details>
 
-      <div class="editor-zone">
-        <textarea bind:value={query} spellcheck="false" aria-label="Consulta SQL"></textarea>
+      <fieldset data-editor-zone>
+        <label>
+          <span class="sr-only">Consulta SQL</span>
+          <textarea bind:value={query} spellcheck="false" aria-label="Consulta SQL" rows="6"></textarea>
+        </label>
         {#if hasUnresolvedUrl}
-          <div class="template-hint" role="note">
+          <small role="note">
             ⚠️ Substitua <code>'IA_URL'</code> pela URL real do arquivo Parquet no Internet Archive antes de executar.
-          </div>
+          </small>
         {/if}
-        <button class="btn btn-primary" onclick={runQuery} disabled={loading || hasUnresolvedUrl}>
+        <button onclick={runQuery} disabled={loading || hasUnresolvedUrl} aria-busy={loading}>
           {loading ? "Executando..." : "Explorar Dados"}
         </button>
-      </div>
+      </fieldset>
 
       {#if error}
-        <div class="error-wrap">
-          <AlertBanner title="Erro SQL" message={error} level="error" />
-        </div>
+        <AlertBanner title="Erro SQL" message={error} level="error" />
       {/if}
 
       {#if results.length > 0}
-        <div class="results-container">
-          <div class="results-meta">
-            <span>{results.length} linhas retornadas</span>
-          </div>
-          <div class="results-table-wrapper">
+        <figure>
+          <figcaption><small>{results.length} linhas retornadas</small></figcaption>
+          <div class="table-scroll">
             <table>
               <thead>
-                <tr>
-                  {#each Object.keys(results[0]) as col (col)}
-                    <th>{col}</th>
-                  {/each}
-                </tr>
+                <tr>{#each Object.keys(results[0]) as col (col)}<th>{col}</th>{/each}</tr>
               </thead>
               <tbody>
                 {#each results as row, i (i)}
-                  <tr>
-                    {#each Object.values(row) as val, j (`${i}-${j}`)}
-                      <td>{val}</td>
-                    {/each}
-                  </tr>
+                  <tr>{#each Object.values(row) as val, j (`${i}-${j}`)}<td>{val}</td>{/each}</tr>
                 {/each}
               </tbody>
             </table>
           </div>
-        </div>
+        </figure>
       {/if}
-    </div>
+    </section>
   </div>
-</div>
+</article>
 
-<style>
-  .explorer-card { background: var(--color-base-100); border: 1px solid var(--color-base-300); padding: var(--space-md); border-radius: var(--radius-box); }
-  .explorer-header {
-    display: flex;
-    gap: var(--space-md);
-    align-items: flex-start;
-    margin-bottom: var(--space-md);
-  }
-  .explorer-header h3 { margin: 0; font-size: var(--font-size-lg); }
-  .explorer-header p { margin: 0; font-size: var(--font-size-xs); color: var(--color-secondary); }
-  .explorer-header .text { flex: 1; }
-  .schema-toggle {
-    background: var(--color-base-200);
-    border: 1px solid var(--color-base-300);
-    border-radius: 0;
-    padding: 4px 10px;
-    font-size: var(--font-size-xs);
-    cursor: pointer;
-    color: var(--color-secondary);
-    transition: all var(--transition-base);
-  }
-  .schema-toggle:hover, .schema-toggle:focus-visible { border-color: var(--color-primary); color: var(--color-primary); transform: translate(-1px, -1px); box-shadow: 2px 2px 0 var(--color-primary); }
-
-  .explorer-body {
-    display: grid;
-    gap: var(--space-md);
-    grid-template-columns: 1fr;
-  }
-  .explorer-body.with-sidebar {
-    grid-template-columns: 240px 1fr;
-  }
-  @media (max-width: 720px) {
-    .explorer-body.with-sidebar { grid-template-columns: 1fr; }
-  }
-
-  .schema-sidebar {
-    background: var(--color-base-200);
-    border: 1px solid var(--color-base-300);
-    border-radius: var(--radius-sm);
-    padding: var(--space-sm);
-    max-height: 420px;
-    overflow: auto;
-    font-size: var(--font-size-xs);
-  }
-  .schema-sidebar h4 {
-    margin: 0 0 var(--space-xs);
-    font-size: var(--font-size-sm);
-    color: var(--color-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-  .schema-tables { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
-  .schema-table-toggle {
-    display: flex;
-    justify-content: space-between;
-    width: 100%;
-    background: none;
-    border: 1px solid var(--color-base-300);
-    border-radius: var(--radius-sm);
-    padding: 4px 8px;
-    cursor: pointer;
-    color: var(--color-base-content);
-    font-family: var(--font-mono);
-    font-size: var(--font-size-xs);
-  }
-  .schema-table-toggle:hover { border-color: var(--color-primary); }
-  .schema-table-name { font-weight: 700; }
-  .schema-columns {
-    list-style: none;
-    padding: 4px 0 4px var(--space-sm);
-    margin: 0;
-    display: grid;
-    gap: 2px;
-  }
-  .schema-column {
-    background: none;
-    border: none;
-    padding: 2px 4px;
-    width: 100%;
-    display: flex;
-    justify-content: space-between;
-    gap: var(--space-xs);
-    cursor: pointer;
-    font-family: var(--font-mono);
-    font-size: var(--font-size-xs);
-    color: var(--color-base-content);
-    text-align: left;
-  }
-  .schema-column:hover { color: var(--color-primary); }
-  .schema-column-type { color: var(--color-secondary); }
-
-  .editor-column { min-width: 0; }
-
-  .featured-queries {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-xs);
-    margin-bottom: var(--space-md);
-    font-size: var(--font-size-xs);
-    color: var(--color-secondary);
-  }
-  .featured-label { font-weight: 600; }
-  .fq-chip {
-    background: var(--color-base-200);
-    border: 1px solid var(--color-base-300);
-    padding: 3px 10px;
-    border-radius: 0;
-    cursor: pointer;
-    font-size: var(--font-size-xs);
-    color: var(--color-secondary);
-    font-family: var(--font-sans);
-    transition: all var(--transition-base);
-  }
-  .fq-chip:hover, .fq-chip:focus-visible { border-color: var(--color-primary); color: var(--color-primary); transform: translate(-1px, -1px); box-shadow: 2px 2px 0 var(--color-primary); }
-
-  textarea {
-    width: 100%; height: 120px; background: var(--color-base-200); color: var(--color-base-content);
-    border: 1px solid var(--color-base-300); border-radius: var(--radius-sm); padding: var(--space-sm);
-    font-family: var(--font-mono); font-size: var(--font-size-sm); resize: vertical; margin-bottom: var(--space-sm);
-    outline: none;
-  }
-  textarea:focus { border-color: var(--color-primary); }
-
-  .template-hint {
-    font-size: var(--font-size-xs);
-    color: var(--color-warning, #b45309);
-    background: color-mix(in srgb, var(--color-warning, #b45309) 10%, transparent);
-    border: 1px solid color-mix(in srgb, var(--color-warning, #b45309) 30%, transparent);
-    border-radius: var(--radius-sm);
-    padding: 6px 10px;
-    margin-bottom: var(--space-sm);
-  }
-  .template-hint code { font-family: var(--font-mono); font-weight: 700; }
-
-  .error-wrap { margin-top: var(--space-md); }
-
-  .results-container { margin-top: var(--space-lg); border-top: 1px solid var(--color-base-300); padding-top: var(--space-md); }
-  .results-meta { font-size: 0.7rem; color: var(--color-secondary); margin-bottom: 4px; font-weight: 700; text-transform: uppercase; }
-  .results-table-wrapper { overflow-x: auto; border: 1px solid var(--color-base-300); border-radius: var(--radius-sm); }
-
-  table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
-  th { background: var(--color-base-200); text-align: left; padding: 8px; border-bottom: 1px solid var(--color-base-300); }
-  td { padding: 8px; border-bottom: 1px solid var(--color-base-300); white-space: nowrap; }
-  tr:last-child td { border-bottom: none; }
-  tr:hover td { background: var(--color-base-200); }
-</style>

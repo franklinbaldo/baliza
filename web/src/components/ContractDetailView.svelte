@@ -36,8 +36,6 @@
     hydrateWatches();
   });
 
-
-
   // Supplier data lives in the Parquet schema (`ni_fornecedor`,
   // `nome_razao_social_fornecedor`) but not in the PNCP consulta endpoint.
   // Hoisted onto the view so the plain-language summary can name the supplier
@@ -112,24 +110,23 @@
   archivedParticao={data?.archived?.dataParticao}
   archiveMessage={`PNCP indisponível — exibindo dados arquivados (última consolidação: ${data?.archived?.dataParticao ? formatParticao(data.archived.dataParticao) : ''}).`}
   kicker="CONTRATAÇÃO PÚBLICA"
-  iconId="t1"
   title={data?.objetoContratacao || ""}
 >
   {#snippet metaRow()}
     {#if data}
-      <span class="meta-item">ID: {data.numeroControlePNCP || id}</span>
-      <span class="meta-item">Publicação: {formatDate(data.dataPublicacaoPncp)}</span>
+      <small>ID: <code>{data.numeroControlePNCP || id}</code></small>
+      <small>Publicação: {formatDate(data.dataPublicacaoPncp)}</small>
       {#if effectiveSnapshot}
-        <span class="meta-item snapshot-badge" data-testid="snapshot-date">
-          Snapshot: <time datetime={effectiveSnapshot}>{formatParticao(effectiveSnapshot)}</time>
-        </span>
+        <small data-testid="snapshot-date">
+          Snapshot: <mark><time datetime={effectiveSnapshot}>{formatParticao(effectiveSnapshot)}</time></mark>
+        </small>
       {/if}
     {/if}
   {/snippet}
 
   {#if data}
-    <div class="summary-wrap">
-      <p class="plain-summary" data-testid="plain-language-summary">
+    <blockquote>
+      <p data-testid="plain-language-summary">
         {#if data.orgaoEntidade?.razaoSocial}
           <strong>{data.orgaoEntidade.razaoSocial}</strong>
         {:else}
@@ -149,20 +146,23 @@
         para <strong>{data.objetoContratacao || 'um objeto não descrito'}</strong>{data.modalidadeNome ? `, via ${data.modalidadeNome}` : ''}.
       </p>
       {#if data.supplierCnpj}
-        <button
-          class="btn btn-outline"
-          onclick={() => addWatch('supplier', data.supplierCnpj!, data.supplierName ?? data.supplierCnpj!)}
-          disabled={isSupplierWatched}
-        >
-          {isSupplierWatched ? '✓ Acompanhando' : 'Acompanhar este fornecedor'}
-        </button>
+        <footer>
+          <button
+            class="outline"
+            onclick={() => addWatch('supplier', data.supplierCnpj!, data.supplierName ?? data.supplierCnpj!)}
+            disabled={isSupplierWatched}
+            aria-pressed={isSupplierWatched}
+          >
+            {isSupplierWatched ? '✓ Acompanhando' : 'Acompanhar este fornecedor'}
+          </button>
+        </footer>
       {/if}
-    </div>
+    </blockquote>
 
-    <div class="grid-details">
-      <section class="card">
+    <div class="grid">
+      <section>
         <h3>Detalhes da Contratação</h3>
-        <dl class="data-list">
+        <dl>
           <div role="listitem"><dt>Objeto</dt><dd>{data.objetoContratacao || '—'}</dd></div>
           <div role="listitem"><dt>Nº Controle PNCP</dt><dd>{data.numeroControlePNCP || '—'}</dd></div>
           <div role="listitem"><dt>Modalidade</dt><dd>{#if data.modalidadeNome}<Glossary term={data.modalidadeNome}>{data.modalidadeNome}</Glossary>{:else}—{/if}</dd></div>
@@ -173,14 +173,14 @@
         </dl>
       </section>
 
-      <section class="card">
+      <section>
         <h3>Órgão Responsável</h3>
-        <dl class="data-list">
+        <dl>
           <div role="listitem">
             <dt>Razão Social</dt>
             <dd>
               {#if data.orgaoEntidade?.cnpj}
-                <a href={resolve(`orgao?cnpj=${data.orgaoEntidade.cnpj}`)} class="inline-link">
+                <a href={resolve(`orgao?cnpj=${data.orgaoEntidade.cnpj}`)}>
                   {data.orgaoEntidade.razaoSocial || '—'}
                 </a>
               {:else}
@@ -194,7 +194,7 @@
             <dt>Município</dt>
             <dd>
               {#if data.unidadeOrgao?.codigoMunicipioIbge}
-                <a href={resolve(`municipio?ibge=${data.unidadeOrgao.codigoMunicipioIbge}`)} class="inline-link">
+                <a href={resolve(`municipio?ibge=${data.unidadeOrgao.codigoMunicipioIbge}`)}>
                   {data.unidadeOrgao?.municipioNome || '—'}{data.unidadeOrgao?.ufSigla ? ` / ${data.unidadeOrgao.ufSigla}` : ''}
                 </a>
               {:else}
@@ -205,14 +205,14 @@
         </dl>
       </section>
 
-      <section class="card">
+      <section>
         <h3>Fornecedor Vencedor</h3>
-        <dl class="data-list">
+        <dl>
           <div role="listitem">
             <dt>Razão Social</dt>
             <dd>
               {#if data.supplierCnpj}
-                <a href={resolve(`fornecedor?cnpj=${data.supplierCnpj}`)} class="inline-link">
+                <a href={resolve(`fornecedor?cnpj=${data.supplierCnpj}`)}>
                   {data.supplierName || '—'}
                 </a>
               {:else}
@@ -224,9 +224,9 @@
         </dl>
       </section>
 
-      <section class="card">
+      <section>
         <h3>Valores</h3>
-        <dl class="data-list">
+        <dl>
           <div role="listitem"><dt>Valor Estimado</dt><dd>{formatBRL(data.valorTotalEstimado)}</dd></div>
           {#if data.valorTotalHomologado != null}
             <div role="listitem"><dt>Valor Homologado</dt><dd>{formatBRL(data.valorTotalHomologado)}</dd></div>
@@ -234,31 +234,31 @@
         </dl>
       </section>
 
-      <section class="card">
+      <section>
         <h3>Itens</h3>
         {#if data.itens && data.itens.length > 0}
-          <ul class="item-list">
+          <ul>
             {#each data.itens as item (item.sequencialItem)}
-              <li class="item-row">
-                <div class="item-header">
-                  <span class="item-seq">#{item.sequencialItem}</span>
-                  <span class="item-desc">{item.descricao}</span>
+              <li>
+                <div>
+                  <span>#{item.sequencialItem}</span>
+                  <span>{item.descricao}</span>
                 </div>
-                <div class="item-meta">
+                <div>
                   <span>Qtd: {item.quantidade ?? '—'} {item.unidadeMedida ?? ''}</span>
-                  <span class="item-valor">Unit.: {formatBRL(item.valorUnitarioEstimado)}</span>
+                  <span>Unit.: {formatBRL(item.valorUnitarioEstimado)}</span>
                 </div>
               </li>
             {/each}
           </ul>
         {:else}
-          <p class="muted">Sem itens publicados para esta contratação.</p>
+          <p>Sem itens publicados para esta contratação.</p>
         {/if}
       </section>
 
-      <section class="card meta-card">
+      <section>
         <h3>Fontes e Metadados</h3>
-        <dl class="data-list">
+        <dl>
           <div role="listitem"><dt>Modo de Disputa</dt><dd>{data.modoDisputaNome || '—'}</dd></div>
           <div role="listitem"><dt>Publicado por</dt><dd>{data.usuarioNome || '—'}</dd></div>
           {#if effectiveSnapshot}
@@ -271,7 +271,7 @@
             <dt>Sistema de Origem</dt>
             <dd>
               {#if data.linkSistemaOrigem}
-                <a href={data.linkSistemaOrigem} target="_blank" rel="noopener noreferrer" class="inline-link">
+                <a href={data.linkSistemaOrigem} target="_blank" rel="noopener noreferrer">
                   Abrir sistema externo ↗
                 </a>
               {:else}
@@ -285,93 +285,3 @@
   {/if}
 </EntityDetailLayout>
 
-<style>
-  .summary-wrap {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    width: 100%;
-    gap: var(--space-lg);
-    margin-bottom: var(--space-xl);
-  }
-  .summary-wrap button {
-    flex-shrink: 0;
-  }
-  .plain-summary {
-    margin: 0;
-    padding: var(--space-md);
-    background: color-mix(in srgb, var(--color-surface-sunk) 64%, transparent);
-    border-left: 5px solid var(--color-primary);
-    border-radius: var(--radius-0);
-    line-height: 1.6;
-    color: var(--color-base-content);
-    font-size: var(--font-size-md);
-  }
-  .plain-summary strong { color: var(--color-text); }
-
-  :global(.snapshot-badge) {
-    padding: 4px 10px;
-    border-radius: var(--radius-full);
-    background: color-mix(in srgb, var(--color-azul) 14%, transparent);
-    border: 1px solid color-mix(in srgb, var(--color-azul) 32%, transparent);
-    color: var(--color-base-content);
-  }
-
-  .grid-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--space-lg); }
-  .card {
-    background: var(--color-base-100);
-    border: 1px solid var(--color-base-300);
-    border-left: 5px solid var(--color-azul);
-    padding: var(--space-md);
-    border-radius: var(--radius-0);
-  }
-  .card:nth-child(2) { border-left-color: var(--color-verde); }
-  .card:nth-child(3) { border-left-color: var(--color-ouro); }
-  .card:nth-child(4) { border-left-color: var(--color-tijolo); }
-  .card h3 { margin-top: 0; font-size: var(--font-size-lg); border-bottom: 1px solid var(--color-base-200); padding-bottom: 8px; margin-bottom: var(--space-md); }
-
-  .meta-card { grid-column: 1 / -1; }
-
-  .data-list div { display: flex; justify-content: space-between; gap: var(--space-sm); padding: 8px 0; border-bottom: 1px solid var(--color-base-200); }
-  .data-list dt { font-weight: 700; color: var(--color-secondary); font-size: var(--font-size-sm); flex-shrink: 0; }
-  .data-list dd {
-    font-family: var(--font-mono);
-    font-size: var(--font-size-sm);
-    color: var(--color-text);
-    text-align: right;
-    margin: 0;
-    max-width: 65%;
-    overflow-wrap: anywhere;
-  }
-
-  .inline-link { color: var(--color-azul); text-decoration: underline; }
-  .inline-link:hover { text-decoration: none; }
-
-  .item-list { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-sm); }
-  .item-row { padding: 8px 0; border-bottom: 1px solid var(--color-base-200); }
-  .item-header { display: flex; gap: var(--space-sm); align-items: baseline; }
-  .item-seq { font-family: var(--font-mono); color: var(--color-secondary); font-size: var(--font-size-xs); }
-  .item-desc { font-size: var(--font-size-sm); }
-  .item-meta { display: flex; justify-content: space-between; margin-top: 4px; font-family: var(--font-mono); font-size: var(--font-size-xs); color: var(--color-secondary); }
-  .item-valor { color: var(--color-primary); font-weight: 700; }
-
-  .muted { color: var(--color-secondary); font-size: var(--font-size-sm); font-style: italic; margin: 0 0 var(--space-sm); }
-
-  @media (max-width: 720px) {
-    .summary-wrap {
-      flex-direction: column;
-    }
-    .plain-summary {
-      font-size: var(--font-size-base);
-    }
-    .data-list div,
-    .item-meta {
-      flex-direction: column;
-      align-items: flex-start;
-    }
-    .data-list dd {
-      max-width: 100%;
-      text-align: left;
-    }
-  }
-</style>

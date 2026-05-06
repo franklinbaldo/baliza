@@ -181,13 +181,12 @@
   archivedParticao={data?.archived?.dataParticao}
   archiveMessage={`PNCP não expõe histórico por fornecedor — exibindo snapshot Parquet (última consolidação: ${data?.archived?.dataParticao ? formatParticao(data.archived.dataParticao) : ''}).`}
   kicker="🏢 FORNECEDOR"
-  iconId="t2"
   title={data?.name || ""}
 >
   {#snippet metaRow()}
     {#if data}
-      <span>CNPJ: {data.cnpj}</span>
-      <span>Fonte: Arquivo Parquet (IA)</span>
+      <small>CNPJ: <code>{data.cnpj}</code></small>
+      <small>Fonte: <mark>Arquivo Parquet (IA)</mark></small>
     {/if}
   {/snippet}
 
@@ -200,37 +199,31 @@
         actionLabel="Voltar à busca"
       />
     {:else}
-      <div class="actions-bar">
-        <button
-          class="btn btn-outline"
-          onclick={() => addWatch('supplier', data.cnpj, data.name)}
-          disabled={isWatched('supplier', data.cnpj)}
-        >
+      <div role="group" class="actions">
+        <button class="outline" onclick={() => addWatch('supplier', data.cnpj, data.name)} disabled={isWatched('supplier', data.cnpj)} aria-pressed={isWatched('supplier', data.cnpj)}>
           {isWatched('supplier', data.cnpj) ? '✓ Acompanhando' : 'Acompanhar fornecedor'}
         </button>
       </div>
 
-      <section class="rollup-grid">
-        <article class="rollup-card" data-testid="avg-ticket">
+      <section class="grid">
+        <article data-testid="avg-ticket">
           <h3>Ticket médio</h3>
-          <p class="big-figure">{formatBRL(data.avgTicket)}</p>
-          <p class="muted">Média dos valores globais dos últimos 50 contratos no arquivo.</p>
+          <p><strong>{formatBRL(data.avgTicket)}</strong></p>
+          <footer><small>Média dos valores globais dos últimos 50 contratos no arquivo.</small></footer>
         </article>
 
-        <article class="rollup-card" data-testid="competing-suppliers">
+        <article data-testid="competing-suppliers">
           <h3>Fornecedores concorrentes</h3>
           {#if competitors.length === 0}
-            <p class="muted">
-              Sem dados suficientes para listar concorrentes no órgão com mais contratações deste fornecedor.
-            </p>
+            <p><small>Sem dados suficientes para listar concorrentes no órgão com mais contratações deste fornecedor.</small></p>
           {:else}
-            <ol class="competitor-list">
+            <ol>
               {#each competitors as c, i (`${c.cnpj}-${i}`)}
                 <li>
-                  <span class="competitor-rank">#{i + 1}</span>
-                  <a href={resolve(`fornecedor?cnpj=${c.cnpj}`)} class="competitor-name inline-link" title={c.name}>{c.name}</a>
-                  <span class="competitor-cnpj">{c.cnpj}</span>
-                  <span class="competitor-count">{c.count}</span>
+                  <small>#{i + 1}</small>
+                  <a href={resolve(`fornecedor?cnpj=${c.cnpj}`)} title={c.name}>{c.name}</a>
+                  <code>{c.cnpj}</code>
+                  <small>{c.count}</small>
                 </li>
               {/each}
             </ol>
@@ -238,10 +231,8 @@
         </article>
       </section>
 
-      <section class="recent-list" data-testid="contract-history">
-        <div class="recent-header">
-          <h3>Histórico de contratações (últimos 50 do arquivo)</h3>
-        </div>
+      <section data-testid="contract-history">
+        <header><h3>Histórico de contratações (últimos 50 do arquivo)</h3></header>
         <PaginatedList items={data.contracts} pageSize={10}>
           {#snippet children(pageItems)}
             {#each pageItems as item (item.numeroControlePNCP)}
@@ -260,56 +251,3 @@
   {/if}
 </EntityDetailLayout>
 
-<style>
-
-  .actions-bar {
-    display: flex;
-    justify-content: flex-end;
-    margin-bottom: var(--space-md);
-  }
-
-  .rollup-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: var(--space-lg);
-    margin-bottom: var(--space-2xl);
-  }
-
-  .rollup-card {
-    background: var(--color-base-100);
-    border: 1px solid var(--color-base-300);
-    border-radius: var(--radius-sm);
-    padding: var(--space-md);
-  }
-  .rollup-card h3 { margin: 0 0 var(--space-sm); font-size: var(--font-size-md); }
-  .rollup-card .muted { color: var(--color-secondary); font-size: var(--font-size-sm); margin: 0; }
-
-  .big-figure {
-    margin: 0 0 var(--space-xs);
-    font-family: var(--font-mono);
-    font-size: var(--font-size-xl);
-    font-weight: 800;
-    color: var(--color-primary);
-  }
-
-  .competitor-list { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-xs); }
-  .competitor-list li {
-    display: grid;
-    grid-template-columns: auto 1fr auto auto;
-    gap: var(--space-sm);
-    align-items: baseline;
-    font-size: var(--font-size-sm);
-    padding: 4px 0;
-    border-bottom: 1px solid var(--color-base-200);
-  }
-  .competitor-list li:last-child { border-bottom: none; }
-  .competitor-rank { font-family: var(--font-mono); font-weight: 700; color: var(--color-secondary); }
-  .competitor-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .competitor-cnpj { font-family: var(--font-mono); font-size: var(--font-size-xs); color: var(--color-secondary); }
-  .competitor-count { font-family: var(--font-mono); color: var(--color-primary); font-weight: 700; }
-  .inline-link { color: var(--color-primary); text-decoration: underline; }
-  .inline-link:hover { text-decoration: none; }
-
-  .recent-list { display: grid; gap: var(--space-md); }
-  .recent-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-sm); }
-</style>

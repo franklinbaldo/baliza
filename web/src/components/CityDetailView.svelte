@@ -112,21 +112,19 @@
   archivedParticao={data?.archived?.dataParticao}
   archiveMessage={`PNCP indisponível — exibindo dados arquivados (última consolidação: ${data?.archived?.dataParticao ? formatParticao(data.archived.dataParticao) : ''}).`}
   kicker="🏙️ MUNICÍPIO"
-  iconId="t3"
   title={data ? `${data.name} / ${data.uf}` : ""}
-  headerStyle="margin-bottom: var(--space-xl);"
   metaTestId="city-meta"
   hasStatSkeleton={true}
 >
   {#snippet metaRow()}
     {#if data}
-      <span>Cód. IBGE: {data.ibge}</span>
-      <span>Fonte: {data.archived ? 'Arquivo Parquet (IA)' : 'PNCP V1'}</span>
+      <small>Cód. IBGE: <code>{data.ibge}</code></small>
+      <small>Fonte: <mark>{data.archived ? 'Arquivo Parquet (IA)' : 'PNCP V1'}</mark></small>
     {/if}
   {/snippet}
 
   {#if data}
-    <div class="stats-row">
+    <div class="grid">
       <StatCard title="Contratações Recentes" value={stats.count} hint="Últimos 30 dias (máx. 50)" />
       <StatCard title="Valor Estimado (Amostra)" value={formatBRL(stats.totalValue)} tone="success" hint="Soma das contratações listadas" />
     </div>
@@ -139,7 +137,7 @@
         actionLabel="Voltar à busca"
       />
     {:else}
-      <section class="recent-list">
+      <section>
         <h3>Contratações Recentes neste Município</h3>
         <PaginatedList items={data.contracts} pageSize={10}>
           {#snippet children(pageItems)}
@@ -158,8 +156,3 @@
   {/if}
 </EntityDetailLayout>
 
-<style>
-  .stats-row { display: flex; gap: var(--space-md); margin-bottom: var(--space-xl); align-items: center; flex-wrap: wrap; }
-
-  .recent-list { display: grid; gap: var(--space-md); }
-</style>

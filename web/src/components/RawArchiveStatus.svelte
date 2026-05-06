@@ -48,30 +48,27 @@
 
 {#if error}
   <AlertBanner title="Internet Archive indisponível" message={error} level="error" />
-  <div class="retry-row">
-    <button class="btn btn-outline" onclick={loadStatus}>Tentar novamente</button>
+  <div class="actions">
+    <button class="outline" onclick={loadStatus}>Tentar novamente</button>
   </div>
 {:else if loading}
-  <div class="status-grid" aria-busy="true" aria-label="Carregando metadados do Internet Archive">
+  <div class="grid" aria-busy="true" aria-label="Carregando metadados do Internet Archive">
     {#each [1, 2, 3, 4] as _, i (i)}
-      <div class="card skeleton-card">
-        <div class="skeleton skeleton-label"></div>
-        <div class="skeleton skeleton-value"></div>
-      </div>
+      <article aria-busy="true" class="is-skeleton"><p>&nbsp;</p><p>&nbsp;</p></article>
     {/each}
   </div>
 {:else if status}
-  <div class="source-bar">
-    <div>
-      <span class="source-kicker">Fonte viva</span>
-      <strong>{status.downloadUrl}</strong>
-    </div>
-    <a class="btn btn-outline btn-sm" href={status.metadataUrl} target="_blank" rel="noopener">
+  <header>
+    <hgroup>
+      <small>Fonte viva</small>
+      <p><strong>{status.downloadUrl}</strong></p>
+    </hgroup>
+    <a href={status.metadataUrl} target="_blank" rel="noopener" role="button" class="outline secondary">
       Ver metadata JSON
     </a>
-  </div>
+  </header>
 
-  <div class="status-grid">
+  <div class="grid">
     <StatCard
       title="Arquivos brutos (ZIP)"
       value={formatInteger(status.rawZipCount)}
@@ -106,7 +103,7 @@
     />
   </div>
 
-  <dl class="archive-facts">
+  <dl>
     <div>
       <dt>Item</dt>
       <dd><a href={status.downloadUrl} target="_blank" rel="noopener">baliza-pncp-raw</a></dd>
@@ -136,113 +133,3 @@
   </dl>
 {/if}
 
-<style>
-  .status-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: var(--space-4);
-    margin-top: var(--space-4);
-  }
-
-  .status-grid :global(.stat-value) {
-    font-size: clamp(2rem, 4vw, 2.75rem);
-    overflow-wrap: anywhere;
-  }
-
-  .source-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-4);
-    padding: var(--space-4);
-    border: 1px solid var(--color-border);
-    border-left: 5px solid var(--color-azul);
-    background: var(--color-bg);
-  }
-
-  .source-bar > div {
-    min-width: 0;
-    display: grid;
-    gap: var(--space-1);
-  }
-
-  .source-kicker {
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--color-text-dim);
-  }
-
-  .source-bar strong {
-    font-family: var(--font-mono);
-    font-size: var(--text-sm);
-    color: var(--color-text);
-    overflow-wrap: anywhere;
-  }
-
-  .archive-facts {
-    margin-top: var(--space-5);
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 0;
-    border: 1px solid var(--color-border);
-    background: var(--color-bg);
-  }
-
-  .archive-facts div {
-    padding: var(--space-4);
-    border-right: 1px solid var(--color-border);
-    border-bottom: 1px solid var(--color-border);
-  }
-
-  .archive-facts dt {
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--color-text-dim);
-  }
-
-  .archive-facts dd {
-    margin: var(--space-2) 0 0;
-    font-family: var(--font-mono);
-    font-size: var(--text-sm);
-    color: var(--color-text);
-    overflow-wrap: anywhere;
-  }
-
-  .archive-facts a {
-    color: var(--color-azul);
-    text-decoration: underline;
-  }
-
-  .skeleton-card {
-    min-height: 8rem;
-    padding: var(--space-4);
-  }
-
-  .skeleton-label {
-    height: 0.75rem;
-    width: 60%;
-  }
-
-  .skeleton-value {
-    height: 2.5rem;
-    width: 80%;
-    margin-top: var(--space-3);
-  }
-
-  .retry-row {
-    margin-top: var(--space-2);
-    display: flex;
-    justify-content: center;
-  }
-
-  @media (max-width: 720px) {
-    .source-bar {
-      align-items: stretch;
-      flex-direction: column;
-    }
-  }
-</style>

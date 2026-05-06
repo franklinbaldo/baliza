@@ -32,13 +32,9 @@
   });
 </script>
 
-<div class="manifest-wrapper">
+<figure>
   {#if loading}
-    <div class="manifest-skeleton" aria-busy="true" aria-label="Carregando manifesto">
-      {#each [1, 2, 3] as _, i (i)}
-        <div class="skeleton-row"></div>
-      {/each}
-    </div>
+    <article aria-busy="true" class="is-skeleton" aria-label="Carregando manifesto"><p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p></article>
   {:else if failed}
     <AlertBanner
       title="Manifesto indisponível"
@@ -61,87 +57,25 @@
           {#each rows as row (row.parquet_url)}
             <tr>
               <td>
-                <a href={row.parquet_url} target="_blank" rel="noopener" class="parquet-link">
+                <a href={row.parquet_url} target="_blank" rel="noopener">
                   {row.parquet_url.split('/').slice(-2).join('/')}
                 </a>
               </td>
-              <td>{row.table_name}</td>
+              <td><code>{row.table_name}</code></td>
               <td>{row.data_particao}</td>
-              <td title={row.sha256 ?? ''} class="hash-cell">{shortHash(row.sha256)}</td>
+              <td title={row.sha256 ?? ''}><code>{shortHash(row.sha256)}</code></td>
               <td>{row.row_group_size ?? '—'}</td>
             </tr>
           {/each}
         </tbody>
       </table>
     </div>
-    <p class="manifest-foot">
-      Mostrando {rows.length} de {rows.length === ROW_LIMIT ? `≥${ROW_LIMIT}` : rows.length} linhas. <a href={IA_MANIFEST_URL} target="_blank" rel="noopener">Ver manifesto completo</a>.
-    </p>
+    <figcaption>
+      <small>
+        Mostrando {rows.length} de {rows.length === ROW_LIMIT ? `≥${ROW_LIMIT}` : rows.length} linhas.
+        <a href={IA_MANIFEST_URL} target="_blank" rel="noopener">Ver manifesto completo</a>.
+      </small>
+    </figcaption>
   {/if}
-</div>
+</figure>
 
-<style>
-  .manifest-wrapper {
-    margin-top: var(--space-md);
-  }
-  .manifest-skeleton {
-    display: grid;
-    gap: var(--space-xs);
-  }
-  .skeleton-row {
-    height: 1.5rem;
-    background: var(--color-base-200);
-    border-radius: var(--radius-sm);
-    animation: skeleton-pulse 1.6s ease-in-out infinite;
-  }
-  @keyframes skeleton-pulse {
-    0%, 100% { opacity: 0.6; }
-    50% { opacity: 1; }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .skeleton-row {
-      animation: none;
-      opacity: 0.85;
-    }
-  }
-  .table-scroll {
-    overflow-x: auto;
-    border: 1px solid var(--color-base-300);
-    border-radius: var(--radius-sm);
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: var(--font-size-sm);
-  }
-  th {
-    text-align: left;
-    background: var(--color-base-200);
-    padding: 8px 12px;
-    border-bottom: 1px solid var(--color-base-300);
-    font-weight: 700;
-  }
-  td {
-    padding: 8px 12px;
-    border-bottom: 1px solid var(--color-base-300);
-    white-space: nowrap;
-  }
-  tr:last-child td {
-    border-bottom: none;
-  }
-  .parquet-link {
-    color: var(--color-primary);
-    font-family: var(--font-mono);
-    font-size: var(--font-size-xs);
-  }
-  .hash-cell {
-    font-family: var(--font-mono);
-    font-size: var(--font-size-xs);
-    color: var(--color-secondary);
-  }
-  .manifest-foot {
-    font-size: var(--font-size-xs);
-    color: var(--color-secondary);
-    margin-top: var(--space-xs);
-  }
-</style>
