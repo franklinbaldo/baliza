@@ -119,7 +119,7 @@
   });
 </script>
 
-<form role="search" aria-label="Trocar cidade">
+<div role="search" aria-label="Trocar cidade">
   <header>
     <small>{cityState.source === 'default' ? 'Cidade inicial' : 'Cidade escolhida'}</small>
     <strong>{cityState.nome}{cityState.uf ? ` / ${cityState.uf}` : ''}</strong>
@@ -176,5 +176,5 @@
       {/each}
     </ul>
   {/if}
-</form>
+</div>
 
