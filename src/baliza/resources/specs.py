@@ -145,6 +145,20 @@ class ArtifactSpec:
     # Full ORDER BY override. Mirrors CanonicalTableSpec.order_by_sql.
     order_by_sql: str | None = None
 
+    def __post_init__(self) -> None:
+        # Type annotations don't enforce runtime: a caller passing
+        # ``sort_columns=[...]`` would still slip through and the list
+        # could be mutated later, poisoning the shared registry.
+        # Coerce to tuple so the immutability claim is real regardless
+        # of how the spec was constructed. ``object.__setattr__`` is
+        # required because the dataclass is frozen.
+        if not isinstance(self.sort_columns, tuple):
+            object.__setattr__(self, "sort_columns", tuple(self.sort_columns))
+        if not isinstance(self.bloom_filter_columns, tuple):
+            object.__setattr__(
+                self, "bloom_filter_columns", tuple(self.bloom_filter_columns),
+            )
+
 
 @dataclass
 class PNCPResource:

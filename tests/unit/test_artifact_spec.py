@@ -70,6 +70,22 @@ def test_artifact_spec_collection_fields_are_immutable():
             assert isinstance(artifact.bloom_filter_columns, tuple)
 
 
+def test_artifact_spec_coerces_list_inputs_to_tuples():
+    """Codex P2 follow-up: type annotations aren't enforced at runtime,
+    so a caller passing ``sort_columns=[...]`` would silently slip a
+    mutable list onto the spec. ``__post_init__`` must coerce."""
+    spec = ArtifactSpec(
+        file_type="x",
+        ia_item_id="y",
+        sort_columns=["a", "b"],         # type: ignore[arg-type]
+        bloom_filter_columns=["c"],      # type: ignore[arg-type]
+    )
+    assert spec.sort_columns == ("a", "b")
+    assert spec.bloom_filter_columns == ("c",)
+    assert isinstance(spec.sort_columns, tuple)
+    assert isinstance(spec.bloom_filter_columns, tuple)
+
+
 def test_artifact_ia_items_match_runtime_upload_targets():
     """Codex P2: ArtifactSpec must describe what the runtime *actually*
     does today, otherwise the wiring PR will silently redirect uploads.
