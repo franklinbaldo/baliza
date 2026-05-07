@@ -294,26 +294,39 @@ class IAConsolidator:
             if not _resource_has_uf_shards(resource):
                 consolidated_mtime = self._consolidated_mtime_on_ia(year, resource=resource)
                 if consolidated_mtime is not None:
-                    # Filter out unparseable / missing uploaded_at values
-                    # (None) before max — a single bad row would otherwise
-                    # raise TypeError on the comparison.
-                    canonical_mtimes = [
-                        m
-                        for row in shared_manifest
-                        if row.get("table_name") == resource
-                        and (row.get("data_particao") or "").startswith(str(year))
-                        and row.get("file_type", "") in ("", "monthly_canonical")
-                        for m in (_parse_iso_mtime(row.get("uploaded_at") or ""),)
-                        if m is not None
-                    ]
-                    newest_canonical = max(canonical_mtimes) if canonical_mtimes else None
-                    if newest_canonical is not None and consolidated_mtime >= newest_canonical:
-                        console.print(
-                            f"[dim]Skipping {resource}/{year}: consolidated annual file "
-                            f"({consolidated_mtime.isoformat()}) is at-or-after the newest "
-                            f"canonical upload ({newest_canonical.isoformat()}).[/dim]"
-                        )
-                        return False
+                    # Fail-closed on malformed canonical timestamps —
+                    # if any row's `uploaded_at` is unparseable we can't
+                    # tell whether it's older or newer than
+                    # ``consolidated_mtime``, so we must rebuild rather
+                    # than risk skipping past genuinely fresh data.
+                    # Mirrors the policy at line ~96 in
+                    # `_current_year_is_fresh` (Codex review on #557).
+                    canonical_mtimes: list[datetime.datetime] = []
+                    saw_unparseable = False
+                    for row in shared_manifest:
+                        if row.get("table_name") != resource:
+                            continue
+                        if not (row.get("data_particao") or "").startswith(str(year)):
+                            continue
+                        if row.get("file_type", "") not in ("", "monthly_canonical"):
+                            continue
+                        parsed = _parse_iso_mtime(row.get("uploaded_at") or "")
+                        if parsed is None:
+                            saw_unparseable = True
+                            break
+                        canonical_mtimes.append(parsed)
+                    if saw_unparseable:
+                        # Force rebuild rather than risk a false-fresh skip.
+                        pass
+                    elif canonical_mtimes:
+                        newest_canonical = max(canonical_mtimes)
+                        if consolidated_mtime >= newest_canonical:
+                            console.print(
+                                f"[dim]Skipping {resource}/{year}: consolidated annual file "
+                                f"({consolidated_mtime.isoformat()}) is at-or-after the newest "
+                                f"canonical upload ({newest_canonical.isoformat()}).[/dim]"
+                            )
+                            return False
 
         console.print(f"[cyan]Consolidating {resource}/{year}...[/cyan]")
 
