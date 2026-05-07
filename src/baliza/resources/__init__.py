@@ -7,6 +7,7 @@ from .specs import (
     EntitySpec,
     FetchSpec,
     FrontendExposureSpec,
+    PartitionStrategy,
     PNCPResource,
     RawDatasetSpec,
 )
@@ -81,6 +82,7 @@ __all__ = [
     "EntitySpec",
     "CanonicalTableSpec",
     "FrontendExposureSpec",
+    "PartitionStrategy",
     "CONTRATOS",
     "ATAS",
     "PUBLICACOES",

@@ -7,6 +7,7 @@ from .specs import (
     EntitySpec,
     FetchSpec,
     FrontendExposureSpec,
+    PartitionStrategy,
     PNCPResource,
     RawDatasetSpec,
 )
@@ -33,7 +34,7 @@ ATAS = PNCPResource(
     raw_dataset=RawDatasetSpec(
         ia_item_id="baliza-pncp-raw",
         filename_fn=_monthly_zip_filename,
-        partition_strategy="monthly",
+        partition_strategy=PartitionStrategy.MONTHLY,
         retention_policy="all",
     ),
     entities=[

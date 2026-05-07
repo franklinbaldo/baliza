@@ -7,6 +7,7 @@ from .specs import (
     EntitySpec,
     FetchSpec,
     FrontendExposureSpec,
+    PartitionStrategy,
     PNCPResource,
     RawDatasetSpec,
 )
@@ -29,7 +30,7 @@ CONTRATOS = PNCPResource(
     raw_dataset=RawDatasetSpec(
         ia_item_id="baliza-pncp-raw",  # Assume same place for now, or baliza-pncp-contratos-raw
         filename_fn=_monthly_zip_filename,
-        partition_strategy="monthly",
+        partition_strategy=PartitionStrategy.MONTHLY,
         retention_policy="all",
     ),
     entities=[

@@ -2,7 +2,22 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date
+from enum import StrEnum
 from typing import Any
+
+
+class PartitionStrategy(StrEnum):
+    """Partition cadence for a resource's raw mirror.
+
+    Typed (instead of the historical free-form ``str``) so adding a
+    new strategy is a single Enum entry and a misspelling at the
+    declaration site fails at import time. ``StrEnum`` keeps
+    string-equality comparisons (``strategy == "monthly"``) working
+    for any code that hasn't migrated yet.
+    """
+
+    MONTHLY = "monthly"
+    ANNUAL = "annual"
 
 # Resource names land in filesystem paths, URL params, and DuckDB
 # table names. Enforcing the charset at registration time means the
@@ -36,7 +51,7 @@ class FetchSpec:
 class RawDatasetSpec:
     ia_item_id: str             # item no IA onde o ZIP bruto vai
     filename_fn: Callable       # partição -> nome do arquivo ZIP
-    partition_strategy: str     # "monthly" (contratos) | "annual" (PCA) | "weekly"
+    partition_strategy: PartitionStrategy  # MONTHLY (contratos/atas) | ANNUAL (PCA)
     retention_policy: str       # "all" | "last_n=12"
 
 @dataclass

@@ -32,6 +32,7 @@ from .specs import (
     CanonicalTableSpec,
     EntitySpec,
     FetchSpec,
+    PartitionStrategy,
     PNCPResource,
     RawDatasetSpec,
 )
@@ -59,7 +60,7 @@ PCA = PNCPResource(
     raw_dataset=RawDatasetSpec(
         ia_item_id="baliza-pncp-raw",
         filename_fn=_annual_zip_filename,
-        partition_strategy="annual",
+        partition_strategy=PartitionStrategy.ANNUAL,
         retention_policy="all",
     ),
     entities=[
