@@ -121,11 +121,16 @@ class PNCPExtractor:
         # resource name is just "publicacoes". Using the endpoint
         # instead of the bare resource name makes that work.
         url = f"{self.base_url}/{spec.fetch.endpoint}"
+        # Per-resource page size: publicacoes caps at 50 while
+        # contratos / atas accept 500. Honoring spec.fetch.max_page_size
+        # avoids 400s from over-asking. The legacy global PAGE_SIZE is
+        # kept as the fallback for the curl path's URL string template.
+        page_size = spec.fetch.max_page_size or PAGE_SIZE
         params: dict[str, str | int] = {
             "dataInicial": start_str,
             "dataFinal": end_str,
             "pagina": page,
-            "tamanhoPagina": PAGE_SIZE,
+            "tamanhoPagina": page_size,
         }
         if extra_params:
             params.update(extra_params)
@@ -139,6 +144,7 @@ class PNCPExtractor:
                 start_str=start_str,
                 end_str=end_str,
                 extra_params=extra_params,
+                page_size=page_size,
             )
         else:
             data = self._fetch_with_httpx(
@@ -215,10 +221,11 @@ class PNCPExtractor:
     def _fetch_with_curl(  # noqa: PLR0913
         self, resource: str, page: int, url: str, start_str: str, end_str: str,
         *, extra_params: dict[str, str | int] | None = None,
+        page_size: int = PAGE_SIZE,
     ) -> dict[str, Any]:
         query = (
             f"dataInicial={start_str}&dataFinal={end_str}"
-            f"&pagina={page}&tamanhoPagina={PAGE_SIZE}"
+            f"&pagina={page}&tamanhoPagina={page_size}"
         )
         if extra_params:
             query += "&" + "&".join(f"{k}={v}" for k, v in extra_params.items())
@@ -356,9 +363,14 @@ class PNCPExtractor:
             return False
         return "numeroControlePNCP" in columns and "numero_controle_pncp" not in columns
 
-    def _iter_raw_entries(self, raw_dir: Path, resource_name: str, response_data_key: str) -> Iterator[dict]:
+    def _iter_raw_entries(self, raw_dir: Path, resource_name: str, response_data_key: str) -> Iterator[dict]:  # noqa: E501
+        # Match both legacy (`resource_p*.json`) and fan-out
+        # (`resource_codigoModalidadeContratacao5_p*.json`) cache
+        # filenames. The original glob `resource_p*.json` would have
+        # silently skipped every fan-out page, ingesting nothing for
+        # publicacoes (Codex P1).
         """Yield parsed JSON entries from the raw data directory."""
-        for json_file in sorted(raw_dir.glob(f"{resource_name}_p*.json")):
+        for json_file in sorted(raw_dir.glob(f"{resource_name}*_p*.json")):
             try:
                 with open(json_file) as f:
                     data = json.load(f)

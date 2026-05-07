@@ -23,7 +23,11 @@ CONTRATOS = PNCPResource(
         endpoint="contratos",
         pagination_param="pagina",
         page_size_param="tamanhoPagina",
-        max_page_size=50,
+        # Verified in production for years: contratos accepts 500 even
+        # though the OpenAPI spec used to claim 50. Matches the historic
+        # PAGE_SIZE constant the extractor sent before Drift-B publicacoes
+        # wiring made this field actually drive the request.
+        max_page_size=500,
         date_param_start="dataInicial",
         date_param_end="dataFinal",
         response_data_key="data",

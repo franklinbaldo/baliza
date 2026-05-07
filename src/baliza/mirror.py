@@ -7,6 +7,7 @@ from one URL: archive.org/details/baliza-pncp-raw
 
 from __future__ import annotations
 
+import itertools
 import json
 from datetime import date, datetime
 from pathlib import Path
@@ -23,7 +24,7 @@ from .partitioning import (
     partition_for,
     previous_partition_start,
 )
-from .resources import first_page_filename, get_resource, page_filename
+from .resources import get_resource
 
 logger = structlog.get_logger()
 
@@ -143,11 +144,35 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
         "uploaded": False,
     }
 
+    # Drift-B publicacoes wiring: when the resource declares
+    # required_params, we fan out the page iteration across every
+    # combination. Resources without required_params (contratos, atas)
+    # iterate exactly once with extra_params={} — byte-identical to the
+    # pre-fan-out shape because the extractor's _param_suffix returns
+    # "" for empty params, leaving the cache filenames unchanged.
+    required_params = resource_obj.fetch.required_params or {}
+    if required_params:
+        keys = sorted(required_params)
+        combos: list[dict[str, str | int]] = [
+            dict(zip(keys, vals, strict=True))
+            for vals in itertools.product(*(required_params[k] for k in keys))
+        ]
+    else:
+        combos = [{}]
+
+    def _combo_suffix(combo: dict[str, str | int]) -> str:
+        if not combo:
+            return ""
+        return "_" + "_".join(f"{k}{v}" for k, v in sorted(combo.items()))
+
     # engine=None — fetch-only path, no DuckDB
     with PNCPExtractor(engine=None, use_curl=use_curl) as extractor:
 
-        def _page_is_cached(p: int) -> bool:
-            path = raw_month_dir / page_filename(resource, p)
+        def _combo_page_filename(combo: dict[str, str | int], p: int) -> str:
+            return f"{resource}{_combo_suffix(combo)}_p{p}.json"
+
+        def _page_is_cached(combo: dict[str, str | int], p: int) -> bool:
+            path = raw_month_dir / _combo_page_filename(combo, p)
             if not path.exists() or path.stat().st_size == 0:
                 return False
             try:
@@ -173,72 +198,95 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
                 pass
             return False
 
-        # Determine total pages (probe or sentinel shortcut)
-        total_pages: int | None = None
-        if sentinel.exists():
-            p1 = raw_month_dir / first_page_filename(resource)
-            if p1.exists() and p1.stat().st_size > 0:
-                try:
-                    with open(p1) as fh:
-                        _d = json.load(fh)
-                    if isinstance(_d, dict) and isinstance(_d.get("totalPaginas"), int):
-                        total_pages = _d["totalPaginas"]
-                except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
-                    logger.debug("page1_metadata_load_failed", month=month_str, error=str(e))
-            if total_pages is None:
-                logger.warning("sentinel_cache_regressed", month=month_str, reason="page1_bad")
-                try:
-                    sentinel.unlink()
-                except OSError:
-                    pass
+        for combo in combos:
+            extra_params = combo or None
+            combo_label = _combo_suffix(combo) or "(default)"
 
-        if total_pages is None:
-            res = extractor.probe_range(resource, month_start_dt, month_end_dt)
-            total_pages = res["total_pages"]
-
-        # For the current month, the last cached page may be incomplete —
-        # new contracts published after the previous run fill that page
-        # further before a new page opens. Always invalidate it so it gets
-        # re-fetched with the latest data.
-        if is_current_month:
-            cached_page_nums = [p for p in range(1, total_pages + 1) if _page_is_cached(p)]
-            if cached_page_nums:
-                last_cached = max(cached_page_nums)
-                last_cached_path = raw_month_dir / page_filename(resource, last_cached)
-                try:
-                    last_cached_path.unlink()
-                    logger.info(
-                        "current_month_last_page_invalidated",
-                        month=month_str,
-                        page=last_cached,
+            total_pages: int | None = None
+            # Sentinel + page-1 shortcut only applies in the no-fanout
+            # case today — the sentinel is a single per-month flag and
+            # would lie about freshness for a multi-combo resource.
+            # Skip it for fan-out resources; their probe is cheap (one
+            # request per combo).
+            if sentinel.exists() and not combo:
+                p1 = raw_month_dir / _combo_page_filename(combo, 1)
+                if p1.exists() and p1.stat().st_size > 0:
+                    try:
+                        with open(p1) as fh:
+                            _d = json.load(fh)
+                        if isinstance(_d, dict) and isinstance(_d.get("totalPaginas"), int):
+                            total_pages = _d["totalPaginas"]
+                    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
+                        logger.debug(
+                            "page1_metadata_load_failed", month=month_str, error=str(e),
+                        )
+                if total_pages is None:
+                    logger.warning(
+                        "sentinel_cache_regressed", month=month_str, reason="page1_bad",
                     )
-                except OSError:
-                    pass
+                    try:
+                        sentinel.unlink()
+                    except OSError:
+                        pass
 
-        missing_pages = [p for p in range(1, total_pages + 1) if not _page_is_cached(p)]
-        cached_count = total_pages - len(missing_pages)
-        result["pages_cached"] = cached_count
+            if total_pages is None:
+                try:
+                    res = extractor.probe_range(
+                        resource, month_start_dt, month_end_dt, extra_params=extra_params,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    # A single fan-out value failing (e.g. modalidade
+                    # 14 returns 204 / empty) shouldn't tank the
+                    # whole partition — log and move on.
+                    logger.warning(
+                        "fanout_probe_failed",
+                        month=month_str, combo=combo_label, error=str(exc),
+                    )
+                    continue
+                total_pages = res["total_pages"]
 
-        if sentinel.exists() and missing_pages:
-            logger.warning(
-                "sentinel_cache_regressed",
-                month=month_str,
-                reason="missing_pages",
-                pages_missing=len(missing_pages),
+            if is_current_month:
+                cached_page_nums = [
+                    p for p in range(1, total_pages + 1) if _page_is_cached(combo, p)
+                ]
+                if cached_page_nums:
+                    last_cached = max(cached_page_nums)
+                    last_cached_path = raw_month_dir / _combo_page_filename(combo, last_cached)
+                    try:
+                        last_cached_path.unlink()
+                        logger.info(
+                            "current_month_last_page_invalidated",
+                            month=month_str, combo=combo_label, page=last_cached,
+                        )
+                    except OSError:
+                        pass
+
+            missing_pages = [
+                p for p in range(1, total_pages + 1) if not _page_is_cached(combo, p)
+            ]
+            result["pages_cached"] = (
+                int(result["pages_cached"]) + (total_pages - len(missing_pages))
             )
-            try:
-                sentinel.unlink()
-            except OSError:
-                pass
 
-        for p in missing_pages:
-            extractor.fetch_page(resource, month_start_dt, month_end_dt, p)
-            result["pages_fetched"] = int(result["pages_fetched"]) + 1
-            _emit(f"{month_str} page {p}/{total_pages}")
+            for p in missing_pages:
+                try:
+                    extractor.fetch_page(
+                        resource, month_start_dt, month_end_dt, p,
+                        extra_params=extra_params,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(
+                        "fanout_page_fetch_failed",
+                        month=month_str, combo=combo_label, page=p, error=str(exc),
+                    )
+                    continue
+                result["pages_fetched"] = int(result["pages_fetched"]) + 1
+                _emit(f"{month_str} {combo_label} page {p}/{total_pages}")
 
-        # Write sentinel so next run can skip probe
+        # Write sentinel so next run can skip probe (no-fanout only).
         raw_month_dir.mkdir(parents=True, exist_ok=True)
-        sentinel.touch()
+        if not required_params:
+            sentinel.touch()
 
     if dry_run:
         _emit(f"[dry-run] {month_str}: {total_pages} pages ready for zipping")
