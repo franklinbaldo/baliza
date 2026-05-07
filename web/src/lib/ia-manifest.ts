@@ -85,16 +85,21 @@ export async function fetchManifestRows(): Promise<ManifestRow[]> {
   return rows;
 }
 
-// Treat rows without an explicit file_type as canonical (backward compat with
-// v1 manifests that lacked the column).
-// It now also respects FrontendExposureSpec.is_canonical if defined.
+// Treat rows whose file_type is in the matched exposure's allowlist as
+// canonical. Per-exposure (not global) so a new file_type adopted by
+// one resource — e.g. annual_canonical when PCA lands — never bleeds
+// into other tables that didn't opt in. The empty string is included
+// in the default allowlist for backward compat with v1 manifests that
+// pre-date the column.
 function isCanonicalRow(r: ManifestRow): boolean {
-  const isV1Canonical = !r.file_type || r.file_type === 'monthly_canonical';
+  const fileType = r.file_type ?? '';
   const spec = FRONTEND_EXPOSURES.find((e) => e.table_alias === r.table_name);
   if (spec) {
-    return isV1Canonical && spec.is_canonical;
+    return spec.is_canonical && (spec.canonical_file_types as readonly string[]).includes(fileType);
   }
-  return isV1Canonical;
+  // Tables not in the registry (orgaos / unidades / fornecedores) keep
+  // the v1 behavior: empty file_type or 'monthly_canonical' is canonical.
+  return fileType === '' || fileType === 'monthly_canonical';
 }
 
 export async function getLatestParquetInfo(

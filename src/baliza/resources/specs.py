@@ -50,10 +50,19 @@ class FrontendExposureSpec:
 
     Lives on PNCPResource so the TS generator can iterate the live
     registry instead of importing per-resource constants.
+
+    ``canonical_file_types`` is the allowlist of manifest ``file_type``
+    values the website should treat as the canonical row for this
+    resource. The empty string is included for backward compatibility
+    with v1 manifests that pre-date the column. Adding a new file_type
+    (e.g. ``annual_canonical`` for PCA) is a one-line change here —
+    the generator unions every exposure's set into a single TS constant
+    that ``isCanonicalRow()`` consults.
     """
     artifact_name: str
     table_alias: str
     is_canonical: bool = True
+    canonical_file_types: tuple[str, ...] = ("", "monthly_canonical")
 
 @dataclass
 class CanonicalTableSpec:

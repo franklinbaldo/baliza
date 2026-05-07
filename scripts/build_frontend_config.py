@@ -32,10 +32,18 @@ def main() -> int:
 
     for resource in RESOURCES.values():
         for exposure in resource.frontend_exposures:
+            # Per-exposure canonical_file_types so adding (say)
+            # annual_canonical for PCA does NOT make it canonical for
+            # contratos / atas. isCanonicalRow() filters on the matched
+            # exposure's list, not a global union.
+            file_types_literal = ", ".join(
+                f"'{ft}'" for ft in sorted(exposure.canonical_file_types)
+            )
             lines.append("  {")
             lines.append(f"    artifact_name: '{exposure.artifact_name}',")
             lines.append(f"    table_alias: '{exposure.table_alias}',")
-            lines.append(f"    is_canonical: {'true' if exposure.is_canonical else 'false'}")
+            lines.append(f"    is_canonical: {'true' if exposure.is_canonical else 'false'},")
+            lines.append(f"    canonical_file_types: [{file_types_literal}] as const,")
             lines.append("  },")
 
     lines.append("] as const;")
