@@ -3,6 +3,7 @@ from .contratos import CONTRATOS
 from .pca import PCA
 from .publicacoes import PUBLICACOES
 from .specs import (
+    ArtifactSpec,
     CanonicalTableSpec,
     EntitySpec,
     FetchSpec,
@@ -80,6 +81,7 @@ __all__ = [
     "FetchSpec",
     "RawDatasetSpec",
     "EntitySpec",
+    "ArtifactSpec",
     "CanonicalTableSpec",
     "FrontendExposureSpec",
     "PartitionStrategy",

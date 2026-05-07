@@ -3,6 +3,7 @@ from datetime import date
 from ..models import RecuperarAtaDTO
 from ..transforms import _flatten_ata
 from .specs import (
+    ArtifactSpec,
     CanonicalTableSpec,
     EntitySpec,
     FetchSpec,
@@ -61,6 +62,21 @@ ATAS = PNCPResource(
             artifact_name="atas",
             table_alias="atas",
             is_canonical=True,
+        ),
+    ],
+    # Atas does not produce monthly_uf shards (partition_by_uf=False
+    # on the canonical table — atas API responses don't carry buyer's
+    # UF). monthly_canonical + annual_canonical only.
+    artifacts=[
+        ArtifactSpec(
+            file_type="monthly_canonical",
+            ia_item_id="baliza-pncp-{partition}",
+            description="Per-month deduplicated canonical atas snapshot.",
+        ),
+        ArtifactSpec(
+            file_type="annual_canonical",
+            ia_item_id="baliza-pncp-consolidated",
+            description="Yearly rollup of monthly canonicals.",
         ),
     ],
 )

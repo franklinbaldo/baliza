@@ -138,19 +138,22 @@ Pinado em
 (prova explicitamente que dedup composto não derruba linhas que
 colidiriam num anti-join de coluna única).
 
-### Drift-B — `ArtifactSpec` formalizado
+### Drift-B — `ArtifactSpec` formalizado (parcial)
 
-**Estado atual:** lógica de filename / IA item / file_type / sort_key /
-bloom_filter_columns está espalhada em `IAUploader._update_remote_manifest`
-+ `MonthlyExporter.export_month` + `IAConsolidator`.
-**Bloqueia:** novos formatos (anual particionado por UF, JSON dim
-cumulativo per-resource, índices full-text). Adicionar PCA com
-`partition_strategy="annual"` força a abstração ou cria uma branch
-condicional dentro de cada chamada de upload.
-**Plano:** dataclass `ArtifactSpec` em `specs.py`; lista
-`PNCPResource.artifacts: list[ArtifactSpec]` populada com pelo menos
-o artefato monthly_canonical para contratos/atas; uploader/consolidator
-iteram sobre `spec.artifacts` em vez de hardcodar.
+**Estado atual:** o tipo `ArtifactSpec` está em `specs.py` e
+`PNCPResource.artifacts` está populada para contratos (monthly_canonical
++ monthly_uf + annual_canonical) e atas (monthly_canonical +
+annual_canonical — sem UF). Pinado em
+`tests/unit/test_artifact_spec.py`, incluindo um teste de cruzamento
+que falha se `partition_by_uf` discordar da presença de monthly_uf
+nos artifacts.
+
+**Falta:** `IAUploader._update_remote_manifest`,
+`MonthlyExporter.export_month` e `IAConsolidator` ainda hardcodam os
+mesmos fatos (filename, IA item, file_type) que `ArtifactSpec`
+agora descreve. A reescrita iterativa para ler de `spec.artifacts`
+fica para o PR de promoção do PCA — neste momento ela seria 100%
+behavior-preserving para contratos/atas.
 
 ### Drift-C — `FrontendExposureSpec` + `isCanonicalRow` extensível ✓
 

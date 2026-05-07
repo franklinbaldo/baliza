@@ -3,6 +3,7 @@ from datetime import date
 from ..models import RecuperarContratoDTO
 from ..transforms import _flatten_contrato
 from .specs import (
+    ArtifactSpec,
     CanonicalTableSpec,
     EntitySpec,
     FetchSpec,
@@ -66,6 +67,34 @@ CONTRATOS = PNCPResource(
             artifact_name="contratos",
             table_alias="contratos",
             is_canonical=True,
+        ),
+    ],
+    # Artifacts contratos publishes today. Drift-B prep: declared in
+    # one place; the uploader / consolidator still hardcode the same
+    # facts and will be rewired in the follow-up PR.
+    artifacts=[
+        ArtifactSpec(
+            file_type="monthly_canonical",
+            ia_item_id="baliza-pncp-{partition}",
+            description="Per-month deduplicated canonical contratos snapshot.",
+        ),
+        ArtifactSpec(
+            # IAConsolidator.consolidate_year uploads the per-UF shards
+            # to baliza-pncp-consolidated alongside the annual rollup
+            # — NOT to the per-month item. Verified at
+            # consolidator.py:395 + register_monthly_uf_shards rows
+            # carrying ia_item_id=CONSOLIDATED_IA_ITEM.
+            file_type="monthly_uf",
+            ia_item_id="baliza-pncp-consolidated",
+            description="Per-UF shard of the monthly canonical, "
+            "gated by CanonicalTableSpec.partition_by_uf. Uploaded by "
+            "the consolidator alongside the annual rollup.",
+        ),
+        ArtifactSpec(
+            file_type="annual_canonical",
+            ia_item_id="baliza-pncp-consolidated",
+            description="Yearly rollup of monthly canonicals into a "
+            "single Parquet for explorer queries.",
         ),
     ],
 )
