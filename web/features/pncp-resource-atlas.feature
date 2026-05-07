@@ -1,23 +1,16 @@
-@journey5 @journey6 @planned
+@journey5 @journey6
 Feature: PNCP Resource Atlas
-  Baliza is evolving from a contratos-centered browser into a temporal
-  procurement intelligence system that mirrors several first-class PNCP
-  resources. This feature documents the architectural contract that every
-  PNCP resource — registered today or planned — must satisfy so that the
-  pipeline, the archive layer and the frontend can discover them
-  generically.
-
-  The conceptual spine is:
+  Baliza mirrors four first-class PNCP resources that together form a
+  temporal procurement intelligence spine:
 
     PCA          -> intended demand / future procurement
     Publicações  -> current opportunity / what is open now
     Atas         -> reusable purchasing instruments
     Contratos    -> finalized legal/economic facts
-    Itens        -> item-level comparability and price intelligence
 
-  The "Atlas" is the union of every registered resource plus every planned
-  resource that has been declared in code with documented gaps. Promotion
-  from planned to registered is what these scenarios protect.
+  Every resource registered in ``RESOURCES`` satisfies the same
+  architectural contract so the pipeline, archive layer and frontend
+  can discover and process them generically.
 
   Background:
     Given the PNCP resource registry exposed by `src/baliza/resources/`
@@ -58,27 +51,32 @@ Feature: PNCP Resource Atlas
     And the raw monthly ZIP filename is `raw-atas-{YYYY-MM}.zip`
       so it cannot collide with the contratos ZIP for the same partition
 
-  Scenario: Publicações is declared as a first-class planned resource
-    When I look up "publicacoes" in the planned resource atlas
+  Scenario: Publicações is a registered resource with modalidade fan-out
+    When I look up "publicacoes" in the registry
     Then it declares the PNCP endpoint `/v1/contratacoes/publicacao`
-    And it links to the existing Pydantic model `RecuperarCompraPublicacaoDTO`
-    And it documents that the endpoint requires fan-out by `codigoModalidadeContratacao`
-    And it carries TODO markers naming the missing facts that block ingestion
-      (modalidade fan-out strategy, canonical column list, primary key choice)
+    And the primary key is "numero_controle_pncp"
+    And `FetchSpec.required_params['codigoModalidadeContratacao']` covers IDs 1..14
+      so the extractor fans out across all modalidades per partition window
+    And the raw monthly ZIP filename is `raw-publicacoes-{YYYY-MM}.zip`
+      so it cannot collide with contratos or atas ZIPs for the same partition
 
-  Scenario: PCA is declared as a documented future resource
-    When I look up "pca" in the planned resource atlas
-    Then it declares the PNCP endpoint family under `/v1/pca`
-    And it links to the existing Pydantic model `PlanoContratacaoComItensDoUsuarioDTO`
-    And it documents that PCA partitioning is annual, not monthly
-    And it carries TODO markers for the canonical flatten function and PK
+  Scenario: PCA is a registered resource with annual partitioning
+    When I look up "pca" in the registry
+    Then it declares the PNCP endpoint `/v1/pca/atualizacao`
+    And the composite primary key is `[id_pca_pncp, numero_item]`
+      because multiple items share an id_pca_pncp across planning cycles
+    And the `partition_strategy` is `ANNUAL`
+      so iter_partitions emits one year-label per calendar year
+    And the raw annual ZIP filename is `raw-pca-{YYYY}.zip`
+    And the only artifact is `annual_canonical`
+      (no monthly_canonical — the annual file is the canonical for PCA)
 
   Scenario: Frontend discovers archive resources from manifest metadata
     Given the IA manifest exposes a `table_name` column per row
     When the frontend lists archive tables
     Then every distinct `table_name` value is recognized as an `ArchivedTable`
     And every `ArchivedTable` has a human-readable label and short description
-    And the label set covers at minimum: contratos, atas
+    And the label set covers at minimum: contratos, atas, publicacoes, pca
 
   Scenario: A resource that is registered but has no partitions yet
     Given a resource registered in `RESOURCES`

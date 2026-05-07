@@ -1,0 +1,131 @@
+name: PNCP Mirror — Publicações
+
+on:
+  schedule:
+    # Daily at 05:00 UTC — publicacoes requires modalidade fan-out so it
+    # can't use the unified ``baliza sync`` path. This workflow drives
+    # ``baliza mirror`` (raw JSON → IA ZIP) then ``baliza build``
+    # (ZIP → canonical Parquet) directly.
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: 'Oldest date to mirror (YYYY-MM-DD)'
+        required: false
+        default: '2023-01-01'
+
+concurrency:
+  group: ${{ github.event_name == 'schedule' && 'pncp-mirror-publicacoes-schedule' || format('pncp-mirror-publicacoes-dispatch-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'schedule' }}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v4
+
+      - id: month
+        run: echo "key=$(date +'%Y-%m')" >> $GITHUB_OUTPUT
+      - uses: actions/cache@v5
+        with:
+          path: data/raw
+          key: pncp-raw-publicacoes-${{ steps.month.outputs.key }}-${{ github.run_id }}
+          restore-keys: pncp-raw-publicacoes-${{ steps.month.outputs.key }}-
+
+      - name: Mirror publicacoes (raw JSON → IA ZIP)
+        env:
+          IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
+          IA_SECRET_KEY: ${{ secrets.IA_SECRET_KEY }}
+        run: |
+          mirror_args=(--resource publicacoes)
+          if [[ -n "${{ inputs.start_date }}" ]]; then
+            mirror_args+=(--start-date "${{ inputs.start_date }}")
+          fi
+          uv run baliza mirror "${mirror_args[@]}"
+
+      - name: Build publicacoes canonical Parquet
+        env:
+          IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
+          IA_SECRET_KEY: ${{ secrets.IA_SECRET_KEY }}
+        run: |
+          build_args=(--resource publicacoes)
+          if [[ -n "${{ inputs.start_date }}" ]]; then
+            build_args+=(--start-date "${{ inputs.start_date }}")
+          fi
+          uv run baliza build "${build_args[@]}"
+
+  report-failure:
+    name: Report workflow failure
+    if: ${{ failure() && github.ref_name == github.event.repository.default_branch }}
+    needs: mirror
+    runs-on: ubuntu-latest
+    steps:
+      - name: Open or update tracking issue for publicacoes failures
+        uses: actions/github-script@v9
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const runId = context.runId;
+            const runUrl = `${context.payload.repository.html_url}/actions/runs/${runId}`;
+            const TRACKING_TITLE = '🚨 PNCP publicacoes mirror is failing';
+
+            const open = await github.rest.issues.listForRepo({
+              owner, repo, state: 'open', labels: 'ci-failure', per_page: 100,
+            });
+            const existing = open.data.find((i) => i.title === TRACKING_TITLE);
+            const body = [
+              `Latest failure: [run #${context.runNumber}](${runUrl})`,
+              '',
+              'Comments below track every subsequent failed run. The issue',
+              'is auto-closed by the next successful run.',
+            ].join('\n');
+
+            if (!existing) {
+              await github.rest.issues.create({
+                owner, repo,
+                title: TRACKING_TITLE,
+                body,
+                labels: ['ci-failure'],
+              });
+              return;
+            }
+            await github.rest.issues.createComment({
+              owner, repo, issue_number: existing.number,
+              body: `Failure recurred: [run #${context.runNumber}](${runUrl})`,
+            });
+
+  report-recovery:
+    name: Auto-close tracking issue on green run
+    if: ${{ success() && github.ref_name == github.event.repository.default_branch }}
+    needs: mirror
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v9
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const TRACKING_TITLE = '🚨 PNCP publicacoes mirror is failing';
+            const open = await github.rest.issues.listForRepo({
+              owner, repo, state: 'open', labels: 'ci-failure', per_page: 100,
+            });
+            const existing = open.data.find((i) => i.title === TRACKING_TITLE);
+            if (!existing) return;
+            const runUrl = `${context.payload.repository.html_url}/actions/runs/${context.runId}`;
+            await github.rest.issues.createComment({
+              owner, repo, issue_number: existing.number,
+              body: `Mirror recovered: [run #${context.runNumber}](${runUrl}). Closing.`,
+            });
+            await github.rest.issues.update({
+              owner, repo, issue_number: existing.number, state: 'closed',
+            });

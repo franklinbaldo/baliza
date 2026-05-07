@@ -1,0 +1,47 @@
+name: Backfill IA subject tags
+
+# One-shot workflow: patches the shared `baliza-pncp` subject tag onto
+# every existing Baliza Internet Archive item. The job is idempotent —
+# already-tagged items are skipped, so re-running is safe.
+#
+# Trigger on push to the PR branch so the CI check turns green once the
+# backfill has completed successfully, giving reviewers a concrete signal
+# that the tag is live on all items before merge.
+on:
+  push:
+    branches:
+      - 'claude/pncp-pipeline-operationalize-e0A9s'
+  workflow_dispatch:
+
+concurrency:
+  # Only one backfill at a time — concurrent runs would race on the same
+  # IA items and produce redundant modify_metadata calls.
+  group: backfill-ia-subjects
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backfill:
+    name: Patch baliza-pncp subject tag on all IA items
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v4
+
+      - name: Apply subject tag to all Baliza IA items
+        env:
+          IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
+          IA_SECRET_KEY: ${{ secrets.IA_SECRET_KEY }}
+        run: uv run python scripts/backfill_ia_subjects.py
+
+      # Re-runs the script in --verify mode: queries every known item and
+      # exits 1 if any still lack the tag. This keeps the CI check red
+      # until the backfill is confirmed complete end-to-end.
+      - name: Verify all items are tagged
+        env:
+          IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
+          IA_SECRET_KEY: ${{ secrets.IA_SECRET_KEY }}
+        run: uv run python scripts/backfill_ia_subjects.py --verify

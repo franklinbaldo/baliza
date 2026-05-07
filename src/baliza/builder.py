@@ -23,16 +23,18 @@ from .extractor import PNCPExtractor
 from .ia_uploader import IAUploader, read_manifest_from_ia
 from .partitioning import (
     clamp_to_data_start,
+    current_partition_start,
     parse_partition_label,
     partition_for,
     previous_partition_start,
 )
 from .resources import get_resource
+from .resources.specs import PartitionStrategy
 
 logger = structlog.get_logger()
 
 
-def _pending_build_months(
+def _pending_build_months(  # noqa: PLR0912
     start_date: date,
     batch_size: int | None,
     *,
@@ -54,11 +56,18 @@ def _pending_build_months(
     raw_manifest = manifest if manifest is not None else read_manifest_from_ia()
     resource_obj = get_resource(resource)
     # Drift-D wiring: partition floor / ceiling come from the
-    # resource's PartitionStrategy. Monthly resources see byte-
-    # identical bounds; annual resources clamp to Jan 1 of the
-    # data_start year and the previous calendar year as the last
-    # complete partition.
-    last_complete = previous_partition_start(resource_obj)
+    # resource's PartitionStrategy.
+    # Monthly resources use previous_partition_start — the current
+    # month is still receiving daily updates so building it mid-month
+    # would produce a partial canonical.
+    # Annual resources use current_partition_start — PCA data is
+    # published year-round; a weekly build should always snapshot the
+    # current year's rows rather than lagging a full calendar year
+    # waiting for the next January (Codex P1, PR #576).
+    if resource_obj.raw_dataset.partition_strategy == PartitionStrategy.ANNUAL:
+        last_complete = current_partition_start(resource_obj)
+    else:
+        last_complete = previous_partition_start(resource_obj)
     start = clamp_to_data_start(resource_obj, start_date)
 
     pending_set: set[date] = set()
@@ -88,8 +97,17 @@ def _pending_build_months(
             # Rebuild if schema version is absent or outdated
             if row.get("parquet_schema_version") != SCHEMA_VERSION:
                 pending_set.add(partition_start)
+        elif resource_obj.raw_dataset.partition_strategy == PartitionStrategy.ANNUAL:
+            # Annual partitions accumulate rows throughout the year — every weekly
+            # mirror run extends the raw ZIP with new records. Rebuild whenever the
+            # mirror timestamp is newer than the last parquet build so the canonical
+            # Parquet stays fresh rather than staling after the first successful cycle.
+            mirror_ts = row.get("mirror_uploaded_at") or ""
+            parquet_ts = row.get("parquet_uploaded_at") or ""
+            if mirror_ts and mirror_ts > parquet_ts:
+                pending_set.add(partition_start)
         elif row.get("mirror_uploaded_at") and not row.get("parquet_uploaded_at"):
-            # Only process partitions that went through mirror but have not yet been built
+            # Monthly: only process partitions that went through mirror but have not yet been built
             pending_set.add(partition_start)
 
     pending = sorted(pending_set, reverse=True)

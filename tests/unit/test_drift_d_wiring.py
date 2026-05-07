@@ -151,3 +151,102 @@ def test_planned_resources_partition_strategies_round_trip():
         # iter_partitions on a single-day window yields one period.
         periods = list(iter_partitions(resource, anchor, anchor))
         assert len(periods) == 1
+
+
+def test_pending_build_months_includes_current_year_for_annual_resource():
+    """Annual resources must include the current-year partition in normal build mode.
+
+    Codex P1 on PR #576: ``previous_partition_start`` for an ANNUAL resource
+    returns ``date(year-1, 1, 1)``, which would exclude the current year's
+    partition from ``_pending_build_months``. The builder now uses
+    ``current_partition_start`` as the ceiling for annual resources so
+    weekly PCA builds snapshot the current year rather than lagging a
+    full calendar year.
+    """
+    _annual_resource_fixture()
+    try:
+        manifest = [
+            # Current-year PCA: mirrored but not yet built → must be pending.
+            {
+                "data_particao": "2026",
+                "raw_zip_url": "ia://...",
+                "table_name": "pca",
+                "mirror_uploaded_at": "2026-05-01T10:00:00",
+                "parquet_uploaded_at": "",
+                "parquet_schema_version": "",
+            },
+            # Past year already built → not pending.
+            {
+                "data_particao": "2025",
+                "raw_zip_url": "ia://...",
+                "table_name": "pca",
+                "mirror_uploaded_at": "2026-01-01T10:00:00",
+                "parquet_uploaded_at": "2026-01-02T10:00:00",
+                "parquet_schema_version": SCHEMA_VERSION,
+            },
+        ]
+        with patch("baliza.partitioning.date") as mock_date:
+            mock_date.today.return_value = date(2026, 5, 7)
+            mock_date.side_effect = date
+            pending = _pending_build_months(
+                start_date=date(2024, 1, 1),
+                batch_size=None,
+                resource="pca",
+                backfill=False,
+                manifest=manifest,
+            )
+        # 2026 is the current year — it must appear in the pending list.
+        assert date(2026, 1, 1) in pending, (
+            "current-year PCA partition was not included in _pending_build_months; "
+            "check the PartitionStrategy.ANNUAL ceiling in builder.py"
+        )
+        # 2025 is already built — must not re-appear.
+        assert date(2025, 1, 1) not in pending
+    finally:
+        _annual_resource_unpromote()
+
+
+def test_pending_build_months_rebuilds_annual_when_mirror_is_newer():
+    """Weekly mirror runs extend the raw ZIP with new records; the builder
+    must detect that mirror_uploaded_at > parquet_uploaded_at for annual
+    resources and schedule a rebuild, even though parquet_uploaded_at is set.
+    """
+    _annual_resource_fixture()
+    try:
+        manifest = [
+            # 2026 was built last week; mirror ran again today — must rebuild.
+            {
+                "data_particao": "2026",
+                "raw_zip_url": "ia://...",
+                "table_name": "pca",
+                "mirror_uploaded_at": "2026-05-07T06:00:00",  # today's mirror run
+                "parquet_uploaded_at": "2026-04-28T08:00:00",  # last week's build
+                "parquet_schema_version": SCHEMA_VERSION,
+            },
+            # 2025 — mirror and parquet timestamps equal; nothing new → skip.
+            {
+                "data_particao": "2025",
+                "raw_zip_url": "ia://...",
+                "table_name": "pca",
+                "mirror_uploaded_at": "2026-01-02T08:00:00",
+                "parquet_uploaded_at": "2026-01-02T08:00:00",
+                "parquet_schema_version": SCHEMA_VERSION,
+            },
+        ]
+        with patch("baliza.partitioning.date") as mock_date:
+            mock_date.today.return_value = date(2026, 5, 7)
+            mock_date.side_effect = date
+            pending = _pending_build_months(
+                start_date=date(2024, 1, 1),
+                batch_size=None,
+                resource="pca",
+                backfill=False,
+                manifest=manifest,
+            )
+        assert date(2026, 1, 1) in pending, (
+            "annual partition with mirror_uploaded_at > parquet_uploaded_at "
+            "was not scheduled for rebuild"
+        )
+        assert date(2025, 1, 1) not in pending
+    finally:
+        _annual_resource_unpromote()

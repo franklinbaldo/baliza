@@ -19,8 +19,9 @@ import internetarchive as ia
 from rich.console import Console
 
 from .artifacts import get_artifact
-from .ia_uploader import read_manifest_from_ia, register_monthly_uf_shards
+from .ia_uploader import BALIZA_COLLECTION_TAG, read_manifest_from_ia, register_monthly_uf_shards
 from .resources import CONTRATOS, get_resource
+from .resources.specs import PartitionStrategy
 from .utils import DUCKDB_PARQUET_COPY_OPTIONS
 
 CONSOLIDATED_IA_ITEM = "baliza-pncp-consolidated"
@@ -97,7 +98,16 @@ def _current_year_is_fresh(
     annual consolidated row is at-or-after every monthly canonical upload"
     instead of comparing canonical to shards. We still gate via the manifest
     by treating the absence of new canonical uploads as fresh.
+
+    Annual-partition resources (PCA) are always considered "fresh" here
+    because they have no monthly_canonical rows; the real canonical is
+    produced by ``baliza build``. ``consolidate_year`` gates on
+    ``_is_monthly_partition_resource`` before reaching this function, so
+    this guard is a belt-and-suspenders safety for direct callers.
     """
+    if not _is_monthly_partition_resource(resource):
+        return True  # annual resources don't participate in monthly consolidation
+
     year_str = str(year)
     canonical_mtimes: list[datetime.datetime] = []
     shard_mtimes: list[datetime.datetime] = []
@@ -129,6 +139,18 @@ def _current_year_is_fresh(
     if not shard_mtimes:
         return False  # canonical months exist but no shards → needs first build
     return max(shard_mtimes) >= max(canonical_mtimes)
+
+
+def _is_monthly_partition_resource(resource: str) -> bool:
+    """True when the resource uses monthly partitioning (the consolidator's domain).
+
+    Annual-partition resources (PCA) produce their canonical file during
+    ``baliza build``, not ``baliza consolidate``. The consolidator must skip
+    them entirely so it doesn't misread the absence of monthly_canonical rows
+    as "nothing to consolidate" and emit a confusing log, and so a future
+    operator can't accidentally consolidate PCA into a second annual file.
+    """
+    return get_resource(resource).raw_dataset.partition_strategy == PartitionStrategy.MONTHLY
 
 
 def _resource_has_uf_shards(resource: str) -> bool:
@@ -238,7 +260,7 @@ class IAConsolidator:
                 return None
         return None
 
-    def consolidate_year(  # noqa: PLR0912, PLR0913, PLR0915
+    def consolidate_year(  # noqa: PLR0911, PLR0912, PLR0913, PLR0915
         self,
         year: int,
         ia_access_key: str,
@@ -255,7 +277,18 @@ class IAConsolidator:
         through the canonical table from the registry — atas / future
         resources land their own ``{table_name}-{year}.parquet`` alongside
         contratos in the same ``baliza-pncp-consolidated`` IA item.
+
+        Annual-partition resources (PCA) are skipped: their canonical file is
+        produced by ``baliza build``, not the consolidator. See
+        ``_is_monthly_partition_resource``.
         """
+        if not _is_monthly_partition_resource(resource):
+            console.print(
+                f"[dim]Skipping {resource}/{year}: annual-partition resource — "
+                f"canonical produced by `baliza build`, not consolidator.[/dim]"
+            )
+            return False
+
         frozen = _is_frozen(year)
         filename = _consolidated_file_name(year, resource=resource)
         spec = get_resource(resource)
@@ -405,6 +438,7 @@ class IAConsolidator:
                         "title": "Baliza PNCP Consolidated Data",
                         "mediatype": "data",
                         "collection": "opensource_media",
+                        "subject": [BALIZA_COLLECTION_TAG],
                     },
                     retries=3,
                 )
@@ -614,6 +648,7 @@ class IAConsolidator:
                 "title": "Baliza PNCP Cumulative Dimensions",
                 "mediatype": "data",
                 "collection": "opensource_media",
+                "subject": [BALIZA_COLLECTION_TAG],
             },
             retries=3,
         )
