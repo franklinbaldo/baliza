@@ -1,7 +1,9 @@
 import Papa from 'papaparse';
 import { z } from 'zod';
 import type { ArchivedTable } from './archive/schema';
-import { FRONTEND_EXPOSURES } from './generated/frontend_exposures';
+import { CANONICAL_FILE_TYPES, FRONTEND_EXPOSURES } from './generated/frontend_exposures';
+
+const CANONICAL_FILE_TYPE_SET: ReadonlySet<string> = new Set(CANONICAL_FILE_TYPES);
 
 export const IA_MANIFEST_URL =
   'https://archive.org/cors/baliza-pncp-manifest/manifest.csv';
@@ -85,16 +87,17 @@ export async function fetchManifestRows(): Promise<ManifestRow[]> {
   return rows;
 }
 
-// Treat rows without an explicit file_type as canonical (backward compat with
-// v1 manifests that lacked the column).
-// It now also respects FrontendExposureSpec.is_canonical if defined.
+// Treat rows whose file_type is in the registry-supplied allowlist as
+// canonical. The empty string is included for backward compat with v1
+// manifests that pre-date the column. The allowlist is generated from
+// every resource's FrontendExposureSpec.canonical_file_types in
+// build_frontend_config.py — adding a new canonical file_type is now a
+// single-line change in the Python registry.
 function isCanonicalRow(r: ManifestRow): boolean {
-  const isV1Canonical = !r.file_type || r.file_type === 'monthly_canonical';
+  const fileType = r.file_type ?? '';
+  if (!CANONICAL_FILE_TYPE_SET.has(fileType)) return false;
   const spec = FRONTEND_EXPOSURES.find((e) => e.table_alias === r.table_name);
-  if (spec) {
-    return isV1Canonical && spec.is_canonical;
-  }
-  return isV1Canonical;
+  return spec ? spec.is_canonical : true;
 }
 
 export async function getLatestParquetInfo(

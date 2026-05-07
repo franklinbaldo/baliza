@@ -152,16 +152,16 @@ condicional dentro de cada chamada de upload.
 o artefato monthly_canonical para contratos/atas; uploader/consolidator
 iteram sobre `spec.artifacts` em vez de hardcodar.
 
-### Drift-C — `FrontendExposureSpec` + `isCanonicalRow` extensível
+### Drift-C — `FrontendExposureSpec` + `isCanonicalRow` extensível ✓
 
-**Estado atual:** `web/src/lib/ia-manifest.ts` aceita apenas
-`'' | 'monthly_canonical'`. Novo `file_type` precisa de edição manual.
-**Bloqueia:** anual/derived/per-cnpj. Não trava nenhum dos próximos
-passos imediatamente (atas usa `monthly_canonical`), mas trava qualquer
-artefato com `file_type` novo.
-**Plano:** typed `FrontendExposureSpec` em `specs.py`; gerador TS
-em `scripts/build_frontend_config.py` exporta também a allowlist de
-`file_type` que `isCanonicalRow` consulta.
+**Estado (resolvido):** `FrontendExposureSpec` ganhou um campo
+`canonical_file_types: tuple[str, ...]` (default `("",
+"monthly_canonical")`). O gerador une todos os `canonical_file_types`
+declarados nas exposições e emite `CANONICAL_FILE_TYPES` no
+`frontend_exposures.ts`. `isCanonicalRow()` consulta esse Set
+(em vez do literal `'' | 'monthly_canonical'` hardcoded), portanto
+introduzir um novo `file_type` (ex.: `annual_canonical` quando PCA
+chegar) passa a ser uma linha no resource Python — sem editar o TS.
 
 ### Drift-D — Estratégia de partição não-mensal
 

@@ -13,3 +13,8 @@ export const FRONTEND_EXPOSURES = [
     is_canonical: true
   },
 ] as const;
+
+export const CANONICAL_FILE_TYPES = [
+  '',
+  'monthly_canonical',
+] as const;
