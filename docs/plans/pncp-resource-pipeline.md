@@ -128,17 +128,15 @@ não listava atas mesmo com o pipeline ingerindo.
 - Pinado em `web/features/pncp-resource-atlas.feature` (cenário
   `@drift-0`) e em `tests/unit/test_build_frontend_config.py`.
 
-### Drift-A — `BalizaEngine.upsert_rows` aceita PK composta
+### Drift-A — `BalizaEngine.upsert_rows` aceita PK composta ✓
 
-**Estado atual:** `engine.py:67` — `pk: str = "numeroControlePNCP"`.
-**Bloqueia:** qualquer recurso com PK composta. PCA já mora aqui:
-`pk=[id_pca_pncp, numero_item]`. Atas escapou porque
-`numero_controle_pncp_ata` é único.
-
-**Plano:** assinatura passa a `pk: str | list[str]`; usar
-`anti_join` / `NOT EXISTS` em vez de coluna sintética (preserva
-caminho rápido para PK string). Teste: PK simples (não regride),
-PK composta (dedup correto). Default kwarg garante compatibilidade.
+**Estado (resolvido):** `engine.py:upsert_rows` agora aceita
+`pk: str | list[str]`. PK string mantém o caminho rápido com
+`isin`; PK lista usa `anti_join` em todas as colunas da chave.
+Pinado em
+`tests/characterization/test_pipeline_contratos.py::test_engine_upsert_composite_pk`
+(prova explicitamente que dedup composto não derruba linhas que
+colidiriam num anti-join de coluna única).
 
 ### Drift-B — `ArtifactSpec` formalizado
 
