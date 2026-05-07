@@ -137,8 +137,11 @@ class ArtifactSpec:
     # Empty means "inherit from canonical_tables[0]" — keeps contratos
     # / atas declarations tight while leaving the door open for
     # per-artifact overrides (e.g. annual rollup sorted by year).
-    sort_columns: list[str] = field(default_factory=list)
-    bloom_filter_columns: list[str] = field(default_factory=list)
+    # Tuples (not lists) so ``frozen=True`` actually means immutable —
+    # a list field would still let a caller append at runtime and
+    # poison the shared registry for every later caller.
+    sort_columns: tuple[str, ...] = ()
+    bloom_filter_columns: tuple[str, ...] = ()
     # Full ORDER BY override. Mirrors CanonicalTableSpec.order_by_sql.
     order_by_sql: str | None = None
 

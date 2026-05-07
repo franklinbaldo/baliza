@@ -56,6 +56,20 @@ def test_artifact_spec_is_frozen():
     raise AssertionError("ArtifactSpec must be frozen")
 
 
+def test_artifact_spec_collection_fields_are_immutable():
+    """Codex P2: ``frozen=True`` only blocks attribute reassignment.
+    A ``list`` field would still let a caller append/mutate the
+    registry-owned object. Tuples enforce real immutability."""
+    spec = ArtifactSpec(file_type="x", ia_item_id="y")
+    assert isinstance(spec.sort_columns, tuple)
+    assert isinstance(spec.bloom_filter_columns, tuple)
+    # And declared instances on real resources too.
+    for resource in (CONTRATOS, ATAS):
+        for artifact in resource.artifacts:
+            assert isinstance(artifact.sort_columns, tuple)
+            assert isinstance(artifact.bloom_filter_columns, tuple)
+
+
 def test_every_artifact_has_a_known_file_type():
     """Whitelist of file_type strings the runtime knows how to handle.
     Adding a new value here is a deliberate cross-cutting change
