@@ -161,6 +161,7 @@ def verify(*, access_key: str | None = None, secret_key: str | None = None) -> b
         return True
 
     untagged = []
+    unreachable = []
     for identifier in identifiers:
         try:
             item = session.get_item(identifier)
@@ -171,10 +172,20 @@ def verify(*, access_key: str | None = None, secret_key: str | None = None) -> b
                 continue
             meta = item.metadata or {}
         except Exception as e:
-            print(f"  SKIP (unreachable: {e}): {identifier}", file=sys.stderr)
-            continue  # item may not exist yet; don't count as untagged
+            print(f"  ERROR (unreachable: {e}): {identifier}", file=sys.stderr)
+            unreachable.append(identifier)
+            continue
         if not _already_tagged(meta):
             untagged.append(identifier)
+
+    if unreachable:
+        print(
+            f"FAIL: {len(unreachable)} item(s) could not be fetched — cannot confirm tag coverage:",
+            file=sys.stderr,
+        )
+        for u in unreachable:
+            print(f"  - {u}", file=sys.stderr)
+        return False
 
     if untagged:
         print(f"FAIL: {len(untagged)} item(s) still missing '{BALIZA_COLLECTION_TAG}':")

@@ -97,8 +97,17 @@ def _pending_build_months(
             # Rebuild if schema version is absent or outdated
             if row.get("parquet_schema_version") != SCHEMA_VERSION:
                 pending_set.add(partition_start)
+        elif resource_obj.raw_dataset.partition_strategy == PartitionStrategy.ANNUAL:
+            # Annual partitions accumulate rows throughout the year — every weekly
+            # mirror run extends the raw ZIP with new records. Rebuild whenever the
+            # mirror timestamp is newer than the last parquet build so the canonical
+            # Parquet stays fresh rather than staling after the first successful cycle.
+            mirror_ts = row.get("mirror_uploaded_at") or ""
+            parquet_ts = row.get("parquet_uploaded_at") or ""
+            if mirror_ts and mirror_ts > parquet_ts:
+                pending_set.add(partition_start)
         elif row.get("mirror_uploaded_at") and not row.get("parquet_uploaded_at"):
-            # Only process partitions that went through mirror but have not yet been built
+            # Monthly: only process partitions that went through mirror but have not yet been built
             pending_set.add(partition_start)
 
     pending = sorted(pending_set, reverse=True)

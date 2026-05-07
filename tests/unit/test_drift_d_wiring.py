@@ -204,3 +204,49 @@ def test_pending_build_months_includes_current_year_for_annual_resource():
         assert date(2025, 1, 1) not in pending
     finally:
         _annual_resource_unpromote()
+
+
+def test_pending_build_months_rebuilds_annual_when_mirror_is_newer():
+    """Weekly mirror runs extend the raw ZIP with new records; the builder
+    must detect that mirror_uploaded_at > parquet_uploaded_at for annual
+    resources and schedule a rebuild, even though parquet_uploaded_at is set.
+    """
+    _annual_resource_fixture()
+    try:
+        manifest = [
+            # 2026 was built last week; mirror ran again today — must rebuild.
+            {
+                "data_particao": "2026",
+                "raw_zip_url": "ia://...",
+                "table_name": "pca",
+                "mirror_uploaded_at": "2026-05-07T06:00:00",  # today's mirror run
+                "parquet_uploaded_at": "2026-04-28T08:00:00",  # last week's build
+                "parquet_schema_version": SCHEMA_VERSION,
+            },
+            # 2025 — mirror and parquet timestamps equal; nothing new → skip.
+            {
+                "data_particao": "2025",
+                "raw_zip_url": "ia://...",
+                "table_name": "pca",
+                "mirror_uploaded_at": "2026-01-02T08:00:00",
+                "parquet_uploaded_at": "2026-01-02T08:00:00",
+                "parquet_schema_version": SCHEMA_VERSION,
+            },
+        ]
+        with patch("baliza.partitioning.date") as mock_date:
+            mock_date.today.return_value = date(2026, 5, 7)
+            mock_date.side_effect = date
+            pending = _pending_build_months(
+                start_date=date(2024, 1, 1),
+                batch_size=None,
+                resource="pca",
+                backfill=False,
+                manifest=manifest,
+            )
+        assert date(2026, 1, 1) in pending, (
+            "annual partition with mirror_uploaded_at > parquet_uploaded_at "
+            "was not scheduled for rebuild"
+        )
+        assert date(2025, 1, 1) not in pending
+    finally:
+        _annual_resource_unpromote()
