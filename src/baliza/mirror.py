@@ -230,19 +230,27 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
                         pass
 
             if total_pages is None:
-                try:
+                if len(combos) > 1:
+                    # Fan-out path: a single modalidade failing
+                    # (timeout, 204) shouldn't tank the whole month.
+                    # Log and skip just this combo.
+                    try:
+                        res = extractor.probe_range(
+                            resource, month_start_dt, month_end_dt, extra_params=extra_params,
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        logger.warning(
+                            "fanout_probe_failed",
+                            month=month_str, combo=combo_label, error=str(exc),
+                        )
+                        continue
+                else:
+                    # No fan-out: legacy contratos / atas behavior
+                    # — probe failures abort the month so we don't
+                    # silently upload a stale or empty ZIP (Codex P1).
                     res = extractor.probe_range(
                         resource, month_start_dt, month_end_dt, extra_params=extra_params,
                     )
-                except Exception as exc:  # noqa: BLE001
-                    # A single fan-out value failing (e.g. modalidade
-                    # 14 returns 204 / empty) shouldn't tank the
-                    # whole partition — log and move on.
-                    logger.warning(
-                        "fanout_probe_failed",
-                        month=month_str, combo=combo_label, error=str(exc),
-                    )
-                    continue
                 total_pages = res["total_pages"]
 
             if is_current_month:
@@ -269,17 +277,29 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
             )
 
             for p in missing_pages:
-                try:
+                if len(combos) > 1:
+                    # Fan-out: tolerate per-page transient failures so
+                    # one bad modalidade doesn't tank the whole month.
+                    try:
+                        extractor.fetch_page(
+                            resource, month_start_dt, month_end_dt, p,
+                            extra_params=extra_params,
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        logger.warning(
+                            "fanout_page_fetch_failed",
+                            month=month_str, combo=combo_label, page=p, error=str(exc),
+                        )
+                        continue
+                else:
+                    # No fan-out: legacy behavior — page fetch
+                    # exceptions abort the month so callers see the
+                    # error signal rather than uploading partial
+                    # archives (Codex P1).
                     extractor.fetch_page(
                         resource, month_start_dt, month_end_dt, p,
                         extra_params=extra_params,
                     )
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning(
-                        "fanout_page_fetch_failed",
-                        month=month_str, combo=combo_label, page=p, error=str(exc),
-                    )
-                    continue
                 result["pages_fetched"] = int(result["pages_fetched"]) + 1
                 _emit(f"{month_str} {combo_label} page {p}/{total_pages}")
 
