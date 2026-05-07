@@ -53,6 +53,20 @@ jobs:
         if: github.event_name == 'pull_request'
         run: echo "BALIZA_MANIFEST_FIXTURE=${{ github.workspace }}/web/fixtures/manifest.csv" >> $GITHUB_ENV
 
+      # The frontend build runs scripts/build_frontend_config.py, which
+      # imports baliza.resources (transitively pydantic). uv resolves the
+      # Python deps so the generator can write the TS exposure list.
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Sync Python deps
+        run: uv sync --frozen
+
       - name: Build Portal
         run: npm run build
         working-directory: web
