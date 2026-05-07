@@ -35,39 +35,13 @@ jobs:
         env:
           IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
           IA_SECRET_KEY: ${{ secrets.IA_SECRET_KEY }}
-        run: |
-          uv run python scripts/backfill_ia_subjects.py
+        run: uv run python scripts/backfill_ia_subjects.py
 
-      # Verify: query IA and assert every known Baliza item now carries
-      # the tag. A non-zero exit here fails the job so the CI check stays
-      # red until the backfill is confirmed complete.
+      # Re-runs the script in --verify mode: queries every known item and
+      # exits 1 if any still lack the tag. This keeps the CI check red
+      # until the backfill is confirmed complete end-to-end.
       - name: Verify all items are tagged
-        run: |
-          uv run python - <<'EOF'
-          import sys
-          import internetarchive as ia
-
-          TAG = "baliza-pncp"
-          results = list(ia.search_items("identifier:baliza-pncp*", fields=["identifier"]))
-          if not results:
-              print("WARNING: no Baliza items found — IA search may be down")
-              sys.exit(0)
-
-          untagged = []
-          for r in results:
-              ident = r.get("identifier", "")
-              item = ia.get_item(ident)
-              subjects = item.metadata.get("subject", [])
-              if isinstance(subjects, str):
-                  subjects = [subjects]
-              if TAG not in subjects:
-                  untagged.append(ident)
-
-          if untagged:
-              print(f"FAIL: {len(untagged)} item(s) still missing '{TAG}':")
-              for u in untagged:
-                  print(f"  - {u}")
-              sys.exit(1)
-
-          print(f"OK: all {len(results)} item(s) carry '{TAG}'")
-          EOF
+        env:
+          IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
+          IA_SECRET_KEY: ${{ secrets.IA_SECRET_KEY }}
+        run: uv run python scripts/backfill_ia_subjects.py --verify
