@@ -188,13 +188,23 @@ class PNCPResource:
     # monthly_uf, optional annual_canonical, future per-cnpj index...).
     # Empty default keeps PLANNED_RESOURCES that don't have a runtime
     # path yet from having to spell artifacts they don't produce.
-    artifacts: list["ArtifactSpec"] = field(default_factory=list)
+    artifacts: tuple["ArtifactSpec", ...] = ()
 
     def __post_init__(self) -> None:
         if not _RESOURCE_NAME_RE.match(self.resource_name):
             raise ValueError(
                 f"Invalid resource_name {self.resource_name!r}: must match {_RESOURCE_NAME_RE.pattern}"
             )
+        # PNCPResource itself isn't frozen (existing fields like
+        # entities / canonical_tables predate this PR and stay as
+        # lists), but ``artifacts`` describes the runtime publish
+        # contract — an accidental ``.append()`` on the registry
+        # singleton would silently change which artifacts get
+        # uploaded once the wiring PR consumes it (Codex P2). Coerce
+        # to tuple so callers passing list literals still work while
+        # in-place mutation fails.
+        if not isinstance(self.artifacts, tuple):
+            self.artifacts = tuple(self.artifacts)
 
     @property
     def name(self) -> str:

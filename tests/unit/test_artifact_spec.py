@@ -70,6 +70,19 @@ def test_artifact_spec_collection_fields_are_immutable():
             assert isinstance(artifact.bloom_filter_columns, tuple)
 
 
+def test_pncp_resource_artifacts_is_a_tuple():
+    """Codex P2: ``PNCPResource.artifacts`` describes the runtime
+    publish contract. A list field would let a caller .append() on
+    the global registry singleton and silently change which artifacts
+    get uploaded once the wiring PR consumes it. Tuples block
+    in-place mutation."""
+    for resource in (CONTRATOS, ATAS):
+        assert isinstance(resource.artifacts, tuple), (
+            f"{resource.resource_name}.artifacts must be a tuple, "
+            f"got {type(resource.artifacts).__name__}"
+        )
+
+
 def test_artifact_spec_coerces_list_inputs_to_tuples():
     """Codex P2 follow-up: type annotations aren't enforced at runtime,
     so a caller passing ``sort_columns=[...]`` would silently slip a
