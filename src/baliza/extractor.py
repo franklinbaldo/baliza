@@ -96,23 +96,39 @@ class PNCPExtractor:
         wait=wait_exponential(multiplier=2, min=4, max=60),
     )
     def fetch_page(
-        self, resource: str, start_date: datetime, end_date: datetime, page: int = 1
+        self, resource: str, start_date: datetime, end_date: datetime, page: int = 1,
+        *, extra_params: dict[str, str | int] | None = None,
     ) -> dict[str, Any]:
-        """Fetch a single page from the PNCP API with resumption support."""
+        """Fetch a single page from the PNCP API with resumption support.
+
+        ``extra_params`` lets callers add resource-specific query
+        parameters that aren't part of the date/page contract — e.g.
+        publicacoes' modalidade fan-out. The values fold into the cache
+        filename so different fan-out points don't collide.
+        """
         _validate_resource(resource)
-        cached_data = self._load_cached_page(resource=resource, start_date=start_date, page=page)
+        spec = get_resource(resource)
+        cached_data = self._load_cached_page(
+            resource=resource, start_date=start_date, page=page, extra_params=extra_params,
+        )
         if cached_data is not None:
             return cached_data
 
         start_str = start_date.strftime("%Y%m%d")
         end_str = end_date.strftime("%Y%m%d")
-        url = f"{self.base_url}/{resource}"
+        # Resource registry's spec.fetch.endpoint is the URL path —
+        # publicacoes lives at /v1/contratacoes/publicacao while its
+        # resource name is just "publicacoes". Using the endpoint
+        # instead of the bare resource name makes that work.
+        url = f"{self.base_url}/{spec.fetch.endpoint}"
         params: dict[str, str | int] = {
             "dataInicial": start_str,
             "dataFinal": end_str,
             "pagina": page,
             "tamanhoPagina": PAGE_SIZE,
         }
+        if extra_params:
+            params.update(extra_params)
         logger.info("fetching_page_params", resource=resource, url=url, params=params)
 
         if self.use_curl:
@@ -122,6 +138,7 @@ class PNCPExtractor:
                 url=url,
                 start_str=start_str,
                 end_str=end_str,
+                extra_params=extra_params,
             )
         else:
             data = self._fetch_with_httpx(
@@ -130,22 +147,43 @@ class PNCPExtractor:
                 url=url,
                 params=params,
             )
-        self._save_raw(resource, start_date, page, data)
+        self._save_raw(resource, start_date, page, data, extra_params=extra_params)
         return data
 
-    def _cache_filename(self, resource: str, start_date: datetime, page: int) -> Path:
+    def _param_suffix(self, extra_params: dict[str, str | int] | None) -> str:
+        """Stable filename suffix encoding fan-out param values.
+
+        Empty params (the typical case for contratos / atas) returns
+        ``""`` so cache paths stay byte-identical with the pre-fan-out
+        layout. With params, the suffix is sorted-deterministic so the
+        same fan-out point hits the same file every run.
+        """
+        if not extra_params:
+            return ""
+        pairs = sorted((k, str(v)) for k, v in extra_params.items())
+        return "_" + "_".join(f"{k}{v}" for k, v in pairs)
+
+    def _cache_filename(
+        self, resource: str, start_date: datetime, page: int,
+        *, extra_params: dict[str, str | int] | None = None,
+    ) -> Path:
         # Drift-D wiring: cache directory tracks the resource's
         # partition label (``YYYY-MM`` for monthly, ``YYYY`` for
         # annual) so mirror_month / build_month, which now write/read
-        # partition-labeled paths, hit the same files.
+        # partition-labeled paths, hit the same files. Fan-out params
+        # fold into the filename suffix.
         partition_str = partition_label(get_resource(resource), start_date.date())
-        return Path(f"data/raw/{partition_str}/{resource}_p{page}.json")
+        suffix = self._param_suffix(extra_params)
+        return Path(f"data/raw/{partition_str}/{resource}{suffix}_p{page}.json")
 
     def _load_cached_page(
-        self, resource: str, start_date: datetime, page: int
+        self, resource: str, start_date: datetime, page: int,
+        *, extra_params: dict[str, str | int] | None = None,
     ) -> dict[str, Any] | None:
         """Return cached page when valid; otherwise heal corrupt cache and refetch."""
-        filename = self._cache_filename(resource=resource, start_date=start_date, page=page)
+        filename = self._cache_filename(
+            resource=resource, start_date=start_date, page=page, extra_params=extra_params,
+        )
         if not (filename.exists() and filename.stat().st_size > 0):
             return None
 
@@ -174,9 +212,16 @@ class PNCPExtractor:
         except OSError:
             pass
 
-    def _fetch_with_curl(
-        self, resource: str, page: int, url: str, start_str: str, end_str: str
+    def _fetch_with_curl(  # noqa: PLR0913
+        self, resource: str, page: int, url: str, start_str: str, end_str: str,
+        *, extra_params: dict[str, str | int] | None = None,
     ) -> dict[str, Any]:
+        query = (
+            f"dataInicial={start_str}&dataFinal={end_str}"
+            f"&pagina={page}&tamanhoPagina={PAGE_SIZE}"
+        )
+        if extra_params:
+            query += "&" + "&".join(f"{k}={v}" for k, v in extra_params.items())
         try:
             result = subprocess.run(
                 [
@@ -190,7 +235,7 @@ class PNCPExtractor:
                     "accept: */*",
                     "-H",
                     f"User-Agent: {self.headers['User-Agent']}",
-                    f"{url}?dataInicial={start_str}&dataFinal={end_str}&pagina={page}&tamanhoPagina={PAGE_SIZE}",
+                    f"{url}?{query}",
                 ],
                 capture_output=True,
                 text=True,
@@ -229,23 +274,31 @@ class PNCPExtractor:
                 f"Invalid JSON response for {resource} page {page}: {e}"
             ) from e
 
-    def _save_raw(self, resource: str, start_date: datetime, page: int, data: dict[str, Any]):
+    def _save_raw(
+        self, resource: str, start_date: datetime, page: int, data: dict[str, Any],
+        *, extra_params: dict[str, str | int] | None = None,
+    ):
         """Save raw JSON payload to disk with deterministic name."""
         # Drift-D wiring: see _cache_filename for the rationale.
         partition_str = partition_label(get_resource(resource), start_date.date())
         raw_dir = Path("data/raw") / partition_str
         raw_dir.mkdir(parents=True, exist_ok=True)
 
-        # Deterministic filename for resumability
-        filename = raw_dir / f"{resource}_p{page}.json"
+        # Deterministic filename for resumability — fan-out params fold
+        # into the suffix so different modalidade pages don't collide.
+        suffix = self._param_suffix(extra_params)
+        filename = raw_dir / f"{resource}{suffix}_p{page}.json"
         with open(filename, "w") as f:
             json.dump(data, f, ensure_ascii=False)
 
     def probe_range(
-        self, resource: str, start_date: datetime, end_date: datetime
+        self, resource: str, start_date: datetime, end_date: datetime,
+        *, extra_params: dict[str, str | int] | None = None,
     ) -> dict[str, Any]:
         """Fetch page 1 to determine total pages and registry count for a range."""
-        data = self.fetch_page(resource, start_date, end_date, page=1)
+        data = self.fetch_page(
+            resource, start_date, end_date, page=1, extra_params=extra_params,
+        )
         return {
             "total_pages": data.get("totalPaginas", 1),
             "total_registries": data.get("totalRegistros", 0),

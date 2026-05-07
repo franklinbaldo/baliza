@@ -19,6 +19,7 @@ on:
         default: scripts/probe_publicacoes.py
         options:
           - scripts/probe_publicacoes.py
+          - scripts/smoke_publicacoes.py
 
 permissions:
   contents: read
@@ -73,3 +74,41 @@ jobs:
         run: |
           echo "::error::Probe ran successfully — see the PR comment for results."
           exit 1
+
+  smoke:
+    # Runs the publicacoes promotion smoke on every push to a
+    # claude/promote-** branch. Independent job so a probe failure
+    # doesn't block the smoke and vice versa. Real failures here
+    # *should* block merge — they mean the new flatten / fan-out
+    # plumbing doesn't work against the live API.
+    if: startsWith(github.ref_name, 'claude/promote-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+          python-version: '3.12'
+      - run: uv sync --all-groups --all-extras
+      - name: Run smoke
+        run: uv run python scripts/smoke_publicacoes.py | tee smoke_output.md
+      - name: Post smoke output to PR
+        if: always() && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          branch="${{ github.ref_name }}"
+          pr_number=$(gh pr list --head "$branch" --json number --jq '.[0].number' 2>/dev/null || echo "")
+          if [ -z "$pr_number" ]; then exit 0; fi
+          {
+            echo "<!-- pncp-smoke -->"
+            echo "## Smoke results (commit \`${GITHUB_SHA::7}\`)"
+            echo
+            cat smoke_output.md || echo "(smoke output empty — check job logs)"
+          } > smoke_comment.md
+          gh pr comment "$pr_number" --body-file smoke_comment.md

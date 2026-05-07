@@ -27,6 +27,7 @@ on:
         options:
           - contratos
           - atas
+          - publicacoes
 
 concurrency:
   # Policy: cron runs share one group so stale queued/in-flight ticks are canceled.
