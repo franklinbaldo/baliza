@@ -249,6 +249,22 @@ hr[data-ornament="volpi"] {
   );
 }
 
+/* WHY: inline SVG icons replace emoji glyphs so icon size, color, and
+   baseline are predictable across platforms (emoji renderers vary; the
+   ones that drift the most — 🏛️, ⚖️, 📦 — are the ones we use the
+   most). currentColor + stroke lets buttons/links inherit Pico tones. */
+[data-icon] {
+  width: 1.25em;
+  height: 1.25em;
+  vertical-align: -0.15em;
+  display: inline-block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 /* WHY: a couple of components render a wide DuckDB result table
    that must scroll horizontally without breaking the page grid;
    Pico's <figure> wrapping handles this when the table is the

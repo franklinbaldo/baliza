@@ -21,7 +21,13 @@
   data-invalid={level === 'error' || level === 'warning' ? 'true' : undefined}
   data-level={level}
 >
-  <header><strong><span aria-hidden="true">{levelEmoji[level]}</span> {title}</strong></header>
+  <header><strong>
+    {#if level === 'success'}
+      <svg data-icon aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>
+    {:else}
+      <span aria-hidden="true">{levelEmoji[level]}</span>
+    {/if}
+    {title}</strong></header>
   <p>{message}</p>
 </article>
 

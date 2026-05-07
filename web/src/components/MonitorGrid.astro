@@ -30,7 +30,7 @@ const ITEMS = [
     title: 'Novas contratações por órgão',
     question: 'Qual secretaria publicou mais no mês corrente?',
     href: DEFAULT_CITY_HREF,
-    icon: '🏛️',
+    icon: 'building-library',
   },
   {
     title: 'Atas de registro de preços',
@@ -42,7 +42,7 @@ const ITEMS = [
     title: 'Dispensas e inexigibilidades',
     question: 'Houve pico de contratação sem concorrência?',
     href: 'explorador',
-    icon: '⚖️',
+    icon: 'scale',
   },
   {
     title: 'Variações atípicas no valor',
@@ -67,7 +67,15 @@ const ITEMS = [
     {ITEMS.map((item) => (
       <article>
         <a href={resolve(item.href)}>
-          <figure aria-hidden="true" style="font-size: 2.5rem; margin: 0">{item.icon}</figure>
+          <figure aria-hidden="true" style="font-size: 2.5rem; margin: 0">
+            {item.icon === 'building-library' ? (
+              <svg data-icon viewBox="0 0 24 24"><path d="M3 21h18M5 21V10m14 11V10M3 10l9-6 9 6M8 21v-7m4 7v-7m4 7v-7"/></svg>
+            ) : item.icon === 'scale' ? (
+              <svg data-icon viewBox="0 0 24 24"><path d="M12 3v18M5 7h14M5 7l-3 7a4 4 0 0 0 6 0L5 7Zm14 0-3 7a4 4 0 0 0 6 0L19 7Z"/></svg>
+            ) : (
+              <span>{item.icon}</span>
+            )}
+          </figure>
           <strong>{item.title}</strong>
           <p><small>{item.question}</small></p>
         </a>

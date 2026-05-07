@@ -71,8 +71,8 @@
   <section aria-label={`Pulso de ${cityState.nome}`}>
     <div class="grid">
       {#if loading}
-        {#each [1, 2, 3, 4] as _, col (col)}
-          <Skeleton />
+        {#each ['Calculando contratações…', 'Somando R$ executados…', 'Procurando maior comprador…', 'Lendo Internet Archive…'] as msg (msg)}
+          <Skeleton messages={[msg]} />
         {/each}
       {:else if data}
         <article>

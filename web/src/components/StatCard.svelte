@@ -23,7 +23,7 @@
   };
   const toneEmoji: Record<Tone, string> = {
     default: '🔢',
-    success: '✅',
+    success: '',
     warning: '⚠️',
     danger:  '❌',
   };
@@ -35,7 +35,11 @@
   <article>
     <a {href} role="button" class="contrast outline" style="--pico-primary:{accent}">
       <header>
-        <span aria-hidden="true">{emoji}</span>
+        {#if tone === 'success'}
+          <svg data-icon aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>
+        {:else}
+          <span aria-hidden="true">{emoji}</span>
+        {/if}
         <h3>{title}</h3>
       </header>
       <p><strong>{value}</strong></p>

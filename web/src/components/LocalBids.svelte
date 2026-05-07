@@ -79,7 +79,7 @@
 <article>
   <header>
     <hgroup>
-      <small>📍</small>
+      <small><svg data-icon aria-hidden="true" viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Z"/><circle cx="12" cy="9" r="2.5"/></svg></small>
       <h3>Radar Local</h3>
       <p>Encontre oportunidades perto de você usando geolocalização.</p>
     </hgroup>

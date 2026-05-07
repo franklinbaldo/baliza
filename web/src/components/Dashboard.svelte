@@ -7,12 +7,17 @@
   import { resolve } from '../lib/baseUrl';
   import { onMount } from 'svelte';
 
-  let stats = $state<SyncStats | null>(null);
+  const { initialStats }: { initialStats?: SyncStats } = $props();
+  const seed = initialStats;
+
+  let stats = $state<SyncStats | null>(seed ?? null);
   let error = $state<string | null>(null);
-  let loading = $state(true);
+  // When the page passes pre-rendered stats, the first paint shows real
+  // numbers; the background refresh below replaces them once it lands.
+  let loading = $state(!seed);
 
   async function loadStats() {
-    loading = true;
+    if (!stats) loading = true;
     error = null;
     try {
       const res = await fetch(resolve('data/sync_stats.json'));
@@ -20,7 +25,7 @@
       const raw = await res.json();
       stats = SyncStatsSchema.parse(raw);
     } catch (e) {
-      error = (e as Error).message;
+      if (!stats) error = (e as Error).message;
     } finally {
       loading = false;
     }
