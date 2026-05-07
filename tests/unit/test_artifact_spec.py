@@ -70,6 +70,32 @@ def test_artifact_spec_collection_fields_are_immutable():
             assert isinstance(artifact.bloom_filter_columns, tuple)
 
 
+def test_artifact_ia_items_match_runtime_upload_targets():
+    """Codex P2: ArtifactSpec must describe what the runtime *actually*
+    does today, otherwise the wiring PR will silently redirect uploads.
+    Pin the (file_type → ia_item_id) shape against the values
+    uploader / consolidator currently use:
+
+    - monthly_canonical → ``baliza-pncp-{partition}`` (one item per month
+      via ``IAUploader.upload_parquet``).
+    - monthly_uf → ``baliza-pncp-consolidated`` (uploaded by
+      ``IAConsolidator.consolidate_year``, NOT the per-month item).
+    - annual_canonical → ``baliza-pncp-consolidated``.
+    """
+    expected = {
+        "monthly_canonical": "baliza-pncp-{partition}",
+        "monthly_uf": "baliza-pncp-consolidated",
+        "annual_canonical": "baliza-pncp-consolidated",
+    }
+    for resource in (CONTRATOS, ATAS):
+        for artifact in resource.artifacts:
+            assert artifact.ia_item_id == expected[artifact.file_type], (
+                f"{resource.resource_name}/{artifact.file_type} "
+                f"declares ia_item_id={artifact.ia_item_id!r} but "
+                f"runtime uploads to {expected[artifact.file_type]!r}"
+            )
+
+
 def test_every_artifact_has_a_known_file_type():
     """Whitelist of file_type strings the runtime knows how to handle.
     Adding a new value here is a deliberate cross-cutting change
