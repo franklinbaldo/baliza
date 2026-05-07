@@ -6,6 +6,7 @@ from .specs import (
     CanonicalTableSpec,
     EntitySpec,
     FetchSpec,
+    FrontendExposureSpec,
     PNCPResource,
     RawDatasetSpec,
 )
@@ -59,4 +60,11 @@ CONTRATOS = PNCPResource(
     # is 2021-09-06. Backfill workers skip earlier months without ever
     # hitting the API.
     data_start=date(2021, 9, 6),
+    frontend_exposures=[
+        FrontendExposureSpec(
+            artifact_name="contratos",
+            table_alias="contratos",
+            is_canonical=True,
+        ),
+    ],
 )

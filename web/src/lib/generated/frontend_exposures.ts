@@ -7,4 +7,9 @@ export const FRONTEND_EXPOSURES = [
     table_alias: 'contratos',
     is_canonical: true
   },
+  {
+    artifact_name: 'atas',
+    table_alias: 'atas',
+    is_canonical: true
+  },
 ] as const;

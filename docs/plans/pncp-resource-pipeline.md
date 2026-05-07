@@ -108,6 +108,26 @@ Definições em prosa (mantidas do `multi-table-pipeline.md`):
 
 Em ordem de bloqueio:
 
+### Drift-0 — Unificar registry de recursos (matar `pncp_resources.py`) ✓
+
+**Estado atual (resolvido):** existiam dois registros paralelos:
+`src/baliza/pncp_resources.py` (com `CONTRATOS` apenas) alimentava
+`scripts/build_frontend_config.py` enquanto `src/baliza/resources/`
+(com `CONTRATOS` + `ATAS`) alimentava o pipeline. Resultado: o site
+não listava atas mesmo com o pipeline ingerindo.
+
+**Resolução:**
+
+- `FrontendExposureSpec` movido para `src/baliza/resources/specs.py`
+  e populado em `contratos.py` / `atas.py`.
+- `scripts/build_frontend_config.py` agora itera
+  `RESOURCES.values()` e emite uma entrada por
+  `frontend_exposures`.
+- `src/baliza/pncp_resources.py` removido. Único registro = um único
+  diretório.
+- Pinado em `web/features/pncp-resource-atlas.feature` (cenário
+  `@drift-0`) e em `tests/unit/test_build_frontend_config.py`.
+
 ### Drift-A — `BalizaEngine.upsert_rows` aceita PK composta
 
 **Estado atual:** `engine.py:67` — `pk: str = "numeroControlePNCP"`.

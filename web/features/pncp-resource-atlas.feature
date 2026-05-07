@@ -39,6 +39,18 @@ Feature: PNCP Resource Atlas
     And the raw monthly ZIP filename keeps the legacy `raw-{YYYY-MM}.zip` shape
       so existing Internet Archive items do not need to be renamed
 
+  @drift-0
+  Scenario: The frontend exposure list mirrors the live registry
+    Given the PNCP resource registry exposed by `src/baliza/resources/`
+    When `scripts/build_frontend_config.py` writes
+      `web/src/lib/generated/frontend_exposures.ts`
+    Then the file contains one entry per `frontend_exposures` entry
+      across every resource registered in `RESOURCES`
+    And no entry comes from a separate parallel registry
+      (the legacy `src/baliza/pncp_resources.py` module no longer exists)
+    And both `contratos` and `atas` show up as `table_alias`
+      so the website's archive page lists atas alongside contratos
+
   Scenario: Atas is a registered resource alongside contratos
     When I look up "atas" in the registry
     Then the canonical table name is "atas"

@@ -122,8 +122,35 @@ export const ARCHIVED_TABLES = [
 
 export type ArchivedTable = (typeof ARCHIVED_TABLES)[number];
 
+export interface ArchivedAta {
+  numero_controle_pncp_ata: string;
+  numero_ata_registro_preco: string | null;
+  ano_ata: number | null;
+  numero_controle_pncp_compra: string | null;
+  cancelado: boolean | null;
+  data_cancelamento: string | null;
+  data_assinatura: string | null;
+  vigencia_inicio: string | null;
+  vigencia_fim: string | null;
+  data_publicacao_pncp: string | null;
+  data_inclusao: string | null;
+  data_atualizacao: string | null;
+  data_atualizacao_global: string | null;
+  usuario: string | null;
+  objeto_contratacao: string | null;
+  cnpj_orgao: string | null;
+  nome_orgao: string | null;
+  cnpj_orgao_subrogado: string | null;
+  nome_orgao_subrogado: string | null;
+  codigo_unidade_orgao: string | null;
+  nome_unidade_orgao: string | null;
+  codigo_unidade_orgao_subrogado: string | null;
+  nome_unidade_orgao_subrogado: string | null;
+}
+
 export interface ArchivedTableRowMap {
   contratos: ArchivedContrato;
+  atas: ArchivedAta;
   orgaos: ArchivedOrgao;
   unidades: ArchivedUnidade;
   fornecedores: ArchivedFornecedor;

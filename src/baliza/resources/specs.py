@@ -43,6 +43,18 @@ class RawDatasetSpec:
 class EntitySpec:
     name: str
 
+
+@dataclass(frozen=True)
+class FrontendExposureSpec:
+    """How the frontend should surface a resource's canonical artifact.
+
+    Lives on PNCPResource so the TS generator can iterate the live
+    registry instead of importing per-resource constants.
+    """
+    artifact_name: str
+    table_alias: str
+    is_canonical: bool = True
+
 @dataclass
 class CanonicalTableSpec:
     table_name: str                # "contratos_canonical", "pca_itens_canonical"
@@ -87,6 +99,11 @@ class PNCPResource:
     # parallel dict in constants.py) means registering a new resource
     # is a single-file change.
     data_start: date | None = field(default=None)
+    # How the frontend exposes this resource's canonical artifact(s).
+    # Empty by default so resources without a frontend surface (e.g.
+    # planned ones still missing flatten_fn) don't leak placeholder
+    # entries into the generated TS.
+    frontend_exposures: list["FrontendExposureSpec"] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if not _RESOURCE_NAME_RE.match(self.resource_name):

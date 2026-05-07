@@ -6,6 +6,7 @@ from .specs import (
     CanonicalTableSpec,
     EntitySpec,
     FetchSpec,
+    FrontendExposureSpec,
     PNCPResource,
     RawDatasetSpec,
 )
@@ -54,4 +55,11 @@ ATAS = PNCPResource(
     # PNCP launched in mid-2021 and atas were available from GA;
     # use the contratos floor until we observe an empty earlier month.
     data_start=date(2021, 9, 6),
+    frontend_exposures=[
+        FrontendExposureSpec(
+            artifact_name="atas",
+            table_alias="atas",
+            is_canonical=True,
+        ),
+    ],
 )
