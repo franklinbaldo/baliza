@@ -107,9 +107,18 @@ async function build() {
   // failure (offline build, IA outage) — the existing JSON stays put.
   console.log("Refreshing sync_stats.json from IA manifest...");
   try {
-    execSync('python3 scripts/build_sync_stats.py', { stdio: 'inherit', cwd: '..' });
+    execSync('uv run python scripts/build_sync_stats.py', { stdio: 'inherit', cwd: '..' });
   } catch (err) {
     console.warn(`sync_stats.json refresh skipped: ${err.message}`);
+  }
+
+  // Refresh public/data/ia_inventory.json from the IA search index so
+  // /arquivo renders live item counts and sizes. Same tolerance pattern.
+  console.log("Refreshing ia_inventory.json from IA search...");
+  try {
+    execSync('uv run python scripts/build_ia_inventory.py', { stdio: 'inherit', cwd: '..' });
+  } catch (err) {
+    console.warn(`ia_inventory.json refresh skipped: ${err.message}`);
   }
 
   if (!fs.existsSync(QUERIES_DIR)) fs.mkdirSync(QUERIES_DIR, { recursive: true });

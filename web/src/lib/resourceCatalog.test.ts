@@ -16,16 +16,16 @@ describe('resourceCatalog', () => {
     ]);
   });
 
-  it('marks contratos and atas as registered today', () => {
-    expect(REGISTERED_RESOURCE_NAMES.has('contratos')).toBe(true);
-    expect(REGISTERED_RESOURCE_NAMES.has('atas')).toBe(true);
+  it('marks contratos, atas, publicacoes and pca as registered', () => {
+    for (const name of ['contratos', 'atas', 'publicacoes', 'pca']) {
+      expect(REGISTERED_RESOURCE_NAMES.has(name)).toBe(true);
+      expect(getResourceEntry(name)?.status).toBe('registered');
+    }
   });
 
-  it('marks publicacoes, pca and itens as planned (not yet queryable)', () => {
-    for (const name of ['publicacoes', 'pca', 'itens']) {
-      expect(REGISTERED_RESOURCE_NAMES.has(name)).toBe(false);
-      expect(getResourceEntry(name)?.status).toBe('planned');
-    }
+  it('marks itens as planned (not yet queryable)', () => {
+    expect(REGISTERED_RESOURCE_NAMES.has('itens')).toBe(false);
+    expect(getResourceEntry('itens')?.status).toBe('planned');
   });
 
   it('exposes a label and a description for every entry', () => {

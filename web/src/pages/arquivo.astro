@@ -1,0 +1,389 @@
+---
+import Layout from '../layouts/Layout.astro';
+import iaInventoryRaw from '../../public/data/ia_inventory.json';
+
+interface IaItem {
+  identifier: string;
+  title: string;
+  description: string;
+  date: string;
+  mediatype: string;
+  item_size: number;
+  item_size_formatted: string;
+  num_files: number;
+  archive_url: string;
+  group: string;
+}
+
+interface IaInventory {
+  generated_at: string;
+  items: IaItem[];
+  groups: Record<string, string[]>;
+  group_labels: Record<string, string>;
+}
+
+const inventory = iaInventoryRaw as unknown as IaInventory;
+const { items, groups, group_labels, generated_at } = inventory;
+
+const itemByIdentifier = Object.fromEntries(items.map((it) => [it.identifier, it]));
+
+// Ordered group display sequence
+const GROUP_ORDER = ['raw', 'monthly_canonical', 'annual_canonical', 'supporting'];
+
+const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+const resolve = (href: string) => `${BASE}${href.replace(/^\//, '')}`;
+---
+
+<Layout
+  title="Arquivo Internet Archive — Baliza"
+  description="Catálogo de todos os itens do Baliza no Internet Archive: espelhos brutos, Parquets mensais, consolidados anuais e arquivos de suporte. Cada item tem URL estável e é citável por pesquisadores."
+>
+  <main class="arquivo-page container">
+    <header class="page-header">
+      <p class="eyebrow">Arquivo aberto</p>
+      <h1>Coleção Baliza no Internet Archive</h1>
+      <p class="lead">
+        Todo artefato produzido pelo Baliza é publicado no
+        <a href="https://archive.org" target="_blank" rel="noopener">Internet Archive</a>
+        com URL estável e citável. Descubra a coleção completa via
+        <code>ia search 'subject:baliza-pncp'</code> ou navegue pelo catálogo abaixo.
+      </p>
+      {generated_at && (
+        <p class="meta">
+          Inventário gerado em{' '}
+          <time datetime={generated_at}>
+            {new Date(generated_at).toLocaleDateString('pt-BR', {
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </time>
+          . Atualizado a cada build.{' '}
+          <a href="https://archive.org/search?query=subject%3Abaliza-pncp" target="_blank" rel="noopener">
+            Ver na IA ↗
+          </a>
+        </p>
+      )}
+    </header>
+
+    {items.length === 0 ? (
+      <section class="empty-state" aria-label="Nenhum item indexado">
+        <p>
+          Nenhum item indexado ainda — o inventário é regenerado a cada deploy.
+          Você pode explorar a coleção diretamente em{' '}
+          <a href="https://archive.org/search?query=subject%3Abaliza-pncp" target="_blank" rel="noopener">
+            archive.org/search?query=subject:baliza-pncp
+          </a>.
+        </p>
+      </section>
+    ) : (
+      GROUP_ORDER.map((groupKey) => {
+        const ids: string[] = groups[groupKey] ?? [];
+        const label = group_labels[groupKey] ?? groupKey;
+        const groupItems = ids.map((id) => itemByIdentifier[id]).filter(Boolean);
+        return (
+          <section class="item-group" aria-labelledby={`group-${groupKey}`}>
+            <h2 id={`group-${groupKey}`} class="group-heading">
+              {label}
+              <span class="count">{groupItems.length}</span>
+            </h2>
+            {groupItems.length === 0 ? (
+              <p class="group-empty">Ainda sem itens publicados neste grupo.</p>
+            ) : (
+              <ul class="item-list">
+                {groupItems.map((item) => (
+                  <li class="item-card">
+                    <div class="item-main">
+                      <a
+                        href={item.archive_url}
+                        target="_blank"
+                        rel="noopener"
+                        class="item-title"
+                      >
+                        {item.title}
+                      </a>
+                      <code class="item-id">{item.identifier}</code>
+                      {item.description && (
+                        <p class="item-desc">{item.description}</p>
+                      )}
+                    </div>
+                    <dl class="item-meta">
+                      {item.num_files > 0 && (
+                        <>
+                          <dt>Arquivos</dt>
+                          <dd>{item.num_files.toLocaleString('pt-BR')}</dd>
+                        </>
+                      )}
+                      {item.item_size > 0 && (
+                        <>
+                          <dt>Tamanho</dt>
+                          <dd>{item.item_size_formatted}</dd>
+                        </>
+                      )}
+                      {item.date && (
+                        <>
+                          <dt>Data</dt>
+                          <dd>{item.date}</dd>
+                        </>
+                      )}
+                      <dt>Link</dt>
+                      <dd>
+                        <a href={item.archive_url} target="_blank" rel="noopener">
+                          archive.org/details/{item.identifier} ↗
+                        </a>
+                      </dd>
+                    </dl>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        );
+      })
+    )}
+
+    <section class="citation-section" aria-labelledby="citation-heading">
+      <h2 id="citation-heading">Como citar esta coleção</h2>
+      <p>
+        Referencie a coleção completa ou um item específico. O URL do item no Internet Archive
+        é estável — permanece válido mesmo que partições sejam adicionadas ou rotacionadas.
+      </p>
+      <div class="citation-formats">
+        <div class="citation-block">
+          <h3>Coleção completa (ABNT)</h3>
+          <pre class="citation-pre"><code>BALDO, Franklin. <em>Baliza: arquivo público das contratações nacionais brasileiras (PNCP)</em>.
+Disponível em: &lt;https://archive.org/search?query=subject:baliza-pncp&gt;. Acesso em: {new Date().toLocaleDateString('pt-BR')}.</code></pre>
+        </div>
+        <div class="citation-block">
+          <h3>Item específico (BibTeX)</h3>
+          <pre class="citation-pre"><code>@misc&#123;balizaPNCP,
+  author       = &#123;Baldo, Franklin&#125;,
+  title        = &#123;Baliza: arquivo público das contratações nacionais brasileiras (PNCP)&#125;,
+  year         = &#123;{new Date().getFullYear()}&#125;,
+  howpublished = &#123;\url&#123;https://archive.org/details/baliza-pncp-ITEM&#125;&#125;,
+  note         = &#123;subject:baliza-pncp; substitua ITEM pelo identificador do item&#125;
+&#125;</code></pre>
+        </div>
+      </div>
+      <p class="discovery-note">
+        Pesquisadores podem listar toda a coleção programaticamente via API Python:
+      </p>
+      <pre class="citation-pre"><code>import internetarchive as ia
+items = ia.search_items("subject:baliza-pncp")
+for item in items:
+    print(item["identifier"])</code></pre>
+    </section>
+
+    <nav class="back-nav" aria-label="Navegação secundária">
+      <a href={resolve('desenvolvedores')}>← Para desenvolvedores</a>
+      <a href={resolve('status')}>Status do arquivo →</a>
+    </nav>
+  </main>
+</Layout>
+
+<style>
+  .arquivo-page {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: var(--space-8) var(--space-4);
+  }
+
+  .page-header {
+    margin-bottom: var(--space-8);
+  }
+
+  .eyebrow {
+    font-size: var(--text-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-text-dim);
+    margin: 0 0 var(--space-2);
+  }
+
+  h1 {
+    font-size: clamp(28px, 3vw, 42px);
+    font-weight: 300;
+    margin: 0 0 var(--space-3);
+  }
+
+  .lead {
+    font-size: var(--text-lg);
+    color: var(--color-text-dim);
+    line-height: 1.6;
+    margin: 0 0 var(--space-2);
+  }
+
+  .meta {
+    font-size: var(--text-sm);
+    color: var(--color-text-dim);
+    margin: 0;
+  }
+
+  .empty-state {
+    padding: var(--space-8);
+    text-align: center;
+    background: var(--color-surface);
+    border: 1px dashed var(--color-border);
+    border-radius: 4px;
+  }
+
+  .item-group {
+    margin-bottom: var(--space-8);
+  }
+
+  .group-heading {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-lg);
+    font-weight: 500;
+    margin: 0 0 var(--space-4);
+    padding-bottom: var(--space-2);
+    border-bottom: 2px solid var(--color-border);
+  }
+
+  .count {
+    font-size: var(--text-sm);
+    color: var(--color-text-dim);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-weight: 400;
+  }
+
+  .group-empty {
+    color: var(--color-text-dim);
+    font-style: italic;
+    padding: var(--space-4) 0;
+  }
+
+  .item-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .item-card {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: var(--space-4);
+    align-items: start;
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-left: 4px solid var(--color-azul);
+    border-radius: 0 4px 4px 0;
+  }
+
+  .item-title {
+    display: block;
+    font-weight: 500;
+    color: var(--color-text);
+    text-decoration: none;
+    margin-bottom: var(--space-1);
+  }
+
+  .item-title:hover {
+    text-decoration: underline;
+  }
+
+  .item-id {
+    display: block;
+    font-size: var(--text-xs);
+    color: var(--color-text-dim);
+    margin-bottom: var(--space-1);
+  }
+
+  .item-desc {
+    font-size: var(--text-sm);
+    color: var(--color-text-dim);
+    margin: var(--space-1) 0 0;
+    line-height: 1.5;
+  }
+
+  .item-meta {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--space-1) var(--space-3);
+    font-size: var(--text-xs);
+    white-space: nowrap;
+    margin: 0;
+  }
+
+  .item-meta dt {
+    color: var(--color-text-dim);
+    font-weight: 500;
+  }
+
+  .item-meta dd {
+    margin: 0;
+    color: var(--color-text);
+  }
+
+  .citation-section {
+    margin-top: var(--space-10);
+    padding-top: var(--space-8);
+    border-top: 1px solid var(--color-border);
+  }
+
+  .citation-section h2 {
+    font-size: var(--text-xl);
+    font-weight: 400;
+    margin: 0 0 var(--space-3);
+  }
+
+  .citation-formats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+    margin: var(--space-4) 0;
+  }
+
+  @media (max-width: 640px) {
+    .citation-formats {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .citation-block h3 {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-text-dim);
+    margin: 0 0 var(--space-2);
+  }
+
+  .citation-pre {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    padding: var(--space-3);
+    font-size: var(--text-xs);
+    line-height: 1.6;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin: 0;
+  }
+
+  .discovery-note {
+    margin: var(--space-4) 0 var(--space-2);
+    color: var(--color-text-dim);
+    font-size: var(--text-sm);
+  }
+
+  .back-nav {
+    display: flex;
+    justify-content: space-between;
+    margin-top: var(--space-10);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+    font-size: var(--text-sm);
+  }
+</style>

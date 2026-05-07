@@ -1,0 +1,16 @@
+{
+  "generated_at": "2026-05-07T00:00:00Z",
+  "items": [],
+  "groups": {
+    "raw": [],
+    "monthly_canonical": [],
+    "annual_canonical": [],
+    "supporting": []
+  },
+  "group_labels": {
+    "raw": "Espelhos brutos (ZIP)",
+    "monthly_canonical": "Canônicos mensais (Parquet)",
+    "annual_canonical": "Consolidados anuais (Parquet)",
+    "supporting": "Suporte (manifesto, feeds, dimensões)"
+  }
+}

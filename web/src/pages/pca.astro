@@ -1,0 +1,11 @@
+---
+import Layout from '../layouts/Layout.astro';
+import PcaHubView from '../components/PcaHubView.svelte';
+---
+
+<Layout
+  title="Plano de Contratações Anuais (PCA) — Baliza"
+  description="Intenção de demanda dos órgãos federais arquivada pelo Baliza. Explore o PCA por classificação de material/serviço, consulte via DuckDB ou acesse o arquivo no Internet Archive."
+>
+  <PcaHubView client:only="svelte" />
+</Layout>
