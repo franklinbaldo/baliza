@@ -63,3 +63,13 @@ jobs:
             cat probe_output.md
           } > probe_comment.md
           gh pr comment "$pr_number" --body-file probe_comment.md
+
+      # Force the job red so the PR-activity subscriber sees a CI-failure
+      # event and surfaces the probe results immediately. The probe is a
+      # diagnostic, not a gate — its 'failure' here means "humans/agents
+      # need to look at the comment", not "the code is broken".
+      - name: Mark probe job as failed (intentional notification)
+        if: always() && github.event_name == 'push'
+        run: |
+          echo "::error::Probe ran successfully — see the PR comment for results."
+          exit 1
