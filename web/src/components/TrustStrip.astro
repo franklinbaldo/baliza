@@ -5,20 +5,20 @@ const resolve = (href: string) => `${BASE}${href.replace(/^\//, '')}`;
 
 const PILLARS = [
   {
-    kicker: 'Arquivo',
+    kicker: 'Conferível',
     iconKind: 'archive' as const,
     title: 'Cada número pode ser conferido e citado depois',
     body: 'Contratações são arquivadas diariamente fora do PNCP. Mesmo que o portal saia do ar, o registro de ontem segue acessível — em formato aberto, sem depender de nenhum servidor nosso.',
     cta: { label: 'Metodologia', href: 'sobre' },
   },
   {
-    kicker: '🔗 Citação',
+    kicker: 'Citável',
     title: 'Todo contrato tem um link permanente',
     body: 'O link que você compartilha hoje mostra a mesma evidência amanhã. Cada snapshot carrega uma impressão digital (hash) que confirma que nada foi alterado.',
     cta: { label: 'Desenvolvedores', href: 'desenvolvedores' },
   },
   {
-    kicker: '🔒 Privacidade',
+    kicker: 'Privado',
     title: 'Sua análise não passa por nenhum servidor nosso',
     body: 'As consultas rodam inteiramente no seu navegador. Não coletamos o que você pesquisa — seus filtros e perguntas ficam só com você.',
     cta: { label: 'Explorador SQL', href: 'explorador' },
