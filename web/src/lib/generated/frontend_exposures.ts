@@ -5,16 +5,13 @@ export const FRONTEND_EXPOSURES = [
   {
     artifact_name: 'contratos',
     table_alias: 'contratos',
-    is_canonical: true
+    is_canonical: true,
+    canonical_file_types: ['', 'monthly_canonical'] as const,
   },
   {
     artifact_name: 'atas',
     table_alias: 'atas',
-    is_canonical: true
+    is_canonical: true,
+    canonical_file_types: ['', 'monthly_canonical'] as const,
   },
-] as const;
-
-export const CANONICAL_FILE_TYPES = [
-  '',
-  'monthly_canonical',
 ] as const;

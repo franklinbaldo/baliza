@@ -1,9 +1,7 @@
 import Papa from 'papaparse';
 import { z } from 'zod';
 import type { ArchivedTable } from './archive/schema';
-import { CANONICAL_FILE_TYPES, FRONTEND_EXPOSURES } from './generated/frontend_exposures';
-
-const CANONICAL_FILE_TYPE_SET: ReadonlySet<string> = new Set(CANONICAL_FILE_TYPES);
+import { FRONTEND_EXPOSURES } from './generated/frontend_exposures';
 
 export const IA_MANIFEST_URL =
   'https://archive.org/cors/baliza-pncp-manifest/manifest.csv';
@@ -87,17 +85,21 @@ export async function fetchManifestRows(): Promise<ManifestRow[]> {
   return rows;
 }
 
-// Treat rows whose file_type is in the registry-supplied allowlist as
-// canonical. The empty string is included for backward compat with v1
-// manifests that pre-date the column. The allowlist is generated from
-// every resource's FrontendExposureSpec.canonical_file_types in
-// build_frontend_config.py — adding a new canonical file_type is now a
-// single-line change in the Python registry.
+// Treat rows whose file_type is in the matched exposure's allowlist as
+// canonical. Per-exposure (not global) so a new file_type adopted by
+// one resource — e.g. annual_canonical when PCA lands — never bleeds
+// into other tables that didn't opt in. The empty string is included
+// in the default allowlist for backward compat with v1 manifests that
+// pre-date the column.
 function isCanonicalRow(r: ManifestRow): boolean {
   const fileType = r.file_type ?? '';
-  if (!CANONICAL_FILE_TYPE_SET.has(fileType)) return false;
   const spec = FRONTEND_EXPOSURES.find((e) => e.table_alias === r.table_name);
-  return spec ? spec.is_canonical : true;
+  if (spec) {
+    return spec.is_canonical && (spec.canonical_file_types as readonly string[]).includes(fileType);
+  }
+  // Tables not in the registry (orgaos / unidades / fornecedores) keep
+  // the v1 behavior: empty file_type or 'monthly_canonical' is canonical.
+  return fileType === '' || fileType === 'monthly_canonical';
 }
 
 export async function getLatestParquetInfo(

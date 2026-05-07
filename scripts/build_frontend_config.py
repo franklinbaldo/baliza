@@ -30,25 +30,22 @@ def main() -> int:
     lines.append("")
     lines.append("export const FRONTEND_EXPOSURES = [")
 
-    canonical_file_types: set[str] = set()
     for resource in RESOURCES.values():
         for exposure in resource.frontend_exposures:
+            # Per-exposure canonical_file_types so adding (say)
+            # annual_canonical for PCA does NOT make it canonical for
+            # contratos / atas. isCanonicalRow() filters on the matched
+            # exposure's list, not a global union.
+            file_types_literal = ", ".join(
+                f"'{ft}'" for ft in sorted(exposure.canonical_file_types)
+            )
             lines.append("  {")
             lines.append(f"    artifact_name: '{exposure.artifact_name}',")
             lines.append(f"    table_alias: '{exposure.table_alias}',")
-            lines.append(f"    is_canonical: {'true' if exposure.is_canonical else 'false'}")
+            lines.append(f"    is_canonical: {'true' if exposure.is_canonical else 'false'},")
+            lines.append(f"    canonical_file_types: [{file_types_literal}] as const,")
             lines.append("  },")
-            canonical_file_types.update(exposure.canonical_file_types)
 
-    lines.append("] as const;")
-    lines.append("")
-    # Union of every exposure's canonical_file_types. Drives
-    # isCanonicalRow() in web/src/lib/ia-manifest.ts so adding a new
-    # file_type (e.g. annual_canonical when PCA lands) doesn't require
-    # a parallel TS edit. Sorted for byte-stable diffs across runs.
-    lines.append("export const CANONICAL_FILE_TYPES = [")
-    for ft in sorted(canonical_file_types):
-        lines.append(f"  '{ft}',")
     lines.append("] as const;")
     lines.append("")
 
