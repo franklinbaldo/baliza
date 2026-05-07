@@ -18,13 +18,6 @@ permissions:
   pages: write
   id-token: write
 
-# Serialize Pages deployments; never cancel a running deploy so the live
-# site always ends up at the latest successful build rather than being
-# left half-deployed if a second push lands during a long build.
-concurrency:
-  group: pages
-  cancel-in-progress: false
-
 jobs:
   build:
     name: Web Build & Lint (Astro 6)
@@ -141,6 +134,11 @@ jobs:
   deploy:
     name: Deploy to GitHub Pages
     if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
+    # Serialize only actual Pages deployments — not PR CI runs — so a busy
+    # PR stream never delays or drops a pending main deploy.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
