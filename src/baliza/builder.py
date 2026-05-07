@@ -10,17 +10,24 @@ from __future__ import annotations
 import shutil
 import tempfile
 import zipfile
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from pathlib import Path
 
 import httpx
 import structlog
 
-from .constants import RESOURCE_CONTRATOS, clamp_to_known_data_start_month
+from .constants import RESOURCE_CONTRATOS
 from .daily_exporter import SCHEMA_VERSION
 from .engine import BalizaEngine
 from .extractor import PNCPExtractor
 from .ia_uploader import IAUploader, read_manifest_from_ia
+from .partitioning import (
+    clamp_to_data_start,
+    parse_partition_label,
+    partition_for,
+    previous_partition_start,
+)
+from .resources import get_resource
 
 logger = structlog.get_logger()
 
@@ -45,9 +52,14 @@ def _pending_build_months(
         ``sync`` command that already have a ZIP on IA.
     """
     raw_manifest = manifest if manifest is not None else read_manifest_from_ia()
-    today = date.today()
-    last_month = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
-    start = clamp_to_known_data_start_month(resource, start_date)
+    resource_obj = get_resource(resource)
+    # Drift-D wiring: partition floor / ceiling come from the
+    # resource's PartitionStrategy. Monthly resources see byte-
+    # identical bounds; annual resources clamp to Jan 1 of the
+    # data_start year and the previous calendar year as the last
+    # complete partition.
+    last_complete = previous_partition_start(resource_obj)
+    start = clamp_to_data_start(resource_obj, start_date)
 
     pending_set: set[date] = set()
     for row in raw_manifest:
@@ -59,12 +71,14 @@ def _pending_build_months(
         part = row.get("data_particao") or ""
         if not part:
             continue
-        try:
-            month_date = datetime.strptime(part, "%Y-%m").date()
-        except ValueError:
+        partition_start = parse_partition_label(resource_obj, part)
+        if partition_start is None:
+            # Label written under a different partitioning scheme (a
+            # 'YYYY-MM' row on an annual resource, etc.) — skip
+            # rather than treat it as the resource's current shape.
             continue
 
-        if month_date < start or month_date > last_month:
+        if partition_start < start or partition_start > last_complete:
             continue
 
         if not row.get("raw_zip_url"):
@@ -73,10 +87,10 @@ def _pending_build_months(
         if backfill:
             # Rebuild if schema version is absent or outdated
             if row.get("parquet_schema_version") != SCHEMA_VERSION:
-                pending_set.add(month_date)
+                pending_set.add(partition_start)
         elif row.get("mirror_uploaded_at") and not row.get("parquet_uploaded_at"):
-            # Only process months that went through mirror but have not yet been built
-            pending_set.add(month_date)
+            # Only process partitions that went through mirror but have not yet been built
+            pending_set.add(partition_start)
 
     pending = sorted(pending_set, reverse=True)
     return pending[:batch_size] if batch_size else pending
@@ -122,7 +136,12 @@ def build_month(  # noqa: PLR0913, PLR0915
     Returns:
         Dict with keys: ``month``, ``valid``, ``quarantine``, ``uploaded``.
     """
-    month_str = start_of_month.strftime("%Y-%m")
+    resource_obj = get_resource(resource)
+    # Drift-D wiring: partition label comes from the resource's
+    # PartitionStrategy. ``month_str`` keeps the legacy variable name
+    # (and the result key below) for diff hygiene at every call site;
+    # for annual resources it carries a YYYY label.
+    month_str = partition_for(resource_obj, start_of_month).label
 
     def _emit(msg: str) -> None:
         if log_fn is not None:

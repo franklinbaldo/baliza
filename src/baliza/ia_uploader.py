@@ -18,6 +18,7 @@ from rich.console import Console
 from . import rss_feed
 from .engine import BalizaEngine
 from .extractor import FETCHED_SENTINEL
+from .partitioning import partition_label
 from .resources import CONTRATOS, get_resource, raw_zip_filename
 from .utils import DUCKDB_PARQUET_COPY_OPTIONS, PARQUET_ROW_GROUP_SIZE
 
@@ -342,7 +343,10 @@ class MonthlyExporter:
         spec = get_resource(resource)
         table_spec = spec.canonical_tables[0]
         table_name = table_spec.table_name
-        month_str = start_date.strftime("%Y-%m")
+        # Drift-D wiring: partition label tracks the resource's
+        # PartitionStrategy so an annual resource gets ``-2024.parquet``
+        # rather than ``-2024-01.parquet``.
+        month_str = partition_label(spec, start_date)
         filename = f"{table_name}-{month_str}.parquet"
         out_path = output_dir / filename
 
@@ -491,7 +495,11 @@ class IAUploader:
                 and the manifest row's ``table_name`` so per-resource
                 mirror state stays separate.
         """
-        month_str = start_date.strftime("%Y-%m")
+        # Drift-D wiring: partition label comes from the resource's
+        # PartitionStrategy (``YYYY-MM`` for monthly, ``YYYY`` for
+        # annual) so writers and readers agree on the data_particao
+        # value an annual resource emits.
+        month_str = partition_label(get_resource(resource), start_date)
         zip_basename = raw_zip_filename(resource, month_str)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -582,7 +590,7 @@ class IAUploader:
 
         spec = get_resource(resource)
         table_name = spec.canonical_tables[0].table_name
-        month_str = start_date.strftime("%Y-%m")
+        month_str = partition_label(spec, start_date)
         item_id = f"baliza-pncp-{month_str}"
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -745,7 +753,7 @@ class IAUploader:
         if self.engine is None or self.exporter is None:
             raise RuntimeError("upload_month requires an engine — construct IAUploader(engine=...)")
 
-        month_str = start_date.strftime("%Y-%m")
+        month_str = partition_label(get_resource(resource), start_date)
         item_id = f"baliza-pncp-{month_str}"
         zip_basename = raw_zip_filename(resource, month_str)
 
@@ -869,7 +877,7 @@ class IAUploader:
 
         # Build the new row before acquiring the lock — sha256/size computation
         # is pure local I/O and doesn't need to be serialized.
-        month_str = start_date.strftime("%Y-%m")
+        month_str = partition_label(spec, start_date)
         parquet_filename = f"{table_name}-{month_str}.parquet"
         parquet_url = f"https://archive.org/download/{item_id}/{parquet_filename}"
         zip_basename = raw_zip_filename(resource, month_str)

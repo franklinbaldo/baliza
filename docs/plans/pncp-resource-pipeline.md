@@ -166,21 +166,33 @@ declarados nas exposições e emite `CANONICAL_FILE_TYPES` no
 introduzir um novo `file_type` (ex.: `annual_canonical` quando PCA
 chegar) passa a ser uma linha no resource Python — sem editar o TS.
 
-### Drift-D — Estratégia de partição não-mensal (parcial)
+### Drift-D — Estratégia de partição não-mensal ✓
 
-**Estado atual:** helper introduzido em `src/baliza/partitioning.py`
-(`iter_partitions(resource, start, end)` e
-`partition_label(resource, anchor)`). Cobre `monthly` e `annual`,
-recusa estratégias não suportadas, e está pinado em
-`tests/unit/test_partitioning.py` (mensal cruzando ano bissexto e
-fronteira de ano + anual single/multi-ano).
+**Estado (resolvido):** `src/baliza/partitioning.py` carrega o
+contrato completo:
 
-**Falta:** `_pending_mirror_months` e `_pending_build_months` ainda
-assumem mensal hardcoded (`strftime("%Y-%m")`, `relativedelta` por
-mês). Migrá-los para iterar `iter_partitions` é o último passo —
-fica para o PR de promoção do PCA, junto da reescrita do nome
-genérico (`_pending_*_partitions`). Para contratos/atas o helper
-mensal já produz exatamente as mesmas datas.
+- `iter_partitions(resource, start, end)` — itera períodos.
+- `partition_label(resource, anchor)` — rótulo `data_particao`.
+- `parse_partition_label(resource, label)` — inverso, devolve
+  `None` se a forma não bate com `partition_strategy`.
+- `partition_for(resource, anchor)` — `PartitionPeriod` que contém
+  `anchor`, conveniente para os workers per-partition.
+- `current_partition_start` / `previous_partition_start` /
+  `clamp_to_data_start` — substituem o math monthly hardcoded em
+  mirror/builder.
+
+`_pending_mirror_months` (`mirror.py`) e `_pending_build_months`
+(`builder.py`) consomem essas APIs em vez de
+`strftime("%Y-%m")` / `relativedelta`. `mirror_month` e
+`build_month` derivam o rótulo via `partition_for`, então o mesmo
+worker serve mensal e anual sem branch.
+
+Para contratos/atas o resultado é byte-identical (pinado pelos
+testes characterization existentes). Para anuais (PCA quando
+promovido), a iteração walks calendário-por-calendário sem
+edição adicional — pinado em
+`tests/unit/test_drift_d_wiring.py` com `_pending_mirror_months`
+e `_pending_build_months` rodando contra um fixture PCA-em-RESOURCES.
 
 ---
 

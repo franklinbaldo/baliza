@@ -105,3 +105,93 @@ def partition_label(resource: PNCPResource, anchor: date) -> str:
     if strategy == PartitionStrategy.ANNUAL:
         return str(anchor.year)
     raise _unsupported_strategy(strategy, resource)
+
+
+def partition_for(resource: PNCPResource, anchor: date) -> PartitionPeriod:
+    """The single ``PartitionPeriod`` containing ``anchor``.
+
+    Convenience for per-partition workers (``mirror_month`` /
+    ``build_month``) that previously computed ``end_of_month`` inline
+    via ``start_of_month + relativedelta(months=1) - 1day``. With this
+    helper they pick up annual support automatically.
+    """
+    start = current_partition_start(resource, anchor)
+    # iter_partitions yields exactly one period when start == end of
+    # the same partition, regardless of strategy.
+    return next(iter_partitions(resource, start, start))
+
+
+def parse_partition_label(resource: PNCPResource, label: str) -> date | None:
+    """Inverse of ``partition_label``: parse a ``data_particao`` value
+    back into the partition's start date.
+
+    Returns ``None`` when the label can't be parsed under the
+    resource's strategy — callers use this to skip rows whose
+    ``data_particao`` is corrupt or written under a different
+    partitioning scheme. A misconfigured resource raises (matches
+    iter_partitions / partition_label).
+    """
+    strategy = resource.raw_dataset.partition_strategy
+    try:
+        if strategy == PartitionStrategy.MONTHLY:
+            return date(int(label[:4]), int(label[5:7]), 1) if len(label) == 7 and label[4] == "-" else None
+        if strategy == PartitionStrategy.ANNUAL:
+            return date(int(label), 1, 1) if len(label) == 4 else None
+    except (ValueError, IndexError):
+        return None
+    raise _unsupported_strategy(strategy, resource)
+
+
+def current_partition_start(resource: PNCPResource, anchor: date | None = None) -> date:
+    """Start date of the partition containing ``anchor`` (default today).
+
+    Replaces the ``today.replace(day=1)`` pattern that hardcoded
+    monthly partitioning across mirror/builder. Annual resources get
+    January 1 of the anchor's year.
+    """
+    if anchor is None:
+        anchor = date.today()
+    strategy = resource.raw_dataset.partition_strategy
+    if strategy == PartitionStrategy.MONTHLY:
+        return anchor.replace(day=1)
+    if strategy == PartitionStrategy.ANNUAL:
+        return date(anchor.year, 1, 1)
+    raise _unsupported_strategy(strategy, resource)
+
+
+def previous_partition_start(resource: PNCPResource, anchor: date | None = None) -> date:
+    """Start date of the partition immediately before the one
+    containing ``anchor`` (default today). Used by mirror/builder to
+    bound the "complete" range — the current partition is always
+    incomplete (still receiving updates) and is iterated separately.
+    """
+    if anchor is None:
+        anchor = date.today()
+    current = current_partition_start(resource, anchor)
+    return _previous_partition_start_from(resource, current)
+
+
+def _previous_partition_start_from(resource: PNCPResource, current_start: date) -> date:
+    strategy = resource.raw_dataset.partition_strategy
+    if strategy == PartitionStrategy.MONTHLY:
+        return (current_start - _ONE_DAY).replace(day=1)
+    if strategy == PartitionStrategy.ANNUAL:
+        return date(current_start.year - 1, 1, 1)
+    raise _unsupported_strategy(strategy, resource)
+
+
+def clamp_to_data_start(resource: PNCPResource, start: date) -> date:
+    """Partition-aware floor for backfill start dates.
+
+    Mirrors the legacy ``clamp_to_known_data_start_month`` (still in
+    constants.py for callers outside the partition iteration) but
+    handles annual resources by clamping to January 1 of the
+    floor's year. Resources without a ``data_start`` get the
+    partition-normalized start unchanged.
+    """
+    floor = resource.data_start
+    if floor is None:
+        return current_partition_start(resource, start)
+    floor_partition = current_partition_start(resource, floor)
+    requested_partition = current_partition_start(resource, start)
+    return max(floor_partition, requested_partition)

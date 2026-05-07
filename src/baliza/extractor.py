@@ -16,6 +16,7 @@ from rich.console import Console
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from .engine import BalizaEngine
+from .partitioning import partition_label
 from .resources import CONTRATOS, get_resource
 from .utils import validate_url
 
@@ -133,8 +134,12 @@ class PNCPExtractor:
         return data
 
     def _cache_filename(self, resource: str, start_date: datetime, page: int) -> Path:
-        month_str = start_date.strftime("%Y-%m")
-        return Path(f"data/raw/{month_str}/{resource}_p{page}.json")
+        # Drift-D wiring: cache directory tracks the resource's
+        # partition label (``YYYY-MM`` for monthly, ``YYYY`` for
+        # annual) so mirror_month / build_month, which now write/read
+        # partition-labeled paths, hit the same files.
+        partition_str = partition_label(get_resource(resource), start_date.date())
+        return Path(f"data/raw/{partition_str}/{resource}_p{page}.json")
 
     def _load_cached_page(
         self, resource: str, start_date: datetime, page: int
@@ -226,8 +231,9 @@ class PNCPExtractor:
 
     def _save_raw(self, resource: str, start_date: datetime, page: int, data: dict[str, Any]):
         """Save raw JSON payload to disk with deterministic name."""
-        month_str = start_date.strftime("%Y-%m")
-        raw_dir = Path("data/raw") / month_str
+        # Drift-D wiring: see _cache_filename for the rationale.
+        partition_str = partition_label(get_resource(resource), start_date.date())
+        raw_dir = Path("data/raw") / partition_str
         raw_dir.mkdir(parents=True, exist_ok=True)
 
         # Deterministic filename for resumability
@@ -366,8 +372,10 @@ class PNCPExtractor:
                 f"resource {resource!r} has no entity_model; cannot validate"
             )
 
-        month_str = start_date.strftime("%Y-%m")
-        raw_dir = Path("data/raw") / month_str
+        # Drift-D wiring: ingest reads from the partition-labeled
+        # directory mirror_month / _save_raw wrote to.
+        partition_str = partition_label(spec, start_date.date())
+        raw_dir = Path("data/raw") / partition_str
 
         stats = {"valid": 0, "quarantine": 0}
 
