@@ -78,6 +78,74 @@ def _flatten_contrato(dumped: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _flatten_pca_item(parent: dict[str, Any]) -> list[dict[str, Any]]:
+    """Flatten a Pydantic-dumped PlanoContratacaoComItensDoUsuarioDTO
+    into one snake_case scalar row per nested item.
+
+    PCA's wire shape is parent-with-itens: a single PCA record (one
+    org/year/unidade) carries an ``itens`` list. The canonical table
+    is item-grained — every item gets a row enriched with the parent's
+    org/unidade/anoPca fields, plus the composite PK
+    ``(id_pca_pncp, numero_item)`` that Drift-A's anti_join path
+    handles.
+
+    Returns ``[]`` when ``itens`` is missing or empty so the extractor
+    can flat-map without special cases.
+    """
+    items = parent.get("itens") or []
+    if not items:
+        return []
+
+    parent_id = parent.get("idPcaPncp")
+    ano_pca = parent.get("anoPca")
+    cnpj = parent.get("orgaoEntidadeCnpj")
+    razao = parent.get("orgaoEntidadeRazaoSocial")
+    codigo_unidade = parent.get("codigoUnidade")
+    nome_unidade = parent.get("nomeUnidade")
+    data_publicacao = parent.get("dataPublicacaoPNCP")
+    data_atualizacao_global = parent.get("dataAtualizacaoGlobalPCA")
+
+    rows: list[dict[str, Any]] = []
+    for item in items:
+        rows.append({
+            # Composite PK (matches CanonicalTableSpec.pk = ['id_pca_pncp', 'numero_item'])
+            "id_pca_pncp": parent_id,
+            "numero_item": item.get("numeroItem"),
+            # Parent-level fields
+            "ano_pca": ano_pca,
+            "cnpj_orgao": cnpj,
+            "razao_social_orgao": razao,
+            "codigo_unidade": codigo_unidade,
+            "nome_unidade": nome_unidade,
+            "data_publicacao_pncp": data_publicacao,
+            "data_atualizacao_global": data_atualizacao_global,
+            # Item-level fields
+            "codigo_item": item.get("codigoItem"),
+            "descricao_item": item.get("descricaoItem"),
+            "unidade_requisitante": item.get("unidadeRequisitante"),
+            "unidade_fornecimento": item.get("unidadeFornecimento"),
+            "quantidade_estimada": item.get("quantidadeEstimada"),
+            "valor_unitario": item.get("valorUnitario"),
+            "valor_total": item.get("valorTotal"),
+            "valor_orcamento_exercicio": item.get("valorOrcamentoExercicio"),
+            "data_desejada": item.get("dataDesejada"),
+            "data_inclusao_item": item.get("dataInclusao"),
+            "data_atualizacao_item": item.get("dataAtualizacao"),
+            # PDM (Padrão Descritivo de Material) catalog
+            "pdm_codigo": item.get("pdmCodigo"),
+            "pdm_descricao": item.get("pdmDescricao"),
+            # Classificação Superior (parent group in the catalog tree)
+            "classificacao_superior_codigo": item.get("classificacaoSuperiorCodigo"),
+            "classificacao_superior_nome": item.get("classificacaoSuperiorNome"),
+            "classificacao_catalogo_id": item.get("classificacaoCatalogoId"),
+            "nome_classificacao_catalogo": item.get("nomeClassificacaoCatalogo"),
+            # Grupo de contratação (which slot in the buying schedule)
+            "grupo_contratacao_codigo": item.get("grupoContratacaoCodigo"),
+            "grupo_contratacao_nome": item.get("grupoContratacaoNome"),
+        })
+    return rows
+
+
 def _flatten_publicacao(dumped: dict[str, Any]) -> dict[str, Any]:
     """Flatten a Pydantic-dumped RecuperarCompraPublicacaoDTO into the
     snake_case scalar shape MonthlyExporter / consolidator expect.

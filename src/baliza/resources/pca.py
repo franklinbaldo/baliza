@@ -1,37 +1,30 @@
-"""Plano Anual de Contratações (PNCP /v1/pca/...).
+"""Plano Anual de Contratações (PNCP /v1/pca/atualizacao).
 
-Status: PLANNED, not yet wired into the active ``RESOURCES`` registry.
+Promoted to ``RESOURCES`` after probe verification (#574) confirmed:
 
-PCA is the upstream-most layer of the Baliza resource atlas: it
-expresses *intended* future procurement, before any opportunity is
-opened. Cross-joining PCA with publicações and contratos is what lets
-Baliza answer "did this agency actually buy what it said it would?".
-
-Known gaps before this can be promoted to ``RESOURCES``:
-
-* TODO(pncp-pca-endpoint): the API exposes a family of endpoints under
-  ``/v1/pca/`` (atualizacao, usuario, etc.). The exact endpoint Baliza
-  should mirror as the canonical "PCA snapshot" is not decided yet.
-* TODO(pncp-pca-partitioning): PCA is naturally partitioned by
-  ``anoPca`` (annual), not monthly. Promoting PCA requires either
-  extending ``RawDatasetSpec.partition_strategy`` plumbing in the
-  mirror/uploader (currently month-only) or generating one synthetic
-  monthly partition per year.
-* TODO(pncp-pca-flatten): PCA payloads are nested (item-level rows
-  under each plan). The canonical model is item-level, so the flatten
-  function emits one row per ``PlanoContratacaoItemDTO`` enriched with
-  the parent ``PlanoContratacaoComItensDoUsuarioDTO`` fields.
-* TODO(pncp-pca-pk): item-level PK is composite — provisional choice
-  ``(id_pca_pncp, numero_item)`` pending verification.
+* ``/v1/pca/atualizacao`` accepts the date-range FetchSpec shape (no
+  fan-out needed); a 3-day window returned 542 pages / 270818 records.
+* ``PlanoContratacaoComItensDoUsuarioDTO`` validates 100% of live
+  payloads; 500 nested items per page typical.
+* The composite PK ``(idPcaPncp, numeroItem)`` is unique within a
+  page (probe ran 500 distinct / 0 duplicated). Drift-A's
+  anti_join path handles the composite case.
+* PCA partitioning is annual (one row per anoPca per partition);
+  Drift-D's iter_partitions handles the calendar-year iteration.
 """
 
 from __future__ import annotations
 
+from datetime import date
+
 from ..models import PlanoContratacaoComItensDoUsuarioDTO
+from ..transforms import _flatten_pca_item
 from .specs import (
+    ArtifactSpec,
     CanonicalTableSpec,
     EntitySpec,
     FetchSpec,
+    FrontendExposureSpec,
     PartitionStrategy,
     PNCPResource,
     RawDatasetSpec,
@@ -39,20 +32,23 @@ from .specs import (
 
 
 def _annual_zip_filename(part_str: str) -> str:
-    # part_str is YYYY for annual partitions. The mirror plumbing today
-    # passes YYYY-MM; promoting PCA must teach it to pass YYYY.
+    # part_str is YYYY for annual partitions (Drift-D iter_partitions
+    # emits partition_label = str(year) for ANNUAL strategy).
     return f"pca_{part_str}.zip"
 
 
 PCA = PNCPResource(
     resource_name="pca",
     fetch=FetchSpec(
-        # TODO(pncp-pca-endpoint): provisional; verify before wiring.
+        # Verified by scripts/probe_pca.py (#574) — only endpoint of
+        # the three /v1/pca/* candidates that fits a global mirror
+        # without per-user or per-classificacao-superior fan-out.
         endpoint="pca/atualizacao",
         pagination_param="pagina",
         page_size_param="tamanhoPagina",
         max_page_size=500,
-        # PCA uses dataInicio/dataFim, not dataInicial/dataFinal.
+        # PCA uses dataInicio/dataFim, not dataInicial/dataFinal —
+        # mirrors the OpenAPI spec.
         date_param_start="dataInicio",
         date_param_end="dataFim",
         response_data_key="data",
@@ -64,20 +60,55 @@ PCA = PNCPResource(
         retention_policy="all",
     ),
     entities=[
-        EntitySpec(name="pca_plan"),
+        EntitySpec(name="pca_plano"),
         EntitySpec(name="pca_item"),
     ],
     canonical_tables=[
         CanonicalTableSpec(
-            table_name="pca_itens",
-            schema_version="0.1.0",
+            table_name="pca",
+            schema_version="1.0.0",
+            # Composite PK — Drift-A's anti_join handles this. Single
+            # column would silently drop items that share an id_pca_pncp
+            # with a colliding row.
             pk=["id_pca_pncp", "numero_item"],
-            flatten_fn=None,  # TODO(pncp-pca-flatten): see module docstring.
+            flatten_fn=_flatten_pca_item,
             dedup_strategy="current_state",
             source_entity="pca_item",
-            sort_columns=["orgao_entidade_cnpj", "ano_pca"],
-            bloom_filter_columns=["orgao_entidade_cnpj"],
-        )
+            sort_columns=["cnpj_orgao", "ano_pca", "id_pca_pncp"],
+            bloom_filter_columns=["cnpj_orgao", "id_pca_pncp"],
+            # PCA item rows don't carry a buyer's UF (the parent's
+            # unidadeOrgao isn't queried here — see
+            # PlanoContratacaoComItensDoUsuarioDTO). Skip per-UF shards
+            # like atas.
+            partition_by_uf=False,
+        ),
     ],
     entity_model=PlanoContratacaoComItensDoUsuarioDTO,
+    # PNCP launched in 2021. The first PCA-eligible year was 2022 in
+    # practice; PCAs for 2021 weren't published. Use the contratos
+    # floor as a safe pre-data clamp.
+    data_start=date(2021, 9, 6),
+    frontend_exposures=[
+        FrontendExposureSpec(
+            artifact_name="pca",
+            table_alias="pca",
+            is_canonical=True,
+            # PCA only publishes an annual canonical (no monthly
+            # rollup). Add 'annual_canonical' to the allowlist that
+            # isCanonicalRow() consults so the web layer treats those
+            # manifest rows as the canonical ones for PCA.
+            canonical_file_types=("", "annual_canonical"),
+        ),
+    ],
+    # PCA does NOT publish a monthly_canonical (the partition is
+    # annual end-to-end). Just annual_canonical lives in the
+    # consolidated IA item alongside contratos / atas annuals.
+    artifacts=(
+        ArtifactSpec(
+            file_type="annual_canonical",
+            ia_item_id="baliza-pncp-consolidated",
+            description="Yearly PCA snapshot — one row per item per "
+            "anoPca, deduplicated by (id_pca_pncp, numero_item).",
+        ),
+    ),
 )

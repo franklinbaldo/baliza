@@ -21,6 +21,7 @@ on:
           - scripts/probe_publicacoes.py
           - scripts/probe_pca.py
           - scripts/smoke_publicacoes.py
+          - scripts/smoke_pca.py
 
 permissions:
   contents: read
@@ -105,8 +106,15 @@ jobs:
           version: "latest"
           python-version: '3.12'
       - run: uv sync --all-groups --all-extras
+      - name: Pick smoke script for branch
+        id: pick_smoke
+        run: |
+          case "${{ github.ref_name }}" in
+            *promote-pca*) echo "script=scripts/smoke_pca.py" >> "$GITHUB_OUTPUT" ;;
+            *) echo "script=scripts/smoke_publicacoes.py" >> "$GITHUB_OUTPUT" ;;
+          esac
       - name: Run smoke
-        run: uv run python scripts/smoke_publicacoes.py | tee smoke_output.md
+        run: uv run python "${{ steps.pick_smoke.outputs.script }}" | tee smoke_output.md
       - name: Post smoke output to PR
         if: always() && github.event_name == 'push'
         env:

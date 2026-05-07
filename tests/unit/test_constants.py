@@ -35,7 +35,7 @@ def test_known_data_start_month_for_atas():
     assert known_data_start_month("atas") == date(2021, 9, 1)
 
 
-_UNREGISTERED_RESOURCE = "pca"  # not yet in PNCP_RESOURCE_DATA_STARTS
+_UNREGISTERED_RESOURCE = "definitely_not_a_resource"  # has no data_start configured
 
 
 def test_unknown_resource_raises_descriptive_error():
