@@ -60,12 +60,12 @@
 <section aria-labelledby="city-hero-title">
   <header>
     <hgroup>
-      <p class="eyebrow">Radar cívico de contratações públicas</p>
+      <p class="eyebrow"><small aria-label="dados atualizados diariamente">●</small> Radar cívico · atualizado diariamente</p>
       <h1 id="city-hero-title">
         O que <mark>{cityState.nome}{cityState.uf ? ` / ${cityState.uf}` : ''}</mark> está comprando?
       </h1>
       <p>
-        Contratações do PNCP organizadas para você sair com uma resposta — não com uma tabela crua.
+        Veja o que foi contratado, quanto custou e quem forneceu — tudo com fonte que você pode checar.
       </p>
     </hgroup>
   </header>
