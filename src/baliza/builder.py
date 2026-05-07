@@ -34,7 +34,7 @@ from .resources.specs import PartitionStrategy
 logger = structlog.get_logger()
 
 
-def _pending_build_months(
+def _pending_build_months(  # noqa: PLR0912
     start_date: date,
     batch_size: int | None,
     *,
