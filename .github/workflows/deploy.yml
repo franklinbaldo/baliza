@@ -18,6 +18,13 @@ permissions:
   pages: write
   id-token: write
 
+# Serialize Pages deployments; never cancel a running deploy so the live
+# site always ends up at the latest successful build rather than being
+# left half-deployed if a second push lands during a long build.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
 jobs:
   build:
     name: Web Build & Lint (Astro 6)

@@ -1,9 +1,10 @@
 name: Deploy Dashboard
 
+# This workflow referenced a "Historical Backfill" workflow that no longer
+# exists. Its deploy job targets docs/dashboard/ which would overwrite the
+# full web portal on GitHub Pages. Disabled until a real dashboard artifact
+# workflow is wired up. Manual dispatch retained for future use.
 on:
-  workflow_run:
-    workflows: ["Historical Backfill"]
-    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -13,7 +14,7 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -24,7 +25,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Download dashboard artifact
         uses: dawidd6/action-download-artifact@v21
@@ -36,13 +37,13 @@ jobs:
           workflow_conclusion: success
 
       - name: Setup Pages
-        uses: actions/configure-pages@v6
+        uses: actions/configure-pages@v4
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v5
+        uses: actions/upload-pages-artifact@v3
         with:
           path: docs/dashboard/
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@v4
