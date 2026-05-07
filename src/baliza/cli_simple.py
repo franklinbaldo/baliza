@@ -48,7 +48,7 @@ from .extractor import FETCHED_SENTINEL, PNCPExtractor, _validate_resource
 from .ia_uploader import IAUploader, read_manifest_from_ia, restore_from_raw_zip
 from .logging import configure_logging
 from .mirror import _pending_mirror_months, mirror_month
-from .resources import first_page_filename, page_filename
+from .resources import first_page_filename, get_resource, page_filename
 
 logger = structlog.get_logger()
 
@@ -417,7 +417,26 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
     except ValueError as e:
         print(str(e))
         sys.stdout.flush()
-        raise typer.Exit(1) from None
+        raise typer.Exit(code=1) from e
+
+    # The legacy ``baliza sync`` path (process_month_full) iterates pages
+    # inline without honoring FetchSpec.required_params. Resources with
+    # fan-out (publicacoes' modalidade) must use the two-phase
+    # ``baliza mirror`` + ``baliza build`` commands, which delegate to
+    # mirror_month / build_month — those DO fan out. Refuse here with a
+    # clear pointer instead of silently 400ing on every page (Codex P1).
+    _spec = get_resource(resource)
+    if _spec.fetch.required_params:
+        params_repr = ", ".join(_spec.fetch.required_params)
+        print(
+            f"--resource={resource} declares required_params ({params_repr}); "
+            "the unified `baliza sync` command does not support fan-out. "
+            "Use `baliza mirror --resource <name>` followed by "
+            "`baliza build --resource <name>` instead.",
+        )
+        sys.stdout.flush()
+        raise typer.Exit(code=1)
+
 
     if not dry_run and (not ia_access_key or not ia_secret_key):
         console.print("[red]✗ Missing IA keys in environment.[/red]")

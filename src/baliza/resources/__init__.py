@@ -20,6 +20,7 @@ from .specs import (
 RESOURCES: dict[str, PNCPResource] = {
     CONTRATOS.name: CONTRATOS,
     ATAS.name: ATAS,
+    PUBLICACOES.name: PUBLICACOES,
 }
 
 # Resources that have been declared in code with their fetch/canonical
@@ -34,7 +35,6 @@ RESOURCES: dict[str, PNCPResource] = {
 #   * promoting one to ``RESOURCES`` is a single-line move plus the
 #     missing TODOs being closed in their respective modules.
 PLANNED_RESOURCES: dict[str, PNCPResource] = {
-    PUBLICACOES.name: PUBLICACOES,
     PCA.name: PCA,
 }
 

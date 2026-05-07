@@ -281,7 +281,7 @@ def _pack_resource_pages_zip(
     *,
     resource: str,
 ) -> bool:
-    """Pack only ``{resource}_p*.json`` pages and the FETCHED_SENTINEL into ``zip_path``.
+    """Pack the resource's pages and the FETCHED_SENTINEL into ``zip_path``.
 
     Returns True when at least one page was written. The sentinel is
     content-free so it doesn't carry resource-specific state, but
@@ -291,8 +291,13 @@ def _pack_resource_pages_zip(
     Both upload paths (``upload_raw_zip`` and ``upload_month``) call
     this so the published ``raw_zip_sha256`` represents exactly the
     same set of files in either flow.
+
+    Glob matches both legacy ``{resource}_p*.json`` and fan-out
+    ``{resource}_<param><val>_p*.json`` filenames so resources that
+    declare ``required_params`` (publicacoes' modalidade fan-out)
+    don't ship empty ZIPs (Codex P1).
     """
-    page_glob = f"{resource}_p*.json"
+    page_glob = f"{resource}*_p*.json"
     page_files = sorted(raw_dir.glob(page_glob))
     if not page_files:
         return False

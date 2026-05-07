@@ -30,12 +30,13 @@ from baliza.resources import (
 )
 
 
-def test_registered_resources_are_contratos_and_atas():
-    assert set(RESOURCES) == {"contratos", "atas"}
+def test_registered_resources_include_publicacoes():
+    """publicacoes promotion (issue #568) — moved out of PLANNED."""
+    assert set(RESOURCES) == {"contratos", "atas", "publicacoes"}
 
 
-def test_planned_resources_are_publicacoes_and_pca():
-    assert set(PLANNED_RESOURCES) == {"publicacoes", "pca"}
+def test_planned_resources_are_pca_only():
+    assert set(PLANNED_RESOURCES) == {"pca"}
 
 
 def test_planned_resources_do_not_overlap_with_registered():
@@ -105,11 +106,9 @@ def test_per_page_filenames_are_resource_scoped():
 def test_get_resource_only_returns_registered_resources():
     assert get_resource("contratos") is CONTRATOS
     assert get_resource("atas") is ATAS
-    # Planned resources are intentionally not addressable through the
-    # active registry until their TODOs are closed — protects the
-    # extractor and mirror from being invoked on an unfinished spec.
-    with pytest.raises(ValueError, match="unknown resource"):
-        get_resource("publicacoes")
+    assert get_resource("publicacoes") is PUBLICACOES
+    # PCA is still planned — the registry refuses to address it
+    # so the extractor / mirror can't be invoked on an unfinished spec.
     with pytest.raises(ValueError, match="unknown resource"):
         get_resource("pca")
 

@@ -110,7 +110,9 @@ class TestPNCPExtractorV2(unittest.TestCase):
 
             self.assertEqual(result["total_pages"], 10)
             self.assertEqual(result["total_registries"], 1000)
-            mock_fetch.assert_called_with("contratos", start_date, end_date, page=1)
+            mock_fetch.assert_called_with(
+                "contratos", start_date, end_date, page=1, extra_params=None,
+            )
 
     def test_fetch_page_uses_pncp_max_page_size(self):
         """httpx path must send tamanhoPagina=PAGE_SIZE (500), matching the

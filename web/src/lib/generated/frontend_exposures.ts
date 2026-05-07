@@ -14,4 +14,10 @@ export const FRONTEND_EXPOSURES = [
     is_canonical: true,
     canonical_file_types: ['', 'monthly_canonical'] as const,
   },
+  {
+    artifact_name: 'publicacoes',
+    table_alias: 'publicacoes',
+    is_canonical: true,
+    canonical_file_types: ['', 'monthly_canonical'] as const,
+  },
 ] as const;

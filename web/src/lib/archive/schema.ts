@@ -148,9 +148,59 @@ export interface ArchivedAta {
   nome_unidade_orgao_subrogado: string | null;
 }
 
+export interface ArchivedPublicacao {
+  numero_controle_pncp: string;
+  ano_compra: number | null;
+  sequencial_compra: number | null;
+  numero_compra: string | null;
+  processo: string | null;
+  cnpj_orgao: string | null;
+  razao_social_orgao: string | null;
+  poder_id: string | null;
+  esfera_id: string | null;
+  codigo_unidade: string | null;
+  nome_unidade: string | null;
+  uf_sigla: string | null;
+  uf_nome: string | null;
+  municipio_nome: string | null;
+  codigo_ibge: string | null;
+  cnpj_orgao_subrogado: string | null;
+  razao_social_orgao_subrogado: string | null;
+  codigo_unidade_subrogada: string | null;
+  nome_unidade_subrogada: string | null;
+  uf_sigla_subrogada: string | null;
+  modalidade_id: number | null;
+  modalidade_nome: string | null;
+  modo_disputa_id: number | null;
+  modo_disputa_nome: string | null;
+  tipo_instrumento_convocatorio_codigo: number | null;
+  tipo_instrumento_convocatorio_nome: string | null;
+  amparo_legal_codigo: number | null;
+  amparo_legal_nome: string | null;
+  amparo_legal_descricao: string | null;
+  valor_total_estimado: number | null;
+  valor_total_homologado: number | null;
+  srp: boolean | null;
+  situacao_compra_id: number | null;
+  situacao_compra_nome: string | null;
+  data_publicacao_pncp: string | null;
+  data_inclusao: string | null;
+  data_atualizacao: string | null;
+  data_atualizacao_global: string | null;
+  data_abertura_proposta: string | null;
+  data_encerramento_proposta: string | null;
+  objeto_compra: string | null;
+  informacao_complementar: string | null;
+  justificativa_presencial: string | null;
+  link_sistema_origem: string | null;
+  link_processo_eletronico: string | null;
+  usuario_nome: string | null;
+}
+
 export interface ArchivedTableRowMap {
   contratos: ArchivedContrato;
   atas: ArchivedAta;
+  publicacoes: ArchivedPublicacao;
   orgaos: ArchivedOrgao;
   unidades: ArchivedUnidade;
   fornecedores: ArchivedFornecedor;

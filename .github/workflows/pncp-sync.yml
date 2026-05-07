@@ -27,6 +27,13 @@ on:
         options:
           - contratos
           - atas
+        # publicacoes is registered in RESOURCES (issue #568) but the
+        # unified ``baliza sync`` command (used by this workflow) does
+        # not yet honor FetchSpec.required_params, so selecting it
+        # would 400 on every page. Kept off the dropdown until the
+        # sync path is taught to fan out — operators backfilling
+        # publicacoes today use ``baliza mirror`` + ``baliza build``
+        # locally / via a future fan-out-aware workflow.
 
 concurrency:
   # Policy: cron runs share one group so stale queued/in-flight ticks are canceled.

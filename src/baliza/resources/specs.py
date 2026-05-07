@@ -35,6 +35,13 @@ class FetchSpec:
     date_param_start: str       # "dataInicial" (contratos) vs "dataInicio" (PCA)
     date_param_end: str         # "dataFinal" vs "dataFim"
     response_data_key: str      # chave do array na resposta JSON ("data", "items", etc.)
+    # Required query params the extractor must fan out across. The
+    # ``/v1/contratacoes/publicacao`` endpoint, for instance, requires
+    # ``codigoModalidadeContratacao`` and returns 400 if absent — the
+    # extractor walks the cartesian product of these values for each
+    # partition window. Empty default keeps existing resources
+    # (contratos, atas) untouched.
+    required_params: dict[str, list[int | str]] = field(default_factory=dict)
 
     # Backward compatibility with old PNCPResource structure
     @property

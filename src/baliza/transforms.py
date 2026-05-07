@@ -78,6 +78,97 @@ def _flatten_contrato(dumped: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _flatten_publicacao(dumped: dict[str, Any]) -> dict[str, Any]:
+    """Flatten a Pydantic-dumped RecuperarCompraPublicacaoDTO into the
+    snake_case scalar shape MonthlyExporter / consolidator expect.
+
+    Mirrors ``_flatten_contrato`` for the publicacoes endpoint
+    (``/v1/contratacoes/publicacao``). The wire schema has the same
+    nested orgaoEntidade / unidadeOrgao / amparoLegal / sub-orgao shape
+    contratos uses, plus publication-specific fields (modalidade, modo
+    de disputa, valor estimado, situacao). UF + município live on
+    unidadeOrgao like contratos, so the canonical row carries
+    ``uf_sigla`` and ``partition_by_uf`` is safe.
+    """
+    orgao = dumped.get("orgaoEntidade") or {}
+    unidade = dumped.get("unidadeOrgao") or {}
+    orgao_sub = dumped.get("orgaoSubRogado") or {}
+    unidade_sub = dumped.get("unidadeSubRogada") or {}
+    amparo = dumped.get("amparoLegal") or {}
+
+    return {
+        # Identity
+        "numero_controle_pncp": dumped.get("numeroControlePNCP"),
+        "ano_compra": dumped.get("anoCompra"),
+        "sequencial_compra": dumped.get("sequencialCompra"),
+        "numero_compra": dumped.get("numeroCompra"),
+        "processo": dumped.get("processo"),
+        # Órgão contratante
+        "cnpj_orgao": orgao.get("cnpj"),
+        "razao_social_orgao": orgao.get("razaoSocial"),
+        "poder_id": orgao.get("poderId"),
+        "esfera_id": orgao.get("esferaId"),
+        "codigo_unidade": unidade.get("codigoUnidade"),
+        "nome_unidade": unidade.get("nomeUnidade"),
+        "uf_sigla": unidade.get("ufSigla"),
+        "uf_nome": unidade.get("ufNome"),
+        "municipio_nome": unidade.get("municipioNome"),
+        "codigo_ibge": unidade.get("codigoIbge"),
+        # Órgão sub-rogado
+        "cnpj_orgao_subrogado": orgao_sub.get("cnpj"),
+        "razao_social_orgao_subrogado": orgao_sub.get("razaoSocial"),
+        "codigo_unidade_subrogada": unidade_sub.get("codigoUnidade"),
+        "nome_unidade_subrogada": unidade_sub.get("nomeUnidade"),
+        "uf_sigla_subrogada": unidade_sub.get("ufSigla"),
+        # Modalidade / modo de disputa / instrumento convocatório
+        "modalidade_id": dumped.get("modalidadeId"),
+        "modalidade_nome": dumped.get("modalidadeNome"),
+        "modo_disputa_id": dumped.get("modoDisputaId"),
+        "modo_disputa_nome": dumped.get("modoDisputaNome"),
+        "tipo_instrumento_convocatorio_codigo": dumped.get("tipoInstrumentoConvocatorioCodigo"),
+        "tipo_instrumento_convocatorio_nome": dumped.get("tipoInstrumentoConvocatorioNome"),
+        # Amparo legal
+        "amparo_legal_codigo": amparo.get("codigo"),
+        "amparo_legal_nome": amparo.get("nome"),
+        "amparo_legal_descricao": amparo.get("descricao"),
+        # Financial
+        "valor_total_estimado": dumped.get("valorTotalEstimado"),
+        "valor_total_homologado": dumped.get("valorTotalHomologado"),
+        # SRP / situação
+        "srp": dumped.get("srp"),
+        # situacaoCompraId is now an IntEnum (post-OpenAPI fix); store
+        # the int value so downstream SQL can compare against literals.
+        "situacao_compra_id": _enum_value(dumped.get("situacaoCompraId")),
+        "situacao_compra_nome": dumped.get("situacaoCompraNome"),
+        # Dates
+        "data_publicacao_pncp": dumped.get("dataPublicacaoPncp"),
+        "data_inclusao": dumped.get("dataInclusao"),
+        "data_atualizacao": dumped.get("dataAtualizacao"),
+        "data_atualizacao_global": dumped.get("dataAtualizacaoGlobal"),
+        "data_abertura_proposta": dumped.get("dataAberturaProposta"),
+        "data_encerramento_proposta": dumped.get("dataEncerramentoProposta"),
+        # Text / links
+        "objeto_compra": dumped.get("objetoCompra"),
+        "informacao_complementar": dumped.get("informacaoComplementar"),
+        "justificativa_presencial": dumped.get("justificativaPresencial"),
+        "link_sistema_origem": dumped.get("linkSistemaOrigem"),
+        "link_processo_eletronico": dumped.get("linkProcessoEletronico"),
+        # Audit
+        "usuario_nome": dumped.get("usuarioNome"),
+    }
+
+
+def _enum_value(v: Any) -> Any:
+    """Return ``v.value`` for IntEnum / StrEnum members, else v unchanged.
+
+    Pydantic preserves enum members through model_dump() unless
+    ``mode="json"`` is used; the flatten functions receive plain dicts
+    *or* pydantic-dumped dicts depending on the call site, so coerce
+    here for either.
+    """
+    return getattr(v, "value", v)
+
+
 def _flatten_ata(dumped: dict[str, Any]) -> dict[str, Any]:
     """Flatten a Pydantic-dumped RecuperarAtaDTO into a snake_case scalar shape.
 
