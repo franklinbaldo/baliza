@@ -134,6 +134,11 @@ jobs:
   deploy:
     name: Deploy to GitHub Pages
     if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
+    # Serialize only actual Pages deployments — not PR CI runs — so a busy
+    # PR stream never delays or drops a pending main deploy.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
