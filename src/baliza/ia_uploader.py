@@ -16,6 +16,7 @@ import internetarchive as ia
 from rich.console import Console
 
 from . import rss_feed
+from .artifacts import require_artifact, resolve_export_params
 from .engine import BalizaEngine
 from .extractor import FETCHED_SENTINEL
 from .partitioning import partition_label
@@ -350,13 +351,14 @@ class MonthlyExporter:
         filename = f"{table_name}-{month_str}.parquet"
         out_path = output_dir / filename
 
-        if table_spec.order_by_sql:
-            order_by = table_spec.order_by_sql
-        else:
-            pk_cols = (
-                [table_spec.pk] if isinstance(table_spec.pk, str) else list(table_spec.pk)
-            )
-            order_by = ", ".join(table_spec.sort_columns + pk_cols)
+        # Drift-B wiring: ORDER BY (and sort/bloom downstream) reads
+        # from the matched ArtifactSpec with fallback to the canonical
+        # table's defaults. For contratos/atas no artifact overrides
+        # the canonical defaults today, so behavior is byte-identical
+        # — but a per-artifact override (e.g. annual rollup sorted by
+        # year then UF when PCA lands) now flows through without
+        # editing this exporter.
+        _, _, order_by = resolve_export_params(spec, "monthly_canonical", table_spec)
 
         try:
             self.engine.con.raw_sql(
@@ -874,6 +876,9 @@ class IAUploader:
         """
         spec = get_resource(resource)
         table_name = spec.canonical_tables[0].table_name
+        # Drift-B wiring: matched ArtifactSpec drives the file_type
+        # column on the manifest row instead of a hardcoded literal.
+        artifact = require_artifact(spec, "monthly_canonical")
 
         # Build the new row before acquiring the lock — sha256/size computation
         # is pure local I/O and doesn't need to be serialized.
@@ -907,7 +912,7 @@ class IAUploader:
             else "",
             "uploaded_at": datetime.now().isoformat(),
             # Manifest v2 columns (all optional in the web schema):
-            "file_type": "monthly_canonical",
+            "file_type": artifact.file_type,
             "uf_sigla": "",
             "sort_key": _CONTRATOS_SORT_KEY,
             "row_group_size": PARQUET_ROW_GROUP_SIZE,

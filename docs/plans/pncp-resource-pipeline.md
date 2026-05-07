@@ -138,22 +138,31 @@ Pinado em
 (prova explicitamente que dedup composto não derruba linhas que
 colidiriam num anti-join de coluna única).
 
-### Drift-B — `ArtifactSpec` formalizado (parcial)
+### Drift-B — `ArtifactSpec` formalizado ✓
 
-**Estado atual:** o tipo `ArtifactSpec` está em `specs.py` e
-`PNCPResource.artifacts` está populada para contratos (monthly_canonical
-+ monthly_uf + annual_canonical) e atas (monthly_canonical +
-annual_canonical — sem UF). Pinado em
-`tests/unit/test_artifact_spec.py`, incluindo um teste de cruzamento
-que falha se `partition_by_uf` discordar da presença de monthly_uf
-nos artifacts.
+**Estado (resolvido):** o tipo `ArtifactSpec` está em `specs.py` e
+`PNCPResource.artifacts` está populada para contratos
+(monthly_canonical + monthly_uf + annual_canonical) e atas
+(monthly_canonical + annual_canonical — sem UF). Os runtime publish
+paths consomem `src/baliza/artifacts.py`:
 
-**Falta:** `IAUploader._update_remote_manifest`,
-`MonthlyExporter.export_month` e `IAConsolidator` ainda hardcodam os
-mesmos fatos (filename, IA item, file_type) que `ArtifactSpec`
-agora descreve. A reescrita iterativa para ler de `spec.artifacts`
-fica para o PR de promoção do PCA — neste momento ela seria 100%
-behavior-preserving para contratos/atas.
+- `get_artifact(resource, file_type)` / `require_artifact(...)`
+  para acesso direto.
+- `resolve_export_params(resource, file_type)` que faz
+  `artifact.<field> > CanonicalTableSpec.<field> > derivado` para
+  `sort_columns`, `bloom_filter_columns` e `order_by_sql`.
+
+`MonthlyExporter.export_month` consulta `resolve_export_params`,
+`IAUploader._update_remote_manifest` lê `file_type` do
+`ArtifactSpec` em vez de literal, e `IAConsolidator._resource_has_uf_shards`
+gateia em `get_artifact(resource, "monthly_uf")` (mantendo
+`partition_by_uf` como fallback enquanto os dois campos coexistem;
+o teste de cruzamento já garante que não divergem).
+
+Pinado em `tests/unit/test_artifacts_lookup.py` (6 testes:
+matched/missing/required + chain de fallback + override por
+artifact). Para contratos/atas o resultado é byte-identical
+(toda a suite character/integration passa sem mudança).
 
 ### Drift-C — `FrontendExposureSpec` + `isCanonicalRow` extensível ✓
 
