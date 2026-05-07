@@ -12,12 +12,13 @@ Pins two invariants:
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
-import pytest
-
-from baliza.consolidator import IAConsolidator, _current_year_is_fresh, _is_monthly_partition_resource
-
+from baliza.consolidator import (
+    IAConsolidator,
+    _current_year_is_fresh,
+    _is_monthly_partition_resource,
+)
 
 # ---------------------------------------------------------------------------
 # _is_monthly_partition_resource
