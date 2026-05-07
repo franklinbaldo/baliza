@@ -79,7 +79,7 @@
       Contratações abertas no PNCP — o ponto de entrada para oportunidades em curso.
       Cada publicação representa uma licitação ou contratação cujo prazo de proposta ainda não encerrou.
       Baliza espelha o endpoint <code>/v1/contratacoes/publicacao</code> com fan-out por modalidade (IDs 1–14),
-      gerando partições mensais <code>raw-publicacoes-{'{'}YYYY-MM{'}'}.zip</code>.
+      gerando partições mensais <code>raw-publicacoes-{'{'}YYYY-MM}.zip</code>.
     </p>
     <div class="role-tag">
       Papel no atlas: <strong>oportunidade em aberto</strong> → posição <em>antes</em> de contratos e atas
@@ -178,7 +178,7 @@
         ['data_encerramento_proposta','VARCHAR','Encerramento de propostas'],
         ['uf_sigla','VARCHAR','UF do órgão'],
         ['data_particao','VARCHAR','Partição YYYY-MM'],
-      ] as col}
+      ] as col (col[0])}
         <div class="col-row">
           <code class="col-name">{col[0]}</code>
           <span class="col-type">{col[1]}</span>

@@ -77,7 +77,7 @@
       O PCA consolida o que cada órgão pretende comprar no exercício. É a demanda
       <em>antes</em> da licitação — o estágio mais cedo da cadeia de contratações públicas.
       Baliza espelha o endpoint <code>/v1/pca/atualizacao</code> com partição anual,
-      gerando <code>raw-pca-{'{'}YYYY{'}'}.zip</code> e o canônico <code>annual_canonical</code>.
+      gerando <code>raw-pca-{'{'}YYYY}.zip</code> e o canônico <code>annual_canonical</code>.
     </p>
     <div class="role-tag">
       Papel no atlas: <strong>intenção de demanda</strong> → primeiro elo da cadeia
@@ -180,7 +180,7 @@
         ['pdm_descricao','VARCHAR','PDM (descrição)'],
         ['data_desejada','VARCHAR','Data desejada de contratação'],
         ['data_particao','VARCHAR','Partição YYYY (ano)'],
-      ] as col}
+      ] as col (col[0])}
         <div class="col-row">
           <code class="col-name">{col[0]}</code>
           <span class="col-type">{col[1]}</span>

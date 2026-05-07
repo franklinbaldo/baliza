@@ -23,10 +23,15 @@
     prefetchArchive('publicacoes');
     prefetchArchive('pca');
 
+    const today = new Date().toISOString().slice(0, 10);
+
     queryArchivedTableWhere(
       'atas',
-      [{ column: 'cnpj_orgao', op: 'eq', value: cnpj }],
-      { limit: 5, orderByColumn: 'data_publicacao_pncp' },
+      [
+        { column: 'cnpj_orgao', op: 'eq', value: cnpj },
+        { column: 'vigencia_fim', op: 'gte', value: today },
+      ],
+      { limit: 5, orderByColumn: 'vigencia_fim' },
     ).then((res) => {
       if (res.ok) atas = res.rows as ArchivedAta[];
       loadingAtas = false;
@@ -34,8 +39,11 @@
 
     queryArchivedTableWhere(
       'publicacoes',
-      [{ column: 'cnpj_orgao', op: 'eq', value: cnpj }],
-      { limit: 5, orderByColumn: 'data_publicacao_pncp' },
+      [
+        { column: 'cnpj_orgao', op: 'eq', value: cnpj },
+        { column: 'data_encerramento_proposta', op: 'gte', value: today },
+      ],
+      { limit: 5, orderByColumn: 'data_encerramento_proposta' },
     ).then((res) => {
       if (res.ok) publicacoes = res.rows as ArchivedPublicacao[];
       loadingPublicacoes = false;
