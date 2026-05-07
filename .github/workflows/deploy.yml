@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [ main ]
   workflow_dispatch:
+  # Daily refresh so the homepage's "Sinal do arquivo" tile picks up
+  # IA manifest growth on weeks without code changes. Replaces the
+  # pncp-sync.yml cron-commit dance that used to refresh
+  # web/public/data/sync_stats.json by pushing a "chore(stats)" commit.
+  schedule:
+    - cron: '17 6 * * *'
 
 permissions:
   contents: read

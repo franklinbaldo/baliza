@@ -52,22 +52,62 @@ def _partition_to_date(p: str) -> datetime | None:
     return None
 
 
+def _zero_payload() -> dict:
+    """Empty baseline for first-time builds when IA is unreachable.
+
+    Astro static-imports ``sync_stats.json`` at build time, so the file
+    *must* exist before ``astro build`` runs. If we ever ship without
+    a committed copy and the build can't reach IA, this lets the site
+    deploy with honest zeros instead of failing the build outright.
+    """
+    return {
+        "total_contracts": 0,
+        "total_quarantine": 0,
+        "days_on_ia": 0,
+        "generated_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "resources": {},
+    }
+
+
 def main() -> int:
-    # Use the strict reader so a transient IA outage raises and we exit
-    # with a clear error. Otherwise we'd write zeros and overwrite the
-    # last good snapshot — see Codex review on PR #541.
+    out = REPO_ROOT / "web" / "public" / "data" / "sync_stats.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+
+    # Use the strict reader so a transient IA outage is surfaced. We
+    # never overwrite a good snapshot with zeros — see Codex review on
+    # PR #541 — but we do write a zero baseline when no file exists at
+    # all so Astro's static import can resolve on a fresh build.
     try:
         rows = read_manifest_from_ia()
     except ManifestReadError as exc:
-        print(f"manifest unreachable; leaving existing sync_stats.json: {exc}", file=sys.stderr)
-        return 1
+        if out.exists():
+            print(
+                f"manifest unreachable; leaving existing sync_stats.json: {exc}",
+                file=sys.stderr,
+            )
+            return 0
+        print(
+            f"manifest unreachable and no existing sync_stats.json; "
+            f"writing zero baseline so the build can proceed: {exc}",
+            file=sys.stderr,
+        )
+        out.write_text(json.dumps(_zero_payload(), indent=2) + "\n", encoding="utf-8")
+        return 0
 
     if not rows:
         # Empty manifest is genuine only on a brand-new IA item that has
-        # never published. In any project with real partitions this means
-        # something is wrong; refuse to publish zeros.
-        print("manifest is empty; leaving existing sync_stats.json", file=sys.stderr)
-        return 1
+        # never published. Don't overwrite a good snapshot if one exists;
+        # write zeros only when the file is missing entirely.
+        if out.exists():
+            print("manifest is empty; leaving existing sync_stats.json", file=sys.stderr)
+            return 0
+        print(
+            "manifest is empty and no existing sync_stats.json; "
+            "writing zero baseline so the build can proceed",
+            file=sys.stderr,
+        )
+        out.write_text(json.dumps(_zero_payload(), indent=2) + "\n", encoding="utf-8")
+        return 0
 
     # Canonical monthly partitions only:
     #   - file_type='monthly_canonical' (or empty for backward compat
@@ -130,8 +170,6 @@ def main() -> int:
         "resources": resources_breakdown,
     }
 
-    out = REPO_ROOT / "web" / "public" / "data" / "sync_stats.json"
-    out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     print(f"wrote {out.relative_to(REPO_ROOT)} :: {payload}")
     return 0
