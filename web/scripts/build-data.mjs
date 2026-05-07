@@ -98,7 +98,9 @@ async function ensureHttpfs() {
 
 async function build() {
   console.log("Generating frontend config...");
-  execSync('python3 scripts/build_frontend_config.py', { stdio: 'inherit', cwd: '..' });
+  // Use `uv run` so the script resolves baliza's Python deps (the
+  // resources registry transitively imports pydantic via models.py).
+  execSync('uv run python scripts/build_frontend_config.py', { stdio: 'inherit', cwd: '..' });
 
   // Refresh public/data/sync_stats.json from the live IA manifest so the
   // homepage's "Sinal do arquivo" tile reflects real numbers. Tolerate
