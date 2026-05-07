@@ -15,6 +15,7 @@ from unittest.mock import patch
 from baliza.builder import _pending_build_months
 from baliza.daily_exporter import SCHEMA_VERSION
 from baliza.mirror import _pending_mirror_months
+from baliza.resources import CONTRATOS as CONTRATOS_RESOURCE
 from baliza.resources import PCA, PLANNED_RESOURCES, RESOURCES
 
 
@@ -107,6 +108,30 @@ def test_pending_build_months_parses_annual_labels(monkeypatch):
         assert pending == [date(2022, 1, 1)]
     finally:
         _annual_resource_unpromote()
+
+
+def test_writer_reader_label_round_trip_for_annual():
+    """Codex P1 on PR #570: IAUploader writers historically emitted
+    labels via ``start_date.strftime("%Y-%m")``, which would never
+    match the reader-side ``parse_partition_label`` for annual
+    resources (expects YYYY). Pin that both sides agree by routing
+    the writer through ``partition_label`` too — round-tripping any
+    anchor date through the writer's label format and back through
+    ``parse_partition_label`` must land on the same partition start.
+    """
+    from baliza.partitioning import parse_partition_label, partition_label
+    for anchor in (date(2022, 1, 1), date(2024, 6, 15), date(2024, 12, 31)):
+        label = partition_label(PCA, anchor)
+        parsed = parse_partition_label(PCA, label)
+        assert parsed == date(anchor.year, 1, 1), (
+            f"annual round-trip broke for {anchor}: "
+            f"label={label!r}, parsed={parsed}"
+        )
+    # Monthly stays at byte-identical "%Y-%m" semantics.
+    for anchor in (date(2024, 1, 1), date(2024, 6, 15), date(2024, 12, 31)):
+        label = partition_label(CONTRATOS_RESOURCE, anchor)
+        parsed = parse_partition_label(CONTRATOS_RESOURCE, label)
+        assert parsed == date(anchor.year, anchor.month, 1)
 
 
 def test_planned_resources_partition_strategies_round_trip():
