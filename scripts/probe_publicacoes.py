@@ -49,7 +49,7 @@ def _window() -> tuple[str, str]:
 
 
 def _fetch_page_one(
-    modalidade: int, start: str, end: str, *, timeout: float = 30.0
+    modalidade: int, start: str, end: str, *, timeout: float = 90.0
 ) -> tuple[int, dict | None, str]:
     """Return (status_code, parsed_json_or_None, error_msg)."""
     params = {
@@ -75,7 +75,11 @@ def _fetch_page_one(
 def _validate_entries(entries: Iterable[dict]) -> tuple[int, int, list[str]]:
     """Run RecuperarCompraPublicacaoDTO over the entries.
 
-    Returns (valid_count, invalid_count, sample_errors)."""
+    Returns (valid_count, invalid_count, sample_errors). When a
+    validation fails we capture pydantic's structured error list (loc,
+    type, msg) for the first 3 — that's enough to identify the schema
+    drift without spamming the comment.
+    """
     valid = 0
     invalid = 0
     errors: list[str] = []
@@ -86,7 +90,19 @@ def _validate_entries(entries: Iterable[dict]) -> tuple[int, int, list[str]]:
         except ValidationError as exc:
             invalid += 1
             if len(errors) < 3:
-                errors.append(str(exc).split("\n", 1)[0][:200])
+                # exc.errors() gives structured info per field;
+                # render compactly so it fits in a markdown table cell.
+                pieces = []
+                for err in exc.errors()[:3]:
+                    loc = ".".join(str(p) for p in err.get("loc", ()))
+                    type_ = err.get("type", "?")
+                    msg = (err.get("msg") or "")[:100]
+                    raw = err.get("input")
+                    raw_repr = (
+                        repr(raw)[:60] if raw is not None else "<missing>"
+                    )
+                    pieces.append(f"{loc} [{type_}] {msg} (input={raw_repr})")
+                errors.append(" / ".join(pieces))
     return valid, invalid, errors
 
 
