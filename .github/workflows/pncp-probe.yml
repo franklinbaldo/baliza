@@ -1,0 +1,40 @@
+name: PNCP Probe
+
+# Runs probe scripts that hit the live PNCP API to verify endpoint
+# behavior before promoting a PLANNED resource (publicacoes, pca).
+# Triggers only on probe branches and manual dispatch so it doesn't
+# burn the API on every PR.
+
+on:
+  push:
+    branches:
+      - 'claude/probe-**'
+      - 'claude/promote-**'
+  workflow_dispatch:
+    inputs:
+      script:
+        description: 'Probe script to run (path under scripts/)'
+        required: false
+        type: choice
+        default: scripts/probe_publicacoes.py
+        options:
+          - scripts/probe_publicacoes.py
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+          python-version: '3.12'
+      - run: uv sync --all-groups --all-extras
+      - name: Run probe
+        run: |
+          script="${{ inputs.script || 'scripts/probe_publicacoes.py' }}"
+          uv run python "$script"
