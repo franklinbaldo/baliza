@@ -30,6 +30,9 @@ export const OG_ROUTES: ReadonlyArray<OgRoute> = [
   { slug: 'orgao', pathname: '/orgao', title: 'Painel do Órgão', subtitle: 'Histórico de contratações de um órgão público.' },
   { slug: 'fornecedor', pathname: '/fornecedor', title: 'Painel do Fornecedor', subtitle: 'Histórico de contratos arquivados do fornecedor.' },
   { slug: 'municipio', pathname: '/municipio', title: 'Painel do Município', subtitle: 'Contratações registradas pelo município.' },
+  { slug: 'publicacoes', pathname: '/publicacoes', title: 'Publicações PNCP', subtitle: 'Contratações abertas arquivadas — oportunidades em curso.' },
+  { slug: 'pca', pathname: '/pca', title: 'PCA — Plano de Contratações', subtitle: 'Intenção de demanda dos órgãos federais arquivada.' },
+  { slug: 'arquivo', pathname: '/arquivo', title: 'Arquivo Internet Archive', subtitle: 'Catálogo completo da coleção Baliza — cada item com URL estável.' },
 ];
 
 const BY_PATHNAME = new Map(OG_ROUTES.map((r) => [r.pathname.replace(/\/$/, ''), r]));

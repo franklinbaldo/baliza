@@ -13,6 +13,7 @@
   import EntityDetailLayout from './EntityDetailLayout.svelte';
   import EmptyState from './EmptyState.svelte';
   import CopyButton from './CopyButton.svelte';
+  import AgencyLifecyclePanel from './AgencyLifecyclePanel.svelte';
   import ShareButton from './ShareButton.svelte';
   import { setPageMeta } from '../lib/pageMeta';
   import LookbackWindow from './LookbackWindow.svelte';
@@ -295,6 +296,11 @@
           {/snippet}
         </PaginatedList>
       </section>
+    {/if}
+
+    <!-- Cross-resource lifecycle: PCA → Publicações → Atas (Task 5b) -->
+    {#if cnpjValid}
+      <AgencyLifecyclePanel {cnpj} />
     {/if}
   {/if}
 </EntityDetailLayout>

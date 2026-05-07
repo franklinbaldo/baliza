@@ -42,9 +42,9 @@ export const RESOURCE_CATALOG: readonly ResourceCatalogEntry[] = [
     name: 'pca',
     label: 'PCA',
     description:
-      'Plano Anual de Contratações: o que cada órgão pretende comprar.',
+      'Plano Anual de Contratações: o que cada órgão pretende comprar antes de licitar.',
     layer: 'intent',
-    status: 'planned',
+    status: 'registered',
   },
   {
     name: 'publicacoes',
@@ -52,7 +52,7 @@ export const RESOURCE_CATALOG: readonly ResourceCatalogEntry[] = [
     description:
       'Contratações abertas no momento — oportunidades em curso no PNCP.',
     layer: 'open',
-    status: 'planned',
+    status: 'registered',
   },
   {
     name: 'atas',

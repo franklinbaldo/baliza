@@ -1,0 +1,11 @@
+---
+import Layout from '../layouts/Layout.astro';
+import PublicacoesHubView from '../components/PublicacoesHubView.svelte';
+---
+
+<Layout
+  title="Publicações PNCP — Baliza"
+  description="Contratações abertas no PNCP arquivadas pelo Baliza. Explore publicações por modalidade, consulte o dataset Parquet no navegador ou acesse o arquivo no Internet Archive."
+>
+  <PublicacoesHubView client:only="svelte" />
+</Layout>

@@ -21,11 +21,19 @@ export interface HomepageSqlExample {
 export const HOMEPAGE_SQL_EXAMPLES: HomepageSqlExample[] = [
   {
     label: "Top 10 fornecedores/mês",
-    sql: "SELECT nome_fornecedor, SUM(valor_total) as total FROM read_parquet('IA_URL') GROUP BY 1 ORDER BY 2 DESC LIMIT 10",
+    sql: "SELECT nome_razao_social_fornecedor AS fornecedor, COUNT(*) AS contratos, SUM(valor_global) AS total\nFROM read_parquet('IA_URL')\nGROUP BY 1 ORDER BY 2 DESC LIMIT 10",
   },
   {
-    label: "Compras emergenciais",
-    sql: "SELECT * FROM read_parquet('IA_URL') WHERE compra_emergencial = true",
+    label: "Publicações por modalidade",
+    sql: "SELECT modalidade_nome, COUNT(*) AS n, SUM(valor_total_estimado) AS valor_total\nFROM read_parquet('IA_URL')\nGROUP BY modalidade_nome ORDER BY n DESC LIMIT 14",
+  },
+  {
+    label: "PCA por classificação",
+    sql: "SELECT classificacao_superior_nome, COUNT(*) AS itens, SUM(valor_total) AS valor_planejado\nFROM read_parquet('IA_URL')\nGROUP BY classificacao_superior_nome ORDER BY valor_planejado DESC LIMIT 20",
+  },
+  {
+    label: "Atas vigentes",
+    sql: "SELECT numero_controle_pncp_ata, objeto_contratacao, vigencia_fim\nFROM read_parquet('IA_URL')\nWHERE vigencia_fim >= CURRENT_DATE::VARCHAR\nORDER BY vigencia_fim ASC LIMIT 20",
   },
 ];
 
