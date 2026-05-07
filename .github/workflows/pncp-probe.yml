@@ -22,6 +22,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   probe:
@@ -35,6 +36,30 @@ jobs:
           python-version: '3.12'
       - run: uv sync --all-groups --all-extras
       - name: Run probe
+        id: run_probe
         run: |
           script="${{ inputs.script || 'scripts/probe_publicacoes.py' }}"
-          uv run python "$script"
+          uv run python "$script" | tee probe_output.md
+      # Post the probe output as a PR comment so reviewers (and the
+      # session driving this work) can read the results without
+      # opening the workflow logs. Best-effort: skipped on push events
+      # that don't have an associated PR.
+      - name: Post probe output to PR
+        if: always() && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          branch="${{ github.ref_name }}"
+          pr_number=$(gh pr list --head "$branch" --json number --jq '.[0].number' 2>/dev/null || echo "")
+          if [ -z "$pr_number" ]; then
+            echo "No PR for $branch yet — skipping comment."
+            exit 0
+          fi
+          {
+            echo "<!-- pncp-probe -->"
+            echo "## PNCP Probe results (commit \`${GITHUB_SHA::7}\`)"
+            echo
+            cat probe_output.md
+          } > probe_comment.md
+          gh pr comment "$pr_number" --body-file probe_comment.md
