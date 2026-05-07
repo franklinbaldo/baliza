@@ -41,6 +41,34 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
         working-directory: web
 
+      # The frontend build pipeline runs build_frontend_config.py and
+      # build_sync_stats.py before astro check / build. Both are
+      # invoked through `uv run python ...` (the resources tree
+      # transitively imports pydantic via models.py), so we need uv +
+      # the project's Python deps available before any web step that
+      # implicitly runs them.
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+          python-version: '3.12'
+
+      - name: Sync Python deps
+        run: uv sync --all-groups --all-extras
+
+      - name: Use manifest fixture for PR builds
+        if: github.event_name == 'pull_request'
+        run: echo "BALIZA_MANIFEST_FIXTURE=${{ github.workspace }}/web/fixtures/manifest.csv" >> $GITHUB_ENV
+
+      # ``src/pages/index.astro`` static-imports
+      # ``web/public/data/sync_stats.json``; that file is now build-time-
+      # only (gitignored), so we have to materialize it BEFORE
+      # ``astro check`` runs in the Lint & Check step. ``npm run build``
+      # will regenerate it later — this is just a cheap pre-pass so the
+      # type checker can resolve the import.
+      - name: Generate sync_stats.json baseline
+        run: uv run python scripts/build_sync_stats.py
+
       - name: Lint & Check
         run: |
           npm run lint
@@ -55,35 +83,22 @@ jobs:
         run: npm run test
         working-directory: web
 
-      - name: Use manifest fixture for PR builds
-        if: github.event_name == 'pull_request'
-        run: echo "BALIZA_MANIFEST_FIXTURE=${{ github.workspace }}/web/fixtures/manifest.csv" >> $GITHUB_ENV
-
-      # The frontend build runs scripts/build_frontend_config.py, which
-      # imports baliza.resources (transitively pydantic). uv resolves the
-      # Python deps so the generator can write the TS exposure list.
-      - name: Setup uv
-        uses: astral-sh/setup-uv@v4
-        with:
-          version: "latest"
-          python-version: '3.12'
-
-      - name: Sync Python deps
-        run: uv sync --all-groups --all-extras
-
       - name: Build Portal
         run: npm run build
         working-directory: web
 
       - name: Upload artifact
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        # Cron + manual dispatches publish too — otherwise the daily
+        # ``schedule`` trigger we added would build the site but leave
+        # the live homepage stuck on the previous deploy's stats.
+        if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
         uses: actions/upload-pages-artifact@v5
         with:
           path: web/dist
 
   deploy:
     name: Deploy to GitHub Pages
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
