@@ -24,6 +24,7 @@ from __future__ import annotations
 from baliza.resources.specs import (
     ArtifactSpec,
     CanonicalTableSpec,
+    PartitionStrategy,
     PNCPResource,
 )
 
@@ -41,6 +42,22 @@ def get_artifact(resource: PNCPResource, file_type: str) -> ArtifactSpec | None:
         if artifact.file_type == file_type:
             return artifact
     return None
+
+
+def primary_canonical_file_type(resource: PNCPResource) -> str:
+    """Which artifact's ``file_type`` is the resource's primary canonical.
+
+    Monthly-partitioned resources publish ``monthly_canonical``;
+    annual ones (PCA) publish ``annual_canonical`` directly with no
+    monthly variant. Runtime call sites that used to hardcode
+    ``"monthly_canonical"`` consult this so promoting an annual
+    resource doesn't LookupError when the exporter or uploader looks
+    for an artifact that doesn't exist.
+    """
+    strategy = resource.raw_dataset.partition_strategy
+    if strategy == PartitionStrategy.ANNUAL:
+        return "annual_canonical"
+    return "monthly_canonical"
 
 
 def require_artifact(resource: PNCPResource, file_type: str) -> ArtifactSpec:

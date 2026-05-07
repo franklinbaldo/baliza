@@ -16,7 +16,7 @@ import internetarchive as ia
 from rich.console import Console
 
 from . import rss_feed
-from .artifacts import require_artifact, resolve_export_params
+from .artifacts import primary_canonical_file_type, require_artifact, resolve_export_params
 from .engine import BalizaEngine
 from .extractor import FETCHED_SENTINEL
 from .partitioning import partition_label
@@ -363,7 +363,11 @@ class MonthlyExporter:
         # — but a per-artifact override (e.g. annual rollup sorted by
         # year then UF when PCA lands) now flows through without
         # editing this exporter.
-        _, _, order_by = resolve_export_params(spec, "monthly_canonical", table_spec)
+        # Picks monthly_canonical for monthly resources / annual_canonical
+        # for PCA — promoting an annual resource without this would
+        # LookupError because no monthly_canonical exists on its artifact list.
+        _canonical_type = primary_canonical_file_type(spec)
+        _, _, order_by = resolve_export_params(spec, _canonical_type, table_spec)
 
         try:
             self.engine.con.raw_sql(
@@ -883,7 +887,8 @@ class IAUploader:
         table_name = spec.canonical_tables[0].table_name
         # Drift-B wiring: matched ArtifactSpec drives the file_type
         # column on the manifest row instead of a hardcoded literal.
-        artifact = require_artifact(spec, "monthly_canonical")
+        # Annual resources (PCA) publish annual_canonical, not monthly.
+        artifact = require_artifact(spec, primary_canonical_file_type(spec))
 
         # Build the new row before acquiring the lock — sha256/size computation
         # is pure local I/O and doesn't need to be serialized.

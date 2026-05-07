@@ -405,7 +405,15 @@ class PNCPExtractor:
             try:
                 validated = entity_model.model_validate(entry)
                 if flatten_fn:
-                    yield flatten_fn(validated.model_dump())
+                    flat = flatten_fn(validated.model_dump())
+                    # PCA's flatten emits one row per nested item, so it
+                    # returns ``list[dict]``. Contratos/atas/publicacoes
+                    # return a single ``dict``. Normalize to a sequence
+                    # so the upsert downstream gets a flat list[dict].
+                    if isinstance(flat, list):
+                        yield from flat
+                    else:
+                        yield flat
                 else:
                     yield validated.model_dump()
                 stats["valid"] += 1
