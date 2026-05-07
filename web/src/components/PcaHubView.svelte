@@ -3,6 +3,7 @@
   import { SyncStatsSchema } from '../schema';
   import { getLatestParquetInfo } from '../lib/ia-manifest';
   import { getDuckDB } from '../lib/duckdb';
+  import { escapeSqlLiteral } from '../lib/parquetFallback';
   import { resolve } from '../lib/baseUrl';
   import { formatInteger, formatBRL } from '../lib/format';
   import AlertBanner from './AlertBanner.svelte';
@@ -44,7 +45,7 @@
         COALESCE(classificacao_superior_nome, 'Sem classificação') AS classificacao_superior_nome,
         COUNT(*) AS n,
         COALESCE(SUM(valor_total), 0) AS valor_total
-      FROM read_parquet('${url.replace(/'/g, "''")}')
+      FROM read_parquet('${escapeSqlLiteral(url)}')
       GROUP BY classificacao_superior_nome
       ORDER BY valor_total DESC
       LIMIT 25`;

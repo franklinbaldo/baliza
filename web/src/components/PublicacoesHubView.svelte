@@ -3,6 +3,7 @@
   import { SyncStatsSchema } from '../schema';
   import { getLatestParquetInfo } from '../lib/ia-manifest';
   import { getDuckDB } from '../lib/duckdb';
+  import { escapeSqlLiteral } from '../lib/parquetFallback';
   import { resolve } from '../lib/baseUrl';
   import { formatInteger, formatBRL } from '../lib/format';
   import AlertBanner from './AlertBanner.svelte';
@@ -46,7 +47,7 @@
         COALESCE(modalidade_nome, 'Desconhecida') AS modalidade_nome,
         COUNT(*) AS n,
         COALESCE(SUM(valor_total_estimado), 0) AS valor_total
-      FROM read_parquet('${url.replace(/'/g, "''")}')
+      FROM read_parquet('${escapeSqlLiteral(url)}')
       GROUP BY modalidade_nome
       ORDER BY n DESC
       LIMIT 20`;

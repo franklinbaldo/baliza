@@ -123,7 +123,7 @@ def main() -> int:
             num_files = 0
 
         group = _classify(identifier)
-        groups.setdefault(group, []).append(identifier)
+        groups[group].append(identifier)
         items.append(
             {
                 "identifier": identifier,

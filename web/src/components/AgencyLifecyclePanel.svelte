@@ -35,7 +35,7 @@
     ).then((res) => {
       if (res.ok) atas = res.rows as ArchivedAta[];
       loadingAtas = false;
-    });
+    }).catch(() => { loadingAtas = false; });
 
     queryArchivedTableWhere(
       'publicacoes',
@@ -47,7 +47,7 @@
     ).then((res) => {
       if (res.ok) publicacoes = res.rows as ArchivedPublicacao[];
       loadingPublicacoes = false;
-    });
+    }).catch(() => { loadingPublicacoes = false; });
 
     queryArchivedTableWhere(
       'pca',
@@ -56,7 +56,7 @@
     ).then((res) => {
       if (res.ok) pca = res.rows as ArchivedPca[];
       loadingPca = false;
-    });
+    }).catch(() => { loadingPca = false; });
   });
 
   const hasAnyData = $derived(atas.length > 0 || publicacoes.length > 0 || pca.length > 0);

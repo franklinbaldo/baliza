@@ -33,7 +33,7 @@ const DEFAULT_QUERY_TIMEOUT_MS = 8_000;
 // allow-list (ARCHIVED_TABLES) instead.
 const SAFE_IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
-function escapeSqlLiteral(value: string): string {
+export function escapeSqlLiteral(value: string): string {
   return value.replace(/'/g, "''");
 }
 
