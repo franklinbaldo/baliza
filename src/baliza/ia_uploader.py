@@ -101,6 +101,13 @@ _CONTRATOS_BLOOM_FILTER_COLUMNS = (
 MANIFEST_ITEM_ID = "baliza-pncp-manifest"
 RAW_ITEM_ID = "baliza-pncp-raw"
 FEEDS_ITEM_ID = "baliza-pncp-feeds"
+
+# Shared discovery tag on every Baliza IA item.
+# Researchers can find all artifacts with:
+#   ia search 'subject:baliza-pncp'
+# Documented in docs/internet-archive.md.
+BALIZA_COLLECTION_TAG = "baliza-pncp"
+
 FEEDS_ITEM_METADATA = {
     "title": "Baliza PNCP — Curated RSS feeds",
     "description": (
@@ -110,7 +117,7 @@ FEEDS_ITEM_METADATA = {
     ),
     "mediatype": "data",
     "collection": "opensource_media",
-    "subject": ["PNCP", "RSS", "alertas", "Brasil", "open data"],
+    "subject": ["PNCP", "RSS", "alertas", "Brasil", "open data", BALIZA_COLLECTION_TAG],
     "creator": "Baliza",
     "language": "pt",
 }
@@ -124,7 +131,7 @@ RAW_ITEM_METADATA = {
     ),
     "mediatype": "data",
     "collection": "opensource_media",
-    "subject": ["PNCP", "contratos", "licitações", "governo", "Brasil", "open data"],
+    "subject": ["PNCP", "contratos", "licitações", "governo", "Brasil", "open data", BALIZA_COLLECTION_TAG],
     "creator": "Baliza",
     "language": "pt",
 }
@@ -218,7 +225,7 @@ def write_manifest_to_ia(rows: list[dict[str, Any]], access_key: str, secret_key
             files={"manifest.csv": temp_csv},
             access_key=access_key,
             secret_key=secret_key,
-            metadata={"title": "Baliza PNCP Manifest", "mediatype": "data"},
+            metadata={"title": "Baliza PNCP Manifest", "mediatype": "data", "subject": [BALIZA_COLLECTION_TAG]},
             retries=3,
         )
     finally:
@@ -677,6 +684,7 @@ class IAUploader:
                     "description": f"Consolidated monthly data for PNCP contracts - {month_str}",
                     "mediatype": "data",
                     "collection": "opensource_media",
+                    "subject": [BALIZA_COLLECTION_TAG],
                 },
                 retries=3,
             )
@@ -847,6 +855,7 @@ class IAUploader:
                     "description": f"Consolidated monthly data for PNCP contracts - {month_str}",
                     "mediatype": "data",
                     "collection": "opensource_media",
+                    "subject": [BALIZA_COLLECTION_TAG],
                 },
                 retries=3,
             )

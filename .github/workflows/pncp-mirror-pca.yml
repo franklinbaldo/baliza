@@ -1,0 +1,142 @@
+name: PNCP Mirror — PCA
+
+on:
+  schedule:
+    # Weekly on Monday at 06:00 UTC. PCA is an annual-partition resource;
+    # daily runs would re-fetch the same window without new data most days.
+    # Probe #574 showed 542 pages / 270 818 records over 3 days — a full
+    # backfill is an operator task, not a cron task.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: 'Oldest date to mirror (YYYY-MM-DD). Default: 2024-01-01 — do NOT run a multi-year backfill without verifying single-year volume first.'
+        required: false
+        default: '2024-01-01'
+      no_consolidate:
+        description: 'Skip end-of-run annual consolidation (default true until Task 3 consolidator path lands)'
+        required: false
+        type: boolean
+        default: true
+
+concurrency:
+  group: ${{ github.event_name == 'schedule' && 'pncp-mirror-pca-schedule' || format('pncp-mirror-pca-dispatch-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'schedule' }}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    # PCA is a high-volume endpoint (probe: ~270k records / 3 days). Allow
+    # the full 6-hour window; a single-year window should complete in < 2h.
+    timeout-minutes: 360
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v4
+
+      - id: year
+        run: echo "key=$(date +'%Y')" >> $GITHUB_OUTPUT
+      - uses: actions/cache@v5
+        with:
+          path: data/raw
+          key: pncp-raw-pca-${{ steps.year.outputs.key }}-${{ github.run_id }}
+          restore-keys: pncp-raw-pca-${{ steps.year.outputs.key }}-
+
+      - name: Mirror PCA (raw JSON → IA ZIP)
+        env:
+          IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
+          IA_SECRET_KEY: ${{ secrets.IA_SECRET_KEY }}
+        run: |
+          # Default to 2024-01-01 for cron runs. Operators wanting a wider
+          # backfill should use workflow_dispatch — see input description above.
+          start_date="${{ inputs.start_date || '2024-01-01' }}"
+          uv run baliza mirror --resource pca --start-date "$start_date"
+
+      - name: Build PCA canonical Parquet
+        env:
+          IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
+          IA_SECRET_KEY: ${{ secrets.IA_SECRET_KEY }}
+        run: |
+          start_date="${{ inputs.start_date || '2024-01-01' }}"
+          build_args=(--resource pca --start-date "$start_date")
+          # --no-consolidate is true by default until the consolidator
+          # annual-only skip lands (Task 3). After that PR merges, flip
+          # the default to false here.
+          no_consolidate="${{ inputs.no_consolidate }}"
+          if [[ "${no_consolidate:-true}" != "false" ]]; then
+            build_args+=(--no-consolidate)
+          fi
+          uv run baliza build "${build_args[@]}"
+
+  report-failure:
+    name: Report workflow failure
+    if: ${{ failure() && github.ref_name == github.event.repository.default_branch }}
+    needs: mirror
+    runs-on: ubuntu-latest
+    steps:
+      - name: Open or update tracking issue for PCA failures
+        uses: actions/github-script@v9
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const runId = context.runId;
+            const runUrl = `${context.payload.repository.html_url}/actions/runs/${runId}`;
+            const TRACKING_TITLE = '🚨 PNCP PCA mirror is failing';
+
+            const open = await github.rest.issues.listForRepo({
+              owner, repo, state: 'open', labels: 'ci-failure', per_page: 100,
+            });
+            const existing = open.data.find((i) => i.title === TRACKING_TITLE);
+            const body = [
+              `Latest failure: [run #${context.runNumber}](${runUrl})`,
+              '',
+              'Comments below track every subsequent failed run. The issue',
+              'is auto-closed by the next successful run.',
+            ].join('\n');
+
+            if (!existing) {
+              await github.rest.issues.create({
+                owner, repo,
+                title: TRACKING_TITLE,
+                body,
+                labels: ['ci-failure'],
+              });
+              return;
+            }
+            await github.rest.issues.createComment({
+              owner, repo, issue_number: existing.number,
+              body: `Failure recurred: [run #${context.runNumber}](${runUrl})`,
+            });
+
+  report-recovery:
+    name: Auto-close tracking issue on green run
+    if: ${{ success() && github.ref_name == github.event.repository.default_branch }}
+    needs: mirror
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v9
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const TRACKING_TITLE = '🚨 PNCP PCA mirror is failing';
+            const open = await github.rest.issues.listForRepo({
+              owner, repo, state: 'open', labels: 'ci-failure', per_page: 100,
+            });
+            const existing = open.data.find((i) => i.title === TRACKING_TITLE);
+            if (!existing) return;
+            const runUrl = `${context.payload.repository.html_url}/actions/runs/${context.runId}`;
+            await github.rest.issues.createComment({
+              owner, repo, issue_number: existing.number,
+              body: `Mirror recovered: [run #${context.runNumber}](${runUrl}). Closing.`,
+            });
+            await github.rest.issues.update({
+              owner, repo, issue_number: existing.number, state: 'closed',
+            });
