@@ -163,16 +163,21 @@ declarados nas exposições e emite `CANONICAL_FILE_TYPES` no
 introduzir um novo `file_type` (ex.: `annual_canonical` quando PCA
 chegar) passa a ser uma linha no resource Python — sem editar o TS.
 
-### Drift-D — Estratégia de partição não-mensal
+### Drift-D — Estratégia de partição não-mensal (parcial)
 
-**Estado atual:** `mirror_month`, `_pending_mirror_months`,
-`_pending_build_months` assumem partições mensais. Builder usa
-`strptime("%Y-%m")`.
-**Bloqueia:** PCA (annual) e qualquer endpoint com janela diferente.
-**Plano:** helper `partition_period(spec)` que devolve
-`(start, end, label)` baseado em
-`raw_dataset.partition_strategy`; o builder iterar sobre essa
-sequência.
+**Estado atual:** helper introduzido em `src/baliza/partitioning.py`
+(`iter_partitions(resource, start, end)` e
+`partition_label(resource, anchor)`). Cobre `monthly` e `annual`,
+recusa estratégias não suportadas, e está pinado em
+`tests/unit/test_partitioning.py` (mensal cruzando ano bissexto e
+fronteira de ano + anual single/multi-ano).
+
+**Falta:** `_pending_mirror_months` e `_pending_build_months` ainda
+assumem mensal hardcoded (`strftime("%Y-%m")`, `relativedelta` por
+mês). Migrá-los para iterar `iter_partitions` é o último passo —
+fica para o PR de promoção do PCA, junto da reescrita do nome
+genérico (`_pending_*_partitions`). Para contratos/atas o helper
+mensal já produz exatamente as mesmas datas.
 
 ---
 
