@@ -18,6 +18,7 @@ import duckdb
 import internetarchive as ia
 from rich.console import Console
 
+from .artifacts import get_artifact
 from .ia_uploader import read_manifest_from_ia, register_monthly_uf_shards
 from .resources import CONTRATOS, get_resource
 from .utils import DUCKDB_PARQUET_COPY_OPTIONS
@@ -133,13 +134,17 @@ def _current_year_is_fresh(
 def _resource_has_uf_shards(resource: str) -> bool:
     """Whether the consolidator should emit per-UF monthly shards.
 
-    Reads the explicit ``CanonicalTableSpec.partition_by_uf`` flag —
-    inferring from sort/bloom column lists silently regressed contratos
-    (its canonical row carries ``uf_sigla`` even though the column isn't
-    in either list, so the heuristic returned False and skipped shard
-    publication; see Codex review on PR #555).
+    Drift-B wiring: the gate now consults
+    ``ArtifactSpec(file_type="monthly_uf")`` membership on the resource
+    (the canonical declaration of "this resource publishes a per-UF
+    shard"). Falls back to ``CanonicalTableSpec.partition_by_uf`` for
+    safety while both fields coexist — a cross-check test pins that
+    the two never disagree (``test_artifact_spec.py``).
     """
-    return get_resource(resource).canonical_tables[0].partition_by_uf
+    spec = get_resource(resource)
+    artifact_says_yes = get_artifact(spec, "monthly_uf") is not None
+    flag_says_yes = spec.canonical_tables[0].partition_by_uf
+    return artifact_says_yes or flag_says_yes
 
 
 class IAConsolidator:
