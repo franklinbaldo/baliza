@@ -1,0 +1,75 @@
+name: PNCP Probe
+
+# Runs probe scripts that hit the live PNCP API to verify endpoint
+# behavior before promoting a PLANNED resource (publicacoes, pca).
+# Triggers only on probe branches and manual dispatch so it doesn't
+# burn the API on every PR.
+
+on:
+  push:
+    branches:
+      - 'claude/probe-**'
+      - 'claude/promote-**'
+  workflow_dispatch:
+    inputs:
+      script:
+        description: 'Probe script to run (path under scripts/)'
+        required: false
+        type: choice
+        default: scripts/probe_publicacoes.py
+        options:
+          - scripts/probe_publicacoes.py
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+          python-version: '3.12'
+      - run: uv sync --all-groups --all-extras
+      - name: Run probe
+        id: run_probe
+        run: |
+          script="${{ inputs.script || 'scripts/probe_publicacoes.py' }}"
+          uv run python "$script" | tee probe_output.md
+      # Post the probe output as a PR comment so reviewers (and the
+      # session driving this work) can read the results without
+      # opening the workflow logs. Best-effort: skipped on push events
+      # that don't have an associated PR.
+      - name: Post probe output to PR
+        if: always() && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          branch="${{ github.ref_name }}"
+          pr_number=$(gh pr list --head "$branch" --json number --jq '.[0].number' 2>/dev/null || echo "")
+          if [ -z "$pr_number" ]; then
+            echo "No PR for $branch yet — skipping comment."
+            exit 0
+          fi
+          {
+            echo "<!-- pncp-probe -->"
+            echo "## PNCP Probe results (commit \`${GITHUB_SHA::7}\`)"
+            echo
+            cat probe_output.md
+          } > probe_comment.md
+          gh pr comment "$pr_number" --body-file probe_comment.md
+
+      # Force the job red so the PR-activity subscriber sees a CI-failure
+      # event and surfaces the probe results immediately. The probe is a
+      # diagnostic, not a gate — its 'failure' here means "humans/agents
+      # need to look at the comment", not "the code is broken".
+      - name: Mark probe job as failed (intentional notification)
+        if: always() && github.event_name == 'push'
+        run: |
+          echo "::error::Probe ran successfully — see the PR comment for results."
+          exit 1

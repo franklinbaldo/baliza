@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from datetime import date
 from datetime import datetime as AwareDatetime
-from enum import StrEnum
+from enum import IntEnum, StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -62,11 +62,17 @@ class IndicadorOrcamentoSigiloso(StrEnum):
     COMPRA_TOTALMENTE_SIGILOSA = "COMPRA_TOTALMENTE_SIGILOSA"
 
 
-class SituacaoCompraId(StrEnum):
-    field_1 = "1"
-    field_2 = "2"
-    field_3 = "3"
-    field_4 = "4"
+class SituacaoCompraId(IntEnum):
+    # The PNCP OpenAPI spec declares these as strings, but the live
+    # ``/v1/contratacoes/publicacao`` endpoint returns them as integers
+    # (verified via scripts/probe_publicacoes.py — every record carried
+    # ``situacaoCompraId: 1``, never ``"1"``). Treat them as ints so
+    # RecuperarCompraPublicacaoDTO actually validates against real
+    # payloads. The four-value range stays as published.
+    field_1 = 1
+    field_2 = 2
+    field_3 = 3
+    field_4 = 4
 
 
 class RecuperarOrgaoEntidadeDTO(BaseModel):
