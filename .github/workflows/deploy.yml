@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [ main ]
   workflow_dispatch:
+  # Daily refresh so the homepage's "Sinal do arquivo" tile picks up
+  # IA manifest growth on weeks without code changes. Replaces the
+  # pncp-sync.yml cron-commit dance that used to refresh
+  # web/public/data/sync_stats.json by pushing a "chore(stats)" commit.
+  schedule:
+    - cron: '17 6 * * *'
 
 permissions:
   contents: read
@@ -35,6 +41,69 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
         working-directory: web
 
+      # The frontend build pipeline runs build_frontend_config.py and
+      # build_sync_stats.py before astro check / build. Both are
+      # invoked through `uv run python ...` (the resources tree
+      # transitively imports pydantic via models.py), so we need uv +
+      # the project's Python deps available before any web step that
+      # implicitly runs them.
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+          python-version: '3.12'
+
+      - name: Sync Python deps
+        run: uv sync --all-groups --all-extras
+
+      - name: Use manifest fixture for PR builds
+        if: github.event_name == 'pull_request'
+        run: echo "BALIZA_MANIFEST_FIXTURE=${{ github.workspace }}/web/fixtures/manifest.csv" >> $GITHUB_ENV
+
+      # Cache the last build's sync_stats.json so a Pages-down + IA-
+      # down deploy still ships real numbers from the last successful
+      # run instead of falling back to a zero baseline (Codex P1).
+      # Cache hits are restored *before* the Pages-restore step so the
+      # latter, when it succeeds, overwrites with the freshest source-
+      # of-truth (the deployed file).
+      - name: Restore cached sync_stats.json
+        uses: actions/cache@v5
+        with:
+          path: web/public/data/sync_stats.json
+          key: sync-stats-${{ github.run_id }}
+          restore-keys: |
+            sync-stats-
+
+      # The live Pages deploy is the source of truth for "last
+      # published stats". Pull it down so build_sync_stats.py's
+      # "leave existing file untouched on IA failure" path preserves
+      # real numbers across a transient IA outage instead of
+      # publishing zeros (Codex P1). 404 on first deploy is expected
+      # — the cache restore (above) and the baseline step (below)
+      # together handle that case. On curl failure we leave whatever
+      # the cache restored alone (the `|| true` swallows curl's
+      # non-zero exit without overwriting the cached file).
+      - name: Restore last published sync_stats.json (best-effort)
+        run: |
+          mkdir -p web/public/data
+          curl --silent --show-error --location --fail \
+            --max-time 30 \
+            -o web/public/data/sync_stats.json.fresh \
+            https://franklinbaldo.github.io/baliza/data/sync_stats.json \
+            && mv web/public/data/sync_stats.json.fresh web/public/data/sync_stats.json \
+            || rm -f web/public/data/sync_stats.json.fresh
+
+      # ``src/pages/index.astro`` static-imports
+      # ``web/public/data/sync_stats.json``; that file is now build-time-
+      # only (gitignored), so we have to materialize it BEFORE
+      # ``astro check`` runs in the Lint & Check step. The script
+      # refreshes from the live IA manifest when reachable, otherwise
+      # leaves the file restored from the previous deploy untouched
+      # (or writes a zero baseline if neither source is reachable —
+      # only happens on the very first deploy of a fresh project).
+      - name: Generate sync_stats.json baseline
+        run: uv run python scripts/build_sync_stats.py
+
       - name: Lint & Check
         run: |
           npm run lint
@@ -49,35 +118,22 @@ jobs:
         run: npm run test
         working-directory: web
 
-      - name: Use manifest fixture for PR builds
-        if: github.event_name == 'pull_request'
-        run: echo "BALIZA_MANIFEST_FIXTURE=${{ github.workspace }}/web/fixtures/manifest.csv" >> $GITHUB_ENV
-
-      # The frontend build runs scripts/build_frontend_config.py, which
-      # imports baliza.resources (transitively pydantic). uv resolves the
-      # Python deps so the generator can write the TS exposure list.
-      - name: Setup uv
-        uses: astral-sh/setup-uv@v4
-        with:
-          version: "latest"
-          python-version: '3.12'
-
-      - name: Sync Python deps
-        run: uv sync --all-groups --all-extras
-
       - name: Build Portal
         run: npm run build
         working-directory: web
 
       - name: Upload artifact
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        # Cron + manual dispatches publish too — otherwise the daily
+        # ``schedule`` trigger we added would build the site but leave
+        # the live homepage stuck on the previous deploy's stats.
+        if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
         uses: actions/upload-pages-artifact@v5
         with:
           path: web/dist
 
   deploy:
     name: Deploy to GitHub Pages
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

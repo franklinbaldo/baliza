@@ -8,6 +8,12 @@ web/node_modules/
 web/dist/
 web/.astro/
 web/.env
+# Regenerated from the IA manifest by scripts/build_sync_stats.py
+# during every web build. Never commit — the previous cron-refreshed
+# copy produced a steady stream of "chore(stats)" commits that
+# polluted the history without adding signal (the deploy build
+# regenerates on every run).
+web/public/data/sync_stats.json
 
 # Python
 __pycache__/
