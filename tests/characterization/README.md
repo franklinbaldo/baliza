@@ -2,7 +2,7 @@
 
 Esta pasta contém testes de caracterização (no estilo de Michael Feathers, "Working Effectively with Legacy Code") focados no pipeline atual de extração e consolidação (`contratos`).
 
-O objetivo destes testes é documentar e travar o comportamento atual do sistema, especificamente os pontos de acoplamento hardcoded, **antes** de qualquer refatoração estrutural (como as propostas no plano `multi-table-pipeline`).
+O objetivo destes testes é documentar e travar o comportamento atual do sistema, especificamente os pontos de acoplamento hardcoded, **antes** de qualquer refatoração estrutural (como as propostas em [`docs/plans/pncp-resource-pipeline.md`](../../docs/plans/pncp-resource-pipeline.md)).
 
 Esses testes não devem ser alterados de imediato durante o refator, e servirão como rede de segurança: se um refator acidentalmente quebrar o comportamento existente, esses testes falharão.
 
