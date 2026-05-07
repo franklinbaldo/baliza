@@ -4,7 +4,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from ibis.common.exceptions import IbisTypeError
 
 from baliza.builder import _pending_build_months
 from baliza.engine import BalizaEngine
@@ -68,7 +67,9 @@ def test_builder_parses_month_partition():
     assert len(pending_with_day) == 2
 
 
-# 2. engine.py upsert_rows deduplicates by a single hardcoded PK string parameter by default and only supports simple ISIN
+# 2. engine.py upsert_rows deduplicates by PK. Drift-A made ``pk``
+#    accept ``str | list[str]``: simple PKs keep the cheap ``isin`` path,
+#    composite PKs go through an anti-join. Both shapes are pinned here.
 def test_engine_upsert_single_pk():
     engine = BalizaEngine()
     data1 = [{"numeroControlePNCP": "A1", "valor": 10}, {"numeroControlePNCP": "A2", "valor": 20}]
@@ -88,12 +89,42 @@ def test_engine_upsert_single_pk():
     res2 = engine.con.table("test_table").execute()
     assert len(res2) == 3
 
-    # Verify that the current interface of upsert_rows only accepts a string for pk
-    # (or rather, we characterize how it fails if given a list)
-    with pytest.raises(IbisTypeError):
-        # Ibis raises IbisTypeError (column not found) when pk is a list
-        # — current engine only supports single-column pk
-        engine.upsert_rows([{"k1": "v1", "k2": "v2"}], "test_table", pk=["k1", "k2"])
+
+def test_engine_upsert_composite_pk():
+    """PCA uses ``(id_pca_pncp, numero_item)`` — verify the composite
+    path dedups on the full key and not on either column alone."""
+    engine = BalizaEngine()
+    data1 = [
+        {"id_pca": "P1", "item": 1, "valor": 10},
+        {"id_pca": "P1", "item": 2, "valor": 20},
+        {"id_pca": "P2", "item": 1, "valor": 30},
+    ]
+    engine.upsert_rows(data1, "pca_table", pk=["id_pca", "item"])
+    assert len(engine.con.table("pca_table").execute()) == 3
+
+    # Update P1/item=1 (collides), insert P2/item=2 (new). Critically,
+    # P1/item=2 must survive — a single-column anti-join on id_pca alone
+    # would have dropped it.
+    data2 = [
+        {"id_pca": "P1", "item": 1, "valor": 99},
+        {"id_pca": "P2", "item": 2, "valor": 40},
+    ]
+    engine.upsert_rows(data2, "pca_table", pk=["id_pca", "item"])
+    res = engine.con.table("pca_table").execute()
+    assert len(res) == 4
+
+    rows = {(r["id_pca"], r["item"]): r["valor"] for _, r in res.iterrows()}
+    assert rows[("P1", 1)] == 99   # updated
+    assert rows[("P1", 2)] == 20   # untouched — would die under single-PK
+    assert rows[("P2", 1)] == 30
+    assert rows[("P2", 2)] == 40
+
+
+def test_engine_upsert_empty_composite_pk_rejected():
+    engine = BalizaEngine()
+    engine.upsert_rows([{"k": 1}], "tbl", pk="k")
+    with pytest.raises(ValueError, match="pk list"):
+        engine.upsert_rows([{"k": 2}], "tbl", pk=[])
 
 
 # 3. ia_uploader.py hardcodes the written fields

@@ -69,9 +69,16 @@ class BalizaEngine:
         data: list[dict[str, Any]],
         table_name: str,
         schema: str = "main",
-        pk: str = "numeroControlePNCP",
+        pk: str | list[str] = "numeroControlePNCP",
     ) -> int:
-        """Upsert rows using pure Ibis logic (Union + Overwrite)."""
+        """Upsert rows using pure Ibis logic (Union + Overwrite).
+
+        ``pk`` accepts a single column name (fast path: ``isin``) or a
+        list of column names (anti-join on every column). Composite PKs
+        are required for resources like PCA where uniqueness lives on
+        ``(id_pca_pncp, numero_item)``; the simple-PK fast path is kept
+        so contratos / atas don't pay the join overhead.
+        """
         if not data:
             return 0
 
@@ -104,9 +111,19 @@ class BalizaEngine:
                 # Fallback if Ibis cast fails (e.g. new columns added in code)
                 pass
 
-            # 3. Filter out rows that are in the new batch (based on PK)
+            # 3. Drop rows from existing whose PK collides with the new
+            #    batch. Two paths:
+            #    - simple string pk: cheap ``isin`` against a single column.
+            #    - composite (list) pk: anti-join on every PK column.
+            if isinstance(pk, str):
+                t_kept = t_existing.filter(~t_existing[pk].isin(t_new[pk]))
+            else:
+                if not pk:
+                    raise ValueError("pk list must contain at least one column")
+                predicates = [t_existing[c] == t_new[c] for c in pk]
+                t_kept = t_existing.anti_join(t_new, predicates)
             # 4. Union with new batch
-            t_combined = ibis.union(t_existing.filter(~t_existing[pk].isin(t_new[pk])), t_new)
+            t_combined = ibis.union(t_kept, t_new)
             # 5. Overwrite table
             self.con.create_table(table_name, t_combined, database=schema, overwrite=True)
         else:
