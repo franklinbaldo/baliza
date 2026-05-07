@@ -65,7 +65,7 @@
         O que <mark>{cityState.nome}{cityState.uf ? ` / ${cityState.uf}` : ''}</mark> está comprando?
       </h1>
       <p>
-        Veja agora o que foi contratado, quanto custou e quem forneceu — com fonte auditável.
+        Veja o que foi contratado, quanto custou e quem forneceu — tudo com fonte que você pode checar.
       </p>
     </hgroup>
   </header>

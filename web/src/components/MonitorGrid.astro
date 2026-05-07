@@ -72,12 +72,12 @@ const ITEMS = [
   <div class="grid">
     {ITEMS.map((item) => (
       <article>
-        <figure aria-hidden="true" style="font-size: 2.5rem; margin: 0 0 var(--pico-spacing)">{item.icon}</figure>
-        <strong>{item.title}</strong>
-        <p><small>{item.question}</small></p>
-        <footer>
-          <a href={resolve(item.href)}>{item.cta} →</a>
-        </footer>
+        <a href={resolve(item.href)}>
+          <figure aria-hidden="true" style="font-size: 2.5rem; margin: 0">{item.icon}</figure>
+          <strong>{item.title}</strong>
+          <p><small>{item.question}</small></p>
+          <small>{item.cta} →</small>
+        </a>
       </article>
     ))}
   </div>
