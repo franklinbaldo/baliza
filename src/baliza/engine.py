@@ -82,6 +82,13 @@ class BalizaEngine:
         if not data:
             return 0
 
+        # Validate the PK shape up front — including on first insert
+        # — so a misconfigured caller surfaces immediately rather than
+        # silently writing the first batch and only failing on the
+        # second call when the dedup branch fires.
+        if isinstance(pk, list) and not pk:
+            raise ValueError("pk list must contain at least one column")
+
         # Create a memtable from the new data
         t_new = ibis.memtable(data)
 
@@ -118,10 +125,9 @@ class BalizaEngine:
             if isinstance(pk, str):
                 t_kept = t_existing.filter(~t_existing[pk].isin(t_new[pk]))
             else:
-                if not pk:
-                    raise ValueError("pk list must contain at least one column")
-                predicates = [t_existing[c] == t_new[c] for c in pk]
-                t_kept = t_existing.anti_join(t_new, predicates)
+                # Ibis treats a list of column names as equi-join keys,
+                # which is exactly the composite-PK semantics we want.
+                t_kept = t_existing.anti_join(t_new, pk)
             # 4. Union with new batch
             t_combined = ibis.union(t_kept, t_new)
             # 5. Overwrite table
