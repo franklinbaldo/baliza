@@ -106,6 +106,9 @@ def backfill(
     for identifier in identifiers:
         try:
             item = session.get_item(identifier)
+            if not item.exists:
+                print(f"  SKIP (does not exist on IA): {identifier}")
+                continue
             meta = item.metadata or {}
         except Exception as e:
             print(f"  SKIP (unreachable: {e}): {identifier}", file=sys.stderr)
@@ -119,15 +122,23 @@ def backfill(
         print(f"  {'[DRY RUN] Would patch' if dry_run else 'Patching'}: {identifier}")
         if not dry_run:
             try:
-                item.modify_metadata(
+                response = item.modify_metadata(
                     {"subject": BALIZA_COLLECTION_TAG},
                     access_key=access_key,
                     secret_key=secret_key,
                     append_list=True,
                 )
+                # modify_metadata returns a requests.Response; treat non-2xx as a hard error
+                # so CI fails loudly rather than silently skipping items.
+                if hasattr(response, "status_code") and not response.ok:
+                    print(
+                        f"  ERROR patching {identifier}: HTTP {response.status_code} — {response.text[:200]}",
+                        file=sys.stderr,
+                    )
+                    sys.exit(1)
             except Exception as e:
                 print(f"  ERROR patching {identifier}: {e}", file=sys.stderr)
-                continue
+                sys.exit(1)
         patched += 1
 
     if skipped_unreachable:
@@ -153,6 +164,11 @@ def verify(*, access_key: str | None = None, secret_key: str | None = None) -> b
     for identifier in identifiers:
         try:
             item = session.get_item(identifier)
+            # item.exists is False when the identifier has no files/metadata on IA.
+            # Treat non-existent items as skipped rather than untagged.
+            if not item.exists:
+                print(f"  SKIP (does not exist on IA): {identifier}")
+                continue
             meta = item.metadata or {}
         except Exception as e:
             print(f"  SKIP (unreachable: {e}): {identifier}", file=sys.stderr)
