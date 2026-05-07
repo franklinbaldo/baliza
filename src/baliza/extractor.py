@@ -126,9 +126,12 @@ class PNCPExtractor:
         # avoids 400s from over-asking. The legacy global PAGE_SIZE is
         # kept as the fallback for the curl path's URL string template.
         page_size = spec.fetch.max_page_size or PAGE_SIZE
+        # Date param names come from the spec — contratos/atas/publicacoes
+        # use dataInicial/dataFinal but PCA uses dataInicio/dataFim.
+        # Hardcoding either name 400s on the resource that uses the other.
         params: dict[str, str | int] = {
-            "dataInicial": start_str,
-            "dataFinal": end_str,
+            spec.fetch.date_param_start: start_str,
+            spec.fetch.date_param_end: end_str,
             "pagina": page,
             "tamanhoPagina": page_size,
         }
@@ -223,8 +226,10 @@ class PNCPExtractor:
         *, extra_params: dict[str, str | int] | None = None,
         page_size: int = PAGE_SIZE,
     ) -> dict[str, Any]:
+        spec = get_resource(resource)
         query = (
-            f"dataInicial={start_str}&dataFinal={end_str}"
+            f"{spec.fetch.date_param_start}={start_str}"
+            f"&{spec.fetch.date_param_end}={end_str}"
             f"&pagina={page}&tamanhoPagina={page_size}"
         )
         if extra_params:
