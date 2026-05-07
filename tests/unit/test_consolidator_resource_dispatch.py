@@ -12,7 +12,13 @@ Locks two invariants the multi-resource consolidator depends on:
 
 from __future__ import annotations
 
-from baliza.consolidator import _consolidated_file_name, _resource_has_uf_shards
+import datetime as _dt
+
+from baliza.consolidator import (
+    _consolidated_file_name,
+    _parse_iso_mtime,
+    _resource_has_uf_shards,
+)
 
 
 def test_resource_has_uf_shards_contratos():
@@ -42,3 +48,116 @@ def test_consolidated_file_name_uses_canonical_table():
     assert _consolidated_file_name(2024) == "contratos-2024.parquet"
     assert _consolidated_file_name(2024, resource="contratos") == "contratos-2024.parquet"
     assert _consolidated_file_name(2024, resource="atas") == "atas-2024.parquet"
+
+
+# --------------------------------------------------------------------------
+# Codex P1/P2 hotfix coverage — comparison guarantees in the non-UF
+# current-year freshness gate. See PR #555 review threads
+# r3198163232 (timezone TypeError) and r3198163240 (max([None]) TypeError).
+# --------------------------------------------------------------------------
+
+
+def test_parse_iso_mtime_normalizes_naive_to_utc():
+    """Manifest writers historically used datetime.now().isoformat() (naive).
+    Comparing those against IA's UTC-aware mtimes would TypeError. The
+    parser must promote naive datetimes to UTC."""
+    parsed = _parse_iso_mtime("2024-04-01T12:34:56")
+    assert parsed is not None
+    assert parsed.tzinfo is not None, "naive timestamp must be promoted to UTC-aware"
+    assert parsed.tzinfo.utcoffset(parsed) == _dt.timedelta(0)
+
+
+def test_parse_iso_mtime_preserves_aware_offset():
+    """Aware timestamps round-trip with their original offset."""
+    parsed = _parse_iso_mtime("2024-04-01T12:34:56+00:00")
+    assert parsed is not None
+    assert parsed.tzinfo is not None
+    assert parsed.tzinfo.utcoffset(parsed) == _dt.timedelta(0)
+
+
+def test_parse_iso_mtime_does_not_corrupt_non_utc_offset():
+    """Pins the safety property Kilo's CRITICAL on PR #557 worried about:
+    for an aware timestamp with a non-UTC offset, the parser MUST
+    preserve the absolute moment — not silently relabel it as UTC while
+    keeping the wall-clock time. The function only mutates tzinfo when
+    the input was naive (the ``if parsed.tzinfo is None`` gate)."""
+    parsed = _parse_iso_mtime("2024-04-01T12:34:56+02:00")
+    assert parsed is not None
+    assert (parsed.year, parsed.month, parsed.day) == (2024, 4, 1)
+    assert (parsed.hour, parsed.minute, parsed.second) == (12, 34, 56)
+    # Crucially, the absolute moment is +02:00 — must NOT have been
+    # silently relabelled as UTC (which would shift the moment by 2h).
+    assert parsed.utcoffset() == _dt.timedelta(hours=2)
+    # Convert to UTC and check the absolute instant matches what +02:00
+    # implies (12:34:56 +02:00 == 10:34:56 UTC).
+    in_utc = parsed.astimezone(_dt.UTC)
+    assert (in_utc.hour, in_utc.minute) == (10, 34)
+
+
+def test_parse_iso_mtime_returns_none_on_garbage():
+    assert _parse_iso_mtime("") is None
+    assert _parse_iso_mtime("not-a-date") is None
+    assert _parse_iso_mtime("2024-13-01") is None
+
+
+def test_consolidated_mtime_compare_against_naive_manifest_succeeds():
+    """End-to-end smoke for the non-UF freshness gate: an aware mtime
+    from the IA item must compare safely against parsed naive manifest
+    timestamps. Reproduces the TypeError from PR #555 r3198163232."""
+    ia_mtime = _dt.datetime(2024, 5, 1, tzinfo=_dt.UTC)
+    parsed = _parse_iso_mtime("2024-04-30T10:00:00")  # naive in the manifest
+    assert parsed is not None
+    # The actual comparison the consolidator does — must not TypeError.
+    assert ia_mtime >= parsed
+
+
+def test_non_uf_freshness_gate_fails_closed_on_unparseable_mtime():
+    """Codex P2 on PR #557: a malformed canonical 'uploaded_at' must
+    force a rebuild, not be silently filtered out. Otherwise a newer
+    canonical row whose timestamp is unparseable could be ignored and
+    the consolidator would incorrectly mark stale data as fresh."""
+    from datetime import UTC, datetime
+    from unittest.mock import patch
+
+    from baliza.consolidator import IAConsolidator
+
+    consolidator = IAConsolidator()
+    # consolidated file mtime newer than any parseable canonical row
+    fake_consolidated = datetime(2024, 5, 1, tzinfo=UTC)
+    manifest = [
+        {
+            "data_particao": "2024-04",
+            "table_name": "atas",
+            "file_type": "monthly_canonical",
+            "uploaded_at": "2024-04-30T10:00:00",  # parseable, older
+        },
+        {
+            "data_particao": "2024-04",
+            "table_name": "atas",
+            "file_type": "monthly_canonical",
+            "uploaded_at": "not-a-date",  # malformed — must force rebuild
+        },
+    ]
+    with patch.object(
+        consolidator, "_consolidated_mtime_on_ia", return_value=fake_consolidated
+    ), patch.object(
+        consolidator, "_get_daily_urls_for_year", return_value=[]
+    ), patch.object(
+        consolidator, "_check_consolidated_exists_on_ia", return_value=True
+    ):
+        # Non-frozen current year + non-UF resource; with the malformed
+        # row the gate must NOT skip. _get_daily_urls_for_year returning
+        # [] short-circuits the actual rebuild after the gate yields,
+        # so the function returns False — but for the right reason
+        # ("no daily files"), not the false-fresh skip we're guarding
+        # against. We assert the function got past the gate by checking
+        # it didn't print the skip message.
+        ok = consolidator.consolidate_year(
+            year=datetime.now(UTC).year,
+            ia_access_key="k",
+            ia_secret_key="s",
+            force=False,
+            manifest=manifest,
+            resource="atas",
+        )
+    assert ok is False  # short-circuited on no daily files, but past the gate

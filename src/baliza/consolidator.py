@@ -56,13 +56,29 @@ def _requires_httpfs(paths_or_urls: list[str]) -> bool:
 
 
 def _parse_iso_mtime(value: str) -> datetime.datetime | None:
-    """Parse an ISO 8601 uploaded_at string. Returns None when unparseable."""
+    """Parse an ISO 8601 uploaded_at string. Returns None when unparseable.
+
+    Manifest writers historically used ``datetime.now().isoformat()`` (naive),
+    while the consolidator's IA-mtime helper produces UTC-aware datetimes
+    from unix timestamps. Comparing the two would raise ``TypeError``; treat
+    naive manifest timestamps as UTC so freshness math stays well-defined.
+    """
     if not value:
         return None
     try:
-        return datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return None
+    if parsed.tzinfo is None:
+        # Naive only: declare the assumed zone. We deliberately use
+        # `replace(tzinfo=UTC)` (not `astimezone(UTC)`) because the
+        # input has no source offset — `astimezone` on a naive datetime
+        # would assume the runtime local zone and silently shift the
+        # moment, which is exactly the bug Kilo's roast describes.
+        # Aware datetimes (offset already known) skip this branch and
+        # round-trip unchanged; their absolute moment is preserved.
+        parsed = parsed.replace(tzinfo=datetime.UTC)
+    return parsed
 
 
 def _current_year_is_fresh(
@@ -278,23 +294,39 @@ class IAConsolidator:
             if not _resource_has_uf_shards(resource):
                 consolidated_mtime = self._consolidated_mtime_on_ia(year, resource=resource)
                 if consolidated_mtime is not None:
-                    newest_canonical = max(
-                        (
-                            _parse_iso_mtime(row.get("uploaded_at") or "")
-                            for row in shared_manifest
-                            if row.get("table_name") == resource
-                            and (row.get("data_particao") or "").startswith(str(year))
-                            and row.get("file_type", "") in ("", "monthly_canonical")
-                        ),
-                        default=None,
-                    )
-                    if newest_canonical is not None and consolidated_mtime >= newest_canonical:
-                        console.print(
-                            f"[dim]Skipping {resource}/{year}: consolidated annual file "
-                            f"({consolidated_mtime.isoformat()}) is at-or-after the newest "
-                            f"canonical upload ({newest_canonical.isoformat()}).[/dim]"
-                        )
-                        return False
+                    # Fail-closed on malformed canonical timestamps —
+                    # if any row's `uploaded_at` is unparseable we can't
+                    # tell whether it's older or newer than
+                    # ``consolidated_mtime``, so we must rebuild rather
+                    # than risk skipping past genuinely fresh data.
+                    # Mirrors the policy at line ~96 in
+                    # `_current_year_is_fresh` (Codex review on #557).
+                    canonical_mtimes: list[datetime.datetime] = []
+                    saw_unparseable = False
+                    for row in shared_manifest:
+                        if row.get("table_name") != resource:
+                            continue
+                        if not (row.get("data_particao") or "").startswith(str(year)):
+                            continue
+                        if row.get("file_type", "") not in ("", "monthly_canonical"):
+                            continue
+                        parsed = _parse_iso_mtime(row.get("uploaded_at") or "")
+                        if parsed is None:
+                            saw_unparseable = True
+                            break
+                        canonical_mtimes.append(parsed)
+                    if saw_unparseable:
+                        # Force rebuild rather than risk a false-fresh skip.
+                        pass
+                    elif canonical_mtimes:
+                        newest_canonical = max(canonical_mtimes)
+                        if consolidated_mtime >= newest_canonical:
+                            console.print(
+                                f"[dim]Skipping {resource}/{year}: consolidated annual file "
+                                f"({consolidated_mtime.isoformat()}) is at-or-after the newest "
+                                f"canonical upload ({newest_canonical.isoformat()}).[/dim]"
+                            )
+                            return False
 
         console.print(f"[cyan]Consolidating {resource}/{year}...[/cyan]")
 
