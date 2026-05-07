@@ -69,6 +69,30 @@ def restore_from_raw_zip(raw_zip_url: str, raw_month_dir: Path) -> bool:
 # `sort_key` / `bloom_filter_columns` are informational; `sha256` enables
 # integrity checks; `file_type` distinguishes canonical vs shard vs
 # supplemental rows.
+def _canonical_file_types(spec: Any) -> tuple[str, ...]:
+    """Set of ``file_type`` values that count as canonical for ``spec``.
+
+    Matches the resource's ``FrontendExposureSpec.canonical_file_types``
+    (default ``("", "monthly_canonical")``; PCA extends to include
+    ``"annual_canonical"``). Used by the manifest dedup paths so a
+    second sync replaces the prior canonical row instead of appending
+    a duplicate.
+    """
+    if not spec.frontend_exposures:
+        # Resources without an explicit exposure (none today) keep the
+        # historical default — empty string for v1 manifest rows plus
+        # the conventional monthly-canonical literal.
+        return ("", "monthly_canonical")
+    # Union the canonical_file_types declared by every exposure on the
+    # resource. Today every resource has exactly one exposure so this
+    # is just a tuple-cast, but unioning is the right semantics if a
+    # resource later declares multiple exposures.
+    seen: set[str] = set()
+    for exposure in spec.frontend_exposures:
+        seen.update(exposure.canonical_file_types)
+    return tuple(sorted(seen))
+
+
 _CONTRATOS_SORT_KEY = "cnpj_orgao,data_publicacao DESC,numero_controle_pncp"
 _CONTRATOS_BLOOM_FILTER_COLUMNS = (
     "cnpj_orgao|ni_fornecedor|codigo_ibge"  # dict-encoded columns DuckDB auto-blooms
@@ -441,12 +465,20 @@ class IAUploader:
                 f"https://archive.org/download/{RAW_ITEM_ID}/{raw_zip_filename(resource, month_str)}"
             )
 
+            # Match the canonical row for this resource — the
+            # accepted file_types come from the resource's
+            # FrontendExposureSpec.canonical_file_types so PCA
+            # (annual_canonical) doesn't collide with contratos /
+            # atas / publicacoes (monthly_canonical or empty).
+            spec = get_resource(resource)
+            canonical_types = _canonical_file_types(spec)
+
             existing_idx: int | None = None
             for i, row in enumerate(manifest):
                 if (
                     row.get("data_particao") == month_str
                     and row.get("table_name") == resource
-                    and row.get("file_type", "") in ("", "monthly_canonical")
+                    and row.get("file_type", "") in canonical_types
                 ):
                     existing_idx = i
                     break
@@ -465,7 +497,9 @@ class IAUploader:
                     "parquet_url": "",
                     "quarantine_url": "",
                     "uploaded_at": now,
-                    "file_type": "monthly_canonical",
+                    # PCA (annual) writes annual_canonical here;
+                    # everything else writes monthly_canonical.
+                    "file_type": primary_canonical_file_type(spec),
                     "uf_sigla": "",
                     "sort_key": _CONTRATOS_SORT_KEY,
                     "row_group_size": PARQUET_ROW_GROUP_SIZE,
@@ -937,15 +971,19 @@ class IAUploader:
             # partition). Manifest v2 allows multiple rows per partition
             # (monthly_uf shards, supplemental dailies, other resources);
             # blanket removal would silently drop their hash/size metadata.
-            # Empty/missing file_type is treated as canonical for v1
-            # backward compat (matches web's isCanonicalRow).
+            # The canonical-file-type set comes from the resource's
+            # FrontendExposureSpec — PCA's annual_canonical row gets
+            # replaced; contratos/atas/publicacoes' monthly_canonical
+            # rows do too (Codex P1 follow-up to the primary_canonical
+            # routing).
+            canonical_types = _canonical_file_types(spec)
             manifest = [
                 r
                 for r in manifest
                 if not (
                     r["data_particao"] == month_str
                     and r["table_name"] == resource
-                    and r.get("file_type", "") in ("", "monthly_canonical")
+                    and r.get("file_type", "") in canonical_types
                 )
             ]
             manifest.append(new_row)
