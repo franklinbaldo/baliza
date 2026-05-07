@@ -1,9 +1,9 @@
-"""Unit coverage for the partition_period helper introduced in Drift-D.
+"""Unit coverage for ``iter_partitions`` / ``partition_label`` (Drift-D).
 
 Pins the contract so PCA promotion (annual) can wire through without
 re-deriving the iteration shape; also pins the existing monthly shape
-so a refactor of mirror/builder to consume this helper is a no-op for
-contratos / atas.
+so a refactor of mirror/builder to consume these helpers is a no-op
+for contratos / atas.
 """
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from datetime import date
 import pytest
 
 from baliza.partitioning import iter_partitions, partition_label
-from baliza.resources import CONTRATOS, PCA
+from baliza.resources import CONTRATOS, PCA, PLANNED_RESOURCES, RESOURCES
 
 
 def test_monthly_yields_one_period_per_calendar_month():
@@ -87,3 +87,19 @@ def test_unsupported_strategy_raises():
         list(iter_partitions(fake, date(2024, 1, 1), date(2024, 1, 31)))
     with pytest.raises(ValueError, match="weekly"):
         partition_label(fake, date(2024, 1, 1))
+
+
+@pytest.mark.parametrize(
+    "resource", list({**RESOURCES, **PLANNED_RESOURCES}.values()),
+    ids=lambda r: r.resource_name,
+)
+def test_every_declared_resource_has_a_supported_strategy(resource):
+    """Smoke test: every resource (registered or planned) must round-trip
+    through the helper. Catches future ``partition_strategy`` typos at
+    import + test time instead of at the first PCA-style promotion."""
+    anchor = date(2024, 6, 15)
+    label = partition_label(resource, anchor)
+    assert label  # non-empty
+    periods = list(iter_partitions(resource, anchor, anchor))
+    assert len(periods) == 1
+    assert periods[0].label == label

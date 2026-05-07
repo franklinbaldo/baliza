@@ -18,9 +18,12 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 
 from .resources import PNCPResource
+from .resources.specs import PartitionStrategy
+
+_ONE_DAY = timedelta(days=1)
 
 
 @dataclass(frozen=True)
@@ -36,6 +39,13 @@ class PartitionPeriod:
     label: str
 
 
+def _unsupported_strategy(strategy: object, resource: PNCPResource) -> ValueError:
+    return ValueError(
+        f"unsupported partition_strategy {strategy!r} for "
+        f"resource {resource.resource_name!r}"
+    )
+
+
 def _next_month(d: date) -> date:
     return d.replace(year=d.year + 1, month=1, day=1) if d.month == 12 \
         else d.replace(month=d.month + 1, day=1)
@@ -44,9 +54,6 @@ def _next_month(d: date) -> date:
 def _last_day_of_month(d: date) -> date:
     nxt = _next_month(d.replace(day=1))
     return nxt.replace(day=1) - _ONE_DAY
-
-
-_ONE_DAY = (date(2000, 1, 2) - date(2000, 1, 1))
 
 
 def iter_partitions(
@@ -67,7 +74,7 @@ def iter_partitions(
             f"start {start.isoformat()} is after end {end.isoformat()}"
         )
     strategy = resource.raw_dataset.partition_strategy
-    if strategy == "monthly":
+    if strategy == PartitionStrategy.MONTHLY:
         cursor = start.replace(day=1)
         last = end.replace(day=1)
         while cursor <= last:
@@ -77,7 +84,7 @@ def iter_partitions(
                 label=cursor.strftime("%Y-%m"),
             )
             cursor = _next_month(cursor)
-    elif strategy == "annual":
+    elif strategy == PartitionStrategy.ANNUAL:
         cursor = date(start.year, 1, 1)
         while cursor.year <= end.year:
             yield PartitionPeriod(
@@ -87,20 +94,14 @@ def iter_partitions(
             )
             cursor = date(cursor.year + 1, 1, 1)
     else:
-        raise ValueError(
-            f"unsupported partition_strategy {strategy!r} for "
-            f"resource {resource.resource_name!r}"
-        )
+        raise _unsupported_strategy(strategy, resource)
 
 
 def partition_label(resource: PNCPResource, anchor: date) -> str:
     """The ``data_particao`` label for the partition containing ``anchor``."""
     strategy = resource.raw_dataset.partition_strategy
-    if strategy == "monthly":
+    if strategy == PartitionStrategy.MONTHLY:
         return anchor.strftime("%Y-%m")
-    if strategy == "annual":
+    if strategy == PartitionStrategy.ANNUAL:
         return str(anchor.year)
-    raise ValueError(
-        f"unsupported partition_strategy {strategy!r} for "
-        f"resource {resource.resource_name!r}"
-    )
+    raise _unsupported_strategy(strategy, resource)
