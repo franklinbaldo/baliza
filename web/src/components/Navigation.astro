@@ -14,6 +14,8 @@ const isActive = (path: string) => {
 const cleanPath = pathname.replace(/\/$/, '') || '/';
 const cityPrefix = (BASE + 'municipio').replace(/\/$/, '');
 const isCityActive = cleanPath === cityPrefix;
+const monitorPaths = ['atas', 'dispensas', 'publicacoes'].map(p => (BASE + p).replace(/\/$/, ''));
+const isMonitorActive = monitorPaths.some(p => cleanPath === p);
 ---
 
 <nav class="container">
@@ -39,17 +41,25 @@ const isCityActive = cleanPath === cityPrefix;
       </details>
     </li>
     <li>
-      <a href={BASE + 'atas'} aria-current={isActive(BASE + 'atas') ? 'page' : undefined}>
-        <Icon name="document" /> Atas
-      </a>
+      <details role="list">
+        <summary aria-haspopup="listbox" aria-current={isMonitorActive ? 'page' : undefined}>
+          <Icon name="document" /> Monitorar
+        </summary>
+        <ul role="listbox">
+          <li><a href={BASE + 'atas'} aria-current={isActive(BASE + 'atas') ? 'page' : undefined}><Icon name="document" /> Atas de preços</a></li>
+          <li><a href={BASE + 'dispensas'} aria-current={isActive(BASE + 'dispensas') ? 'page' : undefined}><Icon name="warning" /> Dispensas e inexigibilidades</a></li>
+          <li><a href={BASE + 'publicacoes'} aria-current={isActive(BASE + 'publicacoes') ? 'page' : undefined}><Icon name="signal" /> Publicações abertas</a></li>
+        </ul>
+      </details>
     </li>
     <li>
       <details role="list" dir="rtl">
-        <summary aria-haspopup="listbox"><Icon name="database" /> Dados Abertos</summary>
+        <summary aria-haspopup="listbox"><Icon name="database" /> Dados & Dev</summary>
         <ul role="listbox">
           <li><a href={BASE + 'explorador'}><Icon name="code" /> Explorador SQL</a></li>
           <li><a href={BASE + 'desenvolvedores'}><Icon name="code" /> Devs & API</a></li>
-          <li><a href={BASE + 'status'}><Icon name="signal" /> Status do Arquivo</a></li>
+          <li><a href={BASE + 'arquivo'}><Icon name="archive" /> Arquivo</a></li>
+          <li><a href={BASE + 'status'}><Icon name="signal" /> Status</a></li>
         </ul>
       </details>
     </li>

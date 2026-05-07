@@ -35,28 +35,28 @@ const TOOLS: Array<{
     href: resolve('atas'),
   },
   {
-    label: 'Explorador SQL (Beta)',
-    blurb: 'Consultas abertas sobre os Parquets arquivados, direto no navegador.',
+    label: 'Explorador SQL',
+    blurb: 'Faça perguntas livres sobre os dados arquivados — tudo roda no seu navegador, sem conta.',
     href: resolve('explorador'),
   },
   {
-    label: 'Arquivo Internet Archive',
-    blurb: 'Catálogo completo: todos os itens Baliza com URL estável e citável.',
+    label: 'Arquivo de snapshots',
+    blurb: 'Catálogo completo com URL estável e citável para cada dia de dados preservados.',
     href: resolve('arquivo'),
   },
   {
     label: 'Para desenvolvedores',
-    blurb: 'URLs estáveis em Python, R e JS — sem chave de API.',
+    blurb: 'Acesse os dados via Python, R ou JS — sem chave de API, sem cadastro.',
     href: resolve('desenvolvedores'),
   },
   {
-    label: 'Status do arquivo',
-    blurb: 'Última sincronização com o PNCP e o Internet Archive.',
+    label: 'Status da atualização',
+    blurb: 'Veja quando os dados foram sincronizados pela última vez com o PNCP.',
     href: resolve('status'),
   },
   {
-    label: 'Datasets Parquet',
-    blurb: 'Manifesto CSV com partição, URL e hash no Internet Archive.',
+    label: 'Baixar datasets',
+    blurb: 'Manifesto com todos os arquivos Parquet: partição, URL e hash de integridade.',
     href: IA_MANIFEST_URL,
     external: true,
   },
@@ -64,8 +64,8 @@ const TOOLS: Array<{
 ---
 
 <Layout
-  title="Baliza — arquivo de contratações públicas brasileiras"
-  description="Baliza: atlas de quatro recursos do PNCP — PCA, Publicações, Atas e Contratos — preservado diariamente no Internet Archive com snapshots citáveis e SQL aberto no navegador."
+  title="Baliza — O que sua cidade está comprando?"
+  description="Baliza monitora as contratações públicas do PNCP: quem contratou, quanto pagou, quais fornecedores se repetem, e onde há dispensas sem concorrência. Dados verificáveis, arquivados diariamente."
 >
   <!-- 1. Hero: city-first. Defaults to Porto Velho, RO until the visitor picks. -->
   <CityHero client:load />
@@ -104,9 +104,9 @@ const TOOLS: Array<{
   <!-- 7. Utilidades avançadas. -->
   <section aria-labelledby="tools-title">
     <hgroup>
-      <p class="eyebrow">Explorar o arquivo</p>
-      <h2 id="tools-title">Entradas no atlas</h2>
-      <p>Recursos, análises e dados brutos disponíveis agora.</p>
+      <p class="eyebrow">Mais ferramentas</p>
+      <h2 id="tools-title">Por onde entrar</h2>
+      <p>Cada porta leva a uma fatia diferente dos dados — escolha a que faz sentido para você.</p>
     </hgroup>
     <div class="grid">
       {TOOLS.map((tool) => (
