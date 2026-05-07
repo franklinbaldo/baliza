@@ -60,20 +60,38 @@ jobs:
         if: github.event_name == 'pull_request'
         run: echo "BALIZA_MANIFEST_FIXTURE=${{ github.workspace }}/web/fixtures/manifest.csv" >> $GITHUB_ENV
 
+      # Cache the last build's sync_stats.json so a Pages-down + IA-
+      # down deploy still ships real numbers from the last successful
+      # run instead of falling back to a zero baseline (Codex P1).
+      # Cache hits are restored *before* the Pages-restore step so the
+      # latter, when it succeeds, overwrites with the freshest source-
+      # of-truth (the deployed file).
+      - name: Restore cached sync_stats.json
+        uses: actions/cache@v5
+        with:
+          path: web/public/data/sync_stats.json
+          key: sync-stats-${{ github.run_id }}
+          restore-keys: |
+            sync-stats-
+
       # The live Pages deploy is the source of truth for "last
       # published stats". Pull it down so build_sync_stats.py's
       # "leave existing file untouched on IA failure" path preserves
       # real numbers across a transient IA outage instead of
       # publishing zeros (Codex P1). 404 on first deploy is expected
-      # — the baseline step that runs next handles that case.
+      # — the cache restore (above) and the baseline step (below)
+      # together handle that case. On curl failure we leave whatever
+      # the cache restored alone (the `|| true` swallows curl's
+      # non-zero exit without overwriting the cached file).
       - name: Restore last published sync_stats.json (best-effort)
         run: |
           mkdir -p web/public/data
           curl --silent --show-error --location --fail \
             --max-time 30 \
-            -o web/public/data/sync_stats.json \
+            -o web/public/data/sync_stats.json.fresh \
             https://franklinbaldo.github.io/baliza/data/sync_stats.json \
-            || rm -f web/public/data/sync_stats.json
+            && mv web/public/data/sync_stats.json.fresh web/public/data/sync_stats.json \
+            || rm -f web/public/data/sync_stats.json.fresh
 
       # ``src/pages/index.astro`` static-imports
       # ``web/public/data/sync_stats.json``; that file is now build-time-
