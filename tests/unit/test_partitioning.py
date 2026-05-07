@@ -11,7 +11,15 @@ from datetime import date
 
 import pytest
 
-from baliza.partitioning import iter_partitions, partition_label
+from baliza.partitioning import (
+    clamp_to_data_start,
+    current_partition_start,
+    iter_partitions,
+    parse_partition_label,
+    partition_for,
+    partition_label,
+    previous_partition_start,
+)
 from baliza.resources import CONTRATOS, PCA, PLANNED_RESOURCES, RESOURCES
 
 
@@ -87,6 +95,54 @@ def test_unsupported_strategy_raises():
         list(iter_partitions(fake, date(2024, 1, 1), date(2024, 1, 31)))
     with pytest.raises(ValueError, match="weekly"):
         partition_label(fake, date(2024, 1, 1))
+
+
+def test_parse_partition_label_round_trips_through_partition_label():
+    """``parse_partition_label`` is the inverse of ``partition_label``."""
+    anchor = date(2024, 7, 15)
+    assert parse_partition_label(CONTRATOS, partition_label(CONTRATOS, anchor)) == date(2024, 7, 1)
+    assert parse_partition_label(PCA, partition_label(PCA, anchor)) == date(2024, 1, 1)
+
+
+def test_parse_partition_label_rejects_wrong_shape():
+    """A YYYY-MM label on an annual resource (or vice versa) returns
+    None so callers can skip rather than misinterpret the row."""
+    assert parse_partition_label(PCA, "2024-07") is None
+    assert parse_partition_label(CONTRATOS, "2024") is None
+    assert parse_partition_label(CONTRATOS, "garbage") is None
+    assert parse_partition_label(PCA, "garbage") is None
+
+
+def test_current_and_previous_partition_start():
+    anchor = date(2024, 7, 15)
+    assert current_partition_start(CONTRATOS, anchor) == date(2024, 7, 1)
+    assert previous_partition_start(CONTRATOS, anchor) == date(2024, 6, 1)
+    assert current_partition_start(PCA, anchor) == date(2024, 1, 1)
+    assert previous_partition_start(PCA, anchor) == date(2023, 1, 1)
+    # Year-boundary: previous of January monthly = December of previous year.
+    assert previous_partition_start(CONTRATOS, date(2024, 1, 10)) == date(2023, 12, 1)
+
+
+def test_clamp_to_data_start_respects_resource_floor():
+    # CONTRATOS data_start = 2021-09-06: pre-floor request clamps to
+    # the floor's partition start; post-floor request normalizes to
+    # its own partition start.
+    assert clamp_to_data_start(CONTRATOS, date(2020, 1, 15)) == date(2021, 9, 1)
+    assert clamp_to_data_start(CONTRATOS, date(2024, 7, 15)) == date(2024, 7, 1)
+    # PCA's data_start is None → no floor; request normalizes to
+    # partition start (annual = Jan 1).
+    assert clamp_to_data_start(PCA, date(2024, 7, 15)) == date(2024, 1, 1)
+
+
+def test_partition_for_returns_period_containing_anchor():
+    monthly = partition_for(CONTRATOS, date(2024, 2, 17))
+    assert (monthly.start, monthly.end, monthly.label) == (
+        date(2024, 2, 1), date(2024, 2, 29), "2024-02",
+    )
+    annual = partition_for(PCA, date(2024, 2, 17))
+    assert (annual.start, annual.end, annual.label) == (
+        date(2024, 1, 1), date(2024, 12, 31), "2024",
+    )
 
 
 @pytest.mark.parametrize(

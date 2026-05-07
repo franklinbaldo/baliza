@@ -8,15 +8,22 @@ from one URL: archive.org/details/baliza-pncp-raw
 from __future__ import annotations
 
 import json
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from pathlib import Path
 
 import structlog
 
-from .constants import RESOURCE_CONTRATOS, clamp_to_known_data_start_month
+from .constants import RESOURCE_CONTRATOS
 from .extractor import FETCHED_SENTINEL, PNCPExtractor, _validate_resource
 from .ia_uploader import IAUploader, read_manifest_from_ia
-from .resources import first_page_filename, page_filename
+from .partitioning import (
+    clamp_to_data_start,
+    current_partition_start,
+    iter_partitions,
+    partition_for,
+    previous_partition_start,
+)
+from .resources import first_page_filename, get_resource, page_filename
 
 logger = structlog.get_logger()
 
@@ -27,15 +34,26 @@ def _pending_mirror_months(
     *,
     resource: str = RESOURCE_CONTRATOS,
 ) -> list[date]:
-    """Return months to mirror, newest-first.
+    """Return partition start-dates to mirror, newest-first.
 
-    Past months are included only when they have no raw_zip_url in the manifest.
-    The current month is always included — its ZIP grows daily as new pages arrive.
+    Past partitions are included only when they have no ``raw_zip_url``
+    in the manifest. The current partition is always included — its ZIP
+    grows daily (monthly resources) or as new annual updates land.
+
+    Drift-D wiring: iteration now goes through ``iter_partitions``
+    instead of hardcoding ``relativedelta(months=1)`` steps. Behavior
+    is byte-identical for monthly resources; annual resources (PCA
+    once promoted) walk one period per calendar year automatically.
+    The historical ``_months`` name is kept to avoid churn at every
+    call site — the function returns partition starts regardless of
+    cadence.
     """
     raw_manifest = read_manifest_from_ia()  # strict: raises ManifestReadError on failure
-    # A past month is "done" when it has a non-empty raw_zip_url for the
-    # selected resource. Without the table_name filter, contratos rows
-    # would mark months as mirrored and skip the atas backfill entirely.
+    resource_obj = get_resource(resource)
+    # A past partition is "done" when it has a non-empty raw_zip_url
+    # for the selected resource. Without the table_name filter,
+    # contratos rows would mark partitions as mirrored and skip the
+    # atas backfill entirely.
     mirrored: set[str] = {
         row["data_particao"]
         for row in raw_manifest
@@ -44,25 +62,21 @@ def _pending_mirror_months(
         and row.get("table_name") == resource
     }
 
-    today = date.today()
-    current_month = today.replace(day=1)
-    last_complete_month = (current_month - timedelta(days=1)).replace(day=1)
-    start = clamp_to_known_data_start_month(resource, start_date)
+    current = current_partition_start(resource_obj)
+    last_complete = previous_partition_start(resource_obj)
+    start = clamp_to_data_start(resource_obj, start_date)
 
     pending: list[date] = []
 
-    # Past months: only if not yet mirrored
-    curr = start
-    while curr <= last_complete_month:
-        if curr.strftime("%Y-%m") not in mirrored:
-            pending.append(curr)
-        if curr.month == 12:
-            curr = curr.replace(year=curr.year + 1, month=1)
-        else:
-            curr = curr.replace(month=curr.month + 1)
+    # Past partitions: only if not yet mirrored. iter_partitions
+    # consults the resource's PartitionStrategy for the step size.
+    if start <= last_complete:
+        for period in iter_partitions(resource_obj, start, last_complete):
+            if period.label not in mirrored:
+                pending.append(period.start)
 
-    # Current month: always include (daily incremental updates)
-    pending.append(current_month)
+    # Current partition: always include (incremental updates).
+    pending.append(current)
 
     pending.sort(reverse=True)
     return pending[:batch_size] if batch_size else pending
@@ -98,18 +112,21 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
     Returns:
         Dict with keys: ``month``, ``pages_fetched``, ``pages_cached``, ``uploaded``.
     """
-    if is_current_month is None:
-        is_current_month = start_of_month == date.today().replace(day=1)
     _validate_resource(resource)
+    resource_obj = get_resource(resource)
 
-    month_str = start_of_month.strftime("%Y-%m")
-    if start_of_month.month == 12:
-        next_month = start_of_month.replace(year=start_of_month.year + 1, month=1)
-    else:
-        next_month = start_of_month.replace(month=start_of_month.month + 1)
-    end_of_month = next_month - timedelta(days=1)
+    # Drift-D wiring: partition window comes from the resource's
+    # PartitionStrategy. For monthly the period is one calendar
+    # month (identical to the legacy strftime/relativedelta math);
+    # for annual it spans Jan 1 .. Dec 31 of the year automatically.
+    period = partition_for(resource_obj, start_of_month)
+    month_str = period.label  # kept the variable name for diff hygiene
+    end_of_month = period.end
 
-    month_start_dt = datetime.combine(start_of_month, datetime.min.time())
+    if is_current_month is None:
+        is_current_month = period.start == current_partition_start(resource_obj)
+
+    month_start_dt = datetime.combine(period.start, datetime.min.time())
     month_end_dt = datetime.combine(end_of_month, datetime.min.time())
 
     raw_month_dir = Path("data/raw") / month_str
