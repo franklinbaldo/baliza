@@ -58,8 +58,14 @@ def iter_partitions(
     Monthly resources yield one period per calendar month; annual
     resources yield one period per calendar year. Unknown strategies
     raise so a misconfigured resource can't silently fall back to
-    monthly.
+    monthly. A reversed range (``start > end``) raises too — both
+    branches normalize boundaries, so a swap can land inside the same
+    partition and silently yield one period, masking a caller bug.
     """
+    if start > end:
+        raise ValueError(
+            f"start {start.isoformat()} is after end {end.isoformat()}"
+        )
     strategy = resource.raw_dataset.partition_strategy
     if strategy == "monthly":
         cursor = start.replace(day=1)

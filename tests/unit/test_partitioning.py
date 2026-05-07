@@ -57,6 +57,16 @@ def test_partition_label_monthly_and_annual():
     assert partition_label(PCA, date(2024, 7, 15)) == "2024"
 
 
+def test_reversed_range_raises():
+    """Codex P2: a swapped range silently yielded one period inside the
+    same month/year because both branches normalize boundaries. Surface
+    the caller bug instead."""
+    with pytest.raises(ValueError, match="after end"):
+        list(iter_partitions(CONTRATOS, date(2024, 6, 20), date(2024, 6, 10)))
+    with pytest.raises(ValueError, match="after end"):
+        list(iter_partitions(PCA, date(2025, 1, 1), date(2024, 12, 31)))
+
+
 def test_unsupported_strategy_raises():
     bogus = type(CONTRATOS.raw_dataset)(
         ia_item_id=CONTRATOS.raw_dataset.ia_item_id,
