@@ -21,6 +21,7 @@ RESOURCES: dict[str, PNCPResource] = {
     CONTRATOS.name: CONTRATOS,
     ATAS.name: ATAS,
     PUBLICACOES.name: PUBLICACOES,
+    PCA.name: PCA,
 }
 
 # Resources that have been declared in code with their fetch/canonical
@@ -34,9 +35,7 @@ RESOURCES: dict[str, PNCPResource] = {
 #     the backend pipeline trying to ingest them;
 #   * promoting one to ``RESOURCES`` is a single-line move plus the
 #     missing TODOs being closed in their respective modules.
-PLANNED_RESOURCES: dict[str, PNCPResource] = {
-    PCA.name: PCA,
-}
+PLANNED_RESOURCES: dict[str, PNCPResource] = {}
 
 
 def get_resource(name: str) -> PNCPResource:

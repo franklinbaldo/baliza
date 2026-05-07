@@ -30,13 +30,14 @@ from baliza.resources import (
 )
 
 
-def test_registered_resources_include_publicacoes():
-    """publicacoes promotion (issue #568) — moved out of PLANNED."""
-    assert set(RESOURCES) == {"contratos", "atas", "publicacoes"}
+def test_registered_resources_includes_all_four():
+    """publicacoes (#568) and pca (#569) both promoted out of PLANNED."""
+    assert set(RESOURCES) == {"contratos", "atas", "publicacoes", "pca"}
 
 
-def test_planned_resources_are_pca_only():
-    assert set(PLANNED_RESOURCES) == {"pca"}
+def test_planned_resources_is_empty_after_pca_promotion():
+    """All originally-planned resources have shipped."""
+    assert PLANNED_RESOURCES == {}
 
 
 def test_planned_resources_do_not_overlap_with_registered():
@@ -103,14 +104,13 @@ def test_per_page_filenames_are_resource_scoped():
     assert page_filename("contratos", 1) != page_filename("publicacoes", 1)
 
 
-def test_get_resource_only_returns_registered_resources():
+def test_get_resource_returns_all_registered():
     assert get_resource("contratos") is CONTRATOS
     assert get_resource("atas") is ATAS
     assert get_resource("publicacoes") is PUBLICACOES
-    # PCA is still planned — the registry refuses to address it
-    # so the extractor / mirror can't be invoked on an unfinished spec.
+    assert get_resource("pca") is PCA
     with pytest.raises(ValueError, match="unknown resource"):
-        get_resource("pca")
+        get_resource("not_a_resource")
 
 
 def test_publicacoes_endpoint_is_contratacoes_publicacao():

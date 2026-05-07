@@ -20,17 +20,18 @@ from baliza.resources import PCA, PLANNED_RESOURCES, RESOURCES
 
 
 def _annual_resource_fixture() -> None:
-    """Promote PCA into RESOURCES for the duration of the test.
+    """No-op: PCA is now an active resource (#569 promotion).
 
-    Without this, the helpers' ``get_resource(name)`` lookup raises
-    on ``pca`` (it lives in PLANNED_RESOURCES). We don't want to
-    actually promote PCA in this PR — just exercise the wiring.
+    Earlier versions of this test promoted PCA into RESOURCES for the
+    duration of the test and popped it after — needed because PCA
+    lived in PLANNED_RESOURCES. After the promotion the helpers are
+    no-ops, kept so the test bodies read the same as the pre-promotion
+    versions.
     """
-    RESOURCES[PCA.name] = PCA
 
 
 def _annual_resource_unpromote() -> None:
-    RESOURCES.pop(PCA.name, None)
+    """No-op — see _annual_resource_fixture."""
 
 
 def test_pending_mirror_months_walks_annual_partitions(monkeypatch):

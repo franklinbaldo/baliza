@@ -197,10 +197,46 @@ export interface ArchivedPublicacao {
   usuario_nome: string | null;
 }
 
+export interface ArchivedPca {
+  // Composite PK on the canonical table — these two columns together
+  // identify a single PCA item.
+  id_pca_pncp: string;
+  numero_item: number;
+  // Parent fields denormalized onto every item row.
+  ano_pca: number | null;
+  cnpj_orgao: string | null;
+  razao_social_orgao: string | null;
+  codigo_unidade: string | null;
+  nome_unidade: string | null;
+  data_publicacao_pncp: string | null;
+  data_atualizacao_global: string | null;
+  // Item fields.
+  codigo_item: string | null;
+  descricao_item: string | null;
+  unidade_requisitante: string | null;
+  unidade_fornecimento: string | null;
+  quantidade_estimada: number | null;
+  valor_unitario: number | null;
+  valor_total: number | null;
+  valor_orcamento_exercicio: number | null;
+  data_desejada: string | null;
+  data_inclusao_item: string | null;
+  data_atualizacao_item: string | null;
+  pdm_codigo: string | null;
+  pdm_descricao: string | null;
+  classificacao_superior_codigo: string | null;
+  classificacao_superior_nome: string | null;
+  classificacao_catalogo_id: number | null;
+  nome_classificacao_catalogo: string | null;
+  grupo_contratacao_codigo: string | null;
+  grupo_contratacao_nome: string | null;
+}
+
 export interface ArchivedTableRowMap {
   contratos: ArchivedContrato;
   atas: ArchivedAta;
   publicacoes: ArchivedPublicacao;
+  pca: ArchivedPca;
   orgaos: ArchivedOrgao;
   unidades: ArchivedUnidade;
   fornecedores: ArchivedFornecedor;
