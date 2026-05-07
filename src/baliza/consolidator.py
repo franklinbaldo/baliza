@@ -260,7 +260,7 @@ class IAConsolidator:
                 return None
         return None
 
-    def consolidate_year(  # noqa: PLR0912, PLR0913, PLR0915
+    def consolidate_year(  # noqa: PLR0911, PLR0912, PLR0913, PLR0915
         self,
         year: int,
         ia_access_key: str,
