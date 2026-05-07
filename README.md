@@ -13,7 +13,7 @@ PNCP archive: PCA → Publicações → Atas → Contratos → Itens. The
 architectural contract for each resource lives in
 [`web/features/pncp-resource-atlas.feature`](web/features/pncp-resource-atlas.feature),
 the strategic framing in [`VISION.md`](VISION.md), and the promotion
-roadmap in [`docs/plans/resource-atlas-roadmap.md`](docs/plans/resource-atlas-roadmap.md).
+roadmap in [`docs/plans/pncp-resource-pipeline.md`](docs/plans/pncp-resource-pipeline.md).
 
 Who Baliza serves and which problem it solves for each persona is documented in [`VISION.md`](VISION.md) — including the seven canonical user journeys (B2G supplier, public buyer, journalist, citizen, researcher, developer, auditor), the prioritization principle, and the explicit non-goals. The journeys are mirrored as an executable specification under [`web/features/journeys/`](web/features/journeys/); component-level behaviors live in [`web/features/`](web/features/). Red scenarios are intentional: each one is a backlog item. Run `npm run test:bdd:report` (from `web/`) for the current green/wip/planned breakdown.
 
