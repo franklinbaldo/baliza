@@ -60,12 +60,29 @@ jobs:
         if: github.event_name == 'pull_request'
         run: echo "BALIZA_MANIFEST_FIXTURE=${{ github.workspace }}/web/fixtures/manifest.csv" >> $GITHUB_ENV
 
+      # The live Pages deploy is the source of truth for "last
+      # published stats". Pull it down so build_sync_stats.py's
+      # "leave existing file untouched on IA failure" path preserves
+      # real numbers across a transient IA outage instead of
+      # publishing zeros (Codex P1). 404 on first deploy is expected
+      # — the baseline step that runs next handles that case.
+      - name: Restore last published sync_stats.json (best-effort)
+        run: |
+          mkdir -p web/public/data
+          curl --silent --show-error --location --fail \
+            --max-time 30 \
+            -o web/public/data/sync_stats.json \
+            https://franklinbaldo.github.io/baliza/data/sync_stats.json \
+            || rm -f web/public/data/sync_stats.json
+
       # ``src/pages/index.astro`` static-imports
       # ``web/public/data/sync_stats.json``; that file is now build-time-
       # only (gitignored), so we have to materialize it BEFORE
-      # ``astro check`` runs in the Lint & Check step. ``npm run build``
-      # will regenerate it later — this is just a cheap pre-pass so the
-      # type checker can resolve the import.
+      # ``astro check`` runs in the Lint & Check step. The script
+      # refreshes from the live IA manifest when reachable, otherwise
+      # leaves the file restored from the previous deploy untouched
+      # (or writes a zero baseline if neither source is reachable —
+      # only happens on the very first deploy of a fresh project).
       - name: Generate sync_stats.json baseline
         run: uv run python scripts/build_sync_stats.py
 
