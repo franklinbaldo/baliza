@@ -54,8 +54,12 @@ def _already_tagged(item_metadata: dict) -> bool:
     return BALIZA_COLLECTION_TAG in subjects
 
 
-def _discover_identifiers(session: ia.Session) -> list[str]:
-    """Return all Baliza IA item identifiers: stable items + discovered partitions."""
+def _discover_identifiers(session: ia.Session, *, strict: bool = False) -> list[str]:
+    """Return all Baliza IA item identifiers: stable items + discovered partitions.
+
+    When *strict* is True (used by --verify), a search failure is re-raised so
+    the caller cannot silently pass while skipping all partition items.
+    """
     discovered: set[str] = set(BALIZA_KNOWN_STABLE_ITEMS)
     try:
         results = session.search_items(
@@ -68,6 +72,8 @@ def _discover_identifiers(session: ia.Session) -> list[str]:
                 discovered.add(ident)
         print(f"IA search returned {len(discovered)} item(s) total.")
     except Exception as e:
+        if strict:
+            raise RuntimeError(f"IA search failed in strict/verify mode: {e}") from e
         print(f"WARNING: IA search failed ({e}); using known-items list only.", file=sys.stderr)
     return sorted(discovered)
 
@@ -154,7 +160,7 @@ def verify(*, access_key: str | None = None, secret_key: str | None = None) -> b
         config = {"s3": {"access": access_key, "secret": secret_key}}
 
     session = ia.get_session(config=config)
-    identifiers = _discover_identifiers(session)
+    identifiers = _discover_identifiers(session, strict=True)
 
     if not identifiers:
         print("WARNING: no Baliza items found — IA may be unreachable; treating as pass.")
