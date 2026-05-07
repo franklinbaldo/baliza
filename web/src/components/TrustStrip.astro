@@ -7,20 +7,20 @@ const PILLARS = [
   {
     kicker: 'Arquivo',
     iconKind: 'archive' as const,
-    title: 'Snapshots diários no Internet Archive',
-    body: 'Cada dia de contratações vira um Parquet aberto fora do alcance de qualquer servidor único. Mesmo que o PNCP saia do ar, o dia de ontem segue consultável.',
+    title: 'Cada número pode ser conferido e citado depois',
+    body: 'Contratações são arquivadas diariamente fora do PNCP. Mesmo que o portal saia do ar, o registro de ontem segue acessível — em formato aberto, sem depender de nenhum servidor nosso.',
     cta: { label: 'Metodologia', href: 'sobre' },
   },
   {
     kicker: '🔗 Citação',
-    title: 'Links estáveis e hashes verificáveis',
-    body: 'Todo contrato tem permalink Baliza com hash do snapshot. O link que você compartilha hoje reproduz a mesma evidência amanhã.',
+    title: 'Todo contrato tem um link permanente',
+    body: 'O link que você compartilha hoje mostra a mesma evidência amanhã. Cada snapshot carrega uma impressão digital (hash) que confirma que nada foi alterado.',
     cta: { label: 'Desenvolvedores', href: 'desenvolvedores' },
   },
   {
-    kicker: '🦆 Análise',
-    title: 'SQL aberto direto no navegador',
-    body: 'Consultas completas rodam no seu navegador via DuckDB WASM. Nada passa por um backend nosso — sua análise é privada e reprodutível.',
+    kicker: '🔒 Privacidade',
+    title: 'Sua análise não passa por nenhum servidor nosso',
+    body: 'As consultas rodam inteiramente no seu navegador. Não coletamos o que você pesquisa — seus filtros e perguntas ficam só com você.',
     cta: { label: 'Explorador SQL', href: 'explorador' },
   },
 ];
@@ -28,8 +28,8 @@ const PILLARS = [
 
 <section aria-labelledby="trust-title">
   <hgroup>
-    <small>✨ Por que Baliza é diferente</small>
-    <h2 id="trust-title">Arquivo permanente, citação estável, análise sem servidor</h2>
+    <small>Por que você pode confiar nos números</small>
+    <h2 id="trust-title">Transparência com recibo</h2>
   </hgroup>
 
   <div class="grid">
