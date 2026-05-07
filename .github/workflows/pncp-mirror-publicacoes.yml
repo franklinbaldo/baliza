@@ -13,11 +13,6 @@ on:
         description: 'Oldest date to mirror (YYYY-MM-DD)'
         required: false
         default: '2023-01-01'
-      no_consolidate:
-        description: 'Skip end-of-run annual consolidation'
-        required: false
-        type: boolean
-        default: false
 
 concurrency:
   group: ${{ github.event_name == 'schedule' && 'pncp-mirror-publicacoes-schedule' || format('pncp-mirror-publicacoes-dispatch-{0}', github.run_id) }}
@@ -65,9 +60,6 @@ jobs:
           build_args=(--resource publicacoes)
           if [[ -n "${{ inputs.start_date }}" ]]; then
             build_args+=(--start-date "${{ inputs.start_date }}")
-          fi
-          if [[ "${{ inputs.no_consolidate }}" == "true" ]]; then
-            build_args+=(--no-consolidate)
           fi
           uv run baliza build "${build_args[@]}"
 
