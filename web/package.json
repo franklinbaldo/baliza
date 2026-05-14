@@ -30,7 +30,7 @@
     "astro": "^6.2.1",
     "csv-parse": "^6.2.1",
     "papaparse": "^5.4.1",
-    "svelte": "^5.55.5",
+    "svelte": "^5.55.7",
     "zod": "^4.4.2"
   },
   "devDependencies": {
