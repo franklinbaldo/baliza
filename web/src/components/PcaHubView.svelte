@@ -201,7 +201,14 @@
             <tbody>
               {#each anoRows as row (row.ano_pca)}
                 <tr>
-                  <td>{row.ano_pca}</td>
+                  <td>
+                    <a
+                      data-testid="pncp-portal-link"
+                      href={`https://pncp.gov.br/app/pca?anoPca=${row.ano_pca}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >{row.ano_pca}<span aria-hidden="true"> ↗</span></a>
+                  </td>
                   <td class="num">{formatInteger(row.n)}</td>
                   <td class="num">{formatBRL(row.valor_total)}</td>
                 </tr>

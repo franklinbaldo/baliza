@@ -10,7 +10,7 @@ Feature: PCA — planned demand by CATMAT/CATSER code
 
   Rule: PCA is presented as planned demand, never as contracted fact
 
-    @wip
+    @green
     Scenario: A PCA detail page warns the reader that the data is intent
       Given the user opens a PCA item detail page
       Then the page carries a banner warning
@@ -22,14 +22,14 @@ Feature: PCA — planned demand by CATMAT/CATSER code
 
   Rule: A user can pivot from a CATMAT code to its planned demand
 
-    @wip
+    @green
     Scenario: The CATMAT search results page links to the PCA listing
       Given the user typed a CATMAT/CATSER code into the search box
       When the search resolves to a known code
       Then the result card includes a link "Ver demanda planejada (PCA)"
       And clicking it lands on `/pca?codigo=<code>`
 
-    @wip
+    @green
     Scenario: The PCA listing groups planned items by year
       Given the route `/pca?codigo=7510` is opened
       When the data is loaded
