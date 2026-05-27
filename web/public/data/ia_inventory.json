@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-27T00:45:00Z",
+  "generated_at": "2026-05-27T10:02:53Z",
   "items": [
     {
       "identifier": "baliza-pncp-2021-09",
@@ -722,6 +722,18 @@
       "group": "annual_canonical"
     },
     {
+      "identifier": "baliza-pncp-feeds",
+      "title": "Baliza PNCP \u2014 Curated RSS feeds",
+      "description": "RSS 2.0 feeds for curated public-watch slugs (see src/baliza/rss_feed.py:CURATED_WATCHES). Rebuilt by the daily sync workflow alongside the monthly Parquet.",
+      "date": "",
+      "mediatype": "data",
+      "item_size": 49591,
+      "item_size_formatted": "48.0 KB",
+      "num_files": 0,
+      "archive_url": "https://archive.org/details/baliza-pncp-feeds",
+      "group": "supporting"
+    },
+    {
       "identifier": "baliza-pncp-manifest",
       "title": "Baliza PNCP Data Manifest",
       "description": "",
@@ -863,6 +875,7 @@
       "baliza-pncp-dimensions"
     ],
     "supporting": [
+      "baliza-pncp-feeds",
       "baliza-pncp-manifest",
       "pncp-contratos-publicacao-2021-09-06",
       "pncp-contratos-publicacao-2025-01-03",
