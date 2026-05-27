@@ -9,7 +9,6 @@
   import HubHeader from './HubHeader.svelte';
   import ShareButton from './ShareButton.svelte';
   import Skeleton from './Skeleton.svelte';
-  import { resolve } from '../lib/baseUrl';
   import { replaceUrlParams } from '../lib/urlState';
 
   setQueryClientContext(getQueryClient());
@@ -85,6 +84,38 @@
     submittedObjeto = term;
     replaceUrlParams({ objeto: term });
   }
+
+  let showPriceRef = $state(false);
+
+  const snapshotDate = new Date().toISOString().slice(0, 10);
+
+  const contractIds = $derived(
+    contracts.slice(0, 5).map((c) => c.numeroControlePNCP).filter(Boolean),
+  );
+
+  const priceStats = $derived.by(() => {
+    const values: number[] = [];
+    for (const c of contracts) {
+      const v = typeof c.valorGlobal === 'number' && c.valorGlobal > 0
+        ? c.valorGlobal
+        : typeof c.valorTotalEstimado === 'number' && c.valorTotalEstimado > 0
+          ? c.valorTotalEstimado
+          : null;
+      if (v !== null) values.push(v);
+    }
+    if (values.length === 0) return null;
+    const sorted = [...values].sort((a, b) => a - b);
+    const min = sorted[0];
+    const max = sorted[sorted.length - 1];
+    const avg = values.reduce((s, v) => s + v, 0) / values.length;
+    const mid = Math.floor(sorted.length / 2);
+    const median = sorted.length % 2 === 0
+      ? (sorted[mid - 1] + sorted[mid]) / 2
+      : sorted[mid];
+    const variance = values.reduce((s, v) => s + (v - avg) ** 2, 0) / values.length;
+    const stddev = Math.sqrt(variance);
+    return { min, max, avg, median, stddev };
+  });
 </script>
 
 <section>
@@ -142,9 +173,34 @@
       </section>
     </div>
     <div class="actions">
-      <a href={resolve(`atas?objeto=${submittedObjeto}`)} role="button" class="outline">Ver pesquisa de preços</a>
+      <button data-testid="mercado-gerar-pesquisa" onclick={() => (showPriceRef = true)}>Gerar pesquisa de preços</button>
       <ShareButton title={`Mercado: ${submittedObjeto}`} variant="inline" />
     </div>
+    {#if showPriceRef && priceStats}
+      <section data-testid="mercado-price-ref">
+        <h2>Pesquisa de Preços</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Estatística</th>
+              <th>Valor</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Mínimo</td><td data-testid="price-ref-min">{formatBrl(priceStats.min)}</td></tr>
+            <tr><td>Média</td><td data-testid="price-ref-avg">{formatBrl(priceStats.avg)}</td></tr>
+            <tr><td>Mediana</td><td data-testid="price-ref-median">{formatBrl(priceStats.median)}</td></tr>
+            <tr><td>Máximo</td><td data-testid="price-ref-max">{formatBrl(priceStats.max)}</td></tr>
+            <tr><td>Desvio Padrão</td><td data-testid="price-ref-stddev">{formatBrl(priceStats.stddev)}</td></tr>
+          </tbody>
+        </table>
+        <p>Data de referência: <span data-testid="price-ref-date">{snapshotDate}</span></p>
+        <ul data-testid="price-ref-ids">
+          {#each contractIds as id (id)}<li>{id}</li>{/each}
+        </ul>
+        <button onclick={() => window.print()}>Imprimir / Salvar como PDF</button>
+      </section>
+    {/if}
   {/if}
 </section>
 

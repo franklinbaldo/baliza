@@ -2,12 +2,13 @@ import { loadFeature, describeFeature } from '@amiceli/vitest-cucumber';
 import { screen, cleanup, waitFor, fireEvent } from '@testing-library/svelte/pure';
 import { vi, expect } from 'vitest';
 import { tick } from 'svelte';
-import { render, noop, plannedStep } from './_shared';
+import { render } from './_shared';
 import ContractDetailViewRaw from '../../ContractDetailView.svelte';
 import AtasViewRaw from '../../AtasView.svelte';
 import CatmatSearchRaw from '../../CatmatSearch.svelte';
 import DispensasViewRaw from '../../DispensasView.svelte';
 import CompararViewRaw from '../../CompararView.svelte';
+import MercadoViewRaw from '../../MercadoView.svelte';
 import * as pncpPublicacao from '../../../lib/pncpPublicacao';
 import type { PNCPContract } from '../../../lib/pncp';
 import * as parquetFallback from '../../../lib/parquetFallback';
@@ -19,6 +20,7 @@ const AtasView = AtasViewRaw as unknown as Parameters<typeof render>[0];
 const CatmatSearch = CatmatSearchRaw as unknown as Parameters<typeof render>[0];
 const DispensasView = DispensasViewRaw as unknown as Parameters<typeof render>[0];
 const CompararView = CompararViewRaw as unknown as Parameters<typeof render>[0];
+const MercadoView = MercadoViewRaw as unknown as Parameters<typeof render>[0];
 
 function futurePlus(years: number): string {
   const d = new Date();
@@ -92,12 +94,76 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   Scenario(
     'Generate a price reference and export it as a citable PDF',
     ({ Given, When, Then, And }) => {
-      Given('the user opens a market page for "papel A4"', noop);
-      When('the user clicks "Gerar pesquisa de preços"', noop);
-      Then('a PDF is produced containing min, average, median, max and standard deviation of unit price', () =>
-        plannedStep('price-reference PDF generator'),
-      );
-      And('the PDF includes the source contract IDs and snapshot date', noop);
+      Given('the user opens a market page for "papel A4"', async () => {
+        cleanup();
+        vi.restoreAllMocks();
+        window.history.replaceState({}, '', '/mercado?objeto=papel%20A4');
+        vi.spyOn(pncpPublicacao, 'fetchPublicacaoPagesForObjeto').mockResolvedValue([
+          {
+            numeroControlePNCP: '00000000000191-1-000010/2024',
+            dataPublicacaoPncp: '2025-01-10T00:00:00',
+            objetoContratacao: 'Aquisição de papel A4',
+            valorTotalEstimado: 1200,
+            modalidadeNome: 'Pregão Eletrônico',
+            orgaoEntidade: { razaoSocial: 'Prefeitura A', cnpj: '00000000000191' },
+            unidadeOrgao: { nomeUnidade: 'Compras', ufSigla: 'SP' },
+          },
+          {
+            numeroControlePNCP: '00000000000191-1-000011/2024',
+            dataPublicacaoPncp: '2025-01-15T00:00:00',
+            objetoContratacao: 'Papel A4 sulfite',
+            valorTotalEstimado: 1800,
+            modalidadeNome: 'Pregão Eletrônico',
+            orgaoEntidade: { razaoSocial: 'Prefeitura B', cnpj: '00000000000192' },
+            unidadeOrgao: { nomeUnidade: 'Administrativo', ufSigla: 'SP' },
+          },
+          {
+            numeroControlePNCP: '00000000000191-1-000012/2024',
+            dataPublicacaoPncp: '2025-01-20T00:00:00',
+            objetoContratacao: 'Papel A4 para impressão',
+            valorTotalEstimado: 1500,
+            modalidadeNome: 'Pregão Eletrônico',
+            orgaoEntidade: { razaoSocial: 'Prefeitura C', cnpj: '00000000000193' },
+            unidadeOrgao: { nomeUnidade: 'Secretaria', ufSigla: 'RJ' },
+          },
+        ] as unknown as PNCPContract[]);
+        render(MercadoView);
+        await tick();
+        await waitFor(
+          () => expect(screen.getByTestId('mercado-gerar-pesquisa')).toBeTruthy(),
+          { timeout: 3000 },
+        );
+      });
+      When('the user clicks "Gerar pesquisa de preços"', async () => {
+        await fireEvent.click(screen.getByTestId('mercado-gerar-pesquisa'));
+        await tick();
+      });
+      Then('a PDF is produced containing min, average, median, max and standard deviation of unit price', async () => {
+        await waitFor(
+          () => {
+            const section = screen.getByTestId('mercado-price-ref');
+            expect(section).toBeTruthy();
+            // min=1200, max=1800, avg=1500, median=1500, stddev=~244.95
+            expect(screen.getByTestId('price-ref-min').textContent).toMatch(/1\.200/);
+            expect(screen.getByTestId('price-ref-avg').textContent).toMatch(/1\.500/);
+            expect(screen.getByTestId('price-ref-median').textContent).toMatch(/1\.500/);
+            expect(screen.getByTestId('price-ref-max').textContent).toMatch(/1\.800/);
+            expect(screen.getByTestId('price-ref-stddev')).toBeTruthy();
+          },
+          { timeout: 3000 },
+        );
+      });
+      And('the PDF includes the source contract IDs and snapshot date', async () => {
+        await waitFor(
+          () => {
+            const ids = screen.getByTestId('price-ref-ids');
+            expect(ids.textContent).toContain('00000000000191-1-000010/2024');
+            const dateEl = screen.getByTestId('price-ref-date');
+            expect(dateEl.textContent).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+          },
+          { timeout: 3000 },
+        );
+      });
     },
   );
 
