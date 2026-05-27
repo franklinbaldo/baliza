@@ -2,7 +2,7 @@ import { loadFeature, describeFeature } from '@amiceli/vitest-cucumber';
 import { screen, cleanup, waitFor, fireEvent } from '@testing-library/svelte/pure';
 import { vi, expect } from 'vitest';
 import { tick } from 'svelte';
-import { render, noop, plannedStep } from './_shared';
+import { render, noop } from './_shared';
 import SupplierDetailViewRaw from '../../SupplierDetailView.svelte';
 import BuscaViewRaw from '../../BuscaView.svelte';
 import MercadoViewRaw from '../../MercadoView.svelte';
@@ -283,11 +283,51 @@ describeFeature(feature, ({ Scenario }) => {
   Scenario(
     'Crossover with journey 2 — supplier inspects the buyer\'s pricing reference',
     ({ Given, When, Then }) => {
-      Given('a market page for "merenda escolar" is visible', noop);
-      When('the user clicks "Ver pesquisa de preços"', noop);
-      Then('the user sees the same evidenced price reference shown to public buyers', () =>
-        plannedStep('shared price-reference module across market and buyer pages'),
-      );
+      Given('a market page for "merenda escolar" is visible', async () => {
+        cleanup();
+        vi.restoreAllMocks();
+        window.history.replaceState({}, '', '/mercado?objeto=merenda%20escolar');
+        vi.spyOn(pncpPublicacao, 'fetchPublicacaoPagesForObjeto').mockResolvedValue([
+          {
+            numeroControlePNCP: '00000000000191-1-000001/2024',
+            dataPublicacaoPncp: '2025-01-10T00:00:00',
+            objetoContratacao: 'Merenda escolar — banana',
+            valorTotalEstimado: 1500,
+            modalidadeNome: 'Pregão Eletrônico',
+            orgaoEntidade: { razaoSocial: 'Prefeitura A', cnpj: '00000000000191' },
+            unidadeOrgao: { nomeUnidade: 'Educação', ufSigla: 'SP' },
+          },
+          {
+            numeroControlePNCP: '00000000000191-1-000002/2024',
+            dataPublicacaoPncp: '2025-01-12T00:00:00',
+            objetoContratacao: 'Merenda escolar — pão',
+            valorTotalEstimado: 2000,
+            modalidadeNome: 'Pregão Eletrônico',
+            orgaoEntidade: { razaoSocial: 'Prefeitura B', cnpj: '00000000000192' },
+            unidadeOrgao: { nomeUnidade: 'Educação', ufSigla: 'SP' },
+          },
+        ] as unknown as PNCPContract[]);
+        render(MercadoView);
+        await tick();
+        await waitFor(
+          () => expect(screen.getByTestId('mercado-gerar-pesquisa')).toBeTruthy(),
+          { timeout: 3000 },
+        );
+      });
+      When('the user clicks "Gerar pesquisa de preços"', async () => {
+        await fireEvent.click(screen.getByTestId('mercado-gerar-pesquisa'));
+        await tick();
+      });
+      Then('the user sees the same evidenced price reference shown to public buyers', async () => {
+        await waitFor(
+          () => {
+            const section = screen.getByTestId('mercado-price-ref');
+            expect(section).toBeTruthy();
+            expect(section.textContent).toMatch(/Mínimo|Média|Mediana|Máximo|Desvio/);
+          },
+          { timeout: 3000 },
+        );
+      });
     },
   );
 });

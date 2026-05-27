@@ -13,9 +13,8 @@ Feature: Journey 2 — Public buyer
     Given the user opens "/atas?objeto=papel%20A4"
     Then the user sees a list of vigent atas with start date, end date and contracting agency
 
-  @planned @price-reference
+  @green @price-reference
   Scenario: Generate a price reference and export it as a citable PDF
-    # Planned: requires aggregation backend and PDF export.
     Given the user opens a market page for "papel A4"
     When the user clicks "Gerar pesquisa de preços"
     Then a PDF is produced containing min, average, median, max and standard deviation of unit price

@@ -48,9 +48,9 @@ Feature: Journey 1 — B2G supplier prospecting
     When the user clicks "Exportar CSV"
     Then a CSV file is downloaded with named columns matching the visible table
 
-  @planned @market
+  @green @market
   Scenario: Crossover with journey 2 — supplier inspects the buyer's pricing reference
     # crosses @journey2
     Given a market page for "merenda escolar" is visible
-    When the user clicks "Ver pesquisa de preços"
+    When the user clicks "Gerar pesquisa de preços"
     Then the user sees the same evidenced price reference shown to public buyers
