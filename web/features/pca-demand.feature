@@ -1,4 +1,4 @@
-@planned @phase2 @pca-demand
+@phase2 @pca-demand
 Feature: PCA — planned demand by CATMAT/CATSER code
   PCA (Plano de Contratações Anuais) is a public PNCP endpoint that
   exposes future procurement intent at the item level — including
@@ -8,11 +8,9 @@ Feature: PCA — planned demand by CATMAT/CATSER code
   Reference: `docs/plans/pncp-resource-pipeline.md` §4 Phase 2.
   Pre-req: Drift-A (composite PK) + Drift-D (annual partitioning).
 
-  All scenarios are @planned until those drifts are closed and the
-  `pca` resource is promoted from `PLANNED_RESOURCES` to `RESOURCES`.
-
   Rule: PCA is presented as planned demand, never as contracted fact
 
+    @wip
     Scenario: A PCA detail page warns the reader that the data is intent
       Given the user opens a PCA item detail page
       Then the page carries a banner warning
@@ -24,12 +22,14 @@ Feature: PCA — planned demand by CATMAT/CATSER code
 
   Rule: A user can pivot from a CATMAT code to its planned demand
 
+    @wip
     Scenario: The CATMAT search results page links to the PCA listing
       Given the user typed a CATMAT/CATSER code into the search box
       When the search resolves to a known code
       Then the result card includes a link "Ver demanda planejada (PCA)"
       And clicking it lands on `/pca?codigo=<code>`
 
+    @wip
     Scenario: The PCA listing groups planned items by year
       Given the route `/pca?codigo=7510` is opened
       When the data is loaded
@@ -39,6 +39,7 @@ Feature: PCA — planned demand by CATMAT/CATSER code
 
   Rule: PCA partitions are annual, not monthly
 
+    @green
     Scenario: The archive layer returns the right yearly partition
       Given the registered `pca` resource declares annual partitioning
       When the explorer asks for the latest PCA partition
@@ -47,6 +48,7 @@ Feature: PCA — planned demand by CATMAT/CATSER code
 
   Rule: PCA item identity is composite
 
+    @green
     Scenario: Re-ingesting a PCA item with the same composite key replaces
       Given an item with `(id_pca_pncp, numero_item) = (X, 1)` was ingested
       When the same `(X, 1)` is ingested again with updated `valorTotal`
