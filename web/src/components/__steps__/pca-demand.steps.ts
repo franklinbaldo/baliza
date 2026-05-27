@@ -175,8 +175,11 @@ describeFeature(feature, ({ Rule, BeforeEachScenario }) => {
 
         And('each year shows the total planned `valorTotal` and item count', async () => {
           await waitFor(() => {
-            expect(document.body.textContent).toMatch(/2026/);
-            expect(document.body.textContent).toMatch(/12/);
+            const text = document.body.textContent ?? '';
+            expect(text).toMatch(/2026/);
+            expect(text).toMatch(/12/);
+            // formatBRL(500000) → "R$ 500.000,00" (pt-BR locale)
+            expect(text).toMatch(/500[\.,]000/);
           }, { timeout: 2000 });
         });
 
