@@ -50,6 +50,11 @@ jobs:
           if [[ -n "${{ inputs.start_date }}" ]]; then
             mirror_args+=(--start-date "${{ inputs.start_date }}")
           fi
+          # --limit-minutes 300 leaves 60 min for the build step before the
+          # 360-min job timeout. Without this, a large monthly backfill can be
+          # killed by the runner and reported as a failure even though partial
+          # progress was cached.
+          mirror_args+=(--limit-minutes 300)
           uv run baliza mirror "${mirror_args[@]}"
 
       - name: Build publicacoes canonical Parquet

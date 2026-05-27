@@ -51,7 +51,11 @@ jobs:
           # Default to 2024-01-01 for cron runs. Operators wanting a wider
           # backfill should use workflow_dispatch — see input description above.
           start_date="${{ inputs.start_date || '2024-01-01' }}"
-          uv run baliza mirror --resource pca --start-date "$start_date"
+          # --limit-minutes 300 leaves 60 min for the build step and IA upload
+          # before the 360-min job timeout. Without this, a large annual backfill
+          # would be killed by the runner and reported as a failure even though
+          # partial progress was saved in the GH Actions cache.
+          uv run baliza mirror --resource pca --start-date "$start_date" --limit-minutes 300
 
       - name: Build PCA canonical Parquet
         env:
