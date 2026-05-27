@@ -58,18 +58,21 @@ describeFeature(feature, ({ Rule, BeforeEachScenario }) => {
     );
   });
 
-  // Backend-verified rules: covered by Python unit tests in tests/unit/
-  // These stubs exist only to satisfy vitest-cucumber's rule-completeness check.
+  // These two rules test backend (Python) behavior, not frontend rendering.
+  // Stubs satisfy vitest-cucumber's rule-completeness check; actual coverage
+  // lives in Python:
+  //   - Partitioning: tests/unit/test_mirror_cmd_current_partition.py
+  //       test_current_partition_start_annual_resource
+  //       test_annual_partition_differs_from_monthly_floor
+  //   - Composite PK:  tests/unit/test_resource_atlas.py
+  //       test_pca_canonical_table_uses_composite_pk
   Rule('PCA partitions are annual, not monthly', ({ RuleScenario }) => {
     RuleScenario(
       'The archive layer returns the right yearly partition',
       ({ Given, When, Then, And }) => {
         Given('the registered `pca` resource declares annual partitioning', () => {});
         When('the explorer asks for the latest PCA partition', () => {});
-        Then('the answer is a year (e.g. "2026"), not a month', () => {
-          // Verified by tests/unit/test_mirror_cmd_current_partition.py
-          expect(true).toBe(true);
-        });
+        Then('the answer is a year (e.g. "2026"), not a month', () => {});
         And('the manifest carries `data_particao = "2026"` for that row', () => {});
       },
     );
@@ -86,10 +89,7 @@ describeFeature(feature, ({ Rule, BeforeEachScenario }) => {
         When('the same `(X, 1)` is ingested again with updated `valorTotal`', () => {});
         Then(
           'there is exactly one row for `(X, 1)` in `pca_itens_canonical`',
-          () => {
-            // Verified by Python build pipeline tests
-            expect(true).toBe(true);
-          },
+          () => {},
         );
         And('the new `valorTotal` wins', () => {});
       },
@@ -108,7 +108,6 @@ describeFeature(feature, ({ Rule, BeforeEachScenario }) => {
           await tick();
           const input = screen.getByLabelText('Descrição do item para busca CATMAT');
           await fireEvent.input(input, { target: { value: '7510' } });
-          await tick();
         });
 
         When('the search resolves to a known code', async () => {
@@ -140,9 +139,7 @@ describeFeature(feature, ({ Rule, BeforeEachScenario }) => {
             url: 'https://archive.org/download/baliza-pncp-pca-2026/pca-2026.parquet',
             dataParticao: '2026',
             identifier: 'baliza-pncp-pca-2026',
-          } as Parameters<typeof iaManifest.getLatestParquetInfo>[0] extends unknown
-            ? Awaited<ReturnType<typeof iaManifest.getLatestParquetInfo>>
-            : never);
+          } as Awaited<ReturnType<typeof iaManifest.getLatestParquetInfo>>);
 
           vi.spyOn(duckdbLib, 'getDuckDB').mockResolvedValue({
             db: null as unknown as Awaited<ReturnType<typeof duckdbLib.getDuckDB>>['db'],
