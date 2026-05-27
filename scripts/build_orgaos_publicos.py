@@ -162,7 +162,7 @@ def normalise_record(row: list[str]) -> dict | None:
 def main() -> int:
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     timeout = httpx.Timeout(60.0, connect=10.0)
-    with httpx.Client(timeout=timeout, follow_redirects=True, http2=True) as client:
+    with httpx.Client(timeout=timeout, follow_redirects=True) as client:
         latest_folder = find_latest_folder(client)
         folder_url = INDEX_URL + latest_folder
         empresas_files = list_empresas_files(client, folder_url)
