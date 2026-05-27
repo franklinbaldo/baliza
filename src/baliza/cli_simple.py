@@ -765,13 +765,10 @@ def mirror_cmd(  # noqa: PLR0912, PLR0913, PLR0915
             console.print(f"[red]✗ {m.strftime('%Y-%m')}: {e}[/red]")
 
     resource_obj = get_resource(resource)
-    # Use the resource's partition strategy to determine the current partition
-    # start. For monthly resources (contratos, atas, publicacoes) this equals
-    # date.today().replace(day=1). For annual resources (pca) it equals
-    # date(today.year, 1, 1). Using the strategy-aware helper avoids the bug
-    # where pca's current-year partition (2026-01-01) would never match the
-    # monthly floor (2026-05-01), causing keep_raw_dir=False and deleting the
-    # cache after every upload — forcing a full re-fetch on every weekly run.
+    # Respects partition strategy: monthly → date.today().replace(day=1),
+    # annual → date(today.year, 1, 1). Using the monthly floor for annual
+    # resources (pca) caused keep_raw_dir=False, deleting the cache after
+    # every upload and forcing a full re-fetch on every weekly run.
     current_partition = current_partition_start(resource_obj)
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
         futures: dict[concurrent.futures.Future, Any] = {}
