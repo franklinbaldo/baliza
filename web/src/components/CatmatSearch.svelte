@@ -1,5 +1,6 @@
 <script lang="ts">
   import { searchCatmat, type CatmatEntry } from '../lib/catmat';
+  import { resolve } from '../lib/baseUrl';
 
   let searchInput = $state('');
   let results: CatmatEntry[] = $state([]);
@@ -53,6 +54,10 @@
           <code>{entry.code}</code>
           <small data-badge>{entry.type}</small>
           <p>{entry.description}</p>
+          <a
+            data-testid="pca-demand-link"
+            href={resolve(`pca?codigo=${encodeURIComponent(entry.code)}`)}
+          >Ver demanda planejada (PCA) →</a>
         </li>
       {/each}
     </ul>

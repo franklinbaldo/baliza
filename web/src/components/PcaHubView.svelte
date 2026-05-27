@@ -10,14 +10,26 @@
   import Skeleton from './Skeleton.svelte';
   import StatCard from './StatCard.svelte';
 
+  interface Props {
+    codigo?: string;
+  }
+  const { codigo }: Props = $props();
+
   interface CatalogoRow {
     classificacao_superior_nome: string;
     n: number;
     valor_total: number;
   }
 
+  interface AnoPcaRow {
+    ano_pca: number;
+    n: number;
+    valor_total: number;
+  }
+
   let stats = $state<{ row_count: number; partition_count: number } | null>(null);
   let catalogo = $state<CatalogoRow[]>([]);
+  let anoRows = $state<AnoPcaRow[]>([]);
   let parquetParticao = $state<string | null>(null);
   let loading = $state(true);
   let error = $state<string | null>(null);
@@ -41,27 +53,55 @@
 
       const { conn } = await getDuckDB();
       const url = info.url;
-      const sql = `SELECT
-        COALESCE(classificacao_superior_nome, 'Sem classificação') AS classificacao_superior_nome,
-        COUNT(*) AS n,
-        COALESCE(SUM(valor_total), 0) AS valor_total
-      FROM read_parquet('${escapeSqlLiteral(url)}')
-      GROUP BY classificacao_superior_nome
-      ORDER BY valor_total DESC
-      LIMIT 25`;
 
-      const result = await conn.query(sql);
-      const rows: CatalogoRow[] = [];
-      for (const batch of result.batches) {
-        for (let i = 0; i < batch.numRows; i++) {
-          rows.push({
-            classificacao_superior_nome: String(batch.getChildAt(0)?.get(i) ?? ''),
-            n: Number(batch.getChildAt(1)?.get(i) ?? 0),
-            valor_total: Number(batch.getChildAt(2)?.get(i) ?? 0),
-          });
+      if (codigo) {
+        const safeUrl = escapeSqlLiteral(url);
+        const safeCodigo = escapeSqlLiteral(codigo);
+        const sql = `SELECT
+          ano_pca,
+          COUNT(*) AS n,
+          COALESCE(SUM(valor_total), 0) AS valor_total
+        FROM read_parquet('${safeUrl}')
+        WHERE classificacao_superior_codigo = '${safeCodigo}'
+           OR pdm_codigo LIKE '${safeCodigo}%'
+        GROUP BY ano_pca
+        ORDER BY ano_pca DESC`;
+
+        const result = await conn.query(sql);
+        const rows: AnoPcaRow[] = [];
+        for (const batch of result.batches) {
+          for (let i = 0; i < batch.numRows; i++) {
+            rows.push({
+              ano_pca: Number(batch.getChildAt(0)?.get(i) ?? 0),
+              n: Number(batch.getChildAt(1)?.get(i) ?? 0),
+              valor_total: Number(batch.getChildAt(2)?.get(i) ?? 0),
+            });
+          }
         }
+        anoRows = rows;
+      } else {
+        const sql = `SELECT
+          COALESCE(classificacao_superior_nome, 'Sem classificação') AS classificacao_superior_nome,
+          COUNT(*) AS n,
+          COALESCE(SUM(valor_total), 0) AS valor_total
+        FROM read_parquet('${escapeSqlLiteral(url)}')
+        GROUP BY classificacao_superior_nome
+        ORDER BY valor_total DESC
+        LIMIT 25`;
+
+        const result = await conn.query(sql);
+        const rows: CatalogoRow[] = [];
+        for (const batch of result.batches) {
+          for (let i = 0; i < batch.numRows; i++) {
+            rows.push({
+              classificacao_superior_nome: String(batch.getChildAt(0)?.get(i) ?? ''),
+              n: Number(batch.getChildAt(1)?.get(i) ?? 0),
+              valor_total: Number(batch.getChildAt(2)?.get(i) ?? 0),
+            });
+          }
+        }
+        catalogo = rows;
       }
-      catalogo = rows;
     } catch (e) {
       error = (e as Error).message;
     } finally {
@@ -85,6 +125,20 @@
       PCA → Publicações → Atas → Contratos
     </div>
   </header>
+
+  <!-- Intent disclaimer (BDD: pca-demand scenario 1) -->
+  <AlertBanner
+    title="Atenção: dados de planejamento, não de contratação"
+    message="Esses dados indicam intenção/planejamento informado ao PNCP, não contratação realizada. Todos os valores são estimados."
+    level="warning"
+  />
+
+  {#if codigo}
+    <div class="filter-note">
+      Filtrando por código CATMAT/CATSER: <code>{codigo}</code>
+      <a href={resolve('pca')} class="clear-filter">× limpar filtro</a>
+    </div>
+  {/if}
 
   <!-- Stats -->
   {#if stats && stats.row_count > 0}
@@ -110,53 +164,102 @@
     </div>
   {/if}
 
-  <!-- Catálogo por classificação (Task 5d) -->
-  <section class="breakdown" aria-labelledby="catalogo-title">
-    <h2 id="catalogo-title">Demanda por classificação de material/serviço</h2>
-    <p class="section-desc">
-      Itens do PCA agrupados por <code>classificacao_superior_nome</code> (hierarquia CATMAT/CATSER),
-      ordenados por valor total planejado. Útil para pesquisadores projetando gasto público por categoria.
-    </p>
-
-    {#if loading}
-      <div class="skeleton-rows">
-        {#each [1,2,3,4,5] as _, i (i)}<Skeleton />{/each}
-      </div>
-    {:else if error}
-      <AlertBanner title="Erro ao consultar parquet" message={error} level="error" />
-    {:else if noData || catalogo.length === 0}
-      <p class="no-data">
-        Sem dados de catálogo ainda.
-        {parquetParticao
-          ? `Snapshot mais recente: ${parquetParticao}`
-          : 'Nenhum parquet disponível no manifesto.'}
+  {#if codigo}
+    <!-- Filtered view: grouped by ano_pca (BDD: pca-demand scenario 3) -->
+    <section class="breakdown" aria-labelledby="ano-title">
+      <h2 id="ano-title">Demanda planejada por ano — código {codigo}</h2>
+      <p class="section-desc">
+        Itens do PCA com <code>classificacao_superior_codigo = '{codigo}'</code>
+        ou <code>pdm_codigo</code> começando com <code>{codigo}</code>,
+        agrupados por <code>ano_pca</code>.
       </p>
-    {:else}
-      {#if parquetParticao}
-        <p class="snapshot-note">Snapshot: <code>{parquetParticao}</code></p>
-      {/if}
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Classificação</th>
-              <th class="num">Itens</th>
-              <th class="num">Valor total planejado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each catalogo as row (row.classificacao_superior_nome)}
+
+      {#if loading}
+        <div class="skeleton-rows">
+          {#each [1,2,3] as _, i (i)}<Skeleton />{/each}
+        </div>
+      {:else if error}
+        <AlertBanner title="Erro ao consultar parquet" message={error} level="error" />
+      {:else if anoRows.length === 0}
+        <p class="no-data">
+          Nenhum item encontrado para o código <code>{codigo}</code>.
+          {parquetParticao ? `Snapshot: ${parquetParticao}` : ''}
+        </p>
+      {:else}
+        {#if parquetParticao}
+          <p class="snapshot-note">Snapshot: <code>{parquetParticao}</code></p>
+        {/if}
+        <div class="table-wrap">
+          <table>
+            <thead>
               <tr>
-                <td>{row.classificacao_superior_nome}</td>
-                <td class="num">{formatInteger(row.n)}</td>
-                <td class="num">{formatBRL(row.valor_total)}</td>
+                <th>Ano PCA</th>
+                <th class="num">Itens (estimado)</th>
+                <th class="num">Valor total planejado (estimado)</th>
               </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
-    {/if}
-  </section>
+            </thead>
+            <tbody>
+              {#each anoRows as row (row.ano_pca)}
+                <tr>
+                  <td>{row.ano_pca}</td>
+                  <td class="num">{formatInteger(row.n)}</td>
+                  <td class="num">{formatBRL(row.valor_total)}</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      {/if}
+    </section>
+  {:else}
+    <!-- Default view: grouped by classificacao_superior_nome -->
+    <section class="breakdown" aria-labelledby="catalogo-title">
+      <h2 id="catalogo-title">Demanda por classificação de material/serviço</h2>
+      <p class="section-desc">
+        Itens do PCA agrupados por <code>classificacao_superior_nome</code> (hierarquia CATMAT/CATSER),
+        ordenados por valor total planejado. Útil para pesquisadores projetando gasto público por categoria.
+      </p>
+
+      {#if loading}
+        <div class="skeleton-rows">
+          {#each [1,2,3,4,5] as _, i (i)}<Skeleton />{/each}
+        </div>
+      {:else if error}
+        <AlertBanner title="Erro ao consultar parquet" message={error} level="error" />
+      {:else if noData || catalogo.length === 0}
+        <p class="no-data">
+          Sem dados de catálogo ainda.
+          {parquetParticao
+            ? `Snapshot mais recente: ${parquetParticao}`
+            : 'Nenhum parquet disponível no manifesto.'}
+        </p>
+      {:else}
+        {#if parquetParticao}
+          <p class="snapshot-note">Snapshot: <code>{parquetParticao}</code></p>
+        {/if}
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Classificação</th>
+                <th class="num">Itens (estimado)</th>
+                <th class="num">Valor total planejado (estimado)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each catalogo as row (row.classificacao_superior_nome)}
+                <tr>
+                  <td>{row.classificacao_superior_nome}</td>
+                  <td class="num">{formatInteger(row.n)}</td>
+                  <td class="num">{formatBRL(row.valor_total)}</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      {/if}
+    </section>
+  {/if}
 
   <!-- Schema reference -->
   <section class="schema-panel" aria-labelledby="schema-title">
@@ -173,7 +276,7 @@
         ['cnpj_orgao','VARCHAR','CNPJ do órgão'],
         ['razao_social_orgao','VARCHAR','Nome do órgão'],
         ['descricao_item','VARCHAR','Descrição do item planejado'],
-        ['valor_total','DOUBLE','Valor total planejado (R$)'],
+        ['valor_total','DOUBLE','Valor total planejado (estimado, R$)'],
         ['quantidade_estimada','DOUBLE','Quantidade estimada'],
         ['classificacao_superior_codigo','VARCHAR','Código CATMAT/CATSER'],
         ['classificacao_superior_nome','VARCHAR','Descrição da classificação'],
@@ -214,6 +317,9 @@
   h1 { font-size: clamp(28px,3vw,42px); font-weight: 300; margin: 0 0 var(--space-3); }
   .lead { font-size: var(--text-md); color: var(--color-text-dim); line-height: 1.6; margin: 0 0 var(--space-3); }
   .role-tag { font-size: var(--text-sm); background: var(--color-surface); border: 1px solid var(--color-border); border-left: 4px solid var(--color-azul); padding: var(--space-2) var(--space-3); border-radius: 0 4px 4px 0; }
+  .filter-note { font-size: var(--text-sm); background: var(--color-surface); border: 1px solid var(--color-border); padding: var(--space-2) var(--space-3); border-radius: 4px; margin-bottom: var(--space-4); }
+  .clear-filter { margin-left: var(--space-3); color: var(--color-text-dim); text-decoration: none; }
+  .clear-filter:hover { color: var(--color-text); }
   .stats-grid { margin-bottom: var(--space-6); }
   .empty-state { background: var(--color-surface); border: 1px dashed var(--color-border); padding: var(--space-6); text-align: center; border-radius: 4px; margin-bottom: var(--space-6); }
   section { margin-bottom: var(--space-8); padding-top: var(--space-6); border-top: 1px solid var(--color-border); }
