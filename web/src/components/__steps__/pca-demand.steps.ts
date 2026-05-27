@@ -179,7 +179,7 @@ describeFeature(feature, ({ Rule, BeforeEachScenario }) => {
             expect(text).toMatch(/2026/);
             expect(text).toMatch(/12/);
             // formatBRL(500000) → "R$ 500.000,00" (pt-BR locale)
-            expect(text).toMatch(/500[\.,]000/);
+            expect(text).toMatch(/500[.,]000/);
           }, { timeout: 2000 });
         });
 
