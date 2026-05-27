@@ -9,7 +9,6 @@ the cache directory was deleted after every upload — forcing a full re-fetch.
 from __future__ import annotations
 
 from datetime import date
-from unittest.mock import MagicMock, call, patch
 
 import pytest
 
