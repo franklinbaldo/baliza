@@ -27,7 +27,7 @@
     "@duckdb/duckdb-wasm": "^1.33.1-dev45.0",
     "@picocss/pico": "^2.1.1",
     "@tanstack/svelte-query": "^6.1.33",
-    "astro": "^6.3.8",
+    "astro": "^6.4.8",
     "csv-parse": "^6.2.1",
     "papaparse": "^5.4.1",
     "svelte": "^5.55.9",
