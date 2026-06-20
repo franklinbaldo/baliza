@@ -59,7 +59,7 @@ jobs:
       # Keep a 3-minute buffer vs timeout-minutes=360 so the CLI exits gracefully first.
       SYNC_LIMIT_MINUTES: 357
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v4
       - id: month
         run: echo "key=$(date +'%Y-%m')" >> $GITHUB_OUTPUT

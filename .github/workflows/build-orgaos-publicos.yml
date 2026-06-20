@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           # Default token is fine; the workflow runs in the same repo and
           # only writes to web/public/data/. No secrets needed beyond the
