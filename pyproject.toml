@@ -94,7 +94,12 @@ warn_unused_configs = true
 
 [dependency-groups]
 dev = [
-    "ruff>=0.1.0",
+    # Pinned exactly, not floored. ruff.toml selects rule families ("PL", "B",
+    # ...), so a release that stabilises a preview rule inside one of them joins
+    # the gate automatically -- and uv.lock is gitignored, so nothing else holds
+    # the version steady. Moving to a newer ruff should be a deliberate PR that
+    # decides which newly stabilised rules we want.
+    "ruff==0.15.22",
     "mypy>=1.8.0",
     "pre-commit>=3.6.0",
     "pytest-bdd>=7.0.0",
