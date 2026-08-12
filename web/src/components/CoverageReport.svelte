@@ -172,8 +172,14 @@
     </article>
 
     <table>
+      <caption class="sr-only">Cobertura de órgãos públicos no PNCP por esfera administrativa</caption>
       <thead>
-        <tr><th>Esfera</th><th>Cobertos</th><th>Cadastrados</th><th>%</th></tr>
+        <tr>
+          <th scope="col">Esfera</th>
+          <th scope="col">Cobertos</th>
+          <th scope="col">Cadastrados</th>
+          <th scope="col">%</th>
+        </tr>
       </thead>
       <tbody>
         {#each ['Federal', 'Estadual', 'Municipal', 'Outras'] as label (label)}
