@@ -18,7 +18,7 @@ const monitorPaths = ['atas', 'dispensas', 'publicacoes'].map(p => (BASE + p).re
 const isMonitorActive = monitorPaths.some(p => cleanPath === p);
 ---
 
-<nav class="container">
+<nav class="container" aria-label="Principal">
   <ul>
     <li>
       <a href={BASE}>

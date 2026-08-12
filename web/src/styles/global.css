@@ -300,3 +300,25 @@ details summary:focus-visible:not([role]) {
   outline: 2px solid var(--baliza-focus);
   outline-offset: 2px;
 }
+
+/* ── Navigation on small viewports ──
+   Pico lays nav lists out as a non-wrapping flex row. Below roughly 640px the
+   right-hand group is wider than the screen, so every page gained horizontal
+   scroll and the last items sat off-canvas. Wrapping keeps every destination
+   reachable without introducing a menu pattern this nav does not have. */
+
+@media (max-width: 640px) {
+
+  nav.container,
+  footer.container nav {
+    flex-wrap: wrap;
+    row-gap: 0.25rem;
+  }
+
+  nav.container > ul,
+  footer.container nav > ul {
+    flex-wrap: wrap;
+    row-gap: 0.25rem;
+  }
+}
+
