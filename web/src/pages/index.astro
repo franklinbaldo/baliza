@@ -3,7 +3,7 @@ import Layout from '../layouts/Layout.astro';
 import HomeSection from '../components/HomeSection.astro';
 import CityHero from '../components/CityHero.svelte';
 import CityWowStrip from '../components/CityWowStrip.svelte';
-import MonitorGrid from '../components/MonitorGrid.astro';
+import MonitorGrid from '../components/MonitorGrid.svelte';
 import TrustStrip from '../components/TrustStrip.astro';
 import OrnamentBand from '../components/OrnamentBand.astro';
 import Dashboard from '../components/Dashboard.svelte';
@@ -76,7 +76,7 @@ const TOOLS: Array<{
   <OrnamentBand variant="wave" height={36} />
 
   <!-- 3. What you can monitor. -->
-  <MonitorGrid />
+  <MonitorGrid client:load />
 
   <!-- 4. Trust layer: archive, citability, analysis. -->
   <TrustStrip />
