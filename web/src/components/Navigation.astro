@@ -28,12 +28,12 @@ const isMonitorActive = monitorPaths.some(p => cleanPath === p);
   </ul>
   <ul>
     <li>
-      <details role="list">
-        <summary aria-haspopup="listbox" aria-current={isCityActive ? 'page' : undefined}>
+      <details>
+        <summary aria-current={isCityActive ? 'page' : undefined}>
           <Icon name="building" />
           <CityNavLink client:load isActive={isCityActive} asLabel={true} />
         </summary>
-        <ul role="listbox">
+        <ul>
           <li><Icon name="building" /> <CityNavLink client:load isActive={isCityActive} /></li>
           <li><a href={BASE}><Icon name="swap" /> Trocar cidade</a></li>
           <li><a href={BASE + 'busca'}><Icon name="search" /> Buscar contratações</a></li>
@@ -41,11 +41,11 @@ const isMonitorActive = monitorPaths.some(p => cleanPath === p);
       </details>
     </li>
     <li>
-      <details role="list">
-        <summary aria-haspopup="listbox" aria-current={isMonitorActive ? 'page' : undefined}>
+      <details>
+        <summary aria-current={isMonitorActive ? 'page' : undefined}>
           <Icon name="document" /> Monitorar
         </summary>
-        <ul role="listbox">
+        <ul>
           <li><a href={BASE + 'atas'} aria-current={isActive(BASE + 'atas') ? 'page' : undefined}><Icon name="document" /> Atas de preços</a></li>
           <li><a href={BASE + 'dispensas'} aria-current={isActive(BASE + 'dispensas') ? 'page' : undefined}><Icon name="warning" /> Dispensas e inexigibilidades</a></li>
           <li><a href={BASE + 'publicacoes'} aria-current={isActive(BASE + 'publicacoes') ? 'page' : undefined}><Icon name="signal" /> Publicações abertas</a></li>
@@ -53,9 +53,9 @@ const isMonitorActive = monitorPaths.some(p => cleanPath === p);
       </details>
     </li>
     <li>
-      <details role="list" dir="rtl">
-        <summary aria-haspopup="listbox"><Icon name="database" /> Dados & Dev</summary>
-        <ul role="listbox">
+      <details dir="rtl">
+        <summary><Icon name="database" /> Dados & Dev</summary>
+        <ul>
           <li><a href={BASE + 'explorador'}><Icon name="code" /> Explorador SQL</a></li>
           <li><a href={BASE + 'desenvolvedores'}><Icon name="code" /> Devs & API</a></li>
           <li><a href={BASE + 'arquivo'}><Icon name="archive" /> Arquivo</a></li>
