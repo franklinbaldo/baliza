@@ -46,6 +46,11 @@
   --pico-secondary: var(--baliza-azul);
   --pico-secondary-hover: #14446b;
   --pico-secondary-focus: rgb(31, 111, 168, 0.25);
+
+  /* Focus indicator. Solid, not translucent: Pico's default focus ring is a
+     50%-alpha wash that composites to 1.75:1 against the page, below the 3:1
+     WCAG 2.4.11 minimum for a focus indicator. */
+  --baliza-focus: var(--baliza-azul);
   --pico-card-background-color: var(--baliza-surface);
   --pico-card-border-color: var(--baliza-border);
   --pico-card-sectioning-background-color: var(--baliza-bg);
@@ -67,6 +72,7 @@
   --baliza-border: #3a3128;
   --baliza-text: #f1ead8;
   --baliza-text-dim: #b8ad94;
+  --baliza-focus: var(--baliza-text);
   --pico-background-color: var(--baliza-bg);
   --pico-color: var(--baliza-text);
   --pico-muted-color: var(--baliza-text-dim);
@@ -272,4 +278,25 @@ hr[data-ornament="volpi"] {
 .table-scroll {
   overflow-x: auto;
   max-width: 100%;
+}
+
+/* ── Focus visibility ──
+   One consistent indicator for every interactive element. Pico styles focus
+   per element type with a translucent ring, so links, buttons and summaries
+   landed at 1.75:1 against the page while inputs got a solid 5.23:1. The
+   outline replaces that with a single solid ring; the offset keeps a gap of
+   page colour between the control and the ring so it reads as a ring rather
+   than a border, on both themes. */
+
+:is(a, button, summary, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--baliza-focus);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+/* Pico targets this at `details summary:focus-visible:not([role])`, which
+   outranks the rule above, so it is matched here rather than left to lose. */
+details summary:focus-visible:not([role]) {
+  outline: 2px solid var(--baliza-focus);
+  outline-offset: 2px;
 }
