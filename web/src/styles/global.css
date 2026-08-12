@@ -117,8 +117,9 @@ h1, h2, hgroup > h1, hgroup > h2 {
 }
 
 /* WHY: Pico has no visually-hidden utility but we still need
-   accessible-only labels (search forms, icon-only buttons). */
-.sr-only {
+   accessible-only labels. Focusable labels, notably the skip link,
+   must become visible when keyboard-focused. */
+.sr-only:not(:focus-visible) {
   position: absolute;
   width: 1px;
   height: 1px;
