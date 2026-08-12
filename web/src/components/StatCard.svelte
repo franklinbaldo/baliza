@@ -9,12 +9,14 @@
     tone = 'default',
     hint,
     href,
+    datetime,
   }: {
     title: string;
     value: number | string;
     tone?: Tone;
     hint?: string;
     href?: string;
+    datetime?: string;
   } = $props();
 
   const accentVar: Record<Tone, string> = {
@@ -40,7 +42,7 @@
         <Icon name={iconName} />
         <h3>{title}</h3>
       </header>
-      <p><strong>{value}</strong></p>
+      <p><strong>{#if datetime}<time {datetime}>{value}</time>{:else}{value}{/if}</strong></p>
       {#if hint}<small>{hint}</small>{/if}
     </a>
   </article>
@@ -50,7 +52,7 @@
       <Icon name={iconName} />
       <h3>{title}</h3>
     </header>
-    <p><strong>{value}</strong></p>
+    <p><strong>{#if datetime}<time {datetime}>{value}</time>{:else}{value}{/if}</strong></p>
     {#if hint}<small>{hint}</small>{/if}
   </article>
 {/if}

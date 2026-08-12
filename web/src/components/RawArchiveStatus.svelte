@@ -100,6 +100,7 @@
     <StatCard
       title="Atualização IA"
       value={status.lastUpdatedIso ? formatRelativeTime(status.lastUpdatedIso) : '—'}
+      datetime={status.lastUpdatedIso ?? undefined}
       hint={status.server ? `${status.server}${status.directory ? status.directory : ''}` : 'metadados do item'}
     />
   </div>
