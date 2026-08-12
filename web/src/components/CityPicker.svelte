@@ -172,8 +172,17 @@
   {#if results.length > 0}
     <ul id="city-picker-listbox" role="listbox">
       {#each results as r, i (r.ibge)}
-        <li id={`city-opt-${i}`} role="option" aria-selected={i === activeIndex}>
-          <button type="button" class="outline" onclick={() => pick(r)} onmouseenter={() => (activeIndex = i)}>
+        <li role="none">
+          <button
+            id={`city-opt-${i}`}
+            type="button"
+            role="option"
+            tabindex="-1"
+            aria-selected={i === activeIndex}
+            class="outline"
+            onclick={() => pick(r)}
+            onmouseenter={() => (activeIndex = i)}
+          >
             <strong>{r.nome}</strong>
             <small>{r.uf || '—'}</small>
             <code>IBGE {r.ibge}</code>
