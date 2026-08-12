@@ -180,18 +180,19 @@
       <section data-testid="mercado-price-ref">
         <h2>Pesquisa de Preços</h2>
         <table>
+          <caption class="sr-only">Estatísticas de preço de referência: mínimo, média, mediana, máximo e desvio padrão.</caption>
           <thead>
             <tr>
-              <th>Estatística</th>
-              <th>Valor</th>
+              <th scope="col">Estatística</th>
+              <th scope="col">Valor</th>
             </tr>
           </thead>
           <tbody>
-            <tr><td>Mínimo</td><td data-testid="price-ref-min">{formatBrl(priceStats.min)}</td></tr>
-            <tr><td>Média</td><td data-testid="price-ref-avg">{formatBrl(priceStats.avg)}</td></tr>
-            <tr><td>Mediana</td><td data-testid="price-ref-median">{formatBrl(priceStats.median)}</td></tr>
-            <tr><td>Máximo</td><td data-testid="price-ref-max">{formatBrl(priceStats.max)}</td></tr>
-            <tr><td>Desvio Padrão</td><td data-testid="price-ref-stddev">{formatBrl(priceStats.stddev)}</td></tr>
+            <tr><th scope="row">Mínimo</th><td data-testid="price-ref-min">{formatBrl(priceStats.min)}</td></tr>
+            <tr><th scope="row">Média</th><td data-testid="price-ref-avg">{formatBrl(priceStats.avg)}</td></tr>
+            <tr><th scope="row">Mediana</th><td data-testid="price-ref-median">{formatBrl(priceStats.median)}</td></tr>
+            <tr><th scope="row">Máximo</th><td data-testid="price-ref-max">{formatBrl(priceStats.max)}</td></tr>
+            <tr><th scope="row">Desvio Padrão</th><td data-testid="price-ref-stddev">{formatBrl(priceStats.stddev)}</td></tr>
           </tbody>
         </table>
         <p>Data de referência: <span data-testid="price-ref-date">{snapshotDate}</span></p>
