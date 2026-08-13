@@ -26,7 +26,7 @@ export const SCRIPT_SRC_HASHES: readonly string[] = [
   "'sha256-K96mJKERDTEDZoWSoTH10KVLSr3yV1otHUDGMm7jEsY='",
   // Astro island hydration shims (client:load/only/idle/visible/media)
   "'sha256-QzWFZi+FLIx23tnm9SBU4aEgx4x8DsuASP07mfqol/c='",
-  "'sha256-QJZDUlo/qa5AJCrG6vHyWcatjwCeWidEHQfJc601lzw='",
+  "'sha256-Ya0pUYrC7nM5Cn/056TyVuEiz6dFGrzmkWzgON0pF0U='",
   "'sha256-eIXWvAmxkr251LJZkjniEK5LcPF3NkapbJepohwYRIc='",
   "'sha256-Q2BPg90ZMplYY+FSdApNErhpWafg2hcRRbndmvxuL/Q='",
   "'sha256-BF0290pkb3jxQsE7z00xR8Imp8X34FLC88L0lkMnrGw='",

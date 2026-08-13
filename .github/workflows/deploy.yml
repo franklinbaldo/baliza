@@ -20,7 +20,7 @@ permissions:
 
 jobs:
   build:
-    name: Web Build & Lint (Astro 6)
+    name: Web Build & Lint (Astro 7)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository

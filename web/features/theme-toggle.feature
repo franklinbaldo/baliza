@@ -30,7 +30,7 @@ Feature: Theme Toggle
     Given the theme toggle button is focused
     When the user presses Enter
     Then the theme should toggle
-    And the button should reflect the current theme state via aria-pressed
+    And the button should name the next theme action
 
   Scenario: Theme toggle activates via Space key
     Given the theme toggle button is focused

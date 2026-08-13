@@ -25,6 +25,12 @@ function applyThemeFromEnvironment(): void {
   } catch { /* unavailable */ }
 }
 
+function expectNextThemeAction(label: string): void {
+  const btn = screen.getByTestId('theme-toggle');
+  expect(btn).toHaveAttribute('aria-label', label);
+  expect(btn).not.toHaveAttribute('aria-pressed');
+}
+
 const feature = await loadFeature('features/theme-toggle.feature');
 
 describeFeature(feature, ({ Scenario, BeforeEachScenario, AfterEachScenario }) => {
@@ -98,8 +104,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario, AfterEachScenario }) =
 
     Then('the document should use the dark theme', () => {
       expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
-      const btn = screen.getByTestId('theme-toggle');
-      expect(btn.getAttribute('aria-pressed')).toBe('true');
+      expectNextThemeAction('Alternar para tema claro');
     });
   });
 
@@ -120,9 +125,8 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario, AfterEachScenario }) =
       expect(theme).toBe('light');
     });
 
-    And('the button should reflect the current theme state via aria-pressed', () => {
-      const btn = screen.getByTestId('theme-toggle');
-      expect(btn.getAttribute('aria-pressed')).toBe('false');
+    And('the button should name the next theme action', () => {
+      expectNextThemeAction('Alternar para tema escuro');
     });
   });
 
@@ -165,8 +169,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario, AfterEachScenario }) =
 
     Then('the document should use the light theme', () => {
       expect(document.documentElement.getAttribute('data-theme')).toBe('light');
-      const btn = screen.getByTestId('theme-toggle');
-      expect(btn.getAttribute('aria-pressed')).toBe('false');
+      expectNextThemeAction('Alternar para tema escuro');
     });
   });
 
@@ -182,8 +185,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario, AfterEachScenario }) =
 
     Then('the button reflects the stored light theme', () => {
       expect(document.documentElement.getAttribute('data-theme')).toBe('light');
-      const btn = screen.getByTestId('theme-toggle');
-      expect(btn.getAttribute('aria-pressed')).toBe('false');
+      expectNextThemeAction('Alternar para tema escuro');
     });
   });
 });
