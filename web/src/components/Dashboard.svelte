@@ -5,13 +5,17 @@
   import { SyncStatsSchema, type SyncStats, type ResourceStats } from '../schema';
   import { formatInteger, formatRelativeTime } from '../lib/format';
   import { resolve } from '../lib/baseUrl';
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
 
   let { initialStats }: { initialStats?: SyncStats } = $props();
 
-  let stats = $state<SyncStats | null>(initialStats ?? null);
+  // `initialStats` is an SSR seed, not a live prop contract: after hydration,
+  // the public JSON endpoint becomes authoritative. Mark the intentional
+  // one-time snapshot explicitly so Svelte does not report it as accidental
+  // stale-prop capture.
+  let stats = $state<SyncStats | null>(untrack(() => initialStats ?? null));
   let error = $state<string | null>(null);
-  let loading = $state(!initialStats);
+  let loading = $state(untrack(() => !initialStats));
 
   async function loadStats() {
     error = null;
