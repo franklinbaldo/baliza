@@ -122,6 +122,13 @@ jobs:
         run: npm run build
         working-directory: web
 
+      # Temporary migration evidence; removed once the Astro 7 hashes are
+      # copied into security-headers.ts.
+      - name: Print Astro 7 CSP hashes
+        if: github.event_name == 'pull_request' && github.head_ref == 'ci/astro7-security-migration'
+        run: node scripts/compute-csp-hash.mjs
+        working-directory: web
+
       - name: Upload artifact
         # Cron + manual dispatches publish too — otherwise the daily
         # ``schedule`` trigger we added would build the site but leave
