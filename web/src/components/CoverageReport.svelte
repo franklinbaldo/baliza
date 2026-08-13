@@ -167,7 +167,7 @@
         <strong>{formatInteger(stats.totalReference)}</strong>
         <p><small>órgãos públicos publicaram no PNCP</small></p>
       </hgroup>
-      <progress value={stats.coveragePct} max="100"></progress>
+      <progress value={stats.coveragePct} max="100" aria-label="Cobertura de órgãos públicos no PNCP"></progress>
       <p><strong>{stats.coveragePct.toFixed(1)}%</strong></p>
     </article>
 
