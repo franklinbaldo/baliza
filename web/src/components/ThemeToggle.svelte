@@ -24,9 +24,7 @@
   class="outline"
   onclick={toggle}
   aria-label={isDark ? 'Alternar para tema claro' : 'Alternar para tema escuro'}
-  aria-pressed={isDark}
   data-testid="theme-toggle"
 >
   <span aria-hidden="true">{isDark ? '☀️' : '🌙'}</span>
 </button>
-
