@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Icon from './Icon.svelte';
+  import type { IconName } from '../lib/icons';
   import { cityState, hydrateCityContext } from '../lib/cityContext.svelte';
   import { resolve } from '../lib/baseUrl';
 
@@ -6,14 +8,21 @@
 
   const cityHref = $derived(resolve(`municipio?ibge=${cityState.ibge}`));
 
-  const ITEMS = [
+  const ITEMS: Array<{
+    title: string;
+    question: string;
+    cta: string;
+    href: string;
+    cityScoped: boolean;
+    icon: IconName;
+  }> = [
     {
       title: 'Contratos recentes',
       question: 'O que a prefeitura está comprando esta semana?',
       cta: 'Ver contratos',
       href: 'municipio',
       cityScoped: true,
-      icon: '🛒',
+      icon: 'document',
     },
     {
       title: 'Concentração de fornecedores',
@@ -21,7 +30,7 @@
       cta: 'Investigar',
       href: 'explorador',
       cityScoped: false,
-      icon: '🏢',
+      icon: 'building',
     },
     {
       title: 'Contratações por secretaria',
@@ -29,7 +38,7 @@
       cta: 'Ver por órgão',
       href: 'municipio',
       cityScoped: true,
-      icon: '🏛️',
+      icon: 'building',
     },
     {
       title: 'Atas de registro de preços',
@@ -37,7 +46,7 @@
       cta: 'Consultar atas',
       href: 'atas',
       cityScoped: false,
-      icon: '📒',
+      icon: 'archive',
     },
     {
       title: 'Dispensas e inexigibilidades',
@@ -45,7 +54,7 @@
       cta: 'Verificar dispensas',
       href: 'dispensas',
       cityScoped: false,
-      icon: '⚖️',
+      icon: 'warning',
     },
     {
       title: 'Variações atípicas no valor',
@@ -53,9 +62,9 @@
       cta: 'Analisar preços',
       href: 'explorador',
       cityScoped: false,
-      icon: '📈',
+      icon: 'signal',
     },
-  ] as const;
+  ];
 </script>
 
 <section aria-labelledby="monitor-title">
@@ -72,7 +81,7 @@
     {#each ITEMS as item (item.title)}
       <article>
         <a href={item.cityScoped ? cityHref : resolve(item.href)}>
-          <figure aria-hidden="true" style="font-size: 2.5rem; margin: 0">{item.icon}</figure>
+          <figure aria-hidden="true" style="font-size: 2.5rem; margin: 0"><Icon name={item.icon} /></figure>
           <strong>{item.title}</strong>
           <p><small>{item.question}</small></p>
           <small>{item.cta} →</small>
