@@ -22,7 +22,9 @@ Feature: Journey 2 — Public buyer
 
   @green @market
   Scenario: Compare procurement practice across municipalities of similar size
-    # Planned: peer-comparison page does not exist.
+    # Partial: /comparar computes the selected municipality's per-capita value from
+    # PNCP data. The three comparison cards are explicitly simulated scenarios,
+    # not real peer municipalities; real peer selection remains product work.
     Given the user opens "/comparar?ibge=3550308&objeto=merenda"
     Then the user sees three peer municipalities of similar population
     And the user sees the per-capita spend for the same object
