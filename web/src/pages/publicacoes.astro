@@ -9,3 +9,31 @@ import PublicacoesHubView from '../components/PublicacoesHubView.svelte';
 >
   <PublicacoesHubView client:only="svelte" />
 </Layout>
+
+<style is:global>
+  .schema-panel .col-row {
+    grid-template-columns: minmax(220px, 1fr) 72px minmax(220px, 1.4fr);
+    column-gap: var(--space-4);
+    align-items: start;
+  }
+
+  .schema-panel .col-name {
+    overflow-wrap: anywhere;
+  }
+
+  .schema-panel .col-type {
+    white-space: nowrap;
+  }
+
+  @media (max-width: 640px) {
+    .schema-panel .col-row {
+      grid-template-columns: minmax(0, 1fr) max-content;
+      column-gap: var(--space-3);
+      row-gap: var(--space-1);
+    }
+
+    .schema-panel .col-desc {
+      grid-column: 1 / -1;
+    }
+  }
+</style>
