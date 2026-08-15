@@ -95,7 +95,7 @@ jobs:
         run: node scripts/capture-comparar.mjs 'http://127.0.0.1:4321/baliza/comparar?ibge=3550308&objeto=merenda' ../visual-evidence
 
       - name: Upload visual evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: baliza-data-surfaces-visual-${{ github.sha }}
           path: visual-evidence/
