@@ -48,8 +48,13 @@ while (Date.now() - startedAt < deadlineMs) {
   await page.waitForTimeout(pollMs);
 }
 
-const filename = `publicacoes-${state}-1280x900.png`;
-await page.screenshot({ path: `${outputDir}/${filename}`, fullPage: true });
+const desktopFilename = `publicacoes-${state}-1280x900.png`;
+await page.screenshot({ path: `${outputDir}/${desktopFilename}`, fullPage: true });
+
+await page.setViewportSize({ width: 390, height: 844 });
+await page.waitForTimeout(250);
+const narrowFilename = `publicacoes-${state}-390x844.png`;
+await page.screenshot({ path: `${outputDir}/${narrowFilename}`, fullPage: true });
 
 const statusLine = bodyText
   .split('\n')
@@ -66,8 +71,10 @@ const evidence = {
   route: '/publicacoes',
   url,
   state,
-  screenshot: filename,
-  viewport: { width: 1280, height: 900 },
+  screenshots: [
+    { file: desktopFilename, viewport: { width: 1280, height: 900 } },
+    { file: narrowFilename, viewport: { width: 390, height: 844 } },
+  ],
   waited_ms: Date.now() - startedAt,
   table_rows: tableRows,
   final_status_excerpt: statusLine,
@@ -78,7 +85,8 @@ const evidence = {
 await writeFile(`${outputDir}/capture-state.json`, `${JSON.stringify(evidence, null, 2)}\n`);
 
 console.log(`capture_state=${state}`);
-console.log(`capture_screenshot=${filename}`);
+console.log(`capture_desktop=${desktopFilename}`);
+console.log(`capture_narrow=${narrowFilename}`);
 console.log(`capture_table_rows=${tableRows}`);
 if (statusLine) console.log(`capture_status=${statusLine}`);
 
