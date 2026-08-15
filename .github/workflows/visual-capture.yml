@@ -1,0 +1,98 @@
+name: Visual capture — Publicações
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - '.github/workflows/visual-capture.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - '.github/workflows/visual-capture.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: visual-capture-publicacoes-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  capture:
+    name: Capture archive-backed Publicações
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: latest
+          python-version: '3.12'
+
+      - name: Sync Python dependencies
+        run: uv sync --all-groups --all-extras
+
+      - name: Install web dependencies and capture runtime
+        working-directory: web
+        run: |
+          npm ci
+          npm install --no-save playwright@1.54.2
+
+      - name: Restore last published sync stats (best effort)
+        run: |
+          mkdir -p web/public/data
+          curl --silent --show-error --location --fail \
+            --max-time 30 \
+            -o web/public/data/sync_stats.json.fresh \
+            https://franklinbaldo.github.io/baliza/data/sync_stats.json \
+            && mv web/public/data/sync_stats.json.fresh web/public/data/sync_stats.json \
+            || rm -f web/public/data/sync_stats.json.fresh
+
+      - name: Generate sync stats baseline
+        run: uv run python scripts/build_sync_stats.py
+
+      - name: Build the same Project Pages artifact
+        working-directory: web
+        run: npm run build
+
+      - name: Install Chromium
+        working-directory: web
+        run: npx playwright install chromium --with-deps
+
+      - name: Serve the Project Pages artifact
+        run: |
+          mkdir -p /tmp/baliza-pages
+          ln -s "${{ github.workspace }}/web/dist" /tmp/baliza-pages/baliza
+          python3 -m http.server 4321 --bind 127.0.0.1 --directory /tmp/baliza-pages >/tmp/baliza-capture-server.log 2>&1 &
+          for i in {1..30}; do
+            curl --silent --fail http://127.0.0.1:4321/baliza/publicacoes >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/baliza-capture-server.log
+          exit 1
+
+      - name: Capture Publicações with hydration evidence
+        working-directory: web
+        run: node scripts/capture-publicacoes.mjs http://127.0.0.1:4321/baliza/publicacoes ../visual-evidence
+
+      - name: Upload visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: baliza-publicacoes-visual-${{ github.sha }}
+          path: visual-evidence/
+          if-no-files-found: error
+          retention-days: 30
