@@ -35,7 +35,22 @@ jobs:
       - uses: astral-sh/setup-uv@v4
 
       - name: Run ETL
-        run: uv run scripts/build_orgaos_publicos.py
+        run: |
+          # Receita's public host occasionally times out during connection
+          # establishment. Retry the whole idempotent ETL with short backoff;
+          # a persistent upstream failure still fails the workflow normally.
+          for attempt in 1 2 3; do
+            if uv run scripts/build_orgaos_publicos.py; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "ETL failed after $attempt attempts."
+              exit 1
+            fi
+            delay=$((attempt * 15))
+            echo "ETL attempt $attempt failed; retrying in ${delay}s..."
+            sleep "$delay"
+          done
 
       - name: Commit refreshed JSON if changed
         run: |
