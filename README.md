@@ -1,10 +1,18 @@
-# Baliza CLI
+# Baliza
 
 [![PNCP Sync](https://github.com/franklinbaldo/baliza/actions/workflows/pncp-sync.yml/badge.svg)](https://github.com/franklinbaldo/baliza/actions/workflows/pncp-sync.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 
-**Baliza** (Backup Aberto de Licitações Zelando pelo Acesso) is an open-source CLI that extracts contract data from the Brazilian public procurement portal (PNCP) and stores it in a DuckDB database ready for analysis.
+**Baliza** (Backup Aberto de Licitações Zelando pelo Acesso) preserva e organiza dados do Portal Nacional de Contratações Públicas (PNCP) para consulta pública e análise reproduzível.
+
+**[Abrir o Baliza na web →](https://franklinbaldo.github.io/baliza/)**
+
+O projeto combina três superfícies do mesmo acervo:
+
+- **site público** — descoberta por município, status, busca, dashboards, comparação e vistas analíticas sobre contratações públicas;
+- **pipeline de preservação** — coleta dados do PNCP, publica snapshots no Internet Archive e consolida arquivos para análise;
+- **CLI** — permite sincronizar, verificar e consolidar o acervo de forma reproduzível.
 
 ## Product vision and user journeys
 
