@@ -99,7 +99,7 @@ dev = [
     # the gate automatically -- and uv.lock is gitignored, so nothing else holds
     # the version steady. Moving to a newer ruff should be a deliberate PR that
     # decides which newly stabilised rules we want.
-    "ruff==0.15.22",
+    "ruff==0.16.2",
     "mypy>=1.8.0",
     "pre-commit>=3.6.0",
     "pytest-bdd>=7.0.0",
