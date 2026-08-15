@@ -12,7 +12,9 @@ import PublicacoesHubView from '../components/PublicacoesHubView.svelte';
 
 <style is:global>
   .schema-panel .col-row {
-    grid-template-columns: minmax(180px, 1.35fr) max-content minmax(0, 2fr);
+    grid-template-columns: minmax(220px, 1fr) 72px minmax(220px, 1.4fr);
+    column-gap: var(--space-4);
+    align-items: start;
   }
 
   .schema-panel .col-name {
@@ -26,6 +28,8 @@ import PublicacoesHubView from '../components/PublicacoesHubView.svelte';
   @media (max-width: 640px) {
     .schema-panel .col-row {
       grid-template-columns: minmax(0, 1fr) max-content;
+      column-gap: var(--space-3);
+      row-gap: var(--space-1);
     }
 
     .schema-panel .col-desc {
