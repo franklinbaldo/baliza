@@ -1,4 +1,4 @@
-name: Visual capture — Publicações
+name: Visual capture — data surfaces
 
 on:
   workflow_dispatch:
@@ -17,12 +17,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: visual-capture-publicacoes-${{ github.ref }}
+  group: visual-capture-data-surfaces-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   capture:
-    name: Capture archive-backed Publicações
+    name: Capture hydrated data surfaces
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -79,7 +79,8 @@ jobs:
           ln -s "${{ github.workspace }}/web/dist" /tmp/baliza-pages/baliza
           python3 -m http.server 4321 --bind 127.0.0.1 --directory /tmp/baliza-pages >/tmp/baliza-capture-server.log 2>&1 &
           for i in {1..30}; do
-            curl --silent --fail http://127.0.0.1:4321/baliza/publicacoes >/dev/null && exit 0
+            curl --silent --fail http://127.0.0.1:4321/baliza/publicacoes >/dev/null && \
+            curl --silent --fail 'http://127.0.0.1:4321/baliza/comparar?ibge=3550308&objeto=merenda' >/dev/null && exit 0
             sleep 1
           done
           cat /tmp/baliza-capture-server.log
@@ -89,10 +90,14 @@ jobs:
         working-directory: web
         run: node scripts/capture-publicacoes.mjs http://127.0.0.1:4321/baliza/publicacoes ../visual-evidence
 
+      - name: Capture Comparar with factual-boundary evidence
+        working-directory: web
+        run: node scripts/capture-comparar.mjs 'http://127.0.0.1:4321/baliza/comparar?ibge=3550308&objeto=merenda' ../visual-evidence
+
       - name: Upload visual evidence
         uses: actions/upload-artifact@v4
         with:
-          name: baliza-publicacoes-visual-${{ github.sha }}
+          name: baliza-data-surfaces-visual-${{ github.sha }}
           path: visual-evidence/
           if-no-files-found: error
           retention-days: 30
