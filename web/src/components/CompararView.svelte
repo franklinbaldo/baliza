@@ -87,7 +87,7 @@
 <section>
   <HubHeader kicker="🌍 Comparar" title="Comparação de Municípios">
     {#snippet lede()}
-      <p>Gastos per-capita e comparação com municípios do mesmo porte.</p>
+      <p>Consulte o gasto per-capita do município. A comparação com pares reais ainda não está disponível; abaixo, referências simuladas mostram apenas cenários relativos.</p>
     {/snippet}
   </HubHeader>
 
