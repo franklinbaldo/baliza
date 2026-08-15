@@ -112,14 +112,17 @@
       <footer><small>Gasto total: {formatBrl(totalSpend)} | População estimada: {getPop(submittedIbge)}</small></footer>
     </article>
 
-    <section data-testid="comparar-peers">
-      <h3>Municípios Semelhantes</h3>
+    <section data-testid="comparar-peers" aria-labelledby="comparar-simulacao-title">
+      <h3 id="comparar-simulacao-title">Referências simuladas</h3>
+      <p>
+        Os valores abaixo são cenários ilustrativos calculados a partir do gasto per-capita acima.
+        <strong>Não representam municípios reais nem uma seleção real de pares por população.</strong>
+      </p>
       <div class="grid">
-        <article data-testid="comparar-peer-item"><h4>Peer 1 (Simulado)</h4><p><strong>{formatBrl(perCapitaSpend * 0.9)}</strong> / hab</p></article>
-        <article data-testid="comparar-peer-item"><h4>Peer 2 (Simulado)</h4><p><strong>{formatBrl(perCapitaSpend * 1.1)}</strong> / hab</p></article>
-        <article data-testid="comparar-peer-item"><h4>Peer 3 (Simulado)</h4><p><strong>{formatBrl(perCapitaSpend * 0.8)}</strong> / hab</p></article>
+        <article data-testid="comparar-peer-item"><h4>Cenário −10%</h4><p><strong>{formatBrl(perCapitaSpend * 0.9)}</strong> / hab</p></article>
+        <article data-testid="comparar-peer-item"><h4>Cenário +10%</h4><p><strong>{formatBrl(perCapitaSpend * 1.1)}</strong> / hab</p></article>
+        <article data-testid="comparar-peer-item"><h4>Cenário −20%</h4><p><strong>{formatBrl(perCapitaSpend * 0.8)}</strong> / hab</p></article>
       </div>
     </section>
   {/if}
 </section>
-
