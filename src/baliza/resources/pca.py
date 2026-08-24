@@ -100,13 +100,15 @@ PCA = PNCPResource(
             canonical_file_types=("", "annual_canonical"),
         ),
     ],
-    # PCA does NOT publish a monthly_canonical (the partition is
-    # annual end-to-end). Just annual_canonical lives in the
-    # consolidated IA item alongside contratos / atas annuals.
+    # PCA does NOT publish a monthly_canonical: its annual partition is
+    # exported directly by IAUploader.upload_parquet to the per-partition
+    # item (for example baliza-pncp-2026). Keep the declarative registry
+    # aligned with that runtime authority so future consumers do not look
+    # for PCA in baliza-pncp-consolidated by mistake.
     artifacts=(
         ArtifactSpec(
             file_type="annual_canonical",
-            ia_item_id="baliza-pncp-consolidated",
+            ia_item_id="baliza-pncp-{partition}",
             description="Yearly PCA snapshot — one row per item per "
             "anoPca, deduplicated by (id_pca_pncp, numero_item).",
         ),
