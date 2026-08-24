@@ -7,7 +7,7 @@ rather than a re-design.
 """
 from __future__ import annotations
 
-from baliza.resources import ATAS, CONTRATOS, ArtifactSpec
+from baliza.resources import ATAS, CONTRATOS, PCA, ArtifactSpec
 
 
 def _file_types(resource) -> list[str]:
@@ -31,11 +31,11 @@ def test_atas_publishes_two_artifacts():
     assert _file_types(ATAS) == ["monthly_canonical", "annual_canonical"]
 
 
-def test_atas_artifact_set_matches_canonical_partition_by_uf():
+def test_artifact_sets_match_canonical_partition_by_uf():
     """Cross-check: a resource that says ``partition_by_uf=False`` on
     its canonical table must NOT advertise a monthly_uf artifact, and
     vice versa. Catches drift between the two declarations."""
-    for resource in (CONTRATOS, ATAS):
+    for resource in (CONTRATOS, ATAS, PCA):
         canonical = resource.canonical_tables[0]
         has_uf_artifact = "monthly_uf" in _file_types(resource)
         assert has_uf_artifact == canonical.partition_by_uf, (
@@ -64,7 +64,7 @@ def test_artifact_spec_collection_fields_are_immutable():
     assert isinstance(spec.sort_columns, tuple)
     assert isinstance(spec.bloom_filter_columns, tuple)
     # And declared instances on real resources too.
-    for resource in (CONTRATOS, ATAS):
+    for resource in (CONTRATOS, ATAS, PCA):
         for artifact in resource.artifacts:
             assert isinstance(artifact.sort_columns, tuple)
             assert isinstance(artifact.bloom_filter_columns, tuple)
@@ -76,7 +76,7 @@ def test_pncp_resource_artifacts_is_a_tuple():
     the global registry singleton and silently change which artifacts
     get uploaded once the wiring PR consumes it. Tuples block
     in-place mutation."""
-    for resource in (CONTRATOS, ATAS):
+    for resource in (CONTRATOS, ATAS, PCA):
         assert isinstance(resource.artifacts, tuple), (
             f"{resource.resource_name}.artifacts must be a tuple, "
             f"got {type(resource.artifacts).__name__}"
@@ -100,29 +100,30 @@ def test_artifact_spec_coerces_list_inputs_to_tuples():
 
 
 def test_artifact_ia_items_match_runtime_upload_targets():
-    """Codex P2: ArtifactSpec must describe what the runtime *actually*
-    does today, otherwise the wiring PR will silently redirect uploads.
-    Pin the (file_type → ia_item_id) shape against the values
-    uploader / consolidator currently use:
+    """ArtifactSpec must describe what the runtime *actually* does today.
 
-    - monthly_canonical → ``baliza-pncp-{partition}`` (one item per month
-      via ``IAUploader.upload_parquet``).
-    - monthly_uf → ``baliza-pncp-consolidated`` (uploaded by
-      ``IAConsolidator.consolidate_year``, NOT the per-month item).
-    - annual_canonical → ``baliza-pncp-consolidated``.
+    Contratos/atas annual rollups are produced by the consolidator and
+    live in ``baliza-pncp-consolidated``. PCA is different: its annual
+    partition is the primary canonical and ``IAUploader.upload_parquet``
+    publishes it directly to ``baliza-pncp-{partition}``.
     """
-    expected = {
+    expected_shared = {
         "monthly_canonical": "baliza-pncp-{partition}",
         "monthly_uf": "baliza-pncp-consolidated",
         "annual_canonical": "baliza-pncp-consolidated",
     }
     for resource in (CONTRATOS, ATAS):
         for artifact in resource.artifacts:
-            assert artifact.ia_item_id == expected[artifact.file_type], (
+            assert artifact.ia_item_id == expected_shared[artifact.file_type], (
                 f"{resource.resource_name}/{artifact.file_type} "
                 f"declares ia_item_id={artifact.ia_item_id!r} but "
-                f"runtime uploads to {expected[artifact.file_type]!r}"
+                f"runtime uploads to {expected_shared[artifact.file_type]!r}"
             )
+
+    assert len(PCA.artifacts) == 1
+    pca_artifact = PCA.artifacts[0]
+    assert pca_artifact.file_type == "annual_canonical"
+    assert pca_artifact.ia_item_id == "baliza-pncp-{partition}"
 
 
 def test_every_artifact_has_a_known_file_type():
@@ -130,7 +131,7 @@ def test_every_artifact_has_a_known_file_type():
     Adding a new value here is a deliberate cross-cutting change
     (manifest schema, isCanonicalRow, consolidator branch)."""
     known = {"monthly_canonical", "monthly_uf", "annual_canonical"}
-    for resource in (CONTRATOS, ATAS):
+    for resource in (CONTRATOS, ATAS, PCA):
         for artifact in resource.artifacts:
             assert artifact.file_type in known, (
                 f"unknown file_type {artifact.file_type!r} in "
