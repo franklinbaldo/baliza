@@ -76,10 +76,6 @@ ignore = [
     "E501",     # Line length in scripts is flexible
     "PLR0913",  # Many arguments in scripts is fine
 ]
-"*.py" = [
-    "E501",  # Relax line length everywhere (100 is strict)
-]
-
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"

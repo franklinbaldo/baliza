@@ -86,7 +86,8 @@ def _parse_iso_mtime(value: str) -> datetime.datetime | None:
 def _current_year_is_fresh(
     manifest: list[dict], year: int, *, resource: str = CONTRATOS.name
 ) -> bool:
-    """True when the current year's consolidated shards are at-or-after every monthly canonical upload.
+    """True when this year's consolidated shards are at-or-after every
+    monthly canonical upload.
 
     Uses the manifest as a single source of truth: consolidation writes
     ``monthly_uf`` shard rows after a successful IA upload, so the newest
@@ -301,7 +302,8 @@ class IAConsolidator:
         if frozen and not force:
             if self._check_consolidated_exists_on_ia(year, resource=resource):
                 console.print(
-                    f"[dim]Skipping {resource}/{year}: frozen year, consolidated file already on IA.[/dim]"
+                    f"[dim]Skipping {resource}/{year}: frozen year, "
+                    "consolidated file already on IA.[/dim]"
                 )
                 return False
 

@@ -134,7 +134,9 @@ def parse_partition_label(resource: PNCPResource, label: str) -> date | None:
     strategy = resource.raw_dataset.partition_strategy
     try:
         if strategy == PartitionStrategy.MONTHLY:
-            return date(int(label[:4]), int(label[5:7]), 1) if len(label) == 7 and label[4] == "-" else None
+            if len(label) == 7 and label[4] == "-":
+                return date(int(label[:4]), int(label[5:7]), 1)
+            return None
         if strategy == PartitionStrategy.ANNUAL:
             return date(int(label), 1, 1) if len(label) == 4 else None
     except (ValueError, IndexError):

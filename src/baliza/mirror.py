@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import itertools
 import json
+from collections.abc import Callable
 from datetime import date, datetime
 from pathlib import Path
+from typing import Any
 
 import structlog
 
@@ -90,7 +92,7 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
     ia_secret_key: str,
     use_curl: bool = False,
     dry_run: bool = False,
-    log_fn: object = None,
+    log_fn: Callable[[str], None] | None = None,
     is_current_month: bool | None = None,
     resource: str = RESOURCE_CONTRATOS,
 ) -> dict[str, object]:
@@ -137,7 +139,7 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
         if log_fn is not None:
             log_fn(msg)
 
-    result: dict[str, object] = {
+    result: dict[str, Any] = {
         "month": month_str,
         "pages_fetched": 0,
         "pages_cached": 0,

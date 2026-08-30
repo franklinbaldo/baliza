@@ -200,7 +200,8 @@ class PNCPResource:
     def __post_init__(self) -> None:
         if not _RESOURCE_NAME_RE.match(self.resource_name):
             raise ValueError(
-                f"Invalid resource_name {self.resource_name!r}: must match {_RESOURCE_NAME_RE.pattern}"
+                f"Invalid resource_name {self.resource_name!r}: "
+                f"must match {_RESOURCE_NAME_RE.pattern}"
             )
         # PNCPResource itself isn't frozen (existing fields like
         # entities / canonical_tables predate this PR and stay as

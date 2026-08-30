@@ -403,7 +403,10 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
         RESOURCE_CONTRATOS, "--resource", "-r", help="PNCP resource to sync"
     ),
 ) -> None:
-    """Unified sync: extracts missing dates, uploads to IA, and consolidates (stateless, backwards sweep)."""
+    """Unified sync: extract missing dates, upload to IA, consolidate.
+
+    Stateless backwards sweep.
+    """
     start_time_exec = datetime.now()
     ia_access_key = os.environ.get("IA_ACCESS_KEY") or os.environ.get("IAS3_ACCESS_KEY")
     ia_secret_key = os.environ.get("IA_SECRET_KEY") or os.environ.get("IAS3_SECRET_KEY")
@@ -474,7 +477,7 @@ def sync(  # noqa: PLR0913, PLR0915, PLR0912
                     and row.get("sha256")
                     and row.get("table_name") == resource
                 }
-                manifest_by_month: dict[str, dict] = {
+                manifest_by_month = {
                     row["data_particao"]: row
                     for row in raw_manifest
                     if row.get("data_particao") and row.get("table_name") == resource
@@ -982,7 +985,8 @@ def verify(
 
         if not gaps:
             console.print(
-                f"[green]✓ Complete month coverage from {start} to {last_month_end.strftime('%Y-%m')} on Internet Archive."
+                f"[green]✓ Complete month coverage from {start} to "
+                f"{last_month_end.strftime('%Y-%m')} on Internet Archive."
             )
         else:
             console.print(f"[yellow]⚠ Found {len(gaps)} missing month(s) on IA:")
@@ -1072,7 +1076,11 @@ def doctor(  # noqa: PLR0912, PLR0915
     expected: list[str] = []
     while curr <= last_month_end:
         expected.append(curr.strftime("%Y-%m"))
-        curr = curr.replace(year=curr.year + 1, month=1) if curr.month == 12 else curr.replace(month=curr.month + 1)
+        curr = (
+            curr.replace(year=curr.year + 1, month=1)
+            if curr.month == 12
+            else curr.replace(month=curr.month + 1)
+        )
     gaps = [m for m in expected if m not in months_present]
     if gaps:
         findings.append(f"missing canonical months for {resource}: {len(gaps)} (e.g. {gaps[:5]})")
@@ -1310,7 +1318,9 @@ def orphans(  # noqa: PLR0912, PLR0913, PLR0915
                 # instead of pretending to configure it here.
                 ia.delete(
                     item_id,
-                    files=[fname],
+                    # The stub types ``files`` as ``list[File]``; the library
+                    # also accepts plain filenames and resolves them itself.
+                    files=[fname],  # type: ignore[list-item]
                     access_key=ia_access_key,
                     secret_key=ia_secret_key,
                     cascade_delete=False,

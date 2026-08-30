@@ -67,7 +67,7 @@ ATAS = PNCPResource(
     # Atas does not produce monthly_uf shards (partition_by_uf=False
     # on the canonical table — atas API responses don't carry buyer's
     # UF). monthly_canonical + annual_canonical only.
-    artifacts=[
+    artifacts=(
         ArtifactSpec(
             file_type="monthly_canonical",
             ia_item_id="baliza-pncp-{partition}",
@@ -78,5 +78,5 @@ ATAS = PNCPResource(
             ia_item_id="baliza-pncp-consolidated",
             description="Yearly rollup of monthly canonicals.",
         ),
-    ],
+    ),
 )

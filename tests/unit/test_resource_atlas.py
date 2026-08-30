@@ -114,7 +114,7 @@ def test_get_resource_returns_all_registered():
 
 
 def test_publicacoes_endpoint_is_contratacoes_publicacao():
-    # Verified against debug_api.py probes.
+    # Verified against the live PNCP API (see scripts/probe_publicacoes.py).
     assert PUBLICACOES.fetch.endpoint == "contratacoes/publicacao"
 
 

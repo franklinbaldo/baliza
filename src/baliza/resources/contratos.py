@@ -76,7 +76,7 @@ CONTRATOS = PNCPResource(
     # Artifacts contratos publishes today. Drift-B prep: declared in
     # one place; the uploader / consolidator still hardcode the same
     # facts and will be rewired in the follow-up PR.
-    artifacts=[
+    artifacts=(
         ArtifactSpec(
             file_type="monthly_canonical",
             ia_item_id="baliza-pncp-{partition}",
@@ -100,5 +100,5 @@ CONTRATOS = PNCPResource(
             description="Yearly rollup of monthly canonicals into a "
             "single Parquet for explorer queries.",
         ),
-    ],
+    ),
 )

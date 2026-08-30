@@ -10,8 +10,10 @@ from __future__ import annotations
 import shutil
 import tempfile
 import zipfile
+from collections.abc import Callable
 from datetime import date, datetime
 from pathlib import Path
+from typing import Any
 
 import httpx
 import structlog
@@ -132,7 +134,7 @@ def build_month(  # noqa: PLR0913, PLR0915
     ia_access_key: str,
     ia_secret_key: str,
     dry_run: bool = False,
-    log_fn: object = None,
+    log_fn: Callable[[str], None] | None = None,
     manifest: list[dict] | None = None,
     resource: str = RESOURCE_CONTRATOS,
 ) -> dict[str, object]:
@@ -165,7 +167,7 @@ def build_month(  # noqa: PLR0913, PLR0915
         if log_fn is not None:
             log_fn(msg)
 
-    result: dict[str, object] = {
+    result: dict[str, Any] = {
         "month": month_str,
         "valid": 0,
         "quarantine": 0,

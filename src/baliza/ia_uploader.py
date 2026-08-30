@@ -131,7 +131,15 @@ RAW_ITEM_METADATA = {
     ),
     "mediatype": "data",
     "collection": "opensource_media",
-    "subject": ["PNCP", "contratos", "licitações", "governo", "Brasil", "open data", BALIZA_COLLECTION_TAG],
+    "subject": [
+        "PNCP",
+        "contratos",
+        "licitações",
+        "governo",
+        "Brasil",
+        "open data",
+        BALIZA_COLLECTION_TAG,
+    ],
     "creator": "Baliza",
     "language": "pt",
 }
@@ -225,7 +233,11 @@ def write_manifest_to_ia(rows: list[dict[str, Any]], access_key: str, secret_key
             files={"manifest.csv": temp_csv},
             access_key=access_key,
             secret_key=secret_key,
-            metadata={"title": "Baliza PNCP Manifest", "mediatype": "data", "subject": [BALIZA_COLLECTION_TAG]},
+            metadata={
+                "title": "Baliza PNCP Manifest",
+                "mediatype": "data",
+                "subject": [BALIZA_COLLECTION_TAG],
+            },
             retries=3,
         )
     finally:
@@ -469,7 +481,8 @@ class IAUploader:
             manifest = read_manifest_from_ia()
             parquet_item_id = f"baliza-pncp-{month_str}"
             raw_zip_url = (
-                f"https://archive.org/download/{RAW_ITEM_ID}/{raw_zip_filename(resource, month_str)}"
+                f"https://archive.org/download/{RAW_ITEM_ID}/"
+                f"{raw_zip_filename(resource, month_str)}"
             )
 
             # Match the canonical row for this resource — the
@@ -609,7 +622,8 @@ class IAUploader:
             )
         else:
             console.print(
-                f"[yellow]⚠ {month_str} ZIP uploaded but NOT cleaned due to manifest error.[/yellow]"
+                f"[yellow]⚠ {month_str} ZIP uploaded but NOT cleaned "
+                "due to manifest error.[/yellow]"
             )
         return success
 
@@ -899,7 +913,8 @@ class IAUploader:
                 console.print(f"[green]✓ {month_str} synced and local data cleaned.[/green]")
             else:
                 console.print(
-                    f"[yellow]⚠ {month_str} uploaded but NOT cleaned due to manifest error.[/yellow]"
+                    f"[yellow]⚠ {month_str} uploaded but NOT cleaned "
+                    "due to manifest error.[/yellow]"
                 )
 
     def _update_remote_manifest(  # noqa: PLR0913

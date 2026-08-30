@@ -35,14 +35,15 @@ class BalizaEngine:
         self._ensure_schema("baliza_state")
 
     def connect_thread_safe(self) -> "BalizaEngine":
-        """Return a new engine instance sharing the same database path but with a fresh connection."""
+        """Return a new engine on the same database path, with a fresh connection."""
         return BalizaEngine(db_path=self.path)
 
     def _ensure_schema(self, schema_name: str = "baliza_state"):
         """Create a schema and necessary state tables if they don't exist."""
         try:
             # DDL for schema still uses raw_sql as per Ibis standard for DuckDB
-            # This is acceptable as it's part of connection setup, but we'll try to reach for con.create_database if needed
+            # Acceptable as part of connection setup; reach for
+            # con.create_database if that stops being true.
             self.con.raw_sql(f"CREATE SCHEMA IF NOT EXISTS {schema_name}")
 
             # Create quarantine table if it's the state schema
