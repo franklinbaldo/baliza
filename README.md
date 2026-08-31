@@ -96,8 +96,18 @@ Usually not needed: `sync` already consolidates at the end of a successful run. 
 
 ```bash
 uv sync
-pytest tests/
+uv run pytest tests/
+uv run ruff check src/ tests/ scripts/
+uv run mypy src/baliza
 ```
+
+CI runs the same three commands. `tests/integration/test_pncp_cassettes.py`
+runs separately, in the `pncp-cassette-check` workflow with its own network
+block.
+
+The standalone utilities under [`scripts/`](scripts/README.md) — data builders
+the web build consumes, live-API probes, and Internet Archive maintenance — are
+documented there.
 
 ## License
 

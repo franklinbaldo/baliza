@@ -301,7 +301,8 @@ def secure_url_connection_params(url: str) -> tuple[str, dict[str, str]]:
     # We still resolved it above to ensure at least one valid IP exists (fail fast),
     # although technically race conditions could still happen with HTTPS if we don't pin the IP.
     # However, pinning IP for HTTPS breaks SNI in many clients unless custom transport is used.
-    # Given the risk profile, HTTPS + Valid Cert is generally considered safe enough against Rebinding.
+    # Given the risk profile, HTTPS + a valid cert is considered safe enough
+    # against rebinding.
     if parsed.scheme == "https":
         return url, {}
 
@@ -380,7 +381,7 @@ def scrub_url_params(text: str) -> str:
 
     # 2. Scrub query parameters: scheme://path?query
     # ([a-zA-Z][a-zA-Z0-9+.-]*://[^\s'\"?]+) : Group 1 - Scheme + path (no space, quote, ?)
-    # (\?[^\s'\"]*)                          : Group 2 - Query string (starts with ?, no space, quote)
+    # (\?[^\s'\"]*)                          : Group 2 - Query string
     text = re.sub(r"([a-zA-Z][a-zA-Z0-9+.-]*://[^\s'\"?]+)(\?[^\s'\"]*)", r"\1?***", text)
 
     return text

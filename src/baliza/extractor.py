@@ -23,10 +23,9 @@ from .utils import validate_url
 logger = structlog.get_logger()
 console = Console()
 
-# PNCP honours up to 500 items per page for the `contratos` endpoint.
-# The declarative pipeline config (see scripts/test_parameter_variations.py)
-# already uses 500; we mirror it here so the simple CLI extractor doesn't
-# issue 5x as many requests for the same data.
+# PNCP honours up to 500 items per page for the `contratos` endpoint. Using the
+# maximum keeps the CLI extractor from issuing 5x as many requests for the same
+# data.
 PAGE_SIZE = 500
 
 # Sentinel written once every expected page for a month is on disk. Presence
@@ -46,7 +45,9 @@ def _is_retryable_error(exception: BaseException) -> bool:
         # Explicit 404 block -- don't retry, let it bubble
         if exception.response.status_code == 404:
             return False
-    elif isinstance(exception, RetryablePayloadError | httpx.RequestError | subprocess.CalledProcessError):
+    elif isinstance(
+        exception, RetryablePayloadError | httpx.RequestError | subprocess.CalledProcessError
+    ):
         return True
     return False
 
@@ -316,6 +317,14 @@ class PNCPExtractor:
             "total_registries": data.get("totalRegistros", 0),
         }
 
+    def _require_engine(self, operation: str) -> BalizaEngine:
+        """Return the shared engine, or fail loudly when it was never wired."""
+        if self.engine is None:
+            raise RuntimeError(
+                f"{operation} requires an engine — construct PNCPExtractor(engine=...)"
+            )
+        return self.engine
+
     def _archive_legacy_contratos_table(self) -> None:
         """Rename a pre-flatten main.contratos out of the way on upgrade.
 
@@ -341,13 +350,14 @@ class PNCPExtractor:
         if not self._has_legacy_contratos_shape():
             return
 
+        engine = self._require_engine("_archive_legacy_contratos_table")
         archive_name = f"contratos_legacy_{int(time.time() * 1000)}"
         logger.warning(
             "archiving_legacy_contratos_schema",
             archive_table=f"main.{archive_name}",
         )
         try:
-            self.engine.con.raw_sql(f"ALTER TABLE main.contratos RENAME TO {archive_name}")
+            engine.con.raw_sql(f"ALTER TABLE main.contratos RENAME TO {archive_name}")
         except Exception as e:
             # A parallel worker already did the rename, or `contratos` was
             # dropped/renamed out from under us. Tolerate the race as long
@@ -360,10 +370,11 @@ class PNCPExtractor:
         """Return True iff main.contratos exists AND has the camelCase PK
         without the snake_case PK. Any lookup error is treated as 'no'."""
         try:
-            tables = self.engine.con.list_tables(database="main")
+            engine = self._require_engine("_has_legacy_contratos_shape")
+            tables = engine.con.list_tables(database="main")
             if CONTRATOS.name not in tables:
                 return False
-            columns = set(self.engine.con.table(CONTRATOS.name, database="main").schema().names)
+            columns = set(engine.con.table(CONTRATOS.name, database="main").schema().names)
         except Exception:
             return False
         return "numeroControlePNCP" in columns and "numero_controle_pncp" not in columns
@@ -398,6 +409,7 @@ class PNCPExtractor:
         stats: dict[str, int],
     ) -> Iterator[dict]:
         """Yield validated and flattened rows from raw entries, updating stats/quarantine."""
+        engine = self._require_engine("_iter_valid_rows")
         entity_model = spec.entity_model
         flatten_fn = spec.canonical_tables[0].flatten_fn
 
@@ -420,7 +432,7 @@ class PNCPExtractor:
             except ValidationError as e:
                 stats["quarantine"] += 1
                 logger.warning("validation_failed", error=str(e), entry_id=entry.get("id"))
-                self.engine.quarantine_record(spec.name, start_date, str(e), entry)
+                engine.quarantine_record(spec.name, start_date, str(e), entry)
 
     def ingest_range(
         self,
@@ -439,10 +451,7 @@ class PNCPExtractor:
                 ``PNCPResource`` and a ``flatten_fn`` on its canonical
                 table spec — no extractor changes.
         """
-        if self.engine is None:
-            raise RuntimeError(
-                "ingest_range requires an engine — construct PNCPExtractor(engine=...)"
-            )
+        engine = self._require_engine("ingest_range")
 
         spec = get_resource(resource)
         if spec.entity_model is None:
@@ -476,7 +485,7 @@ class PNCPExtractor:
         if valid_rows:
             # Direct memory ingestion (Idempotent)
             for table_spec in spec.canonical_tables:
-                self.engine.upsert_rows(
+                engine.upsert_rows(
                     valid_rows, table_spec.table_name, schema="main", pk=table_spec.pk
                 )
 
@@ -484,12 +493,9 @@ class PNCPExtractor:
 
     def export_quarantine(self, extraction_date: datetime, output_path: Path) -> bool:
         """Export session quarantine to CSV if not empty."""
-        if self.engine is None:
-            raise RuntimeError(
-                "export_quarantine requires an engine — construct PNCPExtractor(engine=...)"
-            )
+        engine = self._require_engine("export_quarantine")
         try:
-            q_table = self.engine.get_table("quarantine", schema="baliza_state")
+            q_table = engine.get_table("quarantine", schema="baliza_state")
             # Filter for current date if possible, but in stateless per-day loop,
             # the quarantine table is fresh for this run.
             df = q_table.execute()
@@ -505,12 +511,13 @@ class PNCPExtractor:
     ):
         """Update resource health state based on extraction results (Circuit Breaker logic)."""
         try:
+            engine = self._require_engine("_update_resource_health")
             # Use raw_sql for DDL on Ibis connection
             # First ensure schema exists
-            self.engine.con.raw_sql("CREATE SCHEMA IF NOT EXISTS baliza_state")
+            engine.con.raw_sql("CREATE SCHEMA IF NOT EXISTS baliza_state")
 
             # Ensure table exists
-            self.engine.con.raw_sql("""
+            engine.con.raw_sql("""
                 CREATE TABLE IF NOT EXISTS baliza_state.resource_health (
                     resource TEXT PRIMARY KEY,
                     consecutive_empty_days INTEGER DEFAULT 0,
@@ -522,11 +529,12 @@ class PNCPExtractor:
 
             # For queries, we can use the native duckdb connection for simplicity in DDL/DML
             # or use Ibis table expressions. Let's use the native connection for these raw updates.
-            native_con = self.engine.con.con
+            native_con = engine.con.con
 
             # Get current state
             state = native_con.execute(
-                "SELECT consecutive_empty_days, last_nonempty_date FROM baliza_state.resource_health WHERE resource = ?",
+                "SELECT consecutive_empty_days, last_nonempty_date "
+                "FROM baliza_state.resource_health WHERE resource = ?",
                 [resource],
             ).fetchone()
 
@@ -535,7 +543,9 @@ class PNCPExtractor:
                 empty_days = 1 if rows_extracted == 0 else 0
                 last_date = None if rows_extracted == 0 else extraction_date.date()
                 native_con.execute(
-                    "INSERT INTO baliza_state.resource_health (resource, consecutive_empty_days, last_nonempty_date) VALUES (?, ?, ?)",
+                    "INSERT INTO baliza_state.resource_health "
+                    "(resource, consecutive_empty_days, last_nonempty_date) "
+                    "VALUES (?, ?, ?)",
                     [resource, empty_days, last_date],
                 )
             else:
@@ -556,7 +566,8 @@ class PNCPExtractor:
 
                 native_con.execute(
                     """UPDATE baliza_state.resource_health 
-                       SET consecutive_empty_days = ?, last_nonempty_date = ?, status = ?, updated_at = NOW()
+                       SET consecutive_empty_days = ?, last_nonempty_date = ?,
+                           status = ?, updated_at = NOW()
                        WHERE resource = ?""",
                     [new_empty, new_last, status, resource],
                 )

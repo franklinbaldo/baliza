@@ -1,6 +1,8 @@
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.1.14
+    # Keep in sync with the pinned ruff in pyproject.toml [dependency-groups].dev,
+    # otherwise the hook and CI enforce different rule sets.
+    rev: v0.15.22
     hooks:
       - id: ruff
         args: [--fix]

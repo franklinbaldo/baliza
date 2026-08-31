@@ -39,7 +39,7 @@ def _monthly_zip_filename(part_str: str) -> str:
 # 1, 3, 5, 7, 8, 9, 10, 11, 12, 13 carry data and 14 returns 204
 # empty consistently; 2, 4, 6 timed out intermittently — include
 # them so we don't silently drop data when the upstream is healthy.
-_PUBLICACAO_MODALIDADES = list(range(1, 15))
+_PUBLICACAO_MODALIDADES: list[int | str] = list(range(1, 15))
 
 
 PUBLICACOES = PNCPResource(
