@@ -67,7 +67,7 @@ jobs:
       # latter, when it succeeds, overwrites with the freshest source-
       # of-truth (the deployed file).
       - name: Restore cached sync_stats.json
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: web/public/data/sync_stats.json
           key: sync-stats-${{ github.run_id }}
