@@ -13,10 +13,12 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  # Need contents: write to push the regenerated JSON back to main when
-  # content changes; issues: write so the report-failure job can open an
-  # alert issue (`github.rest.issues.create`) when the ETL breaks.
+  # contents: write to commit the regenerated JSON on an automation branch;
+  # pull-requests: write to open the PR that carries it to main (main requires
+  # an up-to-date head, and that rule applies to pushes too); issues: write so
+  # the report-failure job can open an alert issue when the ETL breaks.
   contents: write
+  pull-requests: write
   issues: write
 
 jobs:
@@ -66,7 +68,18 @@ jobs:
           git config user.email '[email protected]'
           git add web/public/data/cnpj-orgaos-publicos.json
           git commit -m "chore(data): refresh public-CNPJ reference from Receita Federal"
-          git push
+          BRANCH=automation/orgaos-publicos
+          git checkout -B "$BRANCH"
+          git push -f origin "$BRANCH"
+          NUM=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+          if [ -z "$NUM" ]; then
+            CORPO="Refresh mensal do recorte de orgaos publicos, gerado pelo workflow build-orgaos-publicos."
+            URL=$(gh pr create --base main --head "$BRANCH" --title "chore(data): refresh public-CNPJ reference" --body "$CORPO")
+            NUM="${URL##*/}"
+          fi
+          gh pr merge "$NUM" --auto --squash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   report-failure:
     name: Report workflow failure
