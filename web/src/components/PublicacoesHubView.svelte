@@ -24,7 +24,6 @@
   let noData = $state(false);
 
   onMount(async () => {
-    // Load aggregate stats from sync_stats.json
     try {
       const res = await fetch(resolve('data/sync_stats.json'));
       if (res.ok) {
@@ -35,7 +34,6 @@
       }
     } catch { /* non-fatal */ }
 
-    // Load modalidade breakdown from archived parquet
     try {
       const info = await getLatestParquetInfo('publicacoes');
       if (!info) { noData = true; loading = false; return; }
@@ -87,71 +85,35 @@
     </div>
   </header>
 
-  <!-- Stats -->
   {#if stats && stats.row_count > 0}
     <div class="grid stats-grid">
-      <StatCard
-        title="Publicações arquivadas"
-        value={formatInteger(stats.row_count)}
-        hint={`${stats.partition_count} partições mensais no Internet Archive`}
-      />
-      <StatCard
-        title="Partições"
-        value={formatInteger(stats.partition_count)}
-        hint="cada partição = um mês de publicações do PNCP"
-      />
+      <StatCard title="Publicações arquivadas" value={formatInteger(stats.row_count)} hint={`${stats.partition_count} partições mensais no Internet Archive`} />
+      <StatCard title="Partições" value={formatInteger(stats.partition_count)} hint="cada partição = um mês de publicações do PNCP" />
     </div>
   {:else}
     <div class="empty-state" role="status">
-      <p>
-        Ainda sem partições publicadas — o pipeline <code>pncp-mirror-publicacoes</code>
-        executa diariamente às 05:00 UTC. Volte em breve ou
-        <a href="https://github.com/franklinbaldo/baliza/actions" target="_blank" rel="noopener">acompanhe o CI ↗</a>.
-      </p>
+      <p>Ainda sem partições publicadas — o pipeline <code>pncp-mirror-publicacoes</code> executa diariamente às 05:00 UTC. Volte em breve ou <a href="https://github.com/franklinbaldo/baliza/actions" target="_blank" rel="noopener">acompanhe o CI ↗</a>.</p>
     </div>
   {/if}
 
-  <!-- Modalidade breakdown (Task 5c) -->
   <section class="breakdown" aria-labelledby="modalidade-title">
     <h2 id="modalidade-title">Contratações por modalidade</h2>
-    <p class="section-desc">
-      Publicações agrupadas por <code>modalidade_id</code> no snapshot mais recente.
-      A modalidade determina o rito: dispensa, pregão, concorrência etc.
-    </p>
+    <p class="section-desc">Publicações agrupadas por <code>modalidade_id</code> no snapshot mais recente. A modalidade determina o rito: dispensa, pregão, concorrência etc.</p>
 
     {#if loading}
-      <div class="skeleton-rows">
-        {#each [1,2,3,4,5] as _, i (i)}<Skeleton />{/each}
-      </div>
+      <div class="skeleton-rows">{#each [1,2,3,4,5] as _, i (i)}<Skeleton />{/each}</div>
     {:else if error}
       <AlertBanner title="Erro ao consultar parquet" message={error} level="error" />
     {:else if noData || modalidades.length === 0}
-      <p class="no-data">
-        Sem dados de modalidade ainda.
-        {parquetParticao
-          ? `Snapshot mais recente: ${parquetParticao}`
-          : 'Nenhum parquet disponível no manifesto.'}
-      </p>
+      <p class="no-data">Sem dados de modalidade ainda. {parquetParticao ? `Snapshot mais recente: ${parquetParticao}` : 'Nenhum parquet disponível no manifesto.'}</p>
     {:else}
-      {#if parquetParticao}
-        <p class="snapshot-note">Snapshot: <code>{parquetParticao}</code></p>
-      {/if}
-      <div class="table-wrap">
+      {#if parquetParticao}<p class="snapshot-note">Snapshot: <code>{parquetParticao}</code></p>{/if}
+      <div class="table-wrap" tabindex="0" aria-label="Contratações por modalidade; role horizontalmente para ver todas as colunas em telas estreitas">
         <table>
-          <thead>
-            <tr>
-              <th>Modalidade</th>
-              <th class="num">Publicações</th>
-              <th class="num">Valor estimado total</th>
-            </tr>
-          </thead>
+          <thead><tr><th>Modalidade</th><th class="num">Publicações</th><th class="num">Valor estimado total</th></tr></thead>
           <tbody>
             {#each modalidades as row (row.modalidade_nome)}
-              <tr>
-                <td>{row.modalidade_nome}</td>
-                <td class="num">{formatInteger(row.n)}</td>
-                <td class="num">{formatBRL(row.valor_total)}</td>
-              </tr>
+              <tr><td>{row.modalidade_nome}</td><td class="num">{formatInteger(row.n)}</td><td class="num">{formatBRL(row.valor_total)}</td></tr>
             {/each}
           </tbody>
         </table>
@@ -159,54 +121,30 @@
     {/if}
   </section>
 
-  <!-- Schema reference -->
   <section class="schema-panel" aria-labelledby="schema-title">
     <h2 id="schema-title">Esquema do dataset</h2>
-    <p class="section-desc">
-      Colunas disponíveis no Parquet arquivado. Chave primária: <code>numero_controle_pncp</code>.
-    </p>
+    <p class="section-desc">Colunas disponíveis no Parquet arquivado. Chave primária: <code>numero_controle_pncp</code>.</p>
     <div class="schema-cols">
       {#each [
-        ['numero_controle_pncp','VARCHAR','PK — identificador único'],
-        ['cnpj_orgao','VARCHAR','CNPJ do órgão contratante'],
-        ['razao_social_orgao','VARCHAR','Nome do órgão'],
-        ['modalidade_id','INTEGER','Código da modalidade (1–14)'],
-        ['modalidade_nome','VARCHAR','Nome da modalidade'],
-        ['objeto_compra','VARCHAR','Objeto da contratação'],
-        ['valor_total_estimado','DOUBLE','Valor estimado (R$)'],
-        ['data_publicacao_pncp','VARCHAR','Data de publicação no PNCP'],
-        ['data_abertura_proposta','VARCHAR','Abertura de propostas'],
-        ['data_encerramento_proposta','VARCHAR','Encerramento de propostas'],
-        ['uf_sigla','VARCHAR','UF do órgão'],
-        ['data_particao','VARCHAR','Partição YYYY-MM'],
+        ['numero_controle_pncp','VARCHAR','PK — identificador único'], ['cnpj_orgao','VARCHAR','CNPJ do órgão contratante'],
+        ['razao_social_orgao','VARCHAR','Nome do órgão'], ['modalidade_id','INTEGER','Código da modalidade (1–14)'],
+        ['modalidade_nome','VARCHAR','Nome da modalidade'], ['objeto_compra','VARCHAR','Objeto da contratação'],
+        ['valor_total_estimado','DOUBLE','Valor estimado (R$)'], ['data_publicacao_pncp','VARCHAR','Data de publicação no PNCP'],
+        ['data_abertura_proposta','VARCHAR','Abertura de propostas'], ['data_encerramento_proposta','VARCHAR','Encerramento de propostas'],
+        ['uf_sigla','VARCHAR','UF do órgão'], ['data_particao','VARCHAR','Partição YYYY-MM'],
       ] as col (col[0])}
-        <div class="col-row">
-          <code class="col-name">{col[0]}</code>
-          <span class="col-type">{col[1]}</span>
-          <span class="col-desc">{col[2]}</span>
-        </div>
+        <div class="col-row"><code class="col-name">{col[0]}</code><span class="col-type">{col[1]}</span><span class="col-desc">{col[2]}</span></div>
       {/each}
     </div>
   </section>
 
-  <!-- Archive links -->
   <section class="archive-links" aria-labelledby="archive-title">
     <h2 id="archive-title">Acesso ao arquivo</h2>
     <ul>
-      <li>
-        <a href="https://archive.org/search?query=subject%3Abaliza-pncp+identifier%3Abaliza-pncp-*" target="_blank" rel="noopener">
-          Itens mensais no Internet Archive ↗
-        </a>
-      </li>
-      <li>
-        <a href={resolve('arquivo')}>Catálogo completo da coleção Baliza</a>
-      </li>
-      <li>
-        <a href={resolve('explorador')}>Consultar via SQL no navegador (DuckDB)</a>
-      </li>
-      <li>
-        <a href={resolve('desenvolvedores')}>URLs estáveis para Python, R, JS</a>
-      </li>
+      <li><a href="https://archive.org/search?query=subject%3Abaliza-pncp+identifier%3Abaliza-pncp-*" target="_blank" rel="noopener">Itens mensais no Internet Archive ↗</a></li>
+      <li><a href={resolve('arquivo')}>Catálogo completo da coleção Baliza</a></li>
+      <li><a href={resolve('explorador')}>Consultar via SQL no navegador (DuckDB)</a></li>
+      <li><a href={resolve('desenvolvedores')}>URLs estáveis para Python, R, JS</a></li>
     </ul>
   </section>
 </main>
@@ -225,17 +163,27 @@
   .section-desc { font-size: var(--text-sm); color: var(--color-text-dim); margin: 0 0 var(--space-4); }
   .snapshot-note { font-size: var(--text-xs); color: var(--color-text-dim); margin: 0 0 var(--space-3); }
   .no-data { color: var(--color-text-dim); font-style: italic; }
-  .table-wrap { overflow-x: auto; }
+  .table-wrap { overflow-x: auto; overscroll-behavior-inline: contain; }
+  .table-wrap:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
   table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
   th, td { text-align: left; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--color-border); }
   th { font-weight: 600; color: var(--color-text-dim); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: .06em; }
   .num { text-align: right; }
   .schema-cols { display: grid; gap: var(--space-1); }
-  .col-row { display: grid; grid-template-columns: 220px 90px 1fr; gap: var(--space-2); padding: var(--space-1) 0; font-size: var(--text-sm); border-bottom: 1px solid var(--color-border); align-items: baseline; }
-  .col-name { font-size: var(--text-xs); }
+  .col-row { display: grid; grid-template-columns: minmax(0, 220px) 90px minmax(0, 1fr); gap: var(--space-2); padding: var(--space-1) 0; font-size: var(--text-sm); border-bottom: 1px solid var(--color-border); align-items: baseline; }
+  .col-name { font-size: var(--text-xs); overflow-wrap: anywhere; }
   .col-type { color: var(--color-text-dim); font-size: var(--text-xs); }
   .col-desc { color: var(--color-text-dim); font-size: var(--text-xs); }
   .archive-links ul { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-2); }
   .archive-links li { font-size: var(--text-sm); }
   .skeleton-rows { display: grid; gap: var(--space-2); }
+
+  @media (max-width: 480px) {
+    .table-wrap { margin-inline: calc(-1 * var(--space-4)); padding-inline: var(--space-4); }
+    table { min-width: 560px; }
+    .col-row { grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: var(--space-1) var(--space-3); padding-block: var(--space-2); }
+    .col-name { min-width: 0; }
+    .col-type { justify-self: end; }
+    .col-desc { grid-column: 1 / -1; line-height: 1.45; }
+  }
 </style>
