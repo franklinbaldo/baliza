@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from typer.testing import CliRunner
-
 import baliza.cli_simple as cli
+from typer.testing import CliRunner
 
 
 runner = CliRunner()
