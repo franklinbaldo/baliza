@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from baliza import cli_simple as cli
 from typer.testing import CliRunner
+
+from baliza.cli_simple import app
 
 
 runner = CliRunner()
@@ -17,8 +18,8 @@ def _previous_month(today: date) -> date:
 
 
 def _run_doctor(monkeypatch, rows: list[dict[str, str]], resource: str, start: str):
-    monkeypatch.setattr(cli, "read_manifest_from_ia", lambda: rows)
-    return runner.invoke(cli.app, ["doctor", "--resource", resource, "--start", start])
+    monkeypatch.setattr("baliza.cli_simple.read_manifest_from_ia", lambda: rows)
+    return runner.invoke(app, ["doctor", "--resource", resource, "--start", start])
 
 
 def test_doctor_allows_current_monthly_partition_awaiting_build(monkeypatch):
