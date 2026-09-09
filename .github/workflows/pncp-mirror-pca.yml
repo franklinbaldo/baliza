@@ -37,7 +37,7 @@ jobs:
 
       - id: year
         run: echo "key=$(date +'%Y')" >> $GITHUB_OUTPUT
-      - uses: actions/cache@v5
+      - uses: actions/cache@v6
         with:
           path: data/raw
           key: pncp-raw-pca-${{ steps.year.outputs.key }}-${{ github.run_id }}
