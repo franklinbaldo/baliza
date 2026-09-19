@@ -40,7 +40,7 @@ jobs:
       - uses: actions/cache@v5
         with:
           path: data/raw
-          key: pncp-raw-pca-${{ steps.year.outputs.key }}-${{ github.run_id }}
+          key: pncp-raw-pca-${{ steps.year.outputs.key }}
           restore-keys: pncp-raw-pca-${{ steps.year.outputs.key }}-
 
       - name: Mirror PCA (raw JSON → IA ZIP)
