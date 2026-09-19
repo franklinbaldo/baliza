@@ -63,10 +63,14 @@ jobs:
       - uses: astral-sh/setup-uv@v4
       - id: month
         run: echo "key=$(date +'%Y-%m')" >> $GITHUB_OUTPUT
+      # One mutable working set per month, not one immutable cache per run.
+      # On the first run after this change, restore-keys migrates the latest
+      # legacy run-scoped cache into the stable monthly key. Subsequent exact
+      # hits are restored without saving another copy.
       - uses: actions/cache@v5
         with:
           path: data/raw
-          key: pncp-raw-${{ steps.month.outputs.key }}-${{ github.run_id }}
+          key: pncp-raw-${{ steps.month.outputs.key }}
           restore-keys: pncp-raw-${{ steps.month.outputs.key }}-
       - env:
           IA_ACCESS_KEY: ${{ secrets.IA_ACCESS_KEY }}
