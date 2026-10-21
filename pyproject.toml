@@ -13,12 +13,17 @@ dependencies = [
     "typer>=0.9.0",
     "httpx[http2]>=0.27.0",
     "rich>=13.0.0",
-    "duckdb>=1.4.3",
+    # Ibis 12 still uses fetch_arrow_table, removed in DuckDB 2.0 (#704).
+    # Revisit the major-version cap with an Ibis upgrade and real backend tests.
+    "duckdb>=1.4.3,<2",
     "pyarrow>=14.0.0",
     "tenacity>=8.2.0",
     "structlog>=24.0.0",
     "internetarchive>=5.8.0",
     "ibis-framework[duckdb]>=12.0.0",
+    # Ibis 12 constructs Drop(this=...), incompatible with SQLGlot 30.
+    # Without this cap, overwrite emits DROP TABLE IF EXISTS without a name.
+    "sqlglot>=23.4,<30",
     "pydantic>=2.0,<3.0",
 ]
 
