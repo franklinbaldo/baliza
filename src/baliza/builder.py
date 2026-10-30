@@ -19,10 +19,11 @@ import httpx
 import structlog
 
 from .constants import RESOURCE_CONTRATOS
+from .coverage import validate_coverage
 from .daily_exporter import SCHEMA_VERSION
 from .engine import BalizaEngine
 from .extractor import PNCPExtractor
-from .ia_uploader import IAUploader, read_manifest_from_ia
+from .ia_uploader import IAUploader, _sha256, read_manifest_from_ia
 from .partitioning import (
     clamp_to_data_start,
     current_partition_start,
@@ -128,7 +129,7 @@ def _download_raw_zip(zip_url: str, month_str: str, dest: Path) -> Path:
     return zip_path
 
 
-def build_month(  # noqa: PLR0913, PLR0915
+def build_month(  # noqa: PLR0912, PLR0913, PLR0915
     start_of_month: date,
     *,
     ia_access_key: str,
@@ -202,10 +203,15 @@ def build_month(  # noqa: PLR0913, PLR0915
         try:
             zip_path = _download_raw_zip(raw_zip_url, month_str, tmp_path)
         except httpx.HTTPStatusError as e:
-            if e.response.status_code == 404:
+            if e.response.status_code == 404 and resource != "publicacoes":
                 _emit(f"{month_str}: no raw ZIP on IA (404) — skipping")
                 return result
             raise
+
+        if resource == "publicacoes":
+            expected_sha = manifest_row.get("raw_zip_sha256")
+            if not expected_sha or _sha256(zip_path) != expected_sha:
+                raise ValueError("Raw ZIP does not match the published manifest checksum")
 
         # 2. Extract to raw_dir structure — validate member paths to prevent traversal
         raw_dir = tmp_path / "raw" / month_str
@@ -217,6 +223,11 @@ def build_month(  # noqa: PLR0913, PLR0915
                 if not target.is_relative_to(resolved_raw_dir):
                     raise ValueError(f"Unsafe ZIP entry (path traversal): {member.filename}")
                 zf.extract(member, raw_dir)
+
+        if resource == "publicacoes":
+            coverage = validate_coverage(raw_dir, month_str)
+            if coverage.get("partition_closed") is not True:
+                raise ValueError("Cannot build canonical publicacoes from an open-month snapshot")
 
         # Temporarily move raw_dir to data/raw/{month_str} so PNCPExtractor
         # ingest_range (which hardcodes data/raw/{month_str}) can find the files.

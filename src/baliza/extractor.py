@@ -271,6 +271,8 @@ class PNCPExtractor:
         content = b""
         with self.client.stream("GET", url, params=params) as resp:
             resp.raise_for_status()
+            if resp.status_code == 204:
+                return {"data": [], "totalPaginas": 0, "totalRegistros": 0}
             for chunk in resp.iter_bytes():
                 content += chunk
                 if len(content) > max_size:

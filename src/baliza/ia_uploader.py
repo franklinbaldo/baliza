@@ -12,13 +12,15 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-import internetarchive as ia
+import internetarchive as ia  # noqa: F401 - compatibility for SDK patching
 from rich.console import Console
 
 from . import rss_feed
 from .artifacts import primary_canonical_file_type, require_artifact, resolve_export_params
+from .coverage import validate_coverage
 from .engine import BalizaEngine
 from .extractor import FETCHED_SENTINEL
+from .ia_retry import upload_with_retry
 from .partitioning import partition_label
 from .resources import CONTRATOS, get_resource, raw_zip_filename
 from .utils import DUCKDB_PARQUET_COPY_OPTIONS, PARQUET_ROW_GROUP_SIZE
@@ -169,6 +171,8 @@ MANIFEST_FIELDNAMES = [
     "raw_zip_size_bytes",
     "parquet_uploaded_at",
     "parquet_schema_version",
+    "raw_coverage_complete",
+    "raw_partition_closed",
 ]
 
 
@@ -228,7 +232,7 @@ def write_manifest_to_ia(rows: list[dict[str, Any]], access_key: str, secret_key
         writer.writerows(rows)
         temp_csv = tf.name
     try:
-        ia.upload(
+        upload_with_retry(
             MANIFEST_ITEM_ID,
             files={"manifest.csv": temp_csv},
             access_key=access_key,
@@ -238,7 +242,6 @@ def write_manifest_to_ia(rows: list[dict[str, Any]], access_key: str, secret_key
                 "mediatype": "data",
                 "subject": [BALIZA_COLLECTION_TAG],
             },
-            retries=3,
         )
     finally:
         if Path(temp_csv).exists():
@@ -342,9 +345,13 @@ def _pack_resource_pages_zip(
     """
     page_glob = f"{resource}*_p*.json"
     page_files = sorted(raw_dir.glob(page_glob))
-    if not page_files:
+    if not page_files and resource != "publicacoes":
         return False
+    if resource == "publicacoes":
+        validate_coverage(raw_dir, raw_dir.name)
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        if resource == "publicacoes":
+            zf.write(raw_dir / "_coverage.json", "_coverage.json")
         for page_path in page_files:
             zf.write(page_path, page_path.name)
         sentinel = raw_dir / FETCHED_SENTINEL
@@ -567,30 +574,45 @@ class IAUploader:
         month_str = partition_label(get_resource(resource), start_date)
         zip_basename = raw_zip_filename(resource, month_str)
 
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            temp_path = Path(tmp_dir)
-            zip_path = temp_path / zip_basename
-
-            # Per-resource scoping: pack only this resource's pages so a
-            # sequential ``mirror --resource contratos`` followed by
-            # ``mirror --resource atas`` doesn't end up with one
-            # resource's zip containing the other's cached pages.
-            _pack_resource_pages_zip(raw_dir, zip_path, resource=resource)
-
-            raw_zip_sha256 = _sha256(zip_path)
-            raw_zip_size = zip_path.stat().st_size
-
-            console.print(
-                f"  Uploading raw ZIP for {resource}/{month_str} to {RAW_ITEM_ID}..."
-            )
-            ia.upload(
+        pending_dir = Path("data/pending") / resource / month_str
+        pending_dir.mkdir(parents=True, exist_ok=True)
+        zip_path = pending_dir / zip_basename
+        receipt = pending_dir / "uploaded.sha256"
+        if not zip_path.exists():
+            candidate = pending_dir / (zip_basename + ".tmp")
+            if not _pack_resource_pages_zip(raw_dir, candidate, resource=resource):
+                raise ValueError("No raw pages to publish")
+            candidate.replace(zip_path)
+        coverage_fields: dict[str, str] = {}
+        # Validate archived coverage on every resume, before touching IA.
+        if resource == "publicacoes":
+            with tempfile.TemporaryDirectory() as check_dir:
+                with zipfile.ZipFile(zip_path) as zf:
+                    for name in zf.namelist():
+                        if Path(name).name != name:
+                            raise ValueError("Unsafe pending ZIP member")
+                    zf.extractall(check_dir)
+                coverage = validate_coverage(Path(check_dir), month_str)
+                coverage_fields = {
+                    "raw_coverage_complete": "true",
+                    "raw_partition_closed": str(coverage.get("partition_closed") is True).lower(),
+                    # A new raw snapshot has not yet produced a canonical Parquet.
+                    "parquet_uploaded_at": "",
+                    "parquet_schema_version": "",
+                }
+        raw_zip_sha256 = _sha256(zip_path)
+        raw_zip_size = zip_path.stat().st_size
+        if not receipt.exists() or receipt.read_text() != raw_zip_sha256:
+            console.print(f"  Uploading raw ZIP for {resource}/{month_str} to {RAW_ITEM_ID}...")
+            upload_with_retry(
                 RAW_ITEM_ID,
                 files={zip_path.name: str(zip_path)},
                 access_key=ia_access_key,
                 secret_key=ia_secret_key,
                 metadata=RAW_ITEM_METADATA,
-                retries=3,
             )
+            # An acknowledged PUT need not be repeated after manifest failure.
+            receipt.write_text(raw_zip_sha256)
 
         raw_zip_url = f"https://archive.org/download/{RAW_ITEM_ID}/{zip_basename}"
         now = datetime.now().isoformat()
@@ -600,6 +622,7 @@ class IAUploader:
                 month_str,
                 {
                     "raw_zip_url": raw_zip_url,
+                    **coverage_fields,
                     "mirror_uploaded_at": now,
                     "raw_zip_sha256": raw_zip_sha256,
                     "raw_zip_size_bytes": raw_zip_size,
@@ -612,6 +635,9 @@ class IAUploader:
             success = True
         except Exception as e:
             console.print(f"[red]✗ Manifest update failed for {resource}/{month_str}: {e}[/red]")
+
+        if success:
+            shutil.rmtree(pending_dir)
 
         if success and not keep_raw_dir and raw_dir.exists():
             shutil.rmtree(raw_dir)
@@ -688,7 +714,7 @@ class IAUploader:
                 parquet_size = Path(parquet_local).stat().st_size
 
             console.print(f"  Uploading Parquet for {month_str} to {item_id}...")
-            ia.upload(
+            upload_with_retry(
                 item_id,
                 files=files_to_upload,
                 access_key=ia_access_key,
@@ -700,8 +726,7 @@ class IAUploader:
                     "collection": "opensource_media",
                     "subject": [BALIZA_COLLECTION_TAG],
                 },
-                retries=3,
-            )
+                )
 
         now = datetime.now().isoformat()
         success = False
@@ -788,14 +813,13 @@ class IAUploader:
             console.print(
                 f"  Uploading {len(files_to_upload)} feed(s) to {FEEDS_ITEM_ID}..."
             )
-            ia.upload(
+            upload_with_retry(
                 FEEDS_ITEM_ID,
                 files=files_to_upload,
                 access_key=ia_access_key,
                 secret_key=ia_secret_key,
                 metadata=FEEDS_ITEM_METADATA,
-                retries=3,
-            )
+                )
         return published
 
     def upload_month(  # noqa: PLR0912, PLR0913
@@ -859,7 +883,7 @@ class IAUploader:
 
             # 4. Perform Upload
             console.print(f"  Uploading {len(files_to_upload)} files to {item_id}...")
-            ia.upload(
+            upload_with_retry(
                 item_id,
                 files=files_to_upload,
                 access_key=ia_access_key,
@@ -871,8 +895,7 @@ class IAUploader:
                     "collection": "opensource_media",
                     "subject": [BALIZA_COLLECTION_TAG],
                 },
-                retries=3,
-            )
+                )
 
             # 5. Update remote manifest.csv
             success = False

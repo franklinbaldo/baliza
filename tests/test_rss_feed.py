@@ -114,6 +114,11 @@ def test_upload_feeds_binds_against_real_contratos_schema(tmp_path, monkeypatch)
 
         def fake_upload(item_id, files, **_kwargs):
             upload_calls.append({"item_id": item_id, "files": dict(files)})
+            import requests
+
+            acknowledgement = requests.Response()
+            acknowledgement.status_code = 200
+            return [acknowledgement]
 
         monkeypatch.setattr("baliza.ia_uploader.ia.upload", fake_upload)
 

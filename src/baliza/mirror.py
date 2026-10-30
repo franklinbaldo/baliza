@@ -17,6 +17,7 @@ from typing import Any
 import structlog
 
 from .constants import RESOURCE_CONTRATOS
+from .coverage import modalidade_coverage
 from .extractor import FETCHED_SENTINEL, PNCPExtractor, _validate_resource
 from .ia_uploader import IAUploader, read_manifest_from_ia
 from .partitioning import (
@@ -26,7 +27,7 @@ from .partitioning import (
     partition_for,
     previous_partition_start,
 )
-from .resources import get_resource
+from .resources import get_resource, raw_zip_filename
 
 logger = structlog.get_logger()
 
@@ -63,6 +64,7 @@ def _pending_mirror_months(
         if row.get("data_particao")
         and row.get("raw_zip_url")
         and row.get("table_name") == resource
+        and not (resource == "publicacoes" and row.get("raw_partition_closed") == "false")
     }
 
     current = current_partition_start(resource_obj)
@@ -81,6 +83,11 @@ def _pending_mirror_months(
     # Current partition: always include (incremental updates).
     pending.append(current)
 
+    # Publication checkpoints remain pending even if an older manifest row exists.
+    for period in iter_partitions(resource_obj, start, last_complete):
+        checkpoint = Path("data/pending") / resource / period.label
+        if checkpoint.exists() and period.start not in pending:
+            pending.append(period.start)
     pending.sort(reverse=True)
     return pending[:batch_size] if batch_size else pending
 
@@ -145,6 +152,19 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
         "pages_cached": 0,
         "uploaded": False,
     }
+
+    # A complete prepared snapshot must finish publication before any new PNCP fetch.
+    pending = Path("data/pending") / resource / month_str / raw_zip_filename(resource, month_str)
+    if pending.exists() and not dry_run:
+        result["uploaded"] = IAUploader(engine=None).upload_raw_zip(
+            start_of_month, raw_month_dir, ia_access_key, ia_secret_key,
+            keep_raw_dir=is_current_month, resource=resource,
+        )
+        return result
+
+    coverage_rows: list[dict[str, Any]] = []
+    if resource == "publicacoes":
+        (raw_month_dir / "_coverage.json").unlink(missing_ok=True)
 
     # Drift-B publicacoes wiring: when the resource declares
     # required_params, we fan out the page iteration across every
@@ -232,27 +252,11 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
                         pass
 
             if total_pages is None:
-                if len(combos) > 1:
-                    # Fan-out path: a single modalidade failing
-                    # (timeout, 204) shouldn't tank the whole month.
-                    # Log and skip just this combo.
-                    try:
-                        res = extractor.probe_range(
-                            resource, month_start_dt, month_end_dt, extra_params=extra_params,
-                        )
-                    except Exception as exc:  # noqa: BLE001
-                        logger.warning(
-                            "fanout_probe_failed",
-                            month=month_str, combo=combo_label, error=str(exc),
-                        )
-                        continue
-                else:
-                    # No fan-out: legacy contratos / atas behavior
-                    # — probe failures abort the month so we don't
-                    # silently upload a stale or empty ZIP (Codex P1).
-                    res = extractor.probe_range(
-                        resource, month_start_dt, month_end_dt, extra_params=extra_params,
-                    )
+                if resource == "publicacoes":
+                    (raw_month_dir / _combo_page_filename(combo, 1)).unlink(missing_ok=True)
+                res = extractor.probe_range(
+                    resource, month_start_dt, month_end_dt, extra_params=extra_params,
+                )
                 total_pages = res["total_pages"]
 
             if is_current_month:
@@ -279,36 +283,42 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
             )
 
             for p in missing_pages:
-                if len(combos) > 1:
-                    # Fan-out: tolerate per-page transient failures so
-                    # one bad modalidade doesn't tank the whole month.
-                    try:
-                        extractor.fetch_page(
-                            resource, month_start_dt, month_end_dt, p,
-                            extra_params=extra_params,
-                        )
-                    except Exception as exc:  # noqa: BLE001
-                        logger.warning(
-                            "fanout_page_fetch_failed",
-                            month=month_str, combo=combo_label, page=p, error=str(exc),
-                        )
-                        continue
-                else:
-                    # No fan-out: legacy behavior — page fetch
-                    # exceptions abort the month so callers see the
-                    # error signal rather than uploading partial
-                    # archives (Codex P1).
-                    extractor.fetch_page(
-                        resource, month_start_dt, month_end_dt, p,
-                        extra_params=extra_params,
-                    )
+                extractor.fetch_page(
+                    resource, month_start_dt, month_end_dt, p, extra_params=extra_params,
+                )
                 result["pages_fetched"] = int(result["pages_fetched"]) + 1
                 _emit(f"{month_str} {combo_label} page {p}/{total_pages}")
+
+            if resource == "publicacoes":
+                # Remove pages from an older, larger probe before certifying the snapshot.
+                wanted = {_combo_page_filename(combo, p) for p in range(1, total_pages + 1)}
+                for old in raw_month_dir.glob(f"publicacoes{_combo_suffix(combo)}_p*.json"):
+                    if old.name not in wanted:
+                        old.unlink()
+                try:
+                    coverage_rows.append(modalidade_coverage(
+                        raw_month_dir, combo, total_pages, res["total_registries"],
+                    ))
+                except ValueError:
+                    # The count changed since these pages were cached. Retry this
+                    # modalidade from scratch rather than certifying mixed snapshots.
+                    for stale in raw_month_dir.glob(f"publicacoes{_combo_suffix(combo)}_p*.json"):
+                        stale.unlink()
+                    raise
 
         # Write sentinel so next run can skip probe (no-fanout only).
         raw_month_dir.mkdir(parents=True, exist_ok=True)
         if not required_params:
             sentinel.touch()
+
+    if resource == "publicacoes":
+        coverage = {"resource": resource, "partition": month_str, "complete": True,
+                    "page_size": 50, "modalidades": coverage_rows,
+                    "captured_at": datetime.now().isoformat(),
+                    "partition_closed": not is_current_month}
+        temp = raw_month_dir / "_coverage.json.tmp"
+        temp.write_text(json.dumps(coverage, sort_keys=True), encoding="utf-8")
+        temp.replace(raw_month_dir / "_coverage.json")
 
     if dry_run:
         _emit(f"[dry-run] {month_str}: {total_pages} pages ready for zipping")
