@@ -41,7 +41,9 @@ jobs:
             data/raw
             data/pending
           key: pncp-publicacoes-v2-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: pncp-publicacoes-v2-
+          restore-keys: |
+            pncp-publicacoes-v2-
+            pncp-raw-publicacoes-${{ steps.month.outputs.key }}
 
       - name: Mirror publicacoes (raw JSON → IA ZIP)
         env:

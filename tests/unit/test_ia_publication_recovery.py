@@ -9,7 +9,7 @@ from unittest.mock import Mock
 import pytest
 import requests
 
-from baliza.coverage import validate_coverage
+from baliza.coverage import modalidade_coverage, validate_coverage
 from baliza.ia_retry import PublicationError, rejection_kind, upload_with_retry
 from baliza.ia_uploader import IAUploader, _sha256
 from baliza.mirror import mirror_month
@@ -225,6 +225,21 @@ def test_open_snapshot_stays_pending_after_rollover(monkeypatch):
     monkeypatch.setattr("baliza.mirror.current_partition_start", lambda _: date(2026, 9, 1))
     monkeypatch.setattr("baliza.mirror.previous_partition_start", lambda _: date(2026, 8, 1))
     assert date(2026, 8, 1) in _pending_mirror_months(date(2026, 8, 1), None, resource="publicacoes")
+
+
+def test_incremental_full_pages_can_have_older_total_metadata(tmp_path):
+    combo = {"codigoModalidadeContratacao": 1}
+    first = [{"numeroControlePNCP": str(i)} for i in range(50)]
+    last = [{"numeroControlePNCP": "50"}]
+    for page, records, total in [(1, first, 50), (2, last, 51)]:
+        (tmp_path / f"publicacoes_codigoModalidadeContratacao1_p{page}.json").write_text(
+            json.dumps({"data": records, "totalRegistros": total, "totalPaginas": page}))
+    assert modalidade_coverage(tmp_path, combo, 2, 51)["records"] == 51
+    # A shifted/duplicated page must not pass merely because the counts match.
+    path = tmp_path / "publicacoes_codigoModalidadeContratacao1_p2.json"
+    path.write_text(json.dumps({"data": [{"numeroControlePNCP": "0"}]}))
+    with pytest.raises(ValueError, match="Duplicate"):
+        modalidade_coverage(tmp_path, combo, 2, 51)
 
 
 def test_build_rejects_legacy_zip_before_engine(monkeypatch, tmp_path):

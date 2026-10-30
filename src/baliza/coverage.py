@@ -28,14 +28,24 @@ def modalidade_coverage(
     records = 0
     dates: list[str] = []
     files = {}
+    seen_ids: set[str] = set()
     for page in range(1, pages + 1):
         path = raw_dir / f"publicacoes{suffix}_p{page}.json"
         data = json.loads(path.read_text())
         rows = data["data"]
         if not isinstance(rows, list):
             raise ValueError(f"Invalid records in {path.name}")
-        if data.get("totalPaginas") != pages or data.get("totalRegistros") != expected_records:
-            raise ValueError(f"Pagination changed in {path.name}; refresh cached pages")
+        expected_page_size = min(50, expected_records - (page - 1) * 50)
+        if len(rows) != expected_page_size:
+            raise ValueError(f"Incomplete page {path.name}")
+        # Cached full pages can predate the latest probe: their historical total
+        # metadata is not the new snapshot's total. Validate the actual records.
+        for row in rows:
+            identifier = row.get("numeroControlePNCP")
+            if identifier:
+                if identifier in seen_ids:
+                    raise ValueError(f"Duplicate publication across pages: {identifier}")
+                seen_ids.add(identifier)
         records += len(rows)
         dates.extend(
             str(row["dataPublicacaoPncp"])[:10] for row in rows if row.get("dataPublicacaoPncp")

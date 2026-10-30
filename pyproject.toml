@@ -29,7 +29,8 @@ dependencies = [
 
 [project.optional-dependencies]
 test = [
-    "pytest>=8.0.0",
+    # pytest-bdd 7 uses fixture internals removed in pytest 9.2.
+    "pytest>=8.0.0,<9",
     "pytest-asyncio>=0.23.0",
     "pytest-mock>=3.14.0",
     "pytest-httpx>=0.30.0",
