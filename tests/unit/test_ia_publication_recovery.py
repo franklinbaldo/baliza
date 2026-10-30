@@ -166,6 +166,11 @@ def test_manifest_retry_does_not_reupload_zip(monkeypatch, prepared):
     assert uploader.upload_raw_zip(date(2026, 8, 1), prepared, "x", "y", resource="publicacoes")
     assert put.call_count == 1
     assert manifest.call_count == 2
+    fields = manifest.call_args.args[1]
+    assert fields["raw_coverage_complete"] == "true"
+    assert fields["parquet_uploaded_at"] == ""
+    assert fields["parquet_url"] == ""
+    assert fields["sha256"] == ""
 
 
 def test_coverage_rejects_altered_missing_and_surplus_pages(prepared):

@@ -599,6 +599,9 @@ class IAUploader:
                     # A new raw snapshot has not yet produced a canonical Parquet.
                     "parquet_uploaded_at": "",
                     "parquet_schema_version": "",
+                    "parquet_url": "",
+                    "sha256": "",
+                    "file_size_bytes": "",
                 }
         raw_zip_sha256 = _sha256(zip_path)
         raw_zip_size = zip_path.stat().st_size
