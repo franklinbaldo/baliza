@@ -3,7 +3,6 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock
 
 import duckdb
 import pytest
@@ -278,7 +277,11 @@ def mock_ia_upload(monkeypatch) -> list[dict[str, Any]]:
                 "kwargs": kwargs,
             }
         )
-        return [MagicMock(status_code=200)]
+        import requests
+
+        acknowledgement = requests.Response()
+        acknowledgement.status_code = 200
+        return [acknowledgement]
 
     monkeypatch.setattr("internetarchive.upload", _fake_upload)
     monkeypatch.setattr("baliza.ia_uploader.ia.upload", _fake_upload)
