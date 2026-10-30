@@ -36,14 +36,22 @@ jobs:
       - id: month
         run: echo "key=$(date +'%Y-%m')" >> $GITHUB_OUTPUT
       - uses: actions/cache/restore@v5
+        id: publication_cache
         with:
           path: |
             data/raw
             data/pending
           key: pncp-publicacoes-v2-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            pncp-publicacoes-v2-
-            pncp-raw-publicacoes-${{ steps.month.outputs.key }}
+          restore-keys: pncp-publicacoes-v2-
+
+      # Cache version includes the path list: restore the old raw-only entry
+      # separately during migration, only if no publication checkpoint exists.
+      - uses: actions/cache/restore@v5
+        if: steps.publication_cache.outputs.cache-matched-key == ''
+        with:
+          path: data/raw
+          key: pncp-raw-publicacoes-${{ steps.month.outputs.key }}
+          restore-keys: pncp-raw-publicacoes-${{ steps.month.outputs.key }}-
 
       - name: Mirror publicacoes (raw JSON → IA ZIP)
         env:
