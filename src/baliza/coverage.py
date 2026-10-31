@@ -10,6 +10,17 @@ from typing import Any
 from .resources import get_resource
 
 
+class IncompletePageError(ValueError):
+    """A specific page disagrees with the current pagination probe."""
+
+    def __init__(self, path: Path, page: int, expected: int, actual: int):
+        self.path = path
+        self.page = page
+        self.expected = expected
+        self.actual = actual
+        super().__init__(f"Incomplete page {path.name}: expected {expected}, got {actual}")
+
+
 def page_digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -37,7 +48,7 @@ def modalidade_coverage(
             raise ValueError(f"Invalid records in {path.name}")
         expected_page_size = min(50, expected_records - (page - 1) * 50)
         if len(rows) != expected_page_size:
-            raise ValueError(f"Incomplete page {path.name}")
+            raise IncompletePageError(path, page, expected_page_size, len(rows))
         # Cached full pages can predate the latest probe: their historical total
         # metadata is not the new snapshot's total. Validate the actual records.
         for row in rows:

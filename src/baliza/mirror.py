@@ -17,7 +17,6 @@ from typing import Any
 import structlog
 
 from .constants import RESOURCE_CONTRATOS
-from .coverage import modalidade_coverage
 from .extractor import FETCHED_SENTINEL, PNCPExtractor, _validate_resource
 from .ia_uploader import IAUploader, read_manifest_from_ia
 from .partitioning import (
@@ -27,6 +26,7 @@ from .partitioning import (
     partition_for,
     previous_partition_start,
 )
+from .publicacoes_capture import capture_modalidade
 from .resources import get_resource, raw_zip_filename
 
 logger = structlog.get_logger()
@@ -86,7 +86,13 @@ def _pending_mirror_months(
     # Publication checkpoints remain pending even if an older manifest row exists.
     for period in iter_partitions(resource_obj, start, last_complete):
         checkpoint = Path("data/pending") / resource / period.label
-        if checkpoint.exists() and period.start not in pending:
+        unfinished_cache = resource == "publicacoes" and any(
+            (Path("data/raw") / period.label).glob("publicacoes*_p*.json")
+        ) and period.label not in {
+            row.get("data_particao") for row in raw_manifest
+            if row.get("table_name") == resource and row.get("raw_partition_closed") == "true"
+        }
+        if (checkpoint.exists() or unfinished_cache) and period.start not in pending:
             pending.append(period.start)
     pending.sort(reverse=True)
     return pending[:batch_size] if batch_size else pending
@@ -221,6 +227,15 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
             return False
 
         for combo in combos:
+            if resource == "publicacoes":
+                row, fetched, cached = capture_modalidade(
+                    extractor, raw_month_dir, combo, month_start_dt, month_end_dt, _emit,
+                )
+                coverage_rows.append(row)
+                result["pages_fetched"] += fetched
+                result["pages_cached"] += cached
+                continue
+
             extra_params = combo or None
             combo_label = _combo_suffix(combo) or "(default)"
 
@@ -252,8 +267,6 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
                         pass
 
             if total_pages is None:
-                if resource == "publicacoes":
-                    (raw_month_dir / _combo_page_filename(combo, 1)).unlink(missing_ok=True)
                 res = extractor.probe_range(
                     resource, month_start_dt, month_end_dt, extra_params=extra_params,
                 )
@@ -289,23 +302,6 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
                 result["pages_fetched"] = int(result["pages_fetched"]) + 1
                 _emit(f"{month_str} {combo_label} page {p}/{total_pages}")
 
-            if resource == "publicacoes":
-                # Remove pages from an older, larger probe before certifying the snapshot.
-                wanted = {_combo_page_filename(combo, p) for p in range(1, total_pages + 1)}
-                for old in raw_month_dir.glob(f"publicacoes{_combo_suffix(combo)}_p*.json"):
-                    if old.name not in wanted:
-                        old.unlink()
-                try:
-                    coverage_rows.append(modalidade_coverage(
-                        raw_month_dir, combo, total_pages, res["total_registries"],
-                    ))
-                except ValueError:
-                    # The count changed since these pages were cached. Retry this
-                    # modalidade from scratch rather than certifying mixed snapshots.
-                    for stale in raw_month_dir.glob(f"publicacoes{_combo_suffix(combo)}_p*.json"):
-                        stale.unlink()
-                    raise
-
         # Write sentinel so next run can skip probe (no-fanout only).
         raw_month_dir.mkdir(parents=True, exist_ok=True)
         if not required_params:
@@ -321,7 +317,7 @@ def mirror_month(  # noqa: PLR0912, PLR0913, PLR0915
         temp.replace(raw_month_dir / "_coverage.json")
 
     if dry_run:
-        _emit(f"[dry-run] {month_str}: {total_pages} pages ready for zipping")
+        _emit(f"[dry-run] {month_str}: {result['pages_fetched']} fetched pages ready for zipping")
         return result
 
     uploader = IAUploader(engine=None)
