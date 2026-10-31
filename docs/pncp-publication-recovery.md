@@ -70,3 +70,24 @@ uv run pytest tests/unit/test_ia_publication_recovery.py tests/unit/test_publica
 uv run ruff check src/ tests/ scripts/
 uv run mypy src/baliza
 ```
+
+## Reconciliação de paginação ao vivo — run #177
+
+O run 41194131308 rejeitou a página 642 da modalidade 6 antes do upload.
+A mensagem antiga não registrava as contagens esperada/observada, portanto
+não prova por si só se o PNCP mudou durante a coleta ou devolveu uma página
+truncada. O tratamento apagava toda a modalidade; isso foi corrigido.
+
+Cada modalidade agora exige totais iguais em probes de rede antes e depois
+da coleta, além da validação dos registros efetivamente presentes. Mudança de
+totais ou erro tipado `IncompletePageError` dispara até três rodadas de
+reconciliação, reaproveitando páginas cheias e atualizando a cauda, a página
+especificamente divergente e páginas ausentes/corrompidas. O erro informa
+página, contagem esperada e observada. Ao esgotar o limite, falha antes de
+publicar e mantém as páginas para retomada. Duplicidades e falhas de rede
+continuam bloqueando publicação; a cobertura nunca é dispensada.
+
+O cache de uma partição ainda não certificada também a mantém pendente após a
+virada do mês, mesmo quando o manifesto aponta para um ZIP legado. Isso evita
+que outubro seja abandonado em novembro por causa do raw antigo de 29/10.
+Não há reabertura indiscriminada do histórico sem cache local.

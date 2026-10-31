@@ -18,6 +18,8 @@ def no_dns(monkeypatch):
 
 
 def _probe_ok(*args, **kwargs):
+    if args:
+        args[0].fetch_page("publicacoes", args[2], args[3], extra_params=kwargs.get("extra_params"))
     return {"total_pages": 1, "total_registries": 1}
 
 
@@ -43,7 +45,7 @@ def test_publicacoes_probe_failure_aborts_before_upload(monkeypatch, tmp_path):
     def probe(self, resource, start_date, end_date, *, extra_params=None):
         if extra_params == {"codigoModalidadeContratacao": 5}:
             raise TimeoutError("PNCP timed out")
-        return _probe_ok()
+        return _probe_ok(self, resource, start_date, end_date, extra_params=extra_params)
 
     monkeypatch.setattr("baliza.mirror.PNCPExtractor.probe_range", probe)
     monkeypatch.setattr("baliza.mirror.PNCPExtractor.fetch_page", _fetch_writes_page)

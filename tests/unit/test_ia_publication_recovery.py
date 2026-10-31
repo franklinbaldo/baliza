@@ -98,10 +98,6 @@ def prepared(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("baliza.extractor.validate_url", lambda url: url)
     monkeypatch.setattr("baliza.extractor.httpx.Client", Mock())
-    monkeypatch.setattr(
-        "baliza.mirror.PNCPExtractor.probe_range",
-        lambda *a, **k: {"total_pages": 1, "total_registries": 1},
-    )
 
     def fetch(self, resource, start, end, page=1, *, extra_params=None):
         data = {
